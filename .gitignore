@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.log
+*.tsbuildinfo
+
+# Copyrighted source scans of the original magazine — never commit these,
+# see docs/research/README.md.
+docs/*.jpg
+docs/*.jpeg
+docs/*.png

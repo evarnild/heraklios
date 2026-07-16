@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Héraklios — Éditeur de carte</title>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: #111;
+        color: #e8d9b0;
+        font-family: sans-serif;
+        height: 100%;
+        overflow: hidden;
+      }
+      #app {
+        display: flex;
+        width: 100vw;
+        height: 100vh;
+      }
+      #sidebar {
+        width: 260px;
+        flex: none;
+        background: #1a1408;
+        padding: 14px;
+        box-sizing: border-box;
+        overflow-y: auto;
+      }
+      #sidebar h1 {
+        font-size: 16px;
+        margin: 0 0 12px;
+      }
+      #sidebar h2 {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #a89878;
+        margin: 16px 0 6px;
+      }
+      #canvasWrap {
+        flex: 1;
+        position: relative;
+      }
+      canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        cursor: crosshair;
+      }
+      label {
+        display: block;
+        font-size: 13px;
+        margin: 6px 0 2px;
+      }
+      input[type='number'] {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 4px;
+      }
+      button {
+        display: block;
+        width: 100%;
+        margin-top: 8px;
+        padding: 8px;
+        font-size: 13px;
+        cursor: pointer;
+        background: #2a2016;
+        color: #e8d9b0;
+        border: 1px solid #4a3f2a;
+        border-radius: 3px;
+        text-align: left;
+      }
+      button:hover {
+        background: #3a2f1e;
+      }
+      button.active {
+        background: #4a5a2a;
+        border-color: #6a8a3a;
+      }
+      button.swatch {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .swatch-color {
+        width: 16px;
+        height: 16px;
+        border-radius: 2px;
+        flex: none;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+      }
+      #setupForm {
+        padding: 8px 0;
+      }
+      #status {
+        font-size: 12px;
+        color: #a89878;
+        margin-top: 10px;
+        line-height: 1.4;
+      }
+      #fileInput {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div id="sidebar">
+        <h1>Héraklios — Éditeur de carte</h1>
+        <div id="setupForm">
+          <label for="cols">Colonnes</label>
+          <input type="number" id="cols" value="20" min="1" max="80" />
+          <label for="rows">Lignes</label>
+          <input type="number" id="rows" value="20" min="1" max="80" />
+          <button id="createBtn">Créer la carte</button>
+        </div>
+        <div id="editorPanel" style="display: none">
+          <h2>Terrain</h2>
+          <div id="palette"></div>
+          <h2>Rivières</h2>
+          <button id="riverModeBtn">Mode rivière (arêtes)</button>
+          <h2>Fichier</h2>
+          <button id="downloadMapBtn">Télécharger map.ts</button>
+          <button id="exportJsonBtn">Exporter (JSON)</button>
+          <button id="importJsonBtn">Importer (JSON)</button>
+          <button id="newMapBtn">Nouvelle carte</button>
+          <input type="file" id="fileInput" accept="application/json" />
+          <div id="status"></div>
+        </div>
+      </div>
+      <div id="canvasWrap">
+        <canvas id="canvas"></canvas>
+      </div>
+    </div>
+    <script type="module" src="/src/map-editor/main.ts"></script>
+  </body>
+</html>
