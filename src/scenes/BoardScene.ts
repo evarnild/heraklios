@@ -17,8 +17,6 @@ import { unitType, currentAttack, currentDefense, type Unit } from '../engine/st
 import type { HexCoord } from '../data/map';
 import { MAP_TERRAIN } from '../data/map';
 
-const PLAYER_COLORS = ['#ffd54a', '#ff5a5a', '#5ab4ff', '#5aff7a'];
-
 export class BoardScene extends Phaser.Scene {
   private mapView!: MapView;
   private selected: Unit | null = null;
@@ -36,11 +34,21 @@ export class BoardScene extends Phaser.Scene {
     this.renderAllUnits();
 
     this.statusText = this.add
-      .text(20, height - 60, '', { fontSize: '16px', color: '#e8d9b0' })
+      .text(20, height - 60, '', {
+        fontSize: '16px',
+        color: '#e8d9b0',
+        backgroundColor: '#1a1408',
+        padding: { x: 8, y: 4 },
+      })
       .setScrollFactor(0)
       .setDepth(30);
     this.logText = this.add
-      .text(20, height - 34, '', { fontSize: '13px', color: '#a89878' })
+      .text(20, height - 34, '', {
+        fontSize: '13px',
+        color: '#a89878',
+        backgroundColor: '#1a1408',
+        padding: { x: 8, y: 3 },
+      })
       .setScrollFactor(0)
       .setDepth(30);
 
@@ -55,6 +63,8 @@ export class BoardScene extends Phaser.Scene {
       .setDepth(30)
       .setInteractive({ useHandCursor: true });
     endBtn.on('pointerdown', () => this.endPhase());
+
+    this.mapView.pinUIObjects([this.statusText, this.logText, endBtn]);
 
     this.resetMovementForActivePlayer();
     this.mapView.onHexClick = (hex) => this.onHexClick(hex);
@@ -79,8 +89,7 @@ export class BoardScene extends Phaser.Scene {
     this.mapView.clearAllUnitLabels();
     for (const u of this.state().units) {
       if (u.destroyed) continue;
-      const t = unitType(u);
-      this.mapView.setUnitLabel(u.position, t.name.slice(0, 3), PLAYER_COLORS[u.owner] ?? '#fff');
+      this.mapView.setUnitMarker(u.position, u.typeId, u.owner);
     }
   }
 
@@ -266,6 +275,8 @@ export class BoardScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(21)
       .setInteractive({ useHandCursor: true });
+
+    this.mapView.excludeFromMainCamera([panel, label, ramBtn, boardBtn]);
 
     const cleanup = () => {
       panel.destroy();

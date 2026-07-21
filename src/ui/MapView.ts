@@ -1,7 +1,15 @@
 import Phaser from 'phaser';
 import type { HexCoord } from '../data/map';
 import { MAP_TERRAIN, RIVER_HEXSIDES } from '../data/map';
-import { HEX_SIZE, hexToPixel, hexPolygonPoints, TERRAIN_COLORS, RIVER_COLOR } from './hexRender';
+import {
+  HEX_SIZE,
+  hexToPixel,
+  hexPolygonPoints,
+  TERRAIN_COLORS,
+  RIVER_COLOR,
+  markerTextureKey,
+  PLAYER_COLORS_HEX,
+} from './hexRender';
 import { allHexes } from './mapBounds';
 
 /** Renders the hex map into a scene and handles hex click callbacks. Owns
@@ -10,15 +18,23 @@ export class MapView {
   private scene: Phaser.Scene;
   private originX: number;
   private originY: number;
+  private viewportWidth: number;
+  private viewportHeight: number;
   private hexPolys = new Map<string, Phaser.GameObjects.Polygon>();
   private overlayGraphics: Phaser.GameObjects.Graphics;
-  private unitLabels = new Map<string, Phaser.GameObjects.Text>();
+  private riverGraphics!: Phaser.GameObjects.Graphics;
+  private unitLabels = new Map<string, Phaser.GameObjects.GameObject>();
+  /** Set once `pinUIObjects` has added the fixed HUD camera — used so newly
+   * created world objects (unit markers) get excluded from it too. */
+  private uiCamera: Phaser.Cameras.Scene2D.Camera | null = null;
   onHexClick: ((hex: HexCoord) => void) | null = null;
 
   constructor(scene: Phaser.Scene, viewportWidth: number, viewportHeight: number) {
     this.scene = scene;
     this.originX = viewportWidth / 2;
     this.originY = 90;
+    this.viewportWidth = viewportWidth;
+    this.viewportHeight = viewportHeight;
     this.overlayGraphics = scene.add.graphics().setDepth(5);
 
     for (const hex of allHexes()) {
@@ -34,11 +50,13 @@ export class MapView {
 
     this.drawRivers();
     this.enableDrag(viewportWidth, viewportHeight);
+    this.enableZoom();
   }
 
   /** Draws each river as a thick blue line along the shared hexside. */
   private drawRivers(): void {
     const g = this.scene.add.graphics().setDepth(3);
+    this.riverGraphics = g;
     g.lineStyle(4, RIVER_COLOR, 1);
     for (const key of RIVER_HEXSIDES) {
       const [ka, kb] = key.split('|');
@@ -81,6 +99,60 @@ export class MapView {
     cam.setBounds(-400, -50, viewportWidth + 1600, viewportHeight + 1200);
   }
 
+  /** Wheel/trackpad zoom, centered on the cursor position (pinch-to-zoom on
+   * a trackpad is reported by the browser as wheel events). */
+  private enableZoom(): void {
+    const cam = this.scene.cameras.main;
+    const MIN_ZOOM = 0.4;
+    const MAX_ZOOM = 2.5;
+
+    this.scene.input.on(
+      'wheel',
+      (pointer: Phaser.Input.Pointer, _objects: unknown, _dx: number, deltaY: number) => {
+        const factor = deltaY > 0 ? 0.9 : 1.1;
+        const newZoom = Phaser.Math.Clamp(cam.zoom * factor, MIN_ZOOM, MAX_ZOOM);
+        if (newZoom === cam.zoom) return;
+
+        const before = cam.getWorldPoint(pointer.x, pointer.y);
+        cam.zoom = newZoom;
+        const after = cam.getWorldPoint(pointer.x, pointer.y);
+        cam.scrollX += before.x - after.x;
+        cam.scrollY += before.y - after.y;
+      },
+    );
+  }
+
+  /**
+   * Pins the given HUD objects (status text, buttons, ...) to a fixed size
+   * and position regardless of the map's pan/zoom. `setScrollFactor(0)`
+   * alone only cancels *panning* — Phaser's camera zoom still scales
+   * everything the camera renders, HUD included. The fix is a second,
+   * never-zoomed camera that renders only these objects, while the main
+   * (zoomable) camera is told to ignore them.
+   */
+  pinUIObjects(uiObjects: Phaser.GameObjects.GameObject[]): void {
+    const mainCam = this.scene.cameras.main;
+    const uiCam = this.scene.cameras.add(0, 0, this.viewportWidth, this.viewportHeight);
+    uiCam.setScroll(0, 0);
+    uiCam.setZoom(1);
+
+    uiCam.ignore([
+      ...this.hexPolys.values(),
+      this.overlayGraphics,
+      this.riverGraphics,
+      ...this.unitLabels.values(),
+    ]);
+    this.uiCamera = uiCam;
+    this.excludeFromMainCamera(uiObjects);
+  }
+
+  /** Registers additional HUD objects created *after* the initial
+   * `pinUIObjects` call (e.g. a dialog shown mid-game) so they render via
+   * the fixed HUD camera instead of the zoomable main one. */
+  excludeFromMainCamera(objects: Phaser.GameObjects.GameObject[]): void {
+    this.scene.cameras.main.ignore(objects);
+  }
+
   toScreen(hex: HexCoord): { x: number; y: number } {
     const p = hexToPixel(hex);
     return { x: p.x + this.originX, y: p.y + this.originY };
@@ -100,23 +172,40 @@ export class MapView {
     this.overlayGraphics.clear();
   }
 
-  setUnitLabel(hex: HexCoord, text: string, color: string): void {
+  /** Renders a unit as its physical-counter marker image (see
+   * public/markers/), falling back to a colored text chip if the texture
+   * somehow isn't loaded. */
+  setUnitMarker(hex: HexCoord, typeId: string, playerIndex: number): void {
     const key = `${hex.q},${hex.r}`;
     const center = this.toScreen(hex);
     const existing = this.unitLabels.get(key);
     if (existing) existing.destroy();
-    const label = this.scene.add
-      .text(center.x, center.y, text, {
-        fontSize: '12px',
-        fontStyle: 'bold',
-        color: '#1a1408',
-        backgroundColor: color,
-        padding: { x: 4, y: 2 },
-        align: 'center',
-      })
-      .setOrigin(0.5)
-      .setDepth(10);
-    this.unitLabels.set(key, label);
+
+    const textureKey = markerTextureKey(playerIndex, typeId);
+    let marker: Phaser.GameObjects.GameObject;
+    if (this.scene.textures.exists(textureKey)) {
+      const img = this.scene.add.image(center.x, center.y, textureKey).setDepth(10);
+      const targetWidth = HEX_SIZE * 1.6;
+      const scale = targetWidth / img.width;
+      img.setDisplaySize(img.width * scale, img.height * scale);
+      marker = img;
+    } else {
+      marker = this.scene.add
+        .text(center.x, center.y, typeId.slice(0, 3).toUpperCase(), {
+          fontSize: '12px',
+          fontStyle: 'bold',
+          color: '#1a1408',
+          backgroundColor: PLAYER_COLORS_HEX[playerIndex] ?? '#ffffff',
+          padding: { x: 4, y: 2 },
+          align: 'center',
+        })
+        .setOrigin(0.5)
+        .setDepth(10);
+    }
+    this.unitLabels.set(key, marker);
+    // Newly-created markers appear after pinUIObjects ran once at scene
+    // setup — keep them out of the fixed HUD camera too.
+    if (this.uiCamera) this.uiCamera.ignore(marker);
   }
 
   clearUnitLabel(hex: HexCoord): void {

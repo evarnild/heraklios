@@ -35,7 +35,7 @@ export class PlacementScene extends Phaser.Scene {
 
     const { width, height } = this.scale;
     const player = session.gameState!.players[this.playerIndex]!;
-    this.add
+    const titleText = this.add
       .text(width / 2, 20, `${player.name} — place your army (edge ${player.edge}, green hexes)`, {
         fontSize: '18px',
         color: '#e8d9b0',
@@ -73,6 +73,8 @@ export class PlacementScene extends Phaser.Scene {
       .setDepth(30)
       .setInteractive({ useHandCursor: true });
     skipBtn.on('pointerdown', () => this.finishPlayer());
+
+    this.mapView.pinUIObjects([titleText, this.infoText, skipBtn]);
   }
 
   private currentItem(): QueueItem | undefined {
@@ -112,7 +114,7 @@ export class PlacementScene extends Phaser.Scene {
     };
     state.units.push(unit);
     item.remaining -= 1;
-    this.mapView.setUnitLabel(hex, unitLabel(item.typeId), playerColor(this.playerIndex));
+    this.mapView.setUnitMarker(hex, item.typeId, this.playerIndex);
     this.updateInfo();
   }
 
@@ -126,13 +128,3 @@ export class PlacementScene extends Phaser.Scene {
     }
   }
 }
-
-function unitLabel(typeId: string): string {
-  return getUnitType(typeId).name.slice(0, 3);
-}
-
-function playerColor(index: number): string {
-  return ['#ffd54a', '#ff5a5a', '#5ab4ff', '#5aff7a'][index] ?? '#ffffff';
-}
-
-export { playerColor, unitLabel };

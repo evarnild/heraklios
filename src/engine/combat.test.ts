@@ -1,6 +1,18 @@
 import { describe, it, expect } from 'vitest';
 import { checkRangedEligibility, resolveElephantStampede, resolveLandAttack, riverBetween } from './combat';
+import { RIVER_HEXSIDES, riverEdgeKey } from '../data/map';
 import type { Unit } from './state';
+
+/** Picks a real river hexside from whatever map is currently loaded, so
+ * these tests stay valid across map replacements/edits rather than pinning
+ * a coordinate pair from one specific map. */
+function sampleRiverEdge(): [{ q: number; r: number }, { q: number; r: number }] {
+  const key = RIVER_HEXSIDES.values().next().value as string;
+  const [ka, kb] = key.split('|');
+  const [aq, ar] = ka!.split(',').map(Number);
+  const [bq, br] = kb!.split(',').map(Number);
+  return [{ q: aq!, r: ar! }, { q: bq!, r: br! }];
+}
 
 function makeUnit(overrides: Partial<Unit> & { typeId: string; position: { q: number; r: number } }): Unit {
   return {
@@ -71,9 +83,7 @@ describe('resolveLandAttack', () => {
   });
 
   it('applies the river-crossing bonus to the defender when attacked across a river', () => {
-    // '3,15|4,14' is a real river hexside in the extracted map.
-    const a = { q: 4, r: 14 };
-    const b = { q: 3, r: 15 };
+    const [a, b] = sampleRiverEdge();
     const attacker = makeUnit({ typeId: 'fantassins', position: a }); // attack 2
     const defender = makeUnit({ typeId: 'fantassins', position: b }); // defense 1
     // With attack 2 vs defense 1 -> ratio rounds to 1:1. Terrain here is
@@ -94,8 +104,10 @@ describe('resolveLandAttack', () => {
 
 describe('riverBetween', () => {
   it('recognizes a known river hexside symmetrically and rejects a non-river edge', () => {
-    expect(riverBetween({ q: 3, r: 15 }, { q: 4, r: 14 })).toBe(true);
-    expect(riverBetween({ q: 4, r: 14 }, { q: 3, r: 15 })).toBe(true);
-    expect(riverBetween({ q: 0, r: 0 }, { q: 1, r: 0 })).toBe(false);
+    const [a, b] = sampleRiverEdge();
+    expect(riverBetween(a, b)).toBe(true);
+    expect(riverBetween(b, a)).toBe(true);
+    // Coordinates far outside any real map's range can't coincidentally be a river edge.
+    expect(riverBetween({ q: 9999, r: 9999 }, { q: 10000, r: 9999 })).toBe(false);
   });
 });

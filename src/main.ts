@@ -14,4 +14,9 @@ const config: Phaser.Types.Core.GameConfig = {
   scene: [MenuScene, ArmyBuilderScene, PlacementScene, BoardScene, GameOverScene],
 };
 
-new Phaser.Game(config);
+const game = new Phaser.Game(config);
+
+// Stop the browser page itself from scrolling/zooming when the user
+// scrolls or pinch-zooms (trackpad) over the map — MapView handles wheel
+// events itself to zoom the camera instead.
+game.canvas?.addEventListener('wheel', (e) => e.preventDefault(), { passive: false });

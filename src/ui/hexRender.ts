@@ -86,3 +86,18 @@ export const TERRAIN_ORDER: readonly TerrainType[] = [
   'zone-cap-zenon',
   'sea',
 ];
+
+/** Player index -> counter color, matching the 4 physical counter sets
+ * (public/markers/{color}/) and the fallback text/UI colors. */
+export const PLAYER_COLOR_NAMES: readonly string[] = ['yellow', 'red', 'blue', 'green'];
+export const PLAYER_COLORS_HEX: readonly string[] = ['#ffd54a', '#ff5a5a', '#5ab4ff', '#5aff7a'];
+
+/** Texture key + asset path for a unit marker image (see public/markers/). */
+export function markerTextureKey(playerIndex: number, typeId: string): string {
+  const color = PLAYER_COLOR_NAMES[playerIndex] ?? 'yellow';
+  return `marker-${color}-${typeId}`;
+}
+
+export function markerAssetPath(color: string, typeId: string): string {
+  return `/markers/${color}/${typeId}.png`;
+}

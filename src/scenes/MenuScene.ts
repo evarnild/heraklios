@@ -1,10 +1,23 @@
 import Phaser from 'phaser';
 import { resetSession } from '../ui/session';
 import { startTestGame } from '../ui/testMode';
+import { PLAYER_COLOR_NAMES, markerTextureKey, markerAssetPath } from '../ui/hexRender';
+import { UNIT_TYPES } from '../data/units';
 
 export class MenuScene extends Phaser.Scene {
   constructor() {
     super('Menu');
+  }
+
+  preload(): void {
+    // Load every unit-marker counter image once, up front, so later scenes
+    // (Placement, Board) can render them immediately with no pop-in.
+    for (let playerIndex = 0; playerIndex < PLAYER_COLOR_NAMES.length; playerIndex++) {
+      const color = PLAYER_COLOR_NAMES[playerIndex]!;
+      for (const unit of UNIT_TYPES) {
+        this.load.image(markerTextureKey(playerIndex, unit.id), markerAssetPath(color, unit.id));
+      }
+    }
   }
 
   create(): void {
