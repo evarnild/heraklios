@@ -30,7 +30,7 @@ export class PlacementScene extends Phaser.Scene {
 
   create(): void {
     if (this.playerIndex === 0 || !session.gameState) {
-      session.gameState = createInitialState(buildPlayers());
+      session.gameState = createInitialState(buildPlayers(), session.combatMode);
     }
 
     const { width, height } = this.scale;
@@ -109,7 +109,7 @@ export class PlacementScene extends Phaser.Scene {
       movementLeft: t.movement,
       facing: 0,
       equipmentPoints: t.domain === 'naval' ? Math.ceil(t.defense / 5) : undefined,
-      hasRetreatedThisPhase: false,
+      defendedThisPhase: false,
       destroyed: false,
     };
     state.units.push(unit);

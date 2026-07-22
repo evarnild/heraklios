@@ -2,7 +2,7 @@ import { session } from './session';
 import { deploymentZone, seaZoneNear } from './mapBounds';
 import { createInitialState } from '../engine/turnManager';
 import type { Unit, Player, PlayerId } from '../engine/state';
-import { getUnitType } from '../data/units';
+import { UNIT_TYPES, getUnitType } from '../data/units';
 import type { HexCoord } from '../data/map';
 
 const LAND_TEST_UNITS = ['fantassins', 'archers', 'cavalerie-legere'];
@@ -20,7 +20,7 @@ function makeUnit(owner: PlayerId, typeId: string, position: HexCoord): Unit {
     movementLeft: t.movement,
     facing: 0,
     equipmentPoints: t.domain === 'naval' ? Math.ceil(t.defense / 5) : undefined,
-    hasRetreatedThisPhase: false,
+    defendedThisPhase: false,
     destroyed: false,
   };
 }
@@ -40,7 +40,7 @@ export function startTestGame(): void {
     { id: 0 as PlayerId, name: session.playerNames[0]!, edge: 'W', purchasePoints: 400, eliminated: false },
     { id: 1 as PlayerId, name: session.playerNames[1]!, edge: 'E', purchasePoints: 400, eliminated: false },
   ];
-  const state = createInitialState(players);
+  const state = createInitialState(players, session.combatMode);
 
   players.forEach((player) => {
     const landHexes = deploymentZone(player.edge).filter(
@@ -58,6 +58,37 @@ export function startTestGame(): void {
       const hex = seaHexes[i];
       if (hex) state.units.push(makeUnit(player.id, typeId, hex));
     });
+  });
+
+  session.gameState = state;
+}
+
+/**
+ * Developer/testing shortcut for combat specifically: a 2-player game with
+ * one of every land unit type lined up in two parallel rows, 2 hexes apart
+ * (rows r=3 and r=5, q=10.. — confirmed all-plain terrain on the shipped
+ * map), rather than scattered across deployment zones. Every unit directly
+ * faces its counterpart at exactly range 2 (archers can fire immediately;
+ * melee units are one move from contact), and neighbors within each row are
+ * adjacent to each other — so multi-unit attack groups can be tested right
+ * away without hunting across the map for reachable targets.
+ */
+export function startCloseCombatTestGame(): void {
+  unitCounter = 0;
+  session.playerCount = 2;
+  session.edges = ['W', 'E'];
+
+  const players: Player[] = [
+    { id: 0 as PlayerId, name: session.playerNames[0]!, edge: 'W', purchasePoints: 400, eliminated: false },
+    { id: 1 as PlayerId, name: session.playerNames[1]!, edge: 'E', purchasePoints: 400, eliminated: false },
+  ];
+  const state = createInitialState(players, session.combatMode);
+
+  const landTypeIds = UNIT_TYPES.filter((t) => t.domain === 'land').map((t) => t.id);
+  const baseQ = 10;
+  landTypeIds.forEach((typeId, i) => {
+    state.units.push(makeUnit(0 as PlayerId, typeId, { q: baseQ + i, r: 3 }));
+    state.units.push(makeUnit(1 as PlayerId, typeId, { q: baseQ + i, r: 5 }));
   });
 
   session.gameState = state;

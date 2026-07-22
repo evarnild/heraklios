@@ -29,15 +29,42 @@ export class MapView {
   private uiCamera: Phaser.Cameras.Scene2D.Camera | null = null;
   onHexClick: ((hex: HexCoord) => void) | null = null;
 
-  constructor(scene: Phaser.Scene, viewportWidth: number, viewportHeight: number) {
+  /**
+   * @param leftPanelWidth Reserves a strip of screen space on the left (the
+   * HUD panel — buttons, phase status, combat log) that the map board never
+   * renders into or accepts clicks from: hexes are laid out flush against
+   * the remaining space's edge (or centered, if the board is smaller than
+   * that space), and the main camera's viewport is shrunk to match so
+   * clicks over the panel can never hit-test a hex underneath it.
+   */
+  constructor(scene: Phaser.Scene, viewportWidth: number, viewportHeight: number, leftPanelWidth = 0) {
     this.scene = scene;
-    this.originX = viewportWidth / 2;
-    this.originY = 90;
     this.viewportWidth = viewportWidth;
     this.viewportHeight = viewportHeight;
+
+    // The board's own hex coordinates aren't centered around (0,0) — e.g.
+    // this map's q runs 0..42, so every hex has local x >= 0. Naively
+    // centering the viewport on hex (0,0) leaves half the play area empty.
+    // Instead, measure the actual pixel bounding box of every hex and place
+    // THAT flush against the panel (or centered, if it's smaller than the
+    // available space), so the board always starts right at the panel edge.
+    const hexes = allHexes();
+    const pixels = hexes.map((h) => hexToPixel(h));
+    const minX = Math.min(...pixels.map((p) => p.x));
+    const maxX = Math.max(...pixels.map((p) => p.x));
+    const minY = Math.min(...pixels.map((p) => p.y));
+    const maxY = Math.max(...pixels.map((p) => p.y));
+    const boardWidth = maxX - minX;
+    const boardHeight = maxY - minY;
+    const availableWidth = viewportWidth - leftPanelWidth;
+    const margin = 16;
+
+    this.originX = leftPanelWidth - minX + Math.max(margin, (availableWidth - boardWidth) / 2);
+    this.originY = -minY + Math.max(margin, (viewportHeight - boardHeight) / 2);
+
     this.overlayGraphics = scene.add.graphics().setDepth(5);
 
-    for (const hex of allHexes()) {
+    for (const hex of hexes) {
       const terrain = MAP_TERRAIN.get(`${hex.q},${hex.r}`) ?? 'plain';
       const center = this.toScreen(hex);
       const points = hexPolygonPointsAt(center);
@@ -49,8 +76,24 @@ export class MapView {
     }
 
     this.drawRivers();
-    this.enableDrag(viewportWidth, viewportHeight);
+
+    // Bound panning/zooming to roughly the board's own extent (plus a little
+    // slack) rather than a fixed margin sized for the old centering — so the
+    // board can't be scrolled away into empty space next to the panel.
+    const boundsPadding = 200;
+    this.enableDrag({
+      x: this.originX + minX - boundsPadding,
+      y: this.originY + minY - boundsPadding,
+      width: boardWidth + boundsPadding * 2,
+      height: boardHeight + boundsPadding * 2,
+    });
     this.enableZoom();
+    const mainCam = scene.cameras.main;
+    mainCam.setViewport(leftPanelWidth, 0, availableWidth, viewportHeight);
+    // Bounds-clamping alone would settle on an arbitrary in-bounds scroll
+    // (e.g. snapping to the padding edge) rather than flush against the
+    // panel, so start the camera explicitly at the board's own top-left.
+    mainCam.setScroll(leftPanelWidth, 0);
   }
 
   /** Draws each river as a thick blue line along the shared hexside. */
@@ -76,7 +119,7 @@ export class MapView {
     }
   }
 
-  private enableDrag(viewportWidth: number, viewportHeight: number): void {
+  private enableDrag(bounds: { x: number; y: number; width: number; height: number }): void {
     const cam = this.scene.cameras.main;
     let dragging = false;
     let lastX = 0;
@@ -96,7 +139,7 @@ export class MapView {
       lastX = p.x;
       lastY = p.y;
     });
-    cam.setBounds(-400, -50, viewportWidth + 1600, viewportHeight + 1200);
+    cam.setBounds(bounds.x, bounds.y, bounds.width, bounds.height);
   }
 
   /** Wheel/trackpad zoom, centered on the cursor position (pinch-to-zoom on
@@ -159,12 +202,22 @@ export class MapView {
   }
 
   highlightHexes(hexes: HexCoord[], color: number, alpha = 0.45): void {
+    this.highlightHexGroups([{ hexes, color, alpha }]);
+  }
+
+  /** Like `highlightHexes`, but draws several differently-colored hex sets
+   * in one pass (e.g. "units in your attack group" vs. "eligible targets"
+   * vs. "units already chosen as defenders") without one call clobbering
+   * another's highlight. */
+  highlightHexGroups(groups: { hexes: HexCoord[]; color: number; alpha?: number }[]): void {
     this.overlayGraphics.clear();
-    this.overlayGraphics.fillStyle(color, alpha);
-    for (const hex of hexes) {
-      const center = this.toScreen(hex);
-      const points = hexPolygonPointsAt(center);
-      this.overlayGraphics.fillPoints(toVec(points), true);
+    for (const { hexes, color, alpha = 0.45 } of groups) {
+      this.overlayGraphics.fillStyle(color, alpha);
+      for (const hex of hexes) {
+        const center = this.toScreen(hex);
+        const points = hexPolygonPointsAt(center);
+        this.overlayGraphics.fillPoints(toVec(points), true);
+      }
     }
   }
 
