@@ -4,6 +4,16 @@ import { getUnitType, type UnitType } from '../data/units';
 export type PlayerId = 0 | 1 | 2 | 3;
 export type Phase = 'movement' | 'combat';
 
+/**
+ * Which land-combat variant is in effect for this game:
+ * - 'single-defender': the literal rulebook rule — several attackers may
+ *   combine, but always against exactly one enemy unit.
+ * - 'multi-defender': a house-rule variant (the rulebook doesn't cover
+ *   this case) where both sides can be groups — several attackers and
+ *   several defenders combined into one battle.
+ */
+export type CombatMode = 'single-defender' | 'multi-defender';
+
 export interface Unit {
   id: string;
   owner: PlayerId;
@@ -15,8 +25,8 @@ export interface Unit {
   facing: number;
   /** Naval-only: equipment points remaining (each lost point = -5 atk/-5 def). Undefined for land units. */
   equipmentPoints?: number;
-  /** True once this unit has been forced to retreat this combat phase (used to allow only one attack per phase against it, and to gate elephant stampede). */
-  hasRetreatedThisPhase: boolean;
+  /** True once this unit has been the target of a combat resolution this phase — "a unit may only be attacked once per combat phase," regardless of the result. Reset at the start of each combat phase. */
+  defendedThisPhase: boolean;
   destroyed: boolean;
 }
 
@@ -59,6 +69,7 @@ export interface GameState {
   activePlayerIndex: number; // index into seatOrder
   seatOrder: PlayerId[];
   phase: Phase;
+  combatMode: CombatMode;
   gameOver: boolean;
   winnerId: PlayerId | null;
 }

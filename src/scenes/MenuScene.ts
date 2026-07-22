@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
-import { resetSession } from '../ui/session';
-import { startTestGame } from '../ui/testMode';
+import { session, resetSession } from '../ui/session';
+import { startTestGame, startCloseCombatTestGame } from '../ui/testMode';
 import { PLAYER_COLOR_NAMES, markerTextureKey, markerAssetPath } from '../ui/hexRender';
 import { UNIT_TYPES } from '../data/units';
 
@@ -53,8 +53,29 @@ export class MenuScene extends Phaser.Scene {
       btn.on('pointerout', () => btn.setStyle({ backgroundColor: '#4a3f2a' }));
     });
 
+    this.add.text(width / 2, 310, 'Combat rule', { fontSize: '16px', color: '#a89878' }).setOrigin(0.5);
+    const combatModeLabel = () =>
+      session.combatMode === 'multi-defender'
+        ? 'Group attacks: several units vs. several units'
+        : 'Group attacks: several units vs. one unit (rulebook)';
+    const combatModeBtn = this.add
+      .text(width / 2, 340, combatModeLabel(), {
+        fontSize: '14px',
+        color: '#ffffff',
+        backgroundColor: '#4a3f2a',
+        padding: { x: 14, y: 6 },
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+    combatModeBtn.on('pointerdown', () => {
+      session.combatMode = session.combatMode === 'multi-defender' ? 'single-defender' : 'multi-defender';
+      combatModeBtn.setText(combatModeLabel());
+    });
+    combatModeBtn.on('pointerover', () => combatModeBtn.setStyle({ backgroundColor: '#6a5a3a' }));
+    combatModeBtn.on('pointerout', () => combatModeBtn.setStyle({ backgroundColor: '#4a3f2a' }));
+
     const testBtn = this.add
-      .text(width / 2, 340, 'Mode test (2 joueurs, armées prêtes)', {
+      .text(width / 2, 400, 'Mode test (2 joueurs, armées prêtes)', {
         fontSize: '16px',
         color: '#cfcfcf',
         backgroundColor: '#333',
@@ -69,5 +90,22 @@ export class MenuScene extends Phaser.Scene {
     });
     testBtn.on('pointerover', () => testBtn.setStyle({ backgroundColor: '#4a4a4a' }));
     testBtn.on('pointerout', () => testBtn.setStyle({ backgroundColor: '#333' }));
+
+    const combatTestBtn = this.add
+      .text(width / 2, 440, 'Mode test combat (unités face à face, 2 cases)', {
+        fontSize: '16px',
+        color: '#cfcfcf',
+        backgroundColor: '#333',
+        padding: { x: 16, y: 8 },
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+
+    combatTestBtn.on('pointerdown', () => {
+      startCloseCombatTestGame();
+      this.scene.start('Board');
+    });
+    combatTestBtn.on('pointerover', () => combatTestBtn.setStyle({ backgroundColor: '#4a4a4a' }));
+    combatTestBtn.on('pointerout', () => combatTestBtn.setStyle({ backgroundColor: '#333' }));
   }
 }

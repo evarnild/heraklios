@@ -1,7 +1,7 @@
-import type { GameState, Player, PlayerId } from './state';
+import type { CombatMode, GameState, Player, PlayerId } from './state';
 import { armyValue, livingUnits } from './state';
 
-export function createInitialState(players: Player[]): GameState {
+export function createInitialState(players: Player[], combatMode: CombatMode = 'multi-defender'): GameState {
   return {
     players,
     units: [],
@@ -9,6 +9,7 @@ export function createInitialState(players: Player[]): GameState {
     activePlayerIndex: 0,
     seatOrder: players.map((p) => p.id),
     phase: 'movement',
+    combatMode,
     gameOver: false,
     winnerId: null,
   };
@@ -20,6 +21,10 @@ export function advancePhase(state: GameState): void {
 
   if (state.phase === 'movement') {
     state.phase = 'combat';
+    // Fresh slate for "a unit may only be attacked once per combat phase" —
+    // this is the active player's OWN combat phase, so units that were
+    // attacked during another player's combat phase are fair game again.
+    for (const u of state.units) u.defendedThisPhase = false;
     return;
   }
 

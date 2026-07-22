@@ -1,6 +1,6 @@
 import type { ArmySelection } from '../engine/army';
 import { emptySelection } from '../engine/army';
-import type { GameState, Player, PlayerId } from '../engine/state';
+import type { CombatMode, GameState, Player, PlayerId } from '../engine/state';
 
 export type Edge = 'N' | 'S' | 'E' | 'W';
 
@@ -9,6 +9,9 @@ export interface SessionState {
   playerNames: string[];
   edges: Edge[]; // edges[i] = edge assigned to player i
   armySelections: ArmySelection[]; // armySelections[i] for player i
+  /** Chosen on the Menu screen before starting a game; carried into
+   * `createInitialState` when the board is set up. */
+  combatMode: CombatMode;
   gameState: GameState | null;
 }
 
@@ -17,6 +20,7 @@ export const session: SessionState = {
   playerNames: ['Athènes', 'Perse', 'Macédoine', 'Sparte'],
   edges: ['W', 'E', 'N', 'S'],
   armySelections: [],
+  combatMode: 'multi-defender',
   gameState: null,
 };
 

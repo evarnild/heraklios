@@ -23,7 +23,8 @@ npm run build   # production build
 
 ## How to play
 
-1. **Menu** — pick 2, 3, or 4 players.
+1. **Menu** — pick 2, 3, or 4 players, and the land-combat rule variant
+   (see "Combining attacks" below; defaults to several-vs-several).
 2. **Army Builder** — each player spends 400 purchase points on units from
    the shared roster (archers, infantry, cavalry, chariots, elephants,
    phalanxes, and four tiers of warships), subject to per-unit quantity
@@ -33,9 +34,37 @@ npm run build   # production build
    highlight).
 4. **Board** — turns proceed player by player, each running a Movement
    phase (click a unit, then a highlighted reachable hex) followed by a
-   Combat phase (click a unit, then an eligible enemy target — adjacent for
-   melee, at exact range for archers, adjacent for naval ramming/boarding).
-   "End phase" advances movement → combat → the next player's movement.
+   Combat phase. In the Combat phase: click friendly units to build an
+   attacking group (blue highlight), click eligible enemy units to add them
+   as targets (amber = eligible but not yet chosen, red = chosen), then
+   click **"Resolve attack"** to roll the combined combat. Naval ramming and
+   boarding stay one ship vs. one ship and resolve immediately when you pick
+   a target. "End phase" advances movement → combat → the next player's
+   movement.
+
+### Combining attacks
+
+Real *Héraklios* land combat lets several friendly units combine their
+attack values against a single target, as long as each individually
+satisfies its own weapon-range requirement (archers at exactly 2 hexes,
+melee units adjacent). This digital edition supports that plus an optional
+house-rule extension, chosen once at the Menu screen before a game starts:
+
+- **Single-defender** (the literal rulebook rule): several attackers, but
+  always exactly one target unit — every attacker in the group must be able
+  to reach that one unit.
+- **Multi-defender** (default; not in the original rulebook, which doesn't
+  cover this case): both sides can be groups — several attackers *and*
+  several defenders combined into one battle, as long as every attacker can
+  reach at least one of the chosen defenders.
+
+On an **EX (Échange)** result, per the rulebook ("les unités attaquées sont
+retirées du jeu, ainsi que les unités attaquantes totalisant une force au
+moins égale"): the defender(s) are always destroyed, and the attacking
+player must choose which of their own units to also lose, totaling at
+least the defenders' force — with only one attacker there's no real choice,
+but a multi-unit attack group gets a prompt to pick which units to
+sacrifice.
    The game ends when only one army remains on the board.
 
 ## Map editor
@@ -99,13 +128,20 @@ here rather than silently:
   entire assigned edge, rather than letting each player choose where along
   the edge to deploy (the original rule) with a 4-hex separation from
   other players.
-- **Attacks are single-unit vs single-unit.** The original rules encourage
-  (and support) combining several attacking units against one target in a
-  single combat; the digital version resolves one attacker against one
-  defender per action.
 - **Retreat direction** when a unit is forced to retreat is computed
-  automatically (directly away from the attacker) rather than letting the
-  owning player choose among legal hexes.
+  automatically (directly away from the reference unit on the other side —
+  for a group attack, the first unit selected into that group) rather than
+  letting the owning player choose among legal hexes.
+- **Advance after combat / push aside when surrounded**: the rulebook lets
+  an attacker optionally occupy the hex a retreating defender vacated, and
+  lets a unit with no legal retreat hex "push" a friendly unit aside if it's
+  surrounded entirely by its own side rather than being eliminated outright.
+  Neither is implemented — a unit with no legal retreat hex is always
+  eliminated, and the attacker never automatically advances.
+- **Cavalry charges** (doubling attack value when a cavalry unit uses its
+  full movement in a straight line into contact) and the restriction that
+  cavalry can never attack phalanxes are not implemented; cavalry always
+  attacks at its printed value against any target.
 - **Turn order** among the 4 players is fixed at the initial edge-assignment
   dice-off; the rulebook doesn't specify whether it should be re-randomized
   each turn, so this plays it as fixed seating order.
