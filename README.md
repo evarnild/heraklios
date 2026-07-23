@@ -39,8 +39,22 @@ npm run build   # production build
    as targets (amber = eligible but not yet chosen, red = chosen), then
    click **"Resolve attack"** to roll the combined combat. Naval ramming and
    boarding stay one ship vs. one ship and resolve immediately when you pick
-   a target. "End phase" advances movement → combat → the next player's
-   movement.
+   a target. When a result forces a retreat, the owning player picks the
+   destination: legal hexes are highlighted blue — click one. If every
+   neighboring hex is occupied by a friendly unit, those are highlighted
+   amber instead — click one to have it retreat and make room, then pick
+   *its* destination the same way. **Elephants** are the exception: instead
+   of a chosen retreat, a die roll picks a random direction and the elephant
+   drifts that way, hex by hex, for its full movement allowance — the panel
+   narrates each step, and every hex it enters that's occupied triggers a
+   real combat (elephant vs. that unit) rather than an automatic kill; a
+   result that would force the elephant itself to retreat instead re-rolls
+   a new direction with whatever movement it has left, and it's eliminated
+   outright if the drift would carry it off the map or into the sea. When a
+   **defender** retreats, or is eliminated outright (DE/EX), the attacking
+   side is then offered the chance to advance a unit into the hex it
+   vacated. "End phase" advances movement → combat → the next player's
+   movement. The game ends when only one army remains on the board.
 
 ### Combining attacks
 
@@ -65,7 +79,6 @@ player must choose which of their own units to also lose, totaling at
 least the defenders' force — with only one attacker there's no real choice,
 but a multi-unit attack group gets a prompt to pick which units to
 sacrifice.
-   The game ends when only one army remains on the board.
 
 ## Map editor
 
@@ -128,16 +141,6 @@ here rather than silently:
   entire assigned edge, rather than letting each player choose where along
   the edge to deploy (the original rule) with a 4-hex separation from
   other players.
-- **Retreat direction** when a unit is forced to retreat is computed
-  automatically (directly away from the reference unit on the other side —
-  for a group attack, the first unit selected into that group) rather than
-  letting the owning player choose among legal hexes.
-- **Advance after combat / push aside when surrounded**: the rulebook lets
-  an attacker optionally occupy the hex a retreating defender vacated, and
-  lets a unit with no legal retreat hex "push" a friendly unit aside if it's
-  surrounded entirely by its own side rather than being eliminated outright.
-  Neither is implemented — a unit with no legal retreat hex is always
-  eliminated, and the attacker never automatically advances.
 - **Cavalry charges** (doubling attack value when a cavalry unit uses its
   full movement in a straight line into contact) and the restriction that
   cavalry can never attack phalanxes are not implemented; cavalry always

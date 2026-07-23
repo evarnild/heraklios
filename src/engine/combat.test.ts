@@ -2,12 +2,15 @@ import { describe, it, expect } from 'vitest';
 import {
   applyExchangeSacrifice,
   applyLandCombatResult,
+  canElephantEnterHex,
   checkRangedEligibility,
   commonValidTargets,
+  completePush,
   exchangeSacrificeMeetsThreshold,
-  resolveElephantStampede,
+  legalRetreatHexes,
+  pushCandidates,
   resolveLandAttack,
-  retreatOrStampede,
+  retreatUnitTo,
   riverBetween,
   unionValidTargets,
   validTargets,
@@ -66,30 +69,13 @@ describe('checkRangedEligibility', () => {
   });
 });
 
-describe('resolveElephantStampede', () => {
-  const alwaysOnMap = () => true;
-
-  it('moves the elephant in a straight line for its full movement allowance', () => {
-    const elephant = makeUnit({ typeId: 'elephants', position: { q: 5, r: 5 } });
-    const result = resolveElephantStampede(elephant, 1, [elephant], alwaysOnMap);
-    expect(result.path).toHaveLength(4); // elephant movement allowance is 4
-    expect(elephant.position).toEqual(result.path[3]);
-    expect(result.exitedMap).toBe(false);
-  });
-
-  it('hits any unit found along the path', () => {
-    const elephant = makeUnit({ typeId: 'elephants', position: { q: 0, r: 0 } });
-    const victim = makeUnit({ typeId: 'fantassins', position: { q: 1, r: 0 } });
-    const result = resolveElephantStampede(elephant, 1, [elephant, victim], alwaysOnMap);
-    expect(result.unitsHit).toContain(victim);
-  });
-
-  it('stops and flags exitedMap when it runs off the edge of the board', () => {
-    const elephant = makeUnit({ typeId: 'elephants', position: { q: 0, r: 0 } });
-    const isOnMap = (hex: { q: number; r: number }) => hex.q < 2;
-    const result = resolveElephantStampede(elephant, 1, [elephant], isOnMap);
-    expect(result.exitedMap).toBe(true);
-    expect(elephant.position).toEqual({ q: 1, r: 0 });
+describe('canElephantEnterHex', () => {
+  it('allows land hexes and rejects off-map, coastal, and sea-like hexes', () => {
+    expect(canElephantEnterHex({ q: 0, r: 0 })).toBe(true); // known 'plain' hex
+    expect(canElephantEnterHex({ q: 9999, r: 9999 })).toBe(false); // off the map
+    // (24,3) is 'coast' and (25,3) is 'zone-anse-hypnos' (sea-like) on the shipped map.
+    expect(canElephantEnterHex({ q: 24, r: 3 })).toBe(false);
+    expect(canElephantEnterHex({ q: 25, r: 3 })).toBe(false);
   });
 });
 
@@ -187,31 +173,128 @@ describe('validTargets / commonValidTargets / unionValidTargets', () => {
   });
 });
 
-describe('retreatOrStampede', () => {
-  it('retreats a non-elephant unit one hex directly away from the reference unit', () => {
-    // (0,0), (0,1), (0,2) are known 'plain' hexes on the shipped map.
-    const unit = makeUnit({ typeId: 'fantassins', position: { q: 0, r: 1 } });
-    const awayFrom = makeUnit({ typeId: 'fantassins', position: { q: 0, r: 0 }, owner: 1 });
-    const state = makeState([unit, awayFrom]);
-    const outcome = retreatOrStampede(state, unit, awayFrom);
-    expect(outcome.stampeded).toBe(false);
-    expect(unit.position).toEqual({ q: 0, r: 2 });
+// (10,5) and its 6 axial neighbors — (11,5),(11,4),(10,4),(9,5),(9,6),(10,6) —
+// are all known 'plain' hexes on the shipped map, well away from any edge,
+// so every direction has a real on-map neighbor to test against.
+const CENTER = { q: 10, r: 5 };
+const NEIGHBORS = [
+  { q: 11, r: 5 },
+  { q: 11, r: 4 },
+  { q: 10, r: 4 },
+  { q: 9, r: 5 },
+  { q: 9, r: 6 },
+  { q: 10, r: 6 },
+];
+
+describe('legalRetreatHexes', () => {
+  it('excludes occupied hexes and hexes under enemy zone of control', () => {
+    const unit = makeUnit({ typeId: 'fantassins', position: CENTER });
+    const friendlyBlocker = makeUnit({ typeId: 'fantassins', position: NEIGHBORS[0]! });
+    // (9,4) is a land unit adjacent to (9,5) (NEIGHBORS[3]), projecting ZOC onto it.
+    const enemyZocSource = makeUnit({ typeId: 'fantassins', position: { q: 9, r: 4 }, owner: 1 });
+    const state = makeState([unit, friendlyBlocker, enemyZocSource]);
+
+    // (9,4) is itself adjacent to two of CENTER's neighbors — (10,4) and
+    // (9,5) — so its ZOC blocks both of those in addition to the occupied one.
+    const legal = legalRetreatHexes(state, unit);
+    expect(legal).toHaveLength(3);
+    expect(legal).not.toContainEqual(NEIGHBORS[0]); // occupied by a friendly unit
+    expect(legal).not.toContainEqual(NEIGHBORS[2]); // empty, but under enemy ZOC
+    expect(legal).not.toContainEqual(NEIGHBORS[3]); // empty, but under enemy ZOC
+  });
+});
+
+describe('pushCandidates', () => {
+  it('returns every neighbor when the unit is fully surrounded by friendly units', () => {
+    const unit = makeUnit({ typeId: 'fantassins', position: CENTER });
+    const friendlies = NEIGHBORS.map((pos, i) => makeUnit({ typeId: 'fantassins', position: pos, id: `f${i}` }));
+    const state = makeState([unit, ...friendlies]);
+
+    const candidates = pushCandidates(state, unit);
+    expect(candidates.map((u) => u.id).sort()).toEqual(friendlies.map((u) => u.id).sort());
   });
 
-  it('eliminates a unit with nowhere legal to retreat to', () => {
-    const unit = makeUnit({ typeId: 'fantassins', position: { q: 9000, r: 9000 } });
-    const awayFrom = makeUnit({ typeId: 'fantassins', position: { q: 8999, r: 9000 }, owner: 1 });
-    const state = makeState([unit, awayFrom]);
-    retreatOrStampede(state, unit, awayFrom);
-    expect(unit.destroyed).toBe(true);
+  it('returns none if even one neighbor is occupied by an enemy instead of a friendly unit', () => {
+    const unit = makeUnit({ typeId: 'fantassins', position: CENTER });
+    const friendlies = NEIGHBORS.slice(0, 5).map((pos, i) => makeUnit({ typeId: 'fantassins', position: pos, id: `f${i}` }));
+    const enemy = makeUnit({ typeId: 'fantassins', position: NEIGHBORS[5]!, owner: 1 });
+    const state = makeState([unit, ...friendlies, enemy]);
+
+    expect(pushCandidates(state, unit)).toHaveLength(0);
   });
 
-  it('stampedes an elephant instead of retreating normally', () => {
-    const elephant = makeUnit({ typeId: 'elephants', position: { q: 0, r: 1 } });
-    const awayFrom = makeUnit({ typeId: 'fantassins', position: { q: 0, r: 0 }, owner: 1 });
-    const state = makeState([elephant, awayFrom]);
-    const outcome = retreatOrStampede(state, elephant, awayFrom, () => 1);
-    expect(outcome.stampeded).toBe(true);
+  it('excludes a friendly neighbor that has no legal retreat hex of its own — pushing must make real room, not just swap', () => {
+    const unit = makeUnit({ typeId: 'fantassins', position: CENTER });
+    const friendlies = NEIGHBORS.map((pos, i) => makeUnit({ typeId: 'fantassins', position: pos, id: `f${i}` }));
+    // Box in friendlies[0] (at (11,5)) completely: its other 5 neighbors
+    // besides CENTER (already occupied by `unit`) are (11,4) and (10,6)
+    // (already friendlies), plus (12,5), (12,4), (11,6) — occupy those too.
+    const blockers = [
+      makeUnit({ typeId: 'fantassins', position: { q: 12, r: 5 } }),
+      makeUnit({ typeId: 'fantassins', position: { q: 12, r: 4 } }),
+      makeUnit({ typeId: 'fantassins', position: { q: 11, r: 6 } }),
+    ];
+    const state = makeState([unit, ...friendlies, ...blockers]);
+
+    const candidates = pushCandidates(state, unit);
+    expect(candidates.map((u) => u.id)).not.toContain('f0');
+    expect(candidates).toHaveLength(5);
+  });
+});
+
+describe('retreatUnitTo / completePush', () => {
+  it('moves a unit directly to the chosen hex', () => {
+    const unit = makeUnit({ typeId: 'fantassins', position: CENTER });
+    retreatUnitTo(unit, NEIGHBORS[0]!);
+    expect(unit.position).toEqual(NEIGHBORS[0]);
+  });
+
+  it('moves the pushed unit to its own chosen retreat hex, and the original unit takes the hex it vacated', () => {
+    const unit = makeUnit({ typeId: 'fantassins', position: CENTER });
+    const pushed = makeUnit({ typeId: 'fantassins', position: NEIGHBORS[0]! });
+    const pushedDestination = { q: 12, r: 5 }; // some other free hex — not a swap back to CENTER
+    completePush(unit, pushed, pushedDestination);
+    expect(pushed.position).toEqual(pushedDestination);
+    expect(unit.position).toEqual(NEIGHBORS[0]); // takes the hex `pushed` vacated
+  });
+});
+
+describe('applyLandCombatResult — AR/DR retreats', () => {
+  it('queues a non-elephant retreating unit for a player-chosen destination instead of moving it automatically', () => {
+    const attacker = makeUnit({ typeId: 'fantassins', position: CENTER });
+    const defender = makeUnit({ typeId: 'fantassins', position: NEIGHBORS[0]!, owner: 1 });
+    const state = makeState([attacker, defender]);
+
+    const outcome = applyLandCombatResult(state, [attacker], [defender], 'AR');
+    expect(outcome.pendingRetreats).toEqual([attacker]);
+    expect(outcome.pendingDrifts).toHaveLength(0);
+    expect(attacker.position).toEqual(CENTER); // untouched — awaiting the player's choice
+    expect(attacker.destroyed).toBe(false);
+  });
+
+  it('eliminates a retreating unit with no legal hex and no push option', () => {
+    // Far outside any real map's range: every neighbor is off-map.
+    const attacker = makeUnit({ typeId: 'fantassins', position: { q: 9000, r: 9000 } });
+    const defender = makeUnit({ typeId: 'fantassins', position: { q: 9001, r: 9000 }, owner: 1 });
+    const state = makeState([attacker, defender]);
+
+    const outcome = applyLandCombatResult(state, [attacker], [defender], 'AR');
+    expect(outcome.pendingRetreats).toHaveLength(0);
+    expect(attacker.destroyed).toBe(true);
+  });
+
+  it('defers a retreating elephant to pendingDrifts instead of resolving a retreat here', () => {
+    // Elephants never retreat normally — the caller must drive the drift
+    // (direction roll, step-by-step movement, real combat on contact) since
+    // a trampled unit can itself need a player choice mid-drift.
+    const elephant = makeUnit({ typeId: 'elephants', position: CENTER });
+    const defender = makeUnit({ typeId: 'fantassins', position: NEIGHBORS[0]!, owner: 1 });
+    const state = makeState([elephant, defender]);
+
+    const outcome = applyLandCombatResult(state, [elephant], [defender], 'AR');
+    expect(outcome.pendingRetreats).toHaveLength(0);
+    expect(outcome.pendingDrifts).toEqual([elephant]);
+    expect(elephant.position).toEqual(CENTER); // untouched here
   });
 });
 

@@ -1,10 +1,10 @@
 import type { HexCoord } from '../data/map';
 import { MAP_TERRAIN, RIVER_HEXSIDES, riverEdgeKey, hexKey as mapHexKey } from '../data/map';
-import { TERRAIN_EFFECTS, RIVER_CROSSING, type TerrainType } from '../data/terrain';
+import { TERRAIN_EFFECTS, RIVER_CROSSING, isSeaLike, type TerrainType } from '../data/terrain';
 import { resolveLandCombat, ratioToColumnIndex, RATIO_COLUMNS, type CombatResult } from '../data/combatTable';
 import { isRammingSuccessful, type ShipTypeId } from '../data/navalRamming';
 import { resolveBoarding, type BoardingResult } from '../data/navalBoarding';
-import { directionForDie, hexAdd, hexDistance, hexEquals, traceLine, DIRECTIONS } from './hex';
+import { hexAdd, hexDistance, hexEquals, DIRECTIONS } from './hex';
 import {
   type GameState,
   type Unit,
@@ -209,78 +209,75 @@ export function checkRangedEligibility(attacker: Unit, distance: number): Ranged
 }
 
 /**
- * Elephant stampede: instead of retreating, roll a d6 for direction and
- * career in a straight line for the elephant's full movement allowance,
- * damaging every unit (friend or foe) encountered, until it leaves the map
- * or is destroyed. Returns the hexes it passed through and any units hit.
+ * Whether a drifting elephant may enter `hex` at all: on the map, and
+ * within the "land zone" (not sea-like, not coastal fringe). Per the
+ * rulebook ("lorsqu'il sort du plateau de jeu ou de la zone terrestre, il
+ * est éliminé"), failing this eliminates the elephant on the spot.
  */
-export interface StampedeResult {
-  path: HexCoord[];
-  unitsHit: Unit[];
-  exitedMap: boolean;
-}
-
-export function resolveElephantStampede(
-  elephant: Unit,
-  dieRoll: number,
-  allUnits: Unit[],
-  isOnMap: (hex: HexCoord) => boolean = (hex) => MAP_TERRAIN.has(mapHexKey(hex.q, hex.r)),
-): StampedeResult {
-  const direction = directionForDie(dieRoll);
-  const t = unitType(elephant);
-  const path = traceLine(elephant.position, direction, t.movement);
-  const unitsHit: Unit[] = [];
-  let exitedMap = false;
-  let finalPosition = elephant.position;
-
-  for (const hex of path) {
-    if (!isOnMap(hex)) {
-      exitedMap = true;
-      break;
-    }
-    const occupant = allUnits.find((u) => !u.destroyed && u.id !== elephant.id && hexEquals(u.position, hex));
-    if (occupant) unitsHit.push(occupant);
-    finalPosition = hex;
-  }
-
-  elephant.position = finalPosition;
-  return { path, unitsHit, exitedMap };
-}
-
-export type DieRoller = () => number;
-export const rollD6: DieRoller = () => 1 + Math.floor(Math.random() * 6);
-
-export interface RetreatOutcome {
-  stampeded: boolean;
-  unitsHit: Unit[];
+export function canElephantEnterHex(hex: HexCoord): boolean {
+  const terrain = MAP_TERRAIN.get(mapHexKey(hex.q, hex.r));
+  if (terrain === undefined) return false; // off the map
+  return terrain !== 'coast' && !isSeaLike(terrain);
 }
 
 /**
- * A single unit retreating one hex away from `awayFrom` — or, if it's an
- * elephant, stampeding instead (see `resolveElephantStampede`). Shared by
- * both the attacking side (on an AR result) and the defending side (on a
- * DR result); the caller loops this over every unit on the retreating side.
+ * The 6 hexes adjacent to `unit` that it may legally retreat into: on the
+ * map, unoccupied (by either side — no stacking), and not under an enemy
+ * zone of control ("a retreating unit may never be forced to retreat into
+ * an enemy ZOC hex"). The owning player picks among these.
  */
-export function retreatOrStampede(
-  state: GameState,
-  unit: Unit,
-  awayFrom: Unit,
-  rollDie: DieRoller = rollD6,
-): RetreatOutcome {
-  if (unitType(unit).id === 'elephants') {
-    const stampedeDie = rollDie();
-    const result = resolveElephantStampede(unit, stampedeDie, state.units);
-    for (const hit of result.unitsHit) hit.destroyed = true;
-    return { stampeded: true, unitsHit: result.unitsHit };
+export function legalRetreatHexes(state: GameState, unit: Unit): HexCoord[] {
+  const enemyZoc = hexesUnderZoc(state, unit.owner);
+  return DIRECTIONS.map((d) => hexAdd(unit.position, d)).filter((hex) => {
+    if (!MAP_TERRAIN.has(mapHexKey(hex.q, hex.r))) return false; // off the map
+    if (unitAt(state, hex)) return false; // occupied, friend or foe
+    if (enemyZoc.has(mapHexKey(hex.q, hex.r))) return false;
+    return true;
+  });
+}
+
+/**
+ * Friendly units occupying EVERY one of `unit`'s 6 neighboring hexes — the
+ * rulebook's exception to elimination-on-no-retreat: "a unit forced to
+ * retreat with nowhere legal to go is simply eliminated — unless it's
+ * surrounded entirely by friendly units, in which case it pushes one
+ * friendly unit aside and takes its hex instead." Returns `[]` (no push
+ * option, ordinary elimination applies) if even one neighbor is off-map or
+ * occupied by an enemy — the exception only covers being boxed in by one's
+ * own side.
+ *
+ * Only neighbors that themselves have somewhere legal to retreat to are
+ * offered: "pushed aside" means that unit actually retreats to make room
+ * (see `completePush`), not swapping places — a neighbor with no room of
+ * its own can't make room for anyone else either.
+ */
+export function pushCandidates(state: GameState, unit: Unit): Unit[] {
+  const neighbors = DIRECTIONS.map((d) => hexAdd(unit.position, d));
+  const friendlyOccupants: Unit[] = [];
+  for (const hex of neighbors) {
+    if (!MAP_TERRAIN.has(mapHexKey(hex.q, hex.r))) return [];
+    const occupant = unitAt(state, hex);
+    if (!occupant || occupant.owner !== unit.owner) return [];
+    friendlyOccupants.push(occupant);
   }
-  const dq = Math.sign(unit.position.q - awayFrom.position.q);
-  const dr = Math.sign(unit.position.r - awayFrom.position.r);
-  const target = { q: unit.position.q + dq, r: unit.position.r + dr };
-  const onMap = MAP_TERRAIN.has(mapHexKey(target.q, target.r));
-  const occupied = unitAt(state, target);
-  if (onMap && !occupied) unit.position = target;
-  else unit.destroyed = true; // no legal retreat hex
-  return { stampeded: false, unitsHit: [] };
+  return friendlyOccupants.filter((f) => legalRetreatHexes(state, f).length > 0);
+}
+
+/** Moves a retreating unit to a player-chosen hex from `legalRetreatHexes`. */
+export function retreatUnitTo(unit: Unit, hex: HexCoord): void {
+  unit.position = hex;
+}
+
+/**
+ * Resolves the "surrounded by friendly units" exception (see
+ * `pushCandidates`): `pushed` actually retreats to `pushedDestination` (a
+ * hex the player chose from ITS OWN `legalRetreatHexes`) to make room, and
+ * `unit` then takes the hex `pushed` just vacated.
+ */
+export function completePush(unit: Unit, pushed: Unit, pushedDestination: HexCoord): void {
+  const vacated = pushed.position;
+  pushed.position = pushedDestination;
+  unit.position = vacated;
 }
 
 export interface LandCombatOutcome {
@@ -293,7 +290,19 @@ export interface LandCombatOutcome {
   /** The defenders' total force — the threshold a chosen sacrifice must
    * meet or exceed. Meaningful whenever `result === 'EX'`. */
   requiredSacrificeForce: number;
-  retreats: RetreatOutcome[];
+  /** Elephants forced to retreat (AR/DR) never resolve here — the caller
+   * must drive their "drift" step by step (roll a direction, walk it hex
+   * by hex, resolve real combat against anything encountered), since a
+   * unit it tramples into can itself need a player choice (or its own
+   * drift) before the elephant can continue. See `canElephantEnterHex`. */
+  pendingDrifts: Unit[];
+  /** Non-elephant units forced to retreat (AR/DR) that still need the
+   * owning player to pick a destination — see `legalRetreatHexes` /
+   * `pushCandidates` and `retreatUnitTo` / `completePush`. Process these
+   * one at a time: each choice can change what's legal for the next unit
+   * in the list. A unit with no legal hex and no push option is eliminated
+   * immediately here and does NOT appear in this list. */
+  pendingRetreats: Unit[];
 }
 
 /**
@@ -315,11 +324,23 @@ export function applyLandCombatResult(
   attackers: Unit[],
   defenders: Unit[],
   result: CombatResult,
-  rollDie: DieRoller = rollD6,
 ): LandCombatOutcome {
   for (const d of defenders) d.defendedThisPhase = true;
   const requiredSacrificeForce = defenders.reduce((sum, u) => sum + currentDefense(u), 0);
-  const retreats: RetreatOutcome[] = [];
+  const pendingDrifts: Unit[] = [];
+  const pendingRetreats: Unit[] = [];
+
+  const forceRetreat = (unit: Unit) => {
+    if (unitType(unit).id === 'elephants') {
+      pendingDrifts.push(unit);
+      return;
+    }
+    if (legalRetreatHexes(state, unit).length > 0 || pushCandidates(state, unit).length > 0) {
+      pendingRetreats.push(unit);
+      return;
+    }
+    unit.destroyed = true; // no legal retreat hex, and not surrounded by friendlies either
+  };
 
   switch (result) {
     case 'AE':
@@ -329,20 +350,20 @@ export function applyLandCombatResult(
       for (const d of defenders) d.destroyed = true;
       break;
     case 'AR':
-      for (const a of attackers) retreats.push(retreatOrStampede(state, a, defenders[0]!, rollDie));
+      for (const a of attackers) forceRetreat(a);
       break;
     case 'DR':
-      for (const d of defenders) retreats.push(retreatOrStampede(state, d, attackers[0]!, rollDie));
+      for (const d of defenders) forceRetreat(d);
       break;
     case 'EX':
       for (const d of defenders) d.destroyed = true;
       if (attackers.length <= 1) {
         for (const a of attackers) a.destroyed = true;
-        return { result, requiresExchangeChoice: false, requiredSacrificeForce, retreats };
+        return { result, requiresExchangeChoice: false, requiredSacrificeForce, pendingDrifts, pendingRetreats };
       }
-      return { result, requiresExchangeChoice: true, requiredSacrificeForce, retreats };
+      return { result, requiresExchangeChoice: true, requiredSacrificeForce, pendingDrifts, pendingRetreats };
   }
-  return { result, requiresExchangeChoice: false, requiredSacrificeForce, retreats };
+  return { result, requiresExchangeChoice: false, requiredSacrificeForce, pendingDrifts, pendingRetreats };
 }
 
 /** Whether `selected` attacking units' combined attack value meets the

@@ -15,6 +15,10 @@ where that data came from and what else was learned along the way.
   all combat tables in plain reference form (cross-check copy of what's
   encoded in `src/data/`).
 - [`04-sources.md`](04-sources.md) — every source consulted, with URLs.
+- [`05-rules-french-original.md`](05-rules-french-original.md) — full
+  verbatim French transcription of the rules pages. An explicit exception
+  to the policy below, kept by request to cross-check
+  `02-rules-transcription.md` against the original wording.
 
 ## Note on the source scans
 
@@ -25,3 +29,5 @@ sourced from an Internet Archive copy of the issue (see sources doc). Only
 the factual game data transcribed from them — rules, stats, tables — is
 kept, which is the same standard the rest of the project follows (see
 `tools/map-extract/README.md` for the same policy applied to the map).
+`05-rules-french-original.md` is a deliberate, requested exception to
+this policy — full verbatim prose, not just factual data.

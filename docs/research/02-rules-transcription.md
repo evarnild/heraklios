@@ -1,10 +1,12 @@
 # Rules transcription
 
 Transcribed from the scanned rulebook pages (*Jeux & Stratégie* #6, pp.
-16-17 and 33-35), credited to François Marcela-Froideval, 1980. Original
+16, 33-35), credited to François Marcela-Froideval, 1980. Original
 French retained for rule text with the French game terms; commentary/
 clarification added inline in English where useful. This is the same
-source material `src/data/` and `src/engine/` are built from.
+source material `src/data/` and `src/engine/` are built from. See
+[05-rules-french-original.md](05-rules-french-original.md) for the full
+verbatim French text this was transcribed from.
 
 ## Setup
 
@@ -12,7 +14,8 @@ source material `src/data/` and `src/engine/` are built from.
 perse, macédonienne, spartiate) — cosmetic only, no stat differences
 between armies.
 
-**Materials:** a coastal Mediterranean-style hex map, die-cut counters.
+**Materials:** a coastal Mediterranean-style hex map, die-cut counters,
+and a six-sided die.
 
 **Scale:** each hex = 100 meters of terrain. Each game turn = 20 minutes of
 real time.
@@ -33,15 +36,22 @@ full list with costs and quantity caps).
 
 ### Placement on the map
 
+Building a naval force is entirely optional — a player may field a
+land-only army. Once a player's army (land, and optionally naval) totals
+exactly 400 purchase points, it's time to place it on the map.
+
 All of a player's units must be placed along their assigned edge of the
-map, within a strip no more than **3 hexes wide**. This is not mandatory
-(a player could choose not to spread units, though 3 hexes is the max
-width) — but a minimum gap of **4 hexes** must separate two different
-armies at the start.
+map, within a strip no more than **3 hexes wide**. Units of two different
+armies may never start in contact, land or naval — a minimum gap of
+**4 hexes** must separate two different armies at the start.
 
 Each player rolls a die; the two highest rolls choose between the East and
-West edges, the two lowest split North and South. Ties are re-rolled. Once
-edges are assigned, each player deploys their fleet (if any) in the
+West edges, the two lowest split North and South. Ties are re-rolled.
+Players then agree among themselves (or, failing agreement, decide by
+chance) which of the four named armies (athénienne, perse, macédonienne,
+spartiate) each will play — the map edge is fixed by the die roll above,
+but which army occupies it is a separate choice. Once edges and armies
+are settled, each player deploys their fleet (if any) in the
 corresponding named sea zone (medium-blue on the map):
 - army on the **west** edge → **Anse d'Hypnos**
 - army on the **south** edge → **Pointe d'Eole**
@@ -173,8 +183,8 @@ hex terrain:
 
 - **Archers** fire at 2 hexes' range; archer-infantry hybrids can also
   fight adjacent.
-- **Phalanxes** are lance-armed formations; cavalry may not make ordinary
-  attacks against them (only charges — see below).
+- **Phalanxes** are lance-armed formations (5-7m lances); cavalry may
+  **never** attack them, whether by charge or ordinary attack.
 - **Cavalry**: if a cavalry unit uses its full movement allowance moving
   in a straight line and ends adjacent to an enemy unit, that's a
   **charge**, doubling its attack value (×2 for light cavalry, per the
@@ -206,7 +216,9 @@ zone of control.
 Three shades of sea are marked on the map: coastal fringe (light blue),
 mid-sea (medium blue, the deployment zones), and high seas (dark blue).
 Only **galleys** may enter the coastal fringe or a wide river; all larger
-ships are restricted to mid/high sea.
+ships are restricted to mid/high sea. A non-galley ship that ends up in
+the coastal fringe or a wide river for any reason is immediately removed
+from the game.
 
 Ships have a **facing** (the direction their bow points) and can only
 leave a hex through the side their bow faces. Rotating the facing costs
@@ -251,10 +263,16 @@ Boarding occurs when, after movement, two enemy ships end up side-by-side
 resolved using the force ratio between the two ships (attacker's attack
 value : defender's defense value) crossed with a 1d6 roll.
 
-Each ship has an **equipment points** pool (equal to `ceil(defense / 5)`).
-A boarding loss removes equipment points from the losing side; each lost
-equipment point reduces that ship's attack **and** defense by 5. A ship
-whose equipment points reach zero has no attack or defense left and is
+Each ship has an **equipment points** pool. The rulebook never states this
+as an explicit starting formula — it only says each equipment point is
+worth 5 attack + 5 defense, and losing one strips 5 from each; a starting
+pool of `ceil(defense / 5)` is the natural reading of that (so a ship's
+full defense value is "spent" exactly when its equipment reaches 0), but
+treat it as a derived value to double-check against `src/data/` rather
+than a verbatim rule. A boarding loss removes equipment points from the
+losing side; each lost equipment point reduces that ship's attack **and**
+defense by 5. A ship whose equipment points reach zero has no attack or
+defense left and is
 immediately removed from the game.
 
 **Boarding results table** — rows are 1d6, columns are the attacker:defender
@@ -276,8 +294,12 @@ attacker/defender loses `n` equipment points:
 The game ends when any one of the following occurs:
 1. **Time limit reached** — each remaining player totals the purchase-point
    value of their surviving units; whoever has the highest total wins.
-2. **Elimination** — three of the four competitors are eliminated; the
-   remaining player wins outright.
-3. **Last fleet at sea** — a player whose ships are the only ones
-   remaining at sea gets a **+30 point bonus** added to their final total
-   (on top of the value of whatever units they still have).
+2. **Concession** — three of the four competitors abandon/concede.
+3. **Last army standing** — only one army's units remain on the
+   battlefield; that player is declared the winner.
+
+Regardless of which of the above ends the game, a separate scoring bonus
+applies at the final count: a player whose ships are the *only* ones left
+at sea (all other players' fleets sunk or absent) adds a **+30 point
+bonus** to their final total, on top of the purchase-point value of
+whatever units they still have.
