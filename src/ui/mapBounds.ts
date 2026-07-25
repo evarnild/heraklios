@@ -16,10 +16,6 @@ export function allHexes(): HexCoord[] {
   return hexes;
 }
 
-/** ~ hex column/row spacing in pixels (HEX_SIZE=22 gives 33px for a q-step,
- * 38px for an r-step) — used as the bucket width for grouping hexes into
- * discrete "columns" running along an edge (see `deploymentColumns`). */
-const HEX_SPACING = 34;
 const DEPTH_LIMIT = 90; // ~3 hex-widths deep, per the rulebook (unchanged from before)
 
 /** The full-length, 3-hex-deep land band along a compass edge, with each
@@ -49,28 +45,41 @@ function depthBand(edge: Edge): { hex: HexCoord; x: number; y: number }[] {
  * The 3-hex-deep land band along `edge`, split into discrete "columns"
  * running along the edge (nearest one end of the edge first — which end is
  * arbitrary, only internal consistency matters, same convention as
- * `engine/hex.ts`'s `DIRECTIONS`), each column holding every hex at roughly
+ * `engine/hex.ts`'s `DIRECTIONS`), each column holding every hex at exactly
  * that position along the edge (usually up to 3, one per depth step, fewer
  * near an irregular map boundary).
  *
- * Columns are bucketed off the same pixel coordinates `depthBand` already
- * sorts by (y for the W/E edges, x for N/S), rounded to the nearest
- * `HEX_SPACING` — this is the along-edge axis for a hex laid out with
- * `hexToPixel`, exactly the way `depthBand`'s own depth filter already
- * relies on that spacing being roughly constant.
+ * Columns are bucketed on the hexes' own axial coordinates, not on rounded
+ * pixel positions — `hexToPixel`'s x is *exactly* `1.5*HEX_SIZE*q`, and its y
+ * is *exactly* `(sqrt(3)/2)*HEX_SIZE*(2r+q)`, so `q` (for the N/S edges,
+ * where depth runs along y) and `2r+q` (for E/W, where depth runs along x)
+ * are exact integer stand-ins for "along-edge position" with no rounding
+ * error possible — unlike bucketing the pixel coordinates themselves, which
+ * drifted enough to merge or fragment columns near the edges of the map.
  */
+// The map is static for the process lifetime, so an edge's columns never
+// change once computed — memoized because the zone-picking UI recomputes
+// this (indirectly, via stripLength/maxAnchor/clampAnchor) on every Shift
+// click and every render, and a full MAP_TERRAIN scan per call was
+// measurably slow enough to be visible as UI lag.
+const columnsCache = new Map<Edge, HexCoord[][]>();
+
 export function deploymentColumns(edge: Edge): HexCoord[][] {
+  const cached = columnsCache.get(edge);
+  if (cached) return cached;
+
   const band = depthBand(edge);
   const isVertical = edge === 'N' || edge === 'S';
   const buckets = new Map<number, HexCoord[]>();
   for (const p of band) {
-    const along = isVertical ? p.x : p.y;
-    const bucket = Math.round(along / HEX_SPACING);
+    const bucket = isVertical ? p.hex.q : 2 * p.hex.r + p.hex.q;
     const list = buckets.get(bucket);
     if (list) list.push(p.hex);
     else buckets.set(bucket, [p.hex]);
   }
-  return [...buckets.keys()].sort((a, b) => a - b).map((k) => buckets.get(k)!);
+  const columns = [...buckets.keys()].sort((a, b) => a - b).map((k) => buckets.get(k)!);
+  columnsCache.set(edge, columns);
+  return columns;
 }
 
 /** Fraction of an edge's available columns given to a single player's

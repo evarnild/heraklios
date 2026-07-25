@@ -35,6 +35,53 @@ describe('deploymentColumns', () => {
       for (const column of columns) expect(column.length).toBeGreaterThan(0);
     }
   });
+
+  it('on N/S edges, every hex in a column shares the same q, and columns are strictly ordered by q', () => {
+    // Pins the exact column<->hex mapping: q is exactly proportional to
+    // hexToPixel's x, so grouping by it must never merge two different q's
+    // into one column (the original bug: pixel-rounding merged q=17 and 18)
+    // or reorder columns. A gap bigger than 1 between consecutive columns is
+    // still legal — it just means the map has no playable hex in that row
+    // (e.g. near the scanned page's fold) — so only strict monotonicity is
+    // asserted, not a fixed step of exactly 1.
+    for (const edge of ['N', 'S'] as const) {
+      const columns = deploymentColumns(edge);
+      const qOf = columns.map((col) => {
+        const qs = new Set(col.map((h) => h.q));
+        expect(qs.size).toBe(1); // every hex in a column shares one q
+        return [...qs][0]!;
+      });
+      for (let i = 1; i < qOf.length; i++) {
+        expect(qOf[i]!).toBeGreaterThan(qOf[i - 1]!);
+      }
+    }
+  });
+
+  it('on E/W edges, every hex in a column shares the same (2r+q), and columns are strictly ordered by it', () => {
+    // Same pin as above, for the axis where depth runs along x instead: y is
+    // exactly proportional to (2r+q), so grouping on that exact integer must
+    // never merge two genuinely different rows or fragment one real row (the
+    // original bug: pixel-rounding produced ragged, unevenly-spaced columns).
+    for (const edge of ['E', 'W'] as const) {
+      const columns = deploymentColumns(edge);
+      const rowOf = columns.map((col) => {
+        const rows = new Set(col.map((h) => 2 * h.r + h.q));
+        expect(rows.size).toBe(1);
+        return [...rows][0]!;
+      });
+      for (let i = 1; i < rowOf.length; i++) {
+        expect(rowOf[i]!).toBeGreaterThan(rowOf[i - 1]!);
+      }
+    }
+  });
+
+  it('every column holds at most 3 hexes (the band is only 3 hexes deep)', () => {
+    for (const edge of EDGES) {
+      for (const column of deploymentColumns(edge)) {
+        expect(column.length).toBeLessThanOrEqual(3);
+      }
+    }
+  });
 });
 
 describe('stripLength / maxAnchor / clampAnchor', () => {
