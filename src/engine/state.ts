@@ -70,6 +70,15 @@ export interface GameState {
   seatOrder: PlayerId[];
   phase: Phase;
   combatMode: CombatMode;
+  /**
+   * House rule (the rulebook is silent on this): when true, `seatOrder` is
+   * reshuffled at the start of each new full turn instead of staying in the
+   * fixed order drawn at the initial edge-assignment dice-off. Chosen once on
+   * the Menu screen; defaults to false so existing games keep playing exactly
+   * as they always have unless a player opts in. See `advancePhase` in
+   * `turnManager.ts` for where and why the reshuffle happens.
+   */
+  randomizedTurnOrder: boolean;
   gameOver: boolean;
   winnerId: PlayerId | null;
 }

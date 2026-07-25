@@ -13,6 +13,14 @@ export interface SessionState {
    * `createInitialState` when the board is set up. */
   combatMode: CombatMode;
   /**
+   * House rule, chosen on the Menu screen before starting a game and carried
+   * into `createInitialState`: when true, turn order is reshuffled at the
+   * start of each new full turn instead of staying fixed at the seating order
+   * drawn during edge assignment. Defaults to false — the rulebook doesn't
+   * address this, so the default reproduces today's (fixed-order) behaviour.
+   */
+  randomizedTurnOrder: boolean;
+  /**
    * True when the game was launched via one of the Menu's test-mode
    * shortcuts. Relaxes the undo rule that a die roll is a commit point (see
    * BoardScene's `rollDie`), so the naval/drift code paths can be replayed
