@@ -36,6 +36,7 @@ export const session: SessionState = {
   edges: ['W', 'E', 'N', 'S'],
   armySelections: [],
   combatMode: 'multi-defender',
+  randomizedTurnOrder: false,
   testMode: false,
   gameState: null,
 };

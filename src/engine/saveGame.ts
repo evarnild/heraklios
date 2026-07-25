@@ -8,6 +8,16 @@ import type { CombatMode, GameState, Phase, PlayerId } from './state';
  */
 export const SAVE_VERSION = 1;
 
+/**
+ * `GameState.randomizedTurnOrder` (added for the re-randomised-turn-order
+ * house rule) deliberately did NOT bump `SAVE_VERSION`: it's read only via
+ * `if (state.randomizedTurnOrder)` in `advancePhase`, so a save file from
+ * before this field existed simply deserializes with it `undefined`, which is
+ * falsy and reproduces exactly the fixed-order behaviour that file was saved
+ * with. No migration and no stricter validation is needed for a field whose
+ * absence is indistinguishable, in behaviour, from its default.
+ */
+
 export type EdgeCode = 'N' | 'S' | 'E' | 'W';
 
 /**

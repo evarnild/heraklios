@@ -52,7 +52,7 @@ export class PlacementScene extends Phaser.Scene {
 
   create(): void {
     if (this.playerIndex === 0 || !session.gameState) {
-      session.gameState = createInitialState(buildPlayers(), session.combatMode);
+      session.gameState = createInitialState(buildPlayers(), session.combatMode, session.randomizedTurnOrder);
     }
     this.placedShips = [];
     this.history.clear();

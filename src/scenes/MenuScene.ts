@@ -76,8 +76,29 @@ export class MenuScene extends Phaser.Scene {
     combatModeBtn.on('pointerover', () => combatModeBtn.setStyle({ backgroundColor: '#6a5a3a' }));
     combatModeBtn.on('pointerout', () => combatModeBtn.setStyle({ backgroundColor: '#4a3f2a' }));
 
+    this.add.text(width / 2, 370, 'Ordre de jeu', { fontSize: '16px', color: '#a89878' }).setOrigin(0.5);
+    const turnOrderLabel = () =>
+      session.randomizedTurnOrder
+        ? 'Ordre des joueurs re-tiré au sort à chaque tour'
+        : 'Ordre des joueurs fixe (tirage initial)';
+    const turnOrderBtn = this.add
+      .text(width / 2, 400, turnOrderLabel(), {
+        fontSize: '14px',
+        color: '#ffffff',
+        backgroundColor: '#4a3f2a',
+        padding: { x: 14, y: 6 },
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+    turnOrderBtn.on('pointerdown', () => {
+      session.randomizedTurnOrder = !session.randomizedTurnOrder;
+      turnOrderBtn.setText(turnOrderLabel());
+    });
+    turnOrderBtn.on('pointerover', () => turnOrderBtn.setStyle({ backgroundColor: '#6a5a3a' }));
+    turnOrderBtn.on('pointerout', () => turnOrderBtn.setStyle({ backgroundColor: '#4a3f2a' }));
+
     const testBtn = this.add
-      .text(width / 2, 400, 'Mode test (2 joueurs, armées prêtes)', {
+      .text(width / 2, 440, 'Mode test (2 joueurs, armées prêtes)', {
         fontSize: '16px',
         color: '#cfcfcf',
         backgroundColor: '#333',
@@ -94,7 +115,7 @@ export class MenuScene extends Phaser.Scene {
     testBtn.on('pointerout', () => testBtn.setStyle({ backgroundColor: '#333' }));
 
     const combatTestBtn = this.add
-      .text(width / 2, 440, 'Mode test combat (unités face à face, 2 cases)', {
+      .text(width / 2, 480, 'Mode test combat (unités face à face, 2 cases)', {
         fontSize: '16px',
         color: '#cfcfcf',
         backgroundColor: '#333',
@@ -113,7 +134,7 @@ export class MenuScene extends Phaser.Scene {
     // Always offered, even with every slot empty, since the panel can also
     // import a save from a .json file.
     const loadBtn = this.add
-      .text(width / 2, 500, 'Charger une partie', {
+      .text(width / 2, 540, 'Charger une partie', {
         fontSize: '18px',
         color: '#ffffff',
         backgroundColor: '#3a3a55',
