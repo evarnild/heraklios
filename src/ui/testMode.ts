@@ -44,6 +44,9 @@ export function startTestGame(): void {
   const state = createInitialState(players, session.combatMode, session.randomizedTurnOrder);
 
   players.forEach((player) => {
+    // Default anchor (centered on the edge) — the test-mode shortcuts skip
+    // the interactive zone-position UI entirely, they just need a handful of
+    // valid land hexes near this player's edge.
     const landHexes = deploymentZone(player.edge).filter(
       (hex) => !state.units.some((u) => u.position.q === hex.q && u.position.r === hex.r),
     );
