@@ -29,9 +29,12 @@ npm run build   # production build
    the shared roster (archers, infantry, cavalry, chariots, elephants,
    phalanxes, and four tiers of warships), subject to per-unit quantity
    caps, one player at a time ("pass the device").
-3. **Placement** — each player deploys their purchased units within a
-   3-hex-deep strip along their randomly assigned edge of the map (green
-   highlight).
+3. **Placement** — each player first chooses where along their randomly
+   assigned edge their 3-hex-deep deployment strip sits (see "Deployment
+   zone position" below), then deploys their purchased units within it
+   (green highlight). Ships also let the placing player pick an initial
+   facing (see "Naval movement and combat" below) instead of always
+   starting bow-first in a fixed direction.
 4. **Board** — turns proceed player by player, each running a Movement
    phase (click a unit, then a highlighted reachable hex) followed by a
    Combat phase. In the Combat phase: click friendly units to build an
@@ -99,6 +102,34 @@ Two boundaries deliberately limit how far back it reaches:
 Undo is also refused while a retreat or elephant drift is still awaiting a
 choice — resolve it first, the same rule "End phase" already follows.
 
+### Deployment zone position
+
+Per the rulebook, a player's units "must be placed along their assigned
+edge of the map, within a strip no more than 3 hexes wide," with "a
+minimum gap of 4 hexes" separating two different armies at the start
+(`docs/research/02-rules-transcription.md`). Before placing any units,
+each player is shown a candidate strip (gold, or red if it's currently too
+close to another army already placed) and **"◀ Shift" / "Shift ▶"**
+buttons that slide it along their edge; **"Confirm zone"** locks it in and
+switches to unit placement within it (green highlight), the same as
+before. Earlier players' already-confirmed zones are shown too (dim red)
+so it's clear why some positions are blocked. Since every player is always
+assigned a distinct edge (see the edge dice-off above), this separation
+check only ever matters near a shared corner between two adjacent edges —
+opposite edges (e.g. north vs. south) are always far enough apart on this
+map regardless of where either strip sits.
+
+A strip's length along the edge isn't specified by the rulebook (only its
+3-hex depth is) — this edition gives each player half of their edge's
+available length to choose from, enough room for the anchor to actually
+slide from one end to the other. If literally no position on an edge
+would satisfy the 4-hex gap from an already-placed neighbor (only possible
+on a very cramped edge), "Confirm zone" is allowed anyway rather than
+soft-locking the game — see `PlacementScene.ts`'s
+`anyAnchorSatisfiesSeparation` for this interpretive call, and
+`mapBounds.ts` for the underlying geometry (anchor/window math and the
+separation check itself), which is unit-tested independently of the UI.
+
 ### Combining attacks
 
 Real *Héraklios* land combat lets several friendly units combine their
@@ -126,7 +157,14 @@ sacrifice.
 ### Naval movement and combat
 
 Ships have a **facing** (the direction their bow points) as well as a
-movement allowance: selecting a ship in the Movement phase highlights every
+movement allowance. The rulebook doesn't cover initial facing at all, so
+placing a ship during Placement stages it on the clicked hex without
+committing it yet — the same **"⟲ Turn" / "Turn ⟳"** buttons used during
+the Movement phase (below) let the placing player pick its facing, shown
+live as the same arrow overlay, before **"Confirm facing"** actually adds
+it to the board (or **"Cancel"** to pick a different hex instead).
+
+During the Movement phase itself, selecting a ship highlights every
 hex it can reach (blue) given that a ship may only move forward through the
 side its bow faces, and rotating the facing costs 1 movement point per 60°
 turn (so a full reversal costs 3) — movement and rotation may be freely
@@ -217,10 +255,6 @@ what the game will use — see `src/map-editor/`.
 A few places trade a little rules fidelity for a shippable scope — flagged
 here rather than silently:
 
-- **Deployment zones** are a fixed 3-hex-deep strip spanning each player's
-  entire assigned edge, rather than letting each player choose where along
-  the edge to deploy (the original rule) with a 4-hex separation from
-  other players.
 - **Cavalry charges** (doubling attack value when a cavalry unit uses its
   full movement in a straight line into contact) and the restriction that
   cavalry can never attack phalanxes are not implemented; cavalry always
@@ -228,9 +262,6 @@ here rather than silently:
 - **Turn order** among the 4 players is fixed at the initial edge-assignment
   dice-off; the rulebook doesn't specify whether it should be re-randomized
   each turn, so this plays it as fixed seating order.
-- **Ship facing at deployment** always starts at a fixed default direction
-  (facing index 0) rather than letting the placing player choose — the
-  rulebook doesn't cover initial facing at all.
 - **Naval movement is destination-click, not path-drawn.** Clicking a
   highlighted hex moves the selected ship there by the cheapest combination
   of rotation + forward moves (or, for an orange-highlighted contact hex,
