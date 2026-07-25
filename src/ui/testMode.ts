@@ -10,7 +10,7 @@ const NAVAL_TEST_UNITS = ['galeres', 'biremes'];
 
 let unitCounter = 0;
 
-function makeUnit(owner: PlayerId, typeId: string, position: HexCoord): Unit {
+function makeUnit(owner: PlayerId, typeId: string, position: HexCoord, facing = 0): Unit {
   const t = getUnitType(typeId);
   return {
     id: `test-u${unitCounter++}`,
@@ -18,7 +18,7 @@ function makeUnit(owner: PlayerId, typeId: string, position: HexCoord): Unit {
     typeId,
     position,
     movementLeft: t.movement,
-    facing: 0,
+    facing,
     equipmentPoints: t.domain === 'naval' ? Math.ceil(t.defense / 5) : undefined,
     defendedThisPhase: false,
     destroyed: false,
@@ -73,6 +73,13 @@ export function startTestGame(): void {
  * melee units are one move from contact), and neighbors within each row are
  * adjacent to each other — so multi-unit attack groups can be tested right
  * away without hunting across the map for reachable targets.
+ *
+ * Also lays out one of every naval unit type in two parallel rows out on
+ * open sea (rows r=7 and r=9, q=25.. — confirmed all-sea on the shipped
+ * map), 2 hexes apart and bows-on to their counterpart, same as the land
+ * rows: one forward move brings a ship into ramming contact, which also
+ * makes boarding available (parallel facing) without hunting across the
+ * map for water.
  */
 export function startCloseCombatTestGame(): void {
   unitCounter = 0;
@@ -91,6 +98,15 @@ export function startCloseCombatTestGame(): void {
   landTypeIds.forEach((typeId, i) => {
     state.units.push(makeUnit(0 as PlayerId, typeId, { q: baseQ + i, r: 3 }));
     state.units.push(makeUnit(1 as PlayerId, typeId, { q: baseQ + i, r: 5 }));
+  });
+
+  // Facings 5 ({q:0,r:+1}, "south") and 2 ({q:0,r:-1}, "north") point the two
+  // rows' bows directly at each other across the r=8 gap.
+  const navalTypeIds = UNIT_TYPES.filter((t) => t.domain === 'naval').map((t) => t.id);
+  const navalBaseQ = 25;
+  navalTypeIds.forEach((typeId, i) => {
+    state.units.push(makeUnit(0 as PlayerId, typeId, { q: navalBaseQ + i, r: 7 }, 5));
+    state.units.push(makeUnit(1 as PlayerId, typeId, { q: navalBaseQ + i, r: 9 }, 2));
   });
 
   session.gameState = state;
