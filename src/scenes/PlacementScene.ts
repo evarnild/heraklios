@@ -19,8 +19,12 @@ export class PlacementScene extends Phaser.Scene {
   private queue: QueueItem[] = [];
   private infoText!: Phaser.GameObjects.Text;
   private unitCounter = 0;
-  /** Ships placed so far this player's turn, for the facing-arrow overlay —
-   * all deploy at a fixed default facing (see `Unit.facing`'s doc comment). */
+  /** Ships placed so far by the CURRENT player, for the facing-arrow overlay —
+   * all deploy at a fixed default facing (see `Unit.facing`'s doc comment).
+   * Reset in `create`: Phaser reuses one scene instance across the
+   * player-by-player `scene.start('Placement', ...)` restarts, so field
+   * initializers run only once and this would otherwise keep the previous
+   * player's ships and redraw their arrows in the new player's color. */
   private placedShips: { hex: HexCoord; facing: number }[] = [];
 
   constructor() {
@@ -35,6 +39,7 @@ export class PlacementScene extends Phaser.Scene {
     if (this.playerIndex === 0 || !session.gameState) {
       session.gameState = createInitialState(buildPlayers(), session.combatMode);
     }
+    this.placedShips = [];
 
     const { width, height } = this.scale;
     const player = session.gameState!.players[this.playerIndex]!;
@@ -105,7 +110,10 @@ export class PlacementScene extends Phaser.Scene {
 
     const t = getUnitType(item.typeId);
     const unit: Unit = {
-      id: `u${this.unitCounter++}`,
+      // Namespaced by player so ids stay unique without depending on
+      // `unitCounter` surviving Phaser's scene restarts (several features key
+      // state off unit ids — see engine/history.ts' callers).
+      id: `p${this.playerIndex}u${this.unitCounter++}`,
       owner: this.playerIndex as 0 | 1 | 2 | 3,
       typeId: item.typeId,
       position: hex,
