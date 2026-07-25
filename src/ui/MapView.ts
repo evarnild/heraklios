@@ -26,6 +26,7 @@ export class MapView {
   private riverGraphics!: Phaser.GameObjects.Graphics;
   private facingGraphics: Phaser.GameObjects.Graphics;
   private unitLabels = new Map<string, Phaser.GameObjects.GameObject>();
+  private movementLabel: Phaser.GameObjects.Text | null = null;
   /** Set once `pinUIObjects` has added the fixed HUD camera — used so newly
    * created world objects (unit markers) get excluded from it too. */
   private uiCamera: Phaser.Cameras.Scene2D.Camera | null = null;
@@ -274,6 +275,36 @@ export class MapView {
   clearAllUnitLabels(): void {
     for (const label of this.unitLabels.values()) label.destroy();
     this.unitLabels.clear();
+  }
+
+  /** Shows the selected unit's remaining movement points centered on its
+   * marker — created once and repositioned/retexted on every call rather
+   * than recreated, since it tracks a single unit across a whole selection
+   * (following it across moves/rotations). */
+  showMovementPoints(hex: HexCoord, value: number): void {
+    const center = this.toScreen(hex);
+    const text = Number.isInteger(value) ? `${value}` : value.toFixed(1);
+    if (this.movementLabel) {
+      this.movementLabel.setPosition(center.x, center.y);
+      this.movementLabel.setText(text);
+      this.movementLabel.setVisible(true);
+      return;
+    }
+    this.movementLabel = this.scene.add
+      .text(center.x, center.y, text, {
+        fontSize: '18px',
+        fontStyle: 'bold',
+        color: '#ffffff',
+        stroke: '#000000',
+        strokeThickness: 4,
+      })
+      .setOrigin(0.5)
+      .setDepth(12);
+    if (this.uiCamera) this.uiCamera.ignore(this.movementLabel);
+  }
+
+  hideMovementPoints(): void {
+    this.movementLabel?.setVisible(false);
   }
 
   /**

@@ -250,6 +250,19 @@ export class BoardScene extends Phaser.Scene {
       }
     }
     this.mapView.setFacingIndicators(ships);
+    this.refreshMovementLabel();
+  }
+
+  /** Shows/hides the remaining-movement-points label on the currently
+   * selected unit — called after selection changes and after any move or
+   * rotation that spends movement points, so it stays in sync with both
+   * the unit's position and its `movementLeft`. */
+  private refreshMovementLabel(): void {
+    if (this.selected) {
+      this.mapView.showMovementPoints(this.selected.position, this.selected.movementLeft);
+    } else {
+      this.mapView.hideMovementPoints();
+    }
   }
 
   private activePlayerId(): number {
@@ -336,6 +349,7 @@ export class BoardScene extends Phaser.Scene {
 
   private selectForMovement(unit: Unit): void {
     this.selected = unit;
+    this.refreshMovementLabel();
     if (unitType(unit).domain === 'naval') {
       this.refreshNavalMovementControls(unit);
       return;
@@ -506,6 +520,7 @@ export class BoardScene extends Phaser.Scene {
     this.selected = null;
     this.clearNavalMovementControls();
     this.mapView.clearHighlights();
+    this.refreshMovementLabel();
   }
 
   private toggleAttacker(unit: Unit): void {
