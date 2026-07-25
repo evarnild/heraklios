@@ -1,6 +1,14 @@
 import Phaser from 'phaser';
 import { MapView } from '../ui/MapView';
 import { session } from '../ui/session';
+import { SaveLoadPanel } from '../ui/saveLoadPanel';
+import {
+  applySavedGame,
+  captureCurrentGame,
+  consumePendingLoad,
+  writeSlot,
+} from '../ui/saveStorage';
+import type { SavedGame } from '../engine/saveGame';
 import { advancePhase } from '../engine/turnManager';
 import { reachableHexes, reachableNavalHexes, findRammingContacts, type RammingContact } from '../engine/movement';
 import {
@@ -133,6 +141,12 @@ export class BoardScene extends Phaser.Scene {
   }
 
   create(): void {
+    // A save staged by the Menu takes effect before anything renders. Its
+    // presence also means this is a resumed game, so the fresh-game movement
+    // reset at the end of `create` must be skipped.
+    const staged = consumePendingLoad();
+    if (staged) this.adoptSave(staged);
+
     const { width, height } = this.scale;
     this.mapView = new MapView(this, width, height, PANEL_WIDTH);
     this.renderAllUnits();
@@ -237,6 +251,18 @@ export class BoardScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
     this.redoBtn.on('pointerdown', () => this.redo());
 
+    const saveLoadBtn = this.add
+      .text(16, height - 104, '💾 Save / Load', {
+        fontSize: '12px',
+        color: '#fff',
+        backgroundColor: '#4a3f2a',
+        padding: { x: 8, y: 4 },
+      })
+      .setScrollFactor(0)
+      .setDepth(30)
+      .setInteractive({ useHandCursor: true });
+    saveLoadBtn.on('pointerdown', () => this.openSaveLoad());
+
     this.input.keyboard?.on('keydown-Z', (event: KeyboardEvent) => {
       if (!event.ctrlKey && !event.metaKey) return;
       if (event.shiftKey) this.redo();
@@ -274,14 +300,19 @@ export class BoardScene extends Phaser.Scene {
       this.ramNowBtn,
       this.undoBtn,
       this.redoBtn,
+      saveLoadBtn,
       this.statusText,
       this.logText,
     ]);
 
-    this.resetMovementForActivePlayer();
+    // A resumed game already carries the right movement points and ramming
+    // record — only a fresh one gets them handed out here.
+    if (!staged) this.resetMovementForActivePlayer();
     this.mapView.onHexClick = (hex) => this.onHexClick(hex);
     this.refreshStatus();
     this.refreshUndoRedoButtons();
+    this.autosave();
+    if (staged) this.log('Game loaded.');
   }
 
   private state() {
@@ -328,6 +359,79 @@ export class BoardScene extends Phaser.Scene {
   private activePlayerId(): number {
     const state = this.state();
     return state.seatOrder[state.activePlayerIndex]!;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Save / load
+  // ---------------------------------------------------------------------------
+
+  private captureSave(): SavedGame {
+    return captureCurrentGame({
+      attackedThisPhase: this.attackedThisPhase,
+      rammedThisTurn: this.rammedThisTurn,
+    });
+  }
+
+  /**
+   * Points the session at a saved game and adopts the two per-phase sets that
+   * live here rather than in `GameState`. Shared by the Menu's "load into a
+   * fresh Board" path and the in-place load below.
+   */
+  private adoptSave(save: SavedGame): void {
+    const bookkeeping = applySavedGame(save);
+    this.attackedThisPhase = bookkeeping.attackedThisPhase;
+    this.rammedThisTurn = bookkeeping.rammedThisTurn;
+  }
+
+  /** Loads without leaving the scene — `create` would otherwise re-run and
+   * hand the active player a fresh movement allowance. */
+  private loadInPlace(save: SavedGame): void {
+    this.adoptSave(save);
+    this.selected = null;
+    this.attackGroup = [];
+    this.defenderGroup = [];
+    this.retreatQueue = [];
+    this.driftQueue = [];
+    this.retreatChoice = null;
+    this.driftState = null;
+    this.advanceEligibleAttackers = [];
+    this.advanceOfferQueue = [];
+    this.navalContacts = [];
+    // The loaded position is a new starting point; undoing into the previous
+    // game's actions would be meaningless.
+    this.history.clear();
+    this.clearNavalMovementControls();
+    this.mapView.clearHighlights();
+    this.renderAllUnits();
+    this.refreshStatus();
+    this.refreshUndoRedoButtons();
+    this.log('Game loaded.');
+  }
+
+  /**
+   * Writes the crash-recovery copy. Silent on failure: an unavailable or full
+   * localStorage shouldn't interrupt play with an error the player can't act
+   * on — a manual save reports the same problem where it matters.
+   */
+  private autosave(): void {
+    if (this.retreatChoice || this.driftState) return;
+    writeSlot('autosave', this.captureSave());
+  }
+
+  private openSaveLoad(): void {
+    // A pending retreat/drift can't be captured at all: those sequences carry
+    // `onComplete` closures, which don't survive serialization.
+    if (this.retreatChoice || this.driftState) {
+      this.log('Resolve the pending retreat/drift before saving or loading.');
+      return;
+    }
+    new SaveLoadPanel(this, {
+      mode: 'manage',
+      captureSave: () => this.captureSave(),
+      onLoad: (save) => this.loadInPlace(save),
+      onStatus: (message) => this.log(message),
+      onObjectsCreated: (objects) => this.mapView.excludeFromMainCamera(objects),
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -1456,6 +1560,9 @@ export class BoardScene extends Phaser.Scene {
     }
     if (state.phase === 'movement') {
       this.resetMovementForActivePlayer();
+      // A player's movement phase beginning is the natural checkpoint: a
+      // crash or closed tab then costs at most that one turn.
+      this.autosave();
     }
     this.refreshStatus();
     this.log('');

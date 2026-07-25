@@ -54,6 +54,28 @@ npm run build   # production build
    vacated. "End phase" advances movement → combat → the next player's
    movement. The game ends when only one army remains on the board.
 
+### Saving and loading
+
+The Board's **💾 Save / Load** button opens a panel with six save slots plus a
+separate autosave, each showing the turn, active player, phase and timestamp
+so you can tell them apart. Saves live in the browser's `localStorage`, and
+**"Export to file"** / **"Import from file"** round-trip a `.json` save for
+backup, for moving between machines, or for handing a game to someone else.
+The Menu's **"Charger une partie"** offers the same list (load and import
+only) and drops you straight onto the board.
+
+The game **autosaves at the start of each player's movement phase**, into its
+own slot that manual saves never touch — so a closed tab or a browser crash
+costs at most one turn. Saving is refused while a retreat or elephant drift is
+still awaiting a choice: those sequences hold callbacks that can't be
+serialized, so a save always lands on a stable position.
+
+A save carries the whole session — the players and their assigned edges, the
+combat-rule variant, every unit's position, facing, movement and damage, and
+the per-phase record of which units have already attacked or rammed. Loading
+a game clears the undo history, since undoing into a previous game's actions
+would be meaningless.
+
 ### Undo and redo
 
 Both the Placement screen and the Board have **↶ Undo / ↷ Redo** buttons
@@ -168,8 +190,10 @@ what the game will use — see `src/map-editor/`.
 - `src/data/map.ts` — the actual board's hex terrain, derived from the
   scanned map (see `tools/map-extract/README.md` for how).
 - `src/engine/` — pure game logic: hex math, army validation, movement/ZOC,
-  combat resolution, turn sequencing, and the undo/redo history primitive.
-  Fully unit-tested and independent of Phaser.
+  combat resolution, turn sequencing, the undo/redo history primitive, and the
+  save-file format and its validation. Fully unit-tested and independent of
+  Phaser (the browser-side half of saving — `localStorage` and file
+  download/upload — lives in `src/ui/saveStorage.ts`).
 - `src/scenes/` — the Phaser UI: menu, army builder, placement, board,
   game-over.
 - `src/ui/` — shared rendering helpers (hex grid rendering/camera, session

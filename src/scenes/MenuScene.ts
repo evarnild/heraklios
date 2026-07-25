@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { session, resetSession } from '../ui/session';
 import { startTestGame, startCloseCombatTestGame } from '../ui/testMode';
+import { SaveLoadPanel } from '../ui/saveLoadPanel';
+import { stagePendingLoad } from '../ui/saveStorage';
 import { PLAYER_COLOR_NAMES, markerTextureKey, markerAssetPath } from '../ui/hexRender';
 import { UNIT_TYPES } from '../data/units';
 
@@ -107,5 +109,30 @@ export class MenuScene extends Phaser.Scene {
     });
     combatTestBtn.on('pointerover', () => combatTestBtn.setStyle({ backgroundColor: '#4a4a4a' }));
     combatTestBtn.on('pointerout', () => combatTestBtn.setStyle({ backgroundColor: '#333' }));
+
+    // Always offered, even with every slot empty, since the panel can also
+    // import a save from a .json file.
+    const loadBtn = this.add
+      .text(width / 2, 500, 'Charger une partie', {
+        fontSize: '18px',
+        color: '#ffffff',
+        backgroundColor: '#3a3a55',
+        padding: { x: 16, y: 8 },
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+    loadBtn.on('pointerdown', () => {
+      new SaveLoadPanel(this, {
+        mode: 'load',
+        onLoad: (save) => {
+          // The Board applies it in its own `create`, which is also how it
+          // knows to skip the fresh-game movement reset.
+          stagePendingLoad(save);
+          this.scene.start('Board');
+        },
+      });
+    });
+    loadBtn.on('pointerover', () => loadBtn.setStyle({ backgroundColor: '#4a4a6a' }));
+    loadBtn.on('pointerout', () => loadBtn.setStyle({ backgroundColor: '#3a3a55' }));
   }
 }
