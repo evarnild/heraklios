@@ -37,9 +37,7 @@ npm run build   # production build
    Combat phase. In the Combat phase: click friendly units to build an
    attacking group (blue highlight), click eligible enemy units to add them
    as targets (amber = eligible but not yet chosen, red = chosen), then
-   click **"Resolve attack"** to roll the combined combat. Naval ramming and
-   boarding stay one ship vs. one ship and resolve immediately when you pick
-   a target. When a result forces a retreat, the owning player picks the
+   click **"Resolve attack"** to roll the combined combat. When a result forces a retreat, the owning player picks the
    destination: legal hexes are highlighted blue — click one. If every
    neighboring hex is occupied by a friendly unit, those are highlighted
    amber instead — click one to have it retreat and make room, then pick
@@ -79,6 +77,41 @@ player must choose which of their own units to also lose, totaling at
 least the defenders' force — with only one attacker there's no real choice,
 but a multi-unit attack group gets a prompt to pick which units to
 sacrifice.
+
+### Naval movement and combat
+
+Ships have a **facing** (the direction their bow points) as well as a
+movement allowance: selecting a ship in the Movement phase highlights every
+hex it can reach (blue) given that a ship may only move forward through the
+side its bow faces, and rotating the facing costs 1 movement point per 60°
+turn (so a full reversal costs 3) — movement and rotation may be freely
+interleaved. The **"⟲ Turn" / "Turn ⟳"** buttons rotate the selected ship
+in place; if it's already bow-on to an adjacent enemy ship, or can become
+so, that's a **ramming** opportunity (orange highlight, or the **"Ram!"**
+button if no move is needed) — declaring one rolls 1d6 against the
+transcribed ramming table, with a bonus based on how much movement is left
+unspent at the moment of contact (up to +2). A ship that declares a ram —
+hit or miss — commits the rest of its movement to the attempt and can't
+also board later that turn.
+
+**Boarding** is a Combat-phase action instead, and requires the two ships
+to be adjacent with *parallel* facings (identical or exactly opposite) —
+one ship's bow pointing directly at the other is a ramming angle, not a
+boarding one. It resolves via the transcribed boarding table (force ratio ×
+1d6), stripping equipment points (5 attack/5 defense each) from the losing
+side; a ship reduced to 0 equipment is destroyed.
+
+A few interpretive calls were needed where the rulebook itself is
+ambiguous or inconsistent (see `src/data/navalRamming.ts`'s comments for
+detail) — most notably, the ramming bonus mechanic: the rulebook's worked
+example describes success widening from "roll a 1" (no bonus) to "1, 2, or
+3" (max +2 bonus) in general terms, but the printed per-ship-matchup table
+already varies in width (1 to 5 entries) and some rows exceed what a max
+bonus would reach under a literal reading of the example. This edition
+treats the printed table as the success range at *maximum* bonus, and a
+lower bonus exposes only the first `1 + bonus` entries of it — reproducing
+the worked example exactly for every matchup narrow enough to fit, and
+capping the benefit of movement alone at "1, 2, or 3" for the widest rows.
 
 ## Map editor
 
@@ -148,6 +181,28 @@ here rather than silently:
 - **Turn order** among the 4 players is fixed at the initial edge-assignment
   dice-off; the rulebook doesn't specify whether it should be re-randomized
   each turn, so this plays it as fixed seating order.
+- **Ship facing at deployment** always starts at a fixed default direction
+  (facing index 0) rather than letting the placing player choose — the
+  rulebook doesn't cover initial facing at all.
+- **Naval movement is destination-click, not path-drawn.** Clicking a
+  highlighted hex moves the selected ship there by the cheapest combination
+  of rotation + forward moves (or, for an orange-highlighted contact hex,
+  by the specific facing that makes ramming eligible there, even if a
+  cheaper non-contact facing exists for that same hex) — a player can't
+  otherwise choose an *alternate*, costlier facing for a hex that also has a
+  cheap one. Multi-leg moves (rotate/reposition, stop, then move the same
+  ship again) are still possible by reselecting it mid-phase.
+- **A ramming contact is only detected at hexes a single click can already
+  reach** (the cheapest path to each hex, plus any bow-on contact along the
+  way) — a ship can't be walked through an arbitrary hand-drawn path hex by
+  hex, so an unusual route that would create a contact somewhere off that
+  set isn't offered. In practice this rarely matters since a rational
+  player wants the earliest (cheapest) contact anyway, for the best bonus.
+- **Non-galley ships forced into the coastal fringe/wide rivers** ("removed
+  from the game" per the rulebook) has no code path today, since nothing in
+  this implementation forces a ship's position outside its own chosen
+  moves — there's no naval retreat/drift mechanic that could push one there
+  involuntarily.
 - **Map terrain**: the currently shipped `src/data/map.ts` was extracted from
   the scanned board via a semi-automated pipeline (per-page grid calibration
   + color classification + river-hexside detection — see

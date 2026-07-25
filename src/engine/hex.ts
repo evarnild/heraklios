@@ -18,6 +18,34 @@ export function directionForDie(dieRoll: number): HexCoord {
   return DIRECTIONS[index]!;
 }
 
+/** Minimum number of 60° steps between two facings (0-5) — the rulebook
+ * charges 1 movement point per 60° turn regardless of direction, so a
+ * 180° reversal costs 3 (the maximum possible distance around the hex). */
+export function facingRotationCost(from: number, to: number): number {
+  const diff = Math.abs(from - to) % 6;
+  return Math.min(diff, 6 - diff);
+}
+
+/** The facing directly opposite `facing` (180°, i.e. 3 steps around). */
+export function oppositeFacing(facing: number): number {
+  return (facing + 3) % 6;
+}
+
+/** True if two ships' facings run along the same line of travel — either
+ * identical or exactly opposite — which is the rulebook's "parallèlement"
+ * requirement for boarding (as opposed to one ship's bow pointing at the
+ * other, which is a ramming angle, not a boarding one). */
+export function areFacingsParallel(a: number, b: number): boolean {
+  return a === b || a === oppositeFacing(b);
+}
+
+/** The facing (0-5) a ship at `from` would need to have its bow pointed
+ * directly at the adjacent hex `to`, or `undefined` if they aren't adjacent. */
+export function facingToward(from: HexCoord, to: HexCoord): number | undefined {
+  const index = DIRECTIONS.findIndex((d) => hexEquals(hexAdd(from, d), to));
+  return index === -1 ? undefined : index;
+}
+
 export function hexKey(hex: HexCoord): string {
   return `${hex.q},${hex.r}`;
 }

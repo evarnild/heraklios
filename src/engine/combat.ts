@@ -4,7 +4,7 @@ import { TERRAIN_EFFECTS, RIVER_CROSSING, isSeaLike, type TerrainType } from '..
 import { resolveLandCombat, ratioToColumnIndex, RATIO_COLUMNS, type CombatResult } from '../data/combatTable';
 import { isRammingSuccessful, type ShipTypeId } from '../data/navalRamming';
 import { resolveBoarding, type BoardingResult } from '../data/navalBoarding';
-import { hexAdd, hexDistance, hexEquals, DIRECTIONS } from './hex';
+import { hexAdd, hexDistance, hexEquals, areFacingsParallel, DIRECTIONS } from './hex';
 import {
   type GameState,
   type Unit,
@@ -125,9 +125,22 @@ export function validTargets(state: GameState, attacker: Unit): Unit[] {
   return state.units.filter((u) => {
     if (u.destroyed || u.owner === attacker.owner || u.defendedThisPhase) return false;
     const dist = hexDistance(attacker.position, u.position);
-    if (t.domain === 'naval') return dist === 1; // ramming/boarding require adjacency
+    // Ramming is a movement-phase event (see `navalMovement.findRammingContacts`) —
+    // by the time the Combat phase runs, the only naval option left is boarding.
+    if (t.domain === 'naval') return dist === 1 && canBoard(attacker, u);
     return checkRangedEligibility(attacker, dist).canAttack;
   });
+}
+
+/**
+ * Whether two adjacent ships may fight by boarding: "l'abordage nécessite
+ * que les vaisseaux se présentent parallèlement sur des hexagones
+ * contigus" — the ships' facings must run along the same line of travel
+ * (identical or exactly opposite), as opposed to one ship's bow pointing
+ * directly at the other, which is a ramming angle instead.
+ */
+export function canBoard(attacker: Unit, defender: Unit): boolean {
+  return hexDistance(attacker.position, defender.position) === 1 && areFacingsParallel(attacker.facing, defender.facing);
 }
 
 /**
@@ -402,4 +415,25 @@ export function isRammingHit(attackerType: ShipTypeId, defenderType: ShipTypeId,
 
 export function resolveNavalBoarding(attackForce: number, defenseForce: number, dieRoll: number): BoardingResult {
   return resolveBoarding(attackForce, defenseForce, dieRoll);
+}
+
+/** A successful ram sinks the target ship outright ("la galère de
+ * l'attaquant coule la quintirème"); a miss leaves both ships intact. */
+export function applyRammingResult(defender: Unit, hit: boolean): void {
+  defender.defendedThisPhase = true;
+  if (hit) defender.destroyed = true;
+}
+
+/**
+ * Applies a resolved boarding result: the losing side (if any — a blank/pink
+ * cell means the engagement wasn't decisive) loses `equipmentLoss` equipment
+ * points, each worth -5 attack/-5 defense; a ship whose equipment reaches
+ * zero has nothing left to fight with and is removed from the game.
+ */
+export function applyBoardingResult(attacker: Unit, defender: Unit, result: BoardingResult): void {
+  defender.defendedThisPhase = true;
+  if (result.side === null || result.equipmentLoss <= 0) return;
+  const victim = result.side === 'attacker' ? attacker : defender;
+  victim.equipmentPoints = Math.max(0, (victim.equipmentPoints ?? 0) - result.equipmentLoss);
+  if (victim.equipmentPoints <= 0) victim.destroyed = true;
 }

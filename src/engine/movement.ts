@@ -3,8 +3,12 @@ import { MAP_TERRAIN, hexKey as mapHexKey } from '../data/map';
 import { TERRAIN_EFFECTS, RIVER_CROSSING, canEnterTerrain } from '../data/terrain';
 import { hexKey, neighbors } from './hex';
 import { hexesUnderZoc, unitAt, terrainAt, riverBetween } from './combat';
+import { reachableNavalHexes } from './navalMovement';
 import type { GameState, Unit } from './state';
 import { unitType } from './state';
+
+export { reachableNavalHexes, reachableNavalStates, findRammingContacts } from './navalMovement';
+export type { NavalState, RammingContact } from './navalMovement';
 
 function unitCategory(unit: Unit): 'chariot' | 'cavalry' | 'elephant' | 'land' | 'naval' {
   const t = unitType(unit);
@@ -20,9 +24,19 @@ function unitCategory(unit: Unit): 'chariot' | 'cavalry' | 'elephant' | 'land' |
  * respecting terrain cost/restrictions and the "must stop on entering an
  * enemy ZOC" rule. Returns a map of hexKey -> movement points spent to
  * reach it (for UI display), not including impassable/unreached hexes.
+ *
+ * Naval units delegate to `reachableNavalHexes`, which additionally tracks
+ * facing (a ship may only move forward through the side its bow faces, and
+ * rotating costs movement points) — this wrapper just drops the facing from
+ * the result for callers that only care about which hexes are reachable at
+ * all. Use `reachableNavalHexes` directly when the ending facing matters.
  */
 export function reachableHexes(state: GameState, unit: Unit): Map<string, number> {
   const category = unitCategory(unit);
+  if (category === 'naval') {
+    const naval = reachableNavalHexes(state, unit);
+    return new Map(Array.from(naval, ([key, { cost }]) => [key, cost]));
+  }
   const isGalley = unit.typeId === 'galeres';
   const enemyZoc = hexesUnderZoc(state, unit.owner);
   const startKey = hexKey(unit.position);
@@ -50,9 +64,9 @@ export function reachableHexes(state: GameState, unit: Unit): Map<string, number
       if (unitAt(state, next)) continue; // hexes may hold at most one unit
 
       let moveCost = TERRAIN_EFFECTS[terrain].moveCost;
-      // Crossing a river hexside costs extra (land units only; galleys in a
-      // wide river are handled by terrain). Ships ignore land river edges.
-      if (category !== 'naval' && riverBetween(current, next)) {
+      // Crossing a river hexside costs extra (naval movement is handled
+      // separately above and never reaches this branch).
+      if (riverBetween(current, next)) {
         moveCost += RIVER_CROSSING.extraMoveCost;
       }
       const newCost = spent + moveCost;

@@ -19,6 +19,9 @@ export class PlacementScene extends Phaser.Scene {
   private queue: QueueItem[] = [];
   private infoText!: Phaser.GameObjects.Text;
   private unitCounter = 0;
+  /** Ships placed so far this player's turn, for the facing-arrow overlay —
+   * all deploy at a fixed default facing (see `Unit.facing`'s doc comment). */
+  private placedShips: { hex: HexCoord; facing: number }[] = [];
 
   constructor() {
     super('Placement');
@@ -115,6 +118,12 @@ export class PlacementScene extends Phaser.Scene {
     state.units.push(unit);
     item.remaining -= 1;
     this.mapView.setUnitMarker(hex, item.typeId, this.playerIndex);
+    if (t.domain === 'naval') {
+      this.placedShips.push({ hex, facing: unit.facing });
+      this.mapView.setFacingIndicators(
+        this.placedShips.map((s) => ({ ...s, playerIndex: this.playerIndex })),
+      );
+    }
     this.updateInfo();
   }
 

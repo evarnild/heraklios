@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
+  applyBoardingResult,
   applyExchangeSacrifice,
   applyLandCombatResult,
+  applyRammingResult,
+  canBoard,
   canElephantEnterHex,
   checkRangedEligibility,
   commonValidTargets,
@@ -349,5 +352,98 @@ describe('riverBetween', () => {
     expect(riverBetween(b, a)).toBe(true);
     // Coordinates far outside any real map's range can't coincidentally be a river edge.
     expect(riverBetween({ q: 9999, r: 9999 }, { q: 10000, r: 9999 })).toBe(false);
+  });
+});
+
+describe('canBoard', () => {
+  it('allows boarding when adjacent ships share the same facing', () => {
+    const a = makeUnit({ typeId: 'galeres', position: { q: 0, r: 0 }, facing: 0 });
+    const b = makeUnit({ typeId: 'galeres', owner: 1, position: { q: 1, r: 0 }, facing: 0 });
+    expect(canBoard(a, b)).toBe(true);
+  });
+
+  it('allows boarding when adjacent ships face exactly opposite ways', () => {
+    const a = makeUnit({ typeId: 'galeres', position: { q: 0, r: 0 }, facing: 0 });
+    const b = makeUnit({ typeId: 'galeres', owner: 1, position: { q: 1, r: 0 }, facing: 3 });
+    expect(canBoard(a, b)).toBe(true);
+  });
+
+  it('rejects a bow-on (ramming) angle instead of a parallel one', () => {
+    const a = makeUnit({ typeId: 'galeres', position: { q: 0, r: 0 }, facing: 0 });
+    // b sits directly ahead of a's bow (direction 0) with a perpendicular facing.
+    const b = makeUnit({ typeId: 'galeres', owner: 1, position: { q: 1, r: 0 }, facing: 1 });
+    expect(canBoard(a, b)).toBe(false);
+  });
+
+  it('rejects ships that are not adjacent even if facings are parallel', () => {
+    const a = makeUnit({ typeId: 'galeres', position: { q: 0, r: 0 }, facing: 0 });
+    const b = makeUnit({ typeId: 'galeres', owner: 1, position: { q: 2, r: 0 }, facing: 0 });
+    expect(canBoard(a, b)).toBe(false);
+  });
+});
+
+describe('applyRammingResult', () => {
+  it('sinks the defender on a hit and marks it as attacked this phase', () => {
+    const defender = makeUnit({ typeId: 'galeres', position: { q: 0, r: 0 } });
+    applyRammingResult(defender, true);
+    expect(defender.destroyed).toBe(true);
+    expect(defender.defendedThisPhase).toBe(true);
+  });
+
+  it('leaves the defender intact on a miss, but still marks it attacked', () => {
+    const defender = makeUnit({ typeId: 'galeres', position: { q: 0, r: 0 } });
+    applyRammingResult(defender, false);
+    expect(defender.destroyed).toBe(false);
+    expect(defender.defendedThisPhase).toBe(true);
+  });
+});
+
+describe('applyBoardingResult', () => {
+  it('does nothing on an indecisive (null-side) result', () => {
+    const attacker = makeUnit({ typeId: 'galeres', position: { q: 0, r: 0 }, equipmentPoints: 2 });
+    const defender = makeUnit({ typeId: 'galeres', position: { q: 1, r: 0 }, equipmentPoints: 2 });
+    applyBoardingResult(attacker, defender, { side: null, equipmentLoss: 0 });
+    expect(attacker.equipmentPoints).toBe(2);
+    expect(defender.equipmentPoints).toBe(2);
+    expect(defender.defendedThisPhase).toBe(true);
+  });
+
+  it('strips equipment from the losing side', () => {
+    const attacker = makeUnit({ typeId: 'galeres', position: { q: 0, r: 0 }, equipmentPoints: 2 });
+    const defender = makeUnit({ typeId: 'galeres', position: { q: 1, r: 0 }, equipmentPoints: 2 });
+    applyBoardingResult(attacker, defender, { side: 'defender', equipmentLoss: 1 });
+    expect(defender.equipmentPoints).toBe(1);
+    expect(defender.destroyed).toBe(false);
+  });
+
+  it('destroys a ship whose equipment reaches zero, and never goes negative', () => {
+    const attacker = makeUnit({ typeId: 'galeres', position: { q: 0, r: 0 }, equipmentPoints: 2 });
+    const defender = makeUnit({ typeId: 'galeres', position: { q: 1, r: 0 }, equipmentPoints: 1 });
+    applyBoardingResult(attacker, defender, { side: 'defender', equipmentLoss: 3 });
+    expect(defender.equipmentPoints).toBe(0);
+    expect(defender.destroyed).toBe(true);
+  });
+
+  it('can strip the attacker instead, when the attacker is the losing side', () => {
+    const attacker = makeUnit({ typeId: 'galeres', position: { q: 0, r: 0 }, equipmentPoints: 1 });
+    const defender = makeUnit({ typeId: 'galeres', position: { q: 1, r: 0 }, equipmentPoints: 2 });
+    applyBoardingResult(attacker, defender, { side: 'attacker', equipmentLoss: 1 });
+    expect(attacker.equipmentPoints).toBe(0);
+    expect(attacker.destroyed).toBe(true);
+    expect(defender.equipmentPoints).toBe(2);
+  });
+});
+
+describe('validTargets (naval)', () => {
+  it('offers an adjacent enemy ship with a parallel facing as a boarding target', () => {
+    const ship = makeUnit({ typeId: 'galeres', position: { q: 0, r: 0 }, facing: 0 });
+    const enemy = makeUnit({ typeId: 'galeres', owner: 1, position: { q: 1, r: 0 }, facing: 0 });
+    expect(validTargets(makeState([ship, enemy]), ship).map((u) => u.id)).toEqual([enemy.id]);
+  });
+
+  it('excludes an adjacent enemy ship at a bow-on (ramming-only) angle', () => {
+    const ship = makeUnit({ typeId: 'galeres', position: { q: 0, r: 0 }, facing: 0 });
+    const enemy = makeUnit({ typeId: 'galeres', owner: 1, position: { q: 1, r: 0 }, facing: 1 });
+    expect(validTargets(makeState([ship, enemy]), ship)).toEqual([]);
   });
 });

@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { MapView } from '../ui/MapView';
 import { session } from '../ui/session';
 import { advancePhase } from '../engine/turnManager';
-import { reachableHexes } from '../engine/movement';
+import { reachableHexes, reachableNavalHexes, findRammingContacts, type RammingContact } from '../engine/movement';
 import {
   describeLandAttack,
   applyLandCombatResult,
@@ -18,14 +18,15 @@ import {
   unionValidTargets,
   attackerCanJoin,
   defenderCanJoin,
-  isRammingHit,
   resolveNavalBoarding,
+  applyRammingResult,
+  applyBoardingResult,
   unitAt,
   type LandAttackDetail,
   type LandCombatOutcome,
 } from '../engine/combat';
 import { directionForDie, hexAdd } from '../engine/hex';
-import type { ShipTypeId } from '../data/navalRamming';
+import { isRammingHitWithBonus, type ShipTypeId } from '../data/navalRamming';
 import { unitType, currentAttack, currentDefense, type Unit } from '../engine/state';
 import type { HexCoord } from '../data/map';
 
@@ -90,6 +91,20 @@ export class BoardScene extends Phaser.Scene {
   private statusText!: Phaser.GameObjects.Text;
   private logText!: Phaser.GameObjects.Text;
   private resolveBtn!: Phaser.GameObjects.Text;
+  private rotateCCWBtn!: Phaser.GameObjects.Text;
+  private rotateCWBtn!: Phaser.GameObjects.Text;
+  private ramNowBtn!: Phaser.GameObjects.Text;
+  /** Ramming opportunities reachable by the currently-selected ship this
+   * movement — recomputed on selection and after every move/rotation (see
+   * `refreshNavalMovementControls`). A contact with `cost === 0` is
+   * available immediately, without moving, via `ramNowBtn`; the rest are
+   * highlighted as clickable hexes (see `selectForMovement`). */
+  private navalContacts: RammingContact[] = [];
+  /** Ships that already declared a ramming attempt this turn — they've
+   * committed their move to it (see `declareRam`) and may not also board in
+   * the Combat phase that follows. Cleared at the start of each new
+   * Movement phase (a fresh turn for whoever's up next). */
+  private rammedThisTurn = new Set<string>();
 
   constructor() {
     super('Board');
@@ -132,8 +147,50 @@ export class BoardScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
     this.resolveBtn.on('pointerdown', () => this.resolveGroupAttack());
 
+    this.rotateCCWBtn = this.add
+      .text(76, 96, '⟲ Turn', {
+        fontSize: '12px',
+        color: '#fff',
+        backgroundColor: '#3a3a55',
+        padding: { x: 8, y: 4 },
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(30)
+      .setInteractive({ useHandCursor: true })
+      .setVisible(false);
+    this.rotateCCWBtn.on('pointerdown', () => this.rotateSelectedShip(-1));
+
+    this.rotateCWBtn = this.add
+      .text(160, 96, 'Turn ⟳', {
+        fontSize: '12px',
+        color: '#fff',
+        backgroundColor: '#3a3a55',
+        padding: { x: 8, y: 4 },
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(30)
+      .setInteractive({ useHandCursor: true })
+      .setVisible(false);
+    this.rotateCWBtn.on('pointerdown', () => this.rotateSelectedShip(1));
+
+    this.ramNowBtn = this.add
+      .text(244, 96, 'Ram!', {
+        fontSize: '12px',
+        color: '#fff',
+        backgroundColor: '#802020',
+        padding: { x: 8, y: 4 },
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(30)
+      .setInteractive({ useHandCursor: true })
+      .setVisible(false);
+    this.ramNowBtn.on('pointerdown', () => this.attemptImmediateRam());
+
     this.statusText = this.add
-      .text(16, 112, '', {
+      .text(16, 118, '', {
         fontSize: '15px',
         color: '#e8d9b0',
         wordWrap: { width: PANEL_WIDTH - 32 },
@@ -142,7 +199,7 @@ export class BoardScene extends Phaser.Scene {
       .setDepth(30);
 
     this.logText = this.add
-      .text(16, 150, '', {
+      .text(16, 156, '', {
         fontSize: '13px',
         color: '#a89878',
         wordWrap: { width: PANEL_WIDTH - 32 },
@@ -151,7 +208,16 @@ export class BoardScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(30);
 
-    this.mapView.pinUIObjects([panelBg, endBtn, this.resolveBtn, this.statusText, this.logText]);
+    this.mapView.pinUIObjects([
+      panelBg,
+      endBtn,
+      this.resolveBtn,
+      this.rotateCCWBtn,
+      this.rotateCWBtn,
+      this.ramNowBtn,
+      this.statusText,
+      this.logText,
+    ]);
 
     this.resetMovementForActivePlayer();
     this.mapView.onHexClick = (hex) => this.onHexClick(hex);
@@ -170,14 +236,20 @@ export class BoardScene extends Phaser.Scene {
         u.movementLeft = unitType(u).movement;
       }
     }
+    this.rammedThisTurn.clear();
   }
 
   private renderAllUnits(): void {
     this.mapView.clearAllUnitLabels();
+    const ships: { hex: HexCoord; facing: number; playerIndex: number }[] = [];
     for (const u of this.state().units) {
       if (u.destroyed) continue;
       this.mapView.setUnitMarker(u.position, u.typeId, u.owner);
+      if (unitType(u).domain === 'naval') {
+        ships.push({ hex: u.position, facing: u.facing, playerIndex: u.owner });
+      }
     }
+    this.mapView.setFacingIndicators(ships);
   }
 
   private activePlayerId(): number {
@@ -235,9 +307,14 @@ export class BoardScene extends Phaser.Scene {
         this.selectForMovement(occupant);
         return;
       }
+      if (occupant) return; // hexes may hold at most one unit
+      if (unitType(this.selected).domain === 'naval') {
+        this.handleNavalMoveClick(hex);
+        return;
+      }
       const reachable = reachableHexes(state, this.selected);
       const key = `${hex.q},${hex.r}`;
-      if (reachable.has(key) && !occupant) {
+      if (reachable.has(key)) {
         const cost = reachable.get(key)!;
         this.selected.movementLeft -= cost;
         this.selected.position = hex;
@@ -259,12 +336,175 @@ export class BoardScene extends Phaser.Scene {
 
   private selectForMovement(unit: Unit): void {
     this.selected = unit;
+    if (unitType(unit).domain === 'naval') {
+      this.refreshNavalMovementControls(unit);
+      return;
+    }
+    this.clearNavalMovementControls();
     const reachable = reachableHexes(this.state(), unit);
     this.mapView.highlightHexes(Array.from(reachable.keys()).map(parseKey), 0x4aa6ff, 0.35);
   }
 
+  /**
+   * Recomputes and displays the currently-selected ship's movement options:
+   * plain reachable hexes in blue, and any reachable hex from which its bow
+   * would point directly at an adjacent enemy ship (a ramming opportunity —
+   * see `findRammingContacts`) in orange. If a contact is available without
+   * moving at all (the ship is already bow-on to an enemy), `ramNowBtn`
+   * lights up instead of requiring a click on the map.
+   */
+  private refreshNavalMovementControls(ship: Unit): void {
+    const state = this.state();
+    const reachable = reachableNavalHexes(state, ship);
+    this.navalContacts = findRammingContacts(state, ship);
+    const ownHexKey = `${ship.position.q},${ship.position.r}`;
+    const contactHexKeys = new Set(this.navalContacts.map((c) => `${c.hex.q},${c.hex.r}`).filter((k) => k !== ownHexKey));
+    const moveOnlyHexes = Array.from(reachable.keys()).filter((k) => !contactHexKeys.has(k));
+    this.mapView.highlightHexGroups([
+      { hexes: moveOnlyHexes.map(parseKey), color: 0x4aa6ff, alpha: 0.35 },
+      { hexes: Array.from(contactHexKeys).map(parseKey), color: 0xff6a2a, alpha: 0.45 },
+    ]);
+
+    const alreadyRammed = this.rammedThisTurn.has(ship.id);
+    this.rotateCCWBtn.setVisible(!alreadyRammed);
+    this.rotateCWBtn.setVisible(!alreadyRammed);
+    const immediateContact = this.navalContacts.find((c) => c.cost === 0);
+    this.ramNowBtn.setVisible(!alreadyRammed && !!immediateContact);
+  }
+
+  private clearNavalMovementControls(): void {
+    this.navalContacts = [];
+    this.rotateCCWBtn.setVisible(false);
+    this.rotateCWBtn.setVisible(false);
+    this.ramNowBtn.setVisible(false);
+  }
+
+  /** Rotating a ship's facing costs 1 movement point per 60° step (see
+   * `facingRotationCost`) — this handles a single step at a time, either
+   * direction, freely interleaved with forward moves. */
+  private rotateSelectedShip(direction: 1 | -1): void {
+    const ship = this.selected;
+    if (!ship || unitType(ship).domain !== 'naval' || this.rammedThisTurn.has(ship.id)) return;
+    if (ship.movementLeft < 1) {
+      this.log('No movement left to rotate.');
+      return;
+    }
+    ship.facing = (ship.facing + direction + 6) % 6;
+    ship.movementLeft -= 1;
+    this.renderAllUnits();
+    this.refreshNavalMovementControls(ship);
+  }
+
+  /** A ram declared without moving — the selected ship is already bow-on
+   * to an adjacent enemy ship, per `navalContacts`' cost-0 entry. */
+  private attemptImmediateRam(): void {
+    const ship = this.selected;
+    if (!ship) return;
+    const contact = this.navalContacts.find((c) => c.cost === 0);
+    if (!contact) return;
+    this.promptRam(ship, contact.target, contact.bonus);
+  }
+
+  /** Executes a click on a naval unit's reachable-hex/contact highlight
+   * during the Movement phase. A contact hex (see `navalContacts`) always
+   * takes priority over a plain move to the same hex, since it's the more
+   * specific (facing-exact) option — ending the move there always offers
+   * the ramming prompt rather than silently sailing past. */
+  private handleNavalMoveClick(hex: HexCoord): void {
+    const ship = this.selected!;
+    const state = this.state();
+    const contact = this.navalContacts
+      .filter((c) => c.hex.q === hex.q && c.hex.r === hex.r)
+      .sort((a, b) => a.cost - b.cost)[0];
+    if (contact) {
+      ship.movementLeft -= contact.cost;
+      ship.position = contact.hex;
+      ship.facing = contact.facing;
+      this.renderAllUnits();
+      this.promptRam(ship, contact.target, contact.bonus);
+      return;
+    }
+    const key = `${hex.q},${hex.r}`;
+    const dest = reachableNavalHexes(state, ship).get(key);
+    if (!dest) return;
+    ship.movementLeft -= dest.cost;
+    ship.position = hex;
+    ship.facing = dest.facing;
+    this.renderAllUnits();
+    this.refreshNavalMovementControls(ship);
+  }
+
+  /** Ramming is a Movement-phase event ("une tentative d'éperonnage a lieu
+   * quand, au cours de sa phase de déplacement, un vaisseau rencontre sur
+   * sa trajectoire un vaisseau ennemi"), unlike boarding which waits for
+   * the Combat phase. Declaring a ram — hit or miss — commits the rest of
+   * the ship's movement to the attempt and rules it out of boarding later
+   * this same turn. */
+  private promptRam(attacker: Unit, defender: Unit, bonus: 0 | 1 | 2): void {
+    const { width, height } = this.scale;
+    const panel = this.add.rectangle(width / 2, height / 2, 280, 130, 0x1a1408, 0.95).setScrollFactor(0).setDepth(20);
+    const label = this.add
+      .text(width / 2, height / 2 - 40, `Ram ${unitType(defender).name}?\n(bonus +${bonus})`, {
+        fontSize: '14px',
+        color: '#fff',
+        align: 'center',
+        wordWrap: { width: 240 },
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(21);
+    const yesBtn = this.add
+      .text(width / 2 - 60, height / 2 + 25, 'Ram!', {
+        fontSize: '16px',
+        color: '#fff',
+        backgroundColor: '#802020',
+        padding: { x: 12, y: 6 },
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(21)
+      .setInteractive({ useHandCursor: true });
+    const noBtn = this.add
+      .text(width / 2 + 60, height / 2 + 25, 'Hold off', {
+        fontSize: '16px',
+        color: '#fff',
+        backgroundColor: '#2a5a2a',
+        padding: { x: 12, y: 6 },
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(21)
+      .setInteractive({ useHandCursor: true });
+    this.mapView.excludeFromMainCamera([panel, label, yesBtn, noBtn]);
+    const cleanup = () => {
+      panel.destroy();
+      label.destroy();
+      yesBtn.destroy();
+      noBtn.destroy();
+    };
+
+    yesBtn.on('pointerdown', () => {
+      cleanup();
+      const dieRoll = 1 + Math.floor(Math.random() * 6);
+      const hit = isRammingHitWithBonus(attacker.typeId as ShipTypeId, defender.typeId as ShipTypeId, bonus, dieRoll);
+      applyRammingResult(defender, hit);
+      this.rammedThisTurn.add(attacker.id);
+      attacker.movementLeft = 0;
+      this.log(`Ramming attempt (bonus +${bonus}): die ${dieRoll} -> ${hit ? 'SUNK!' : 'missed'}`);
+      this.renderAllUnits();
+      this.deselectMovement();
+    });
+    noBtn.on('pointerdown', () => {
+      cleanup();
+      if (this.selected && this.selected.id === attacker.id) {
+        this.refreshNavalMovementControls(attacker);
+      }
+    });
+  }
+
   private deselectMovement(): void {
     this.selected = null;
+    this.clearNavalMovementControls();
     this.mapView.clearHighlights();
   }
 
@@ -283,7 +523,11 @@ export class BoardScene extends Phaser.Scene {
     const candidateT = unitType(unit);
     const groupIsNaval = this.attackGroup.length > 0 && unitType(this.attackGroup[0]!).domain === 'naval';
     if (candidateT.domain === 'naval' || groupIsNaval) {
-      // Ramming/boarding is inherently one ship vs one ship — no combining.
+      if (this.rammedThisTurn.has(unit.id)) {
+        this.log(`${candidateT.name} already rammed this turn and can't also board.`);
+        return;
+      }
+      // Boarding is inherently one ship vs one ship — no combining.
       this.attackGroup = [unit];
       this.defenderGroup = [];
       this.refreshCombatHighlights();
@@ -324,7 +568,7 @@ export class BoardScene extends Phaser.Scene {
     const attackerT = unitType(this.attackGroup[0]!);
     if (attackerT.domain === 'naval') {
       if (!validTargets(state, this.attackGroup[0]!).some((u) => u.id === unit.id)) {
-        this.log(`${unitType(unit).name} isn't in ramming/boarding range.`);
+        this.log(`${unitType(unit).name} isn't adjacent with a parallel facing — not a legal boarding target.`);
         return;
       }
       this.navalAttackPrompt(this.attackGroup[0]!, unit);
@@ -923,19 +1167,24 @@ export class BoardScene extends Phaser.Scene {
     });
   }
 
+  /** Boarding is the only naval option left by the Combat phase — ramming
+   * is resolved during the Movement phase instead (see `promptRam`), as a
+   * direct consequence of a ship's path bringing it bow-on to an enemy. */
   private navalAttackPrompt(attacker: Unit, defender: Unit): void {
     const { width, height } = this.scale;
     const panel = this.add.rectangle(width / 2, height / 2, 260, 120, 0x1a1408, 0.95).setScrollFactor(0).setDepth(20);
     const label = this.add
-      .text(width / 2, height / 2 - 35, `${unitType(attacker).name} vs ${unitType(defender).name}`, {
-        fontSize: '14px',
+      .text(width / 2, height / 2 - 35, `Board ${unitType(defender).name}?\n${unitType(attacker).name} vs ${unitType(defender).name}`, {
+        fontSize: '13px',
         color: '#fff',
+        align: 'center',
+        wordWrap: { width: 230 },
       })
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(21);
-    const ramBtn = this.add
-      .text(width / 2 - 60, height / 2 + 10, 'Ram', {
+    const boardBtn = this.add
+      .text(width / 2 - 55, height / 2 + 20, 'Board!', {
         fontSize: '16px',
         color: '#fff',
         backgroundColor: '#553',
@@ -945,11 +1194,11 @@ export class BoardScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(21)
       .setInteractive({ useHandCursor: true });
-    const boardBtn = this.add
-      .text(width / 2 + 60, height / 2 + 10, 'Board', {
+    const cancelBtn = this.add
+      .text(width / 2 + 55, height / 2 + 20, 'Cancel', {
         fontSize: '16px',
         color: '#fff',
-        backgroundColor: '#553',
+        backgroundColor: '#2a5a2a',
         padding: { x: 12, y: 6 },
       })
       .setOrigin(0.5)
@@ -957,41 +1206,29 @@ export class BoardScene extends Phaser.Scene {
       .setDepth(21)
       .setInteractive({ useHandCursor: true });
 
-    this.mapView.excludeFromMainCamera([panel, label, ramBtn, boardBtn]);
+    this.mapView.excludeFromMainCamera([panel, label, boardBtn, cancelBtn]);
 
     const cleanup = () => {
       panel.destroy();
       label.destroy();
-      ramBtn.destroy();
       boardBtn.destroy();
+      cancelBtn.destroy();
     };
-
-    ramBtn.on('pointerdown', () => {
-      cleanup();
-      this.attackedThisPhase.add(attacker.id);
-      defender.defendedThisPhase = true;
-      const dieRoll = 1 + Math.floor(Math.random() * 6);
-      const hit = isRammingHit(attacker.typeId as ShipTypeId, defender.typeId as ShipTypeId, dieRoll);
-      this.log(`Ramming attempt: die ${dieRoll} -> ${hit ? 'SUNK!' : 'missed'}`);
-      if (hit) defender.destroyed = true;
-      this.renderAllUnits();
-      this.clearCombatSelection();
-    });
 
     boardBtn.on('pointerdown', () => {
       cleanup();
       this.attackedThisPhase.add(attacker.id);
-      defender.defendedThisPhase = true;
       const dieRoll = 1 + Math.floor(Math.random() * 6);
       const result = resolveNavalBoarding(currentAttack(attacker), currentDefense(defender), dieRoll);
+      applyBoardingResult(attacker, defender, result);
       this.log(`Boarding: die ${dieRoll} -> ${result.side ?? 'no effect'} loses ${result.equipmentLoss} equipment`);
-      const victim = result.side === 'attacker' ? attacker : result.side === 'defender' ? defender : null;
-      if (victim && result.equipmentLoss > 0) {
-        victim.equipmentPoints = Math.max(0, (victim.equipmentPoints ?? 0) - result.equipmentLoss);
-        if (victim.equipmentPoints <= 0) victim.destroyed = true;
-      }
       this.renderAllUnits();
       this.clearCombatSelection();
+    });
+    cancelBtn.on('pointerdown', () => {
+      cleanup();
+      this.defenderGroup = [];
+      this.refreshCombatHighlights();
     });
   }
 

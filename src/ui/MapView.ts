@@ -5,6 +5,7 @@ import {
   HEX_SIZE,
   hexToPixel,
   hexPolygonPoints,
+  facingAngleRad,
   TERRAIN_COLORS,
   RIVER_COLOR,
   markerTextureKey,
@@ -23,6 +24,7 @@ export class MapView {
   private hexPolys = new Map<string, Phaser.GameObjects.Polygon>();
   private overlayGraphics: Phaser.GameObjects.Graphics;
   private riverGraphics!: Phaser.GameObjects.Graphics;
+  private facingGraphics: Phaser.GameObjects.Graphics;
   private unitLabels = new Map<string, Phaser.GameObjects.GameObject>();
   /** Set once `pinUIObjects` has added the fixed HUD camera — used so newly
    * created world objects (unit markers) get excluded from it too. */
@@ -63,6 +65,7 @@ export class MapView {
     this.originY = -minY + Math.max(margin, (viewportHeight - boardHeight) / 2);
 
     this.overlayGraphics = scene.add.graphics().setDepth(5);
+    this.facingGraphics = scene.add.graphics().setDepth(11);
 
     for (const hex of hexes) {
       const terrain = MAP_TERRAIN.get(`${hex.q},${hex.r}`) ?? 'plain';
@@ -183,6 +186,7 @@ export class MapView {
       ...this.hexPolys.values(),
       this.overlayGraphics,
       this.riverGraphics,
+      this.facingGraphics,
       ...this.unitLabels.values(),
     ]);
     this.uiCamera = uiCam;
@@ -270,6 +274,51 @@ export class MapView {
   clearAllUnitLabels(): void {
     for (const label of this.unitLabels.values()) label.destroy();
     this.unitLabels.clear();
+  }
+
+  /**
+   * Draws a small arrowhead on every ship, pointing in its facing direction
+   * (see `facingAngleRad`) — the visual cue for a ship's bow, since the
+   * marker image itself is a physical-counter icon that must stay upright
+   * for its printed stats to stay readable, so it can't just be rotated in
+   * place. Redraws the whole set each call (paired with `renderAllUnits`),
+   * same pattern as `highlightHexGroups`.
+   */
+  setFacingIndicators(ships: readonly { hex: HexCoord; facing: number; playerIndex: number }[]): void {
+    this.facingGraphics.clear();
+    for (const { hex, facing, playerIndex } of ships) {
+      const center = this.toScreen(hex);
+      const angle = facingAngleRad(facing);
+      const tipRadius = HEX_SIZE * 0.95;
+      const backRadius = HEX_SIZE * 0.5;
+      const spread = 0.4; // radians half-width of the arrowhead's back edge
+
+      const tip = { x: center.x + tipRadius * Math.cos(angle), y: center.y + tipRadius * Math.sin(angle) };
+      const backLeft = {
+        x: center.x + backRadius * Math.cos(angle + spread),
+        y: center.y + backRadius * Math.sin(angle + spread),
+      };
+      const backRight = {
+        x: center.x + backRadius * Math.cos(angle - spread),
+        y: center.y + backRadius * Math.sin(angle - spread),
+      };
+
+      const colorHex = PLAYER_COLORS_HEX[playerIndex] ?? '#ffffff';
+      const color = Phaser.Display.Color.HexStringToColor(colorHex).color;
+      this.facingGraphics.fillStyle(color, 1);
+      this.facingGraphics.lineStyle(1.5, 0x1a1408, 0.9);
+      this.facingGraphics.beginPath();
+      this.facingGraphics.moveTo(tip.x, tip.y);
+      this.facingGraphics.lineTo(backLeft.x, backLeft.y);
+      this.facingGraphics.lineTo(backRight.x, backRight.y);
+      this.facingGraphics.closePath();
+      this.facingGraphics.fillPath();
+      this.facingGraphics.strokePath();
+    }
+  }
+
+  clearFacingIndicators(): void {
+    this.facingGraphics.clear();
   }
 
   centerOn(hex: HexCoord): void {

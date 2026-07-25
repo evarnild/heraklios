@@ -41,6 +41,16 @@ export function hexPolygonPoints(center: { x: number; y: number }): number[] {
   return points;
 }
 
+/**
+ * Screen-space angle (radians) a ship's bow points at for facing index 0-5
+ * (see engine/hex.ts's `DIRECTIONS`, in the same order): hex neighbors sit
+ * at the midpoints between vertices, i.e. 30° off the vertex angles used by
+ * `hexPolygonPoints` above, 60° apart from each other.
+ */
+export function facingAngleRad(facing: number): number {
+  return (Math.PI / 180) * (30 - 60 * facing);
+}
+
 export const TERRAIN_COLORS: Record<string, number> = {
   plain: 0xdec08c,
   'river-wide': 0x3a86c8,
