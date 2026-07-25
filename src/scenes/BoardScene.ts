@@ -26,8 +26,9 @@ import {
   type LandCombatOutcome,
 } from '../engine/combat';
 import { directionForDie, hexAdd } from '../engine/hex';
+import { History } from '../engine/history';
 import { isRammingHitWithBonus, type ShipTypeId } from '../data/navalRamming';
-import { unitType, currentAttack, currentDefense, type Unit } from '../engine/state';
+import { unitType, currentAttack, currentDefense, type GameState, type Unit } from '../engine/state';
 import type { HexCoord } from '../data/map';
 
 /** Width of the left-hand HUD panel (buttons, phase status, combat log),
@@ -70,6 +71,22 @@ interface DriftState {
   onComplete: () => void;
 }
 
+/**
+ * Everything undo has to put back. `GameState` covers the board itself, but
+ * two per-phase bookkeeping sets live outside it and would silently forget
+ * that a unit had already attacked or already rammed. Unit *references* can't
+ * be stored (a restore clones the state, so the old objects are no longer the
+ * ones in play), so the selection is kept as ids and re-resolved on restore.
+ */
+interface BoardSnapshot {
+  state: GameState;
+  attackedThisPhase: string[];
+  rammedThisTurn: string[];
+  attackGroupIds: string[];
+  defenderGroupIds: string[];
+  selectedId: string | null;
+}
+
 export class BoardScene extends Phaser.Scene {
   private mapView!: MapView;
   /** Movement-phase single-unit selection (unrelated to combat grouping). */
@@ -94,6 +111,11 @@ export class BoardScene extends Phaser.Scene {
   private rotateCCWBtn!: Phaser.GameObjects.Text;
   private rotateCWBtn!: Phaser.GameObjects.Text;
   private ramNowBtn!: Phaser.GameObjects.Text;
+  private undoBtn!: Phaser.GameObjects.Text;
+  private redoBtn!: Phaser.GameObjects.Text;
+  /** Undo/redo history, scoped to the current phase — `endPhase` clears it,
+   * and so does any die roll outside test mode (see `rollDie`). */
+  private history = new History<BoardSnapshot>();
   /** Ramming opportunities reachable by the currently-selected ship this
    * movement — recomputed on selection and after every move/rotation (see
    * `refreshNavalMovementControls`). A contact with `cost === 0` is
@@ -189,6 +211,41 @@ export class BoardScene extends Phaser.Scene {
       .setVisible(false);
     this.ramNowBtn.on('pointerdown', () => this.attemptImmediateRam());
 
+    this.undoBtn = this.add
+      .text(16, height - 72, '↶ Undo', {
+        fontSize: '12px',
+        color: '#fff',
+        backgroundColor: '#3a3a55',
+        padding: { x: 8, y: 4 },
+        wordWrap: { width: PANEL_WIDTH - 48 },
+      })
+      .setScrollFactor(0)
+      .setDepth(30)
+      .setInteractive({ useHandCursor: true });
+    this.undoBtn.on('pointerdown', () => this.undo());
+
+    this.redoBtn = this.add
+      .text(16, height - 40, '↷ Redo', {
+        fontSize: '12px',
+        color: '#fff',
+        backgroundColor: '#3a3a55',
+        padding: { x: 8, y: 4 },
+        wordWrap: { width: PANEL_WIDTH - 48 },
+      })
+      .setScrollFactor(0)
+      .setDepth(30)
+      .setInteractive({ useHandCursor: true });
+    this.redoBtn.on('pointerdown', () => this.redo());
+
+    this.input.keyboard?.on('keydown-Z', (event: KeyboardEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return;
+      if (event.shiftKey) this.redo();
+      else this.undo();
+    });
+    this.input.keyboard?.on('keydown-Y', (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.metaKey) this.redo();
+    });
+
     this.statusText = this.add
       .text(16, 118, '', {
         fontSize: '15px',
@@ -215,6 +272,8 @@ export class BoardScene extends Phaser.Scene {
       this.rotateCCWBtn,
       this.rotateCWBtn,
       this.ramNowBtn,
+      this.undoBtn,
+      this.redoBtn,
       this.statusText,
       this.logText,
     ]);
@@ -222,6 +281,7 @@ export class BoardScene extends Phaser.Scene {
     this.resetMovementForActivePlayer();
     this.mapView.onHexClick = (hex) => this.onHexClick(hex);
     this.refreshStatus();
+    this.refreshUndoRedoButtons();
   }
 
   private state() {
@@ -268,6 +328,121 @@ export class BoardScene extends Phaser.Scene {
   private activePlayerId(): number {
     const state = this.state();
     return state.seatOrder[state.activePlayerIndex]!;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Undo / redo
+  //
+  // Memento-style: the whole game state is snapshotted before each action
+  // rather than each action carrying an inverse. State is mutated in place
+  // across dozens of sites (and one combat can cascade into retreats, drifts
+  // and advances), so restoring a copy is both simpler and far harder to get
+  // subtly wrong. See engine/history.ts.
+  // ---------------------------------------------------------------------------
+
+  private captureSnapshot(): BoardSnapshot {
+    return {
+      state: structuredClone(this.state()),
+      attackedThisPhase: [...this.attackedThisPhase],
+      rammedThisTurn: [...this.rammedThisTurn],
+      attackGroupIds: this.attackGroup.map((u) => u.id),
+      defenderGroupIds: this.defenderGroup.map((u) => u.id),
+      selectedId: this.selected?.id ?? null,
+    };
+  }
+
+  /** Records the state as it stands *before* `label`'s action is applied. */
+  private recordAction(label: string): void {
+    this.history.push(this.captureSnapshot(), label);
+    this.refreshUndoRedoButtons();
+  }
+
+  private restoreSnapshot(snapshot: BoardSnapshot): void {
+    const restored = structuredClone(snapshot.state);
+    session.gameState = restored;
+    const byId = new Map(restored.units.map((u) => [u.id, u]));
+
+    this.attackedThisPhase = new Set(snapshot.attackedThisPhase);
+    this.rammedThisTurn = new Set(snapshot.rammedThisTurn);
+    const resolve = (ids: string[]): Unit[] =>
+      ids.map((id) => byId.get(id)).filter((u): u is Unit => u !== undefined);
+    this.attackGroup = resolve(snapshot.attackGroupIds);
+    this.defenderGroup = resolve(snapshot.defenderGroupIds);
+    this.selected = (snapshot.selectedId !== null ? byId.get(snapshot.selectedId) : undefined) ?? null;
+
+    // Interactive sequences never span a snapshot — undo is refused while one
+    // is pending — so these are already empty. Reset them anyway so a restore
+    // can never leave a reference to a unit from the discarded state.
+    this.retreatQueue = [];
+    this.driftQueue = [];
+    this.retreatChoice = null;
+    this.driftState = null;
+    this.advanceEligibleAttackers = [];
+    this.advanceOfferQueue = [];
+    this.navalContacts = [];
+
+    this.renderAllUnits();
+    this.refreshStatus();
+    if (this.selected) {
+      this.selectForMovement(this.selected); // re-highlights reachable hexes
+    } else if (this.attackGroup.length > 0) {
+      this.refreshCombatHighlights();
+    } else {
+      this.clearNavalMovementControls();
+      this.mapView.clearHighlights();
+    }
+    this.refreshUndoRedoButtons();
+  }
+
+  private undo(): void {
+    if (this.retreatChoice || this.driftState) {
+      this.log('Resolve the pending retreat/drift before undoing.');
+      return;
+    }
+    const entry = this.history.undo(this.captureSnapshot());
+    if (!entry) {
+      this.log('Nothing to undo.');
+      return;
+    }
+    this.restoreSnapshot(entry.payload);
+    this.log(`Undone: ${entry.label}`);
+  }
+
+  private redo(): void {
+    if (this.retreatChoice || this.driftState) {
+      this.log('Resolve the pending retreat/drift before redoing.');
+      return;
+    }
+    const entry = this.history.redo(this.captureSnapshot());
+    if (!entry) {
+      this.log('Nothing to redo.');
+      return;
+    }
+    this.restoreSnapshot(entry.payload);
+    this.log(`Redone: ${entry.label}`);
+  }
+
+  /**
+   * Every die roll in the game goes through here, so the fairness rule has a
+   * single enforcement point: outside test mode a rolled die is a commit
+   * point and the history is dropped, since undoing past a roll would let a
+   * player re-roll a result they didn't like.
+   */
+  private rollDie(): number {
+    if (!session.testMode) {
+      this.history.clear();
+      this.refreshUndoRedoButtons();
+    }
+    return 1 + Math.floor(Math.random() * 6);
+  }
+
+  private refreshUndoRedoButtons(): void {
+    const undoLabel = this.history.undoLabel;
+    const redoLabel = this.history.redoLabel;
+    this.undoBtn.setText(undoLabel ? `↶ Undo: ${undoLabel}` : '↶ Undo');
+    this.redoBtn.setText(redoLabel ? `↷ Redo: ${redoLabel}` : '↷ Redo');
+    this.undoBtn.setAlpha(this.history.canUndo ? 1 : 0.4);
+    this.redoBtn.setAlpha(this.history.canRedo ? 1 : 0.4);
   }
 
   private refreshStatus(): void {
@@ -329,6 +504,7 @@ export class BoardScene extends Phaser.Scene {
       const key = `${hex.q},${hex.r}`;
       if (reachable.has(key)) {
         const cost = reachable.get(key)!;
+        this.recordAction(`Move ${unitType(this.selected).name}`);
         this.selected.movementLeft -= cost;
         this.selected.position = hex;
         this.renderAllUnits();
@@ -403,6 +579,7 @@ export class BoardScene extends Phaser.Scene {
       this.log('No movement left to rotate.');
       return;
     }
+    this.recordAction(`Turn ${unitType(ship).name}`);
     ship.facing = (ship.facing + direction + 6) % 6;
     ship.movementLeft -= 1;
     this.renderAllUnits();
@@ -431,6 +608,7 @@ export class BoardScene extends Phaser.Scene {
       .filter((c) => c.hex.q === hex.q && c.hex.r === hex.r)
       .sort((a, b) => a.cost - b.cost)[0];
     if (contact) {
+      this.recordAction(`Move ${unitType(ship).name} into contact`);
       ship.movementLeft -= contact.cost;
       ship.position = contact.hex;
       ship.facing = contact.facing;
@@ -441,6 +619,7 @@ export class BoardScene extends Phaser.Scene {
     const key = `${hex.q},${hex.r}`;
     const dest = reachableNavalHexes(state, ship).get(key);
     if (!dest) return;
+    this.recordAction(`Move ${unitType(ship).name}`);
     ship.movementLeft -= dest.cost;
     ship.position = hex;
     ship.facing = dest.facing;
@@ -499,7 +678,8 @@ export class BoardScene extends Phaser.Scene {
 
     yesBtn.on('pointerdown', () => {
       cleanup();
-      const dieRoll = 1 + Math.floor(Math.random() * 6);
+      this.recordAction(`Ram ${unitType(defender).name}`);
+      const dieRoll = this.rollDie();
       const hit = isRammingHitWithBonus(attacker.typeId as ShipTypeId, defender.typeId as ShipTypeId, bonus, dieRoll);
       applyRammingResult(defender, hit);
       this.rammedThisTurn.add(attacker.id);
@@ -530,6 +710,7 @@ export class BoardScene extends Phaser.Scene {
     }
     const idx = this.attackGroup.findIndex((u) => u.id === unit.id);
     if (idx >= 0) {
+      this.recordAction(`Deselect ${unitType(unit).name}`);
       this.attackGroup.splice(idx, 1);
       this.refreshCombatHighlights();
       return;
@@ -543,6 +724,7 @@ export class BoardScene extends Phaser.Scene {
         return;
       }
       // Boarding is inherently one ship vs one ship — no combining.
+      this.recordAction(`Select ${candidateT.name}`);
       this.attackGroup = [unit];
       this.defenderGroup = [];
       this.refreshCombatHighlights();
@@ -562,6 +744,7 @@ export class BoardScene extends Phaser.Scene {
         return;
       }
     }
+    this.recordAction(`Select ${candidateT.name}`);
     this.attackGroup.push(unit);
     this.refreshCombatHighlights();
   }
@@ -574,6 +757,7 @@ export class BoardScene extends Phaser.Scene {
     }
     const idx = this.defenderGroup.findIndex((u) => u.id === unit.id);
     if (idx >= 0) {
+      this.recordAction(`Untarget ${unitType(unit).name}`);
       this.defenderGroup.splice(idx, 1);
       this.refreshCombatHighlights();
       return;
@@ -598,6 +782,7 @@ export class BoardScene extends Phaser.Scene {
       this.log(`${unitType(unit).name} isn't reachable by the current attack group.`);
       return;
     }
+    this.recordAction(`Target ${unitType(unit).name}`);
     this.defenderGroup.push(unit);
     this.refreshCombatHighlights();
   }
@@ -774,7 +959,7 @@ export class BoardScene extends Phaser.Scene {
     let dieRoll: number;
     let direction: HexCoord;
     do {
-      dieRoll = 1 + Math.floor(Math.random() * 6);
+      dieRoll = this.rollDie();
       direction = directionForDie(dieRoll);
     } while (forbiddenDirection && direction.q === forbiddenDirection.q && direction.r === forbiddenDirection.r);
     this.driftState = { elephant, direction, remainingSteps, lines, onComplete };
@@ -824,7 +1009,7 @@ export class BoardScene extends Phaser.Scene {
   private resolveDriftHit(drift: DriftState, hex: HexCoord, occupant: Unit): void {
     const { elephant } = drift;
     const state = this.state();
-    const dieRoll = 1 + Math.floor(Math.random() * 6);
+    const dieRoll = this.rollDie();
     const detail = describeLandAttack([elephant], [occupant], dieRoll);
     const combatOutcome = applyLandCombatResult(state, [elephant], [occupant], detail.result);
 
@@ -1021,7 +1206,10 @@ export class BoardScene extends Phaser.Scene {
       return;
     }
 
-    const dieRoll = 1 + Math.floor(Math.random() * 6);
+    this.recordAction(
+      `Attack with ${this.attackGroup.length} unit(s)`,
+    );
+    const dieRoll = this.rollDie();
     const detail = describeLandAttack(this.attackGroup, this.defenderGroup, dieRoll);
     const attackersFromThisCombat = [...this.attackGroup];
     // Defenders keep their `.position` when destroyed (only `.destroyed`
@@ -1232,8 +1420,9 @@ export class BoardScene extends Phaser.Scene {
 
     boardBtn.on('pointerdown', () => {
       cleanup();
+      this.recordAction(`Board ${unitType(defender).name}`);
       this.attackedThisPhase.add(attacker.id);
-      const dieRoll = 1 + Math.floor(Math.random() * 6);
+      const dieRoll = this.rollDie();
       const result = resolveNavalBoarding(currentAttack(attacker), currentDefense(defender), dieRoll);
       applyBoardingResult(attacker, defender, result);
       this.log(`Boarding: die ${dieRoll} -> ${result.side ?? 'no effect'} loses ${result.equipmentLoss} equipment`);
@@ -1254,6 +1443,10 @@ export class BoardScene extends Phaser.Scene {
     }
     this.deselectMovement();
     this.clearCombatSelection();
+    // Undo reaches back only within the current phase: rewinding across the
+    // handoff would let one player rewrite another's committed turn.
+    this.history.clear();
+    this.refreshUndoRedoButtons();
     const state = this.state();
     advancePhase(state);
     this.attackedThisPhase.clear();

@@ -54,6 +54,29 @@ npm run build   # production build
    vacated. "End phase" advances movement → combat → the next player's
    movement. The game ends when only one army remains on the board.
 
+### Undo and redo
+
+Both the Placement screen and the Board have **↶ Undo / ↷ Redo** buttons
+(also Ctrl+Z / Ctrl+Shift+Z, and Ctrl+Y for redo), labelled with the action
+they'll take back — "Undo: Move fantassins", "Undo: Place archers". On the
+board this covers moves, ship rotations, and building up an attack group
+(selecting attackers and choosing targets), so a misclick that would
+otherwise cost movement points is free to take back.
+
+Two boundaries deliberately limit how far back it reaches:
+
+- **A die roll is a commit point.** Rolling for a land combat, a ram, a
+  boarding, or an elephant's drift direction discards the undo history, so a
+  result can't be re-rolled by undoing and repeating the attack. (The Menu's
+  test-mode shortcuts lift this, so the combat and drift code paths can be
+  replayed while developing without starting a fresh game.)
+- **Undo stops at the end of a phase**, so no player can rewind into another
+  player's committed turn. During placement it's likewise scoped to the
+  player currently deploying.
+
+Undo is also refused while a retreat or elephant drift is still awaiting a
+choice — resolve it first, the same rule "End phase" already follows.
+
 ### Combining attacks
 
 Real *Héraklios* land combat lets several friendly units combine their
@@ -145,8 +168,8 @@ what the game will use — see `src/map-editor/`.
 - `src/data/map.ts` — the actual board's hex terrain, derived from the
   scanned map (see `tools/map-extract/README.md` for how).
 - `src/engine/` — pure game logic: hex math, army validation, movement/ZOC,
-  combat resolution, turn sequencing. Fully unit-tested and independent of
-  Phaser.
+  combat resolution, turn sequencing, and the undo/redo history primitive.
+  Fully unit-tested and independent of Phaser.
 - `src/scenes/` — the Phaser UI: menu, army builder, placement, board,
   game-over.
 - `src/ui/` — shared rendering helpers (hex grid rendering/camera, session

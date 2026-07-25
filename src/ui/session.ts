@@ -12,6 +12,13 @@ export interface SessionState {
   /** Chosen on the Menu screen before starting a game; carried into
    * `createInitialState` when the board is set up. */
   combatMode: CombatMode;
+  /**
+   * True when the game was launched via one of the Menu's test-mode
+   * shortcuts. Relaxes the undo rule that a die roll is a commit point (see
+   * BoardScene's `rollDie`), so the naval/drift code paths can be replayed
+   * while developing without restarting a game.
+   */
+  testMode: boolean;
   gameState: GameState | null;
 }
 
@@ -21,11 +28,13 @@ export const session: SessionState = {
   edges: ['W', 'E', 'N', 'S'],
   armySelections: [],
   combatMode: 'multi-defender',
+  testMode: false,
   gameState: null,
 };
 
 export function resetSession(playerCount: number): void {
   session.playerCount = playerCount;
+  session.testMode = false;
   session.armySelections = Array.from({ length: playerCount }, () => emptySelection());
   session.gameState = null;
   assignEdgesRandomly(playerCount);

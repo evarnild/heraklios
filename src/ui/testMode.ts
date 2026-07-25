@@ -34,6 +34,7 @@ function makeUnit(owner: PlayerId, typeId: string, position: HexCoord): Unit {
 export function startTestGame(): void {
   unitCounter = 0;
   session.playerCount = 2;
+  session.testMode = true;
   session.edges = ['W', 'E'];
 
   const players: Player[] = [
@@ -76,6 +77,7 @@ export function startTestGame(): void {
 export function startCloseCombatTestGame(): void {
   unitCounter = 0;
   session.playerCount = 2;
+  session.testMode = true;
   session.edges = ['W', 'E'];
 
   const players: Player[] = [

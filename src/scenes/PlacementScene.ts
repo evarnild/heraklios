@@ -3,13 +3,23 @@ import { MapView } from '../ui/MapView';
 import { deploymentZone } from '../ui/mapBounds';
 import { session, buildPlayers } from '../ui/session';
 import { createInitialState } from '../engine/turnManager';
-import type { Unit } from '../engine/state';
+import { History } from '../engine/history';
+import type { GameState, Unit } from '../engine/state';
 import { getUnitType } from '../data/units';
 import type { HexCoord } from '../data/map';
 
 interface QueueItem {
   typeId: string;
   remaining: number;
+}
+
+/** Everything a placement undo has to put back — the board plus this scene's
+ * own placing progress. See engine/history.ts for why this is snapshot-based. */
+interface PlacementSnapshot {
+  state: GameState;
+  queue: QueueItem[];
+  placedShips: { hex: HexCoord; facing: number }[];
+  unitCounter: number;
 }
 
 export class PlacementScene extends Phaser.Scene {
@@ -26,6 +36,11 @@ export class PlacementScene extends Phaser.Scene {
    * initializers run only once and this would otherwise keep the previous
    * player's ships and redraw their arrows in the new player's color. */
   private placedShips: { hex: HexCoord; facing: number }[] = [];
+  private undoBtn!: Phaser.GameObjects.Text;
+  private redoBtn!: Phaser.GameObjects.Text;
+  /** Scoped to the current player: cleared in `create`, which re-runs on each
+   * per-player `scene.start('Placement', ...)`. */
+  private history = new History<PlacementSnapshot>();
 
   constructor() {
     super('Placement');
@@ -40,6 +55,7 @@ export class PlacementScene extends Phaser.Scene {
       session.gameState = createInitialState(buildPlayers(), session.combatMode);
     }
     this.placedShips = [];
+    this.history.clear();
 
     const { width, height } = this.scale;
     const player = session.gameState!.players[this.playerIndex]!;
@@ -82,7 +98,93 @@ export class PlacementScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
     skipBtn.on('pointerdown', () => this.finishPlayer());
 
-    this.mapView.pinUIObjects([titleText, this.infoText, skipBtn]);
+    this.undoBtn = this.add
+      .text(20, height - 104, '↶ Undo', {
+        fontSize: '13px',
+        color: '#fff',
+        backgroundColor: '#3a3a55',
+        padding: { x: 8, y: 4 },
+      })
+      .setScrollFactor(0)
+      .setDepth(30)
+      .setInteractive({ useHandCursor: true });
+    this.undoBtn.on('pointerdown', () => this.undo());
+
+    this.redoBtn = this.add
+      .text(20, height - 72, '↷ Redo', {
+        fontSize: '13px',
+        color: '#fff',
+        backgroundColor: '#3a3a55',
+        padding: { x: 8, y: 4 },
+      })
+      .setScrollFactor(0)
+      .setDepth(30)
+      .setInteractive({ useHandCursor: true });
+    this.redoBtn.on('pointerdown', () => this.redo());
+
+    this.input.keyboard?.on('keydown-Z', (event: KeyboardEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return;
+      if (event.shiftKey) this.redo();
+      else this.undo();
+    });
+    this.input.keyboard?.on('keydown-Y', (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.metaKey) this.redo();
+    });
+
+    this.refreshUndoRedoButtons();
+    this.mapView.pinUIObjects([titleText, this.infoText, skipBtn, this.undoBtn, this.redoBtn]);
+  }
+
+  private captureSnapshot(): PlacementSnapshot {
+    return {
+      state: structuredClone(session.gameState!),
+      queue: structuredClone(this.queue),
+      placedShips: structuredClone(this.placedShips),
+      unitCounter: this.unitCounter,
+    };
+  }
+
+  private restoreSnapshot(snapshot: PlacementSnapshot): void {
+    session.gameState = structuredClone(snapshot.state);
+    this.queue = structuredClone(snapshot.queue);
+    this.placedShips = structuredClone(snapshot.placedShips);
+    this.unitCounter = snapshot.unitCounter;
+    this.redrawPlacedUnits();
+    this.updateInfo();
+    this.refreshUndoRedoButtons();
+  }
+
+  /** Rebuilds the marker/arrow overlay from state after a restore. Only this
+   * player's units are drawn, matching what `tryPlace` renders as you go. */
+  private redrawPlacedUnits(): void {
+    this.mapView.clearAllUnitLabels();
+    for (const u of session.gameState!.units) {
+      if (u.owner === this.playerIndex) this.mapView.setUnitMarker(u.position, u.typeId, this.playerIndex);
+    }
+    this.mapView.setFacingIndicators(
+      this.placedShips.map((s) => ({ ...s, playerIndex: this.playerIndex })),
+    );
+  }
+
+  private undo(): void {
+    const entry = this.history.undo(this.captureSnapshot());
+    if (!entry) return;
+    this.restoreSnapshot(entry.payload);
+  }
+
+  private redo(): void {
+    const entry = this.history.redo(this.captureSnapshot());
+    if (!entry) return;
+    this.restoreSnapshot(entry.payload);
+  }
+
+  private refreshUndoRedoButtons(): void {
+    const undoLabel = this.history.undoLabel;
+    const redoLabel = this.history.redoLabel;
+    this.undoBtn.setText(undoLabel ? `↶ Undo: ${undoLabel}` : '↶ Undo');
+    this.redoBtn.setText(redoLabel ? `↷ Redo: ${redoLabel}` : '↷ Redo');
+    this.undoBtn.setAlpha(this.history.canUndo ? 1 : 0.4);
+    this.redoBtn.setAlpha(this.history.canRedo ? 1 : 0.4);
   }
 
   private currentItem(): QueueItem | undefined {
@@ -109,6 +211,7 @@ export class PlacementScene extends Phaser.Scene {
     if (occupied) return;
 
     const t = getUnitType(item.typeId);
+    this.history.push(this.captureSnapshot(), `Place ${t.name}`);
     const unit: Unit = {
       // Namespaced by player so ids stay unique without depending on
       // `unitCounter` surviving Phaser's scene restarts (several features key
@@ -133,6 +236,7 @@ export class PlacementScene extends Phaser.Scene {
       );
     }
     this.updateInfo();
+    this.refreshUndoRedoButtons();
   }
 
   private finishPlayer(): void {
