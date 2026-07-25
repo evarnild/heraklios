@@ -140,9 +140,12 @@ optional house rule, chosen once at the Menu screen before a game starts
   new full turn (i.e. once every player has taken their movement and combat
   phases), rather than only once at the start of the game. The reshuffle
   never happens mid-turn — only at the seam between one full turn and the
-  next — so it can't let a player act twice, or be skipped, within the same
-  round; eliminated players are simply never selected as the next to act,
-  same as under fixed order.
+  next — so within any single round every surviving player still acts
+  exactly once; eliminated players are simply never selected as the next to
+  act, same as under fixed order. Since the reshuffle is a fresh draw each
+  time, it doesn't avoid picking the same player who just finished last —
+  about 1 time in *n* (for *n* surviving players), whoever went last in one
+  round also goes first in the next, giving them two turns back to back.
 
 ### Naval movement and combat
 

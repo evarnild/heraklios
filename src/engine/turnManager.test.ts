@@ -115,6 +115,12 @@ describe('advancePhase — randomized turn order reshuffle', () => {
       [0.1, 0.9, 0.2],
       [0.5, 0.5, 0.5],
       [0.0, 0.99, 0.33],
+      // Fisher-Yates on [0,1,2,3] with this sequence lands the eliminated
+      // player (id 3) at seat 0: without this trial every other sequence
+      // above happens to put a non-eliminated id at seat 0, so `findIndex`
+      // returns 0 immediately and the skip-eliminated branch in
+      // `advancePhase` is never actually exercised — this one forces it.
+      [0.1, 0.9, 0.9],
     ];
     for (const sequence of trials) {
       const state = buildWrappingState();
@@ -126,7 +132,72 @@ describe('advancePhase — randomized turn order reshuffle', () => {
     }
   });
 
-  it('never reshuffles mid-round (only movement -> combat, no wrap)', () => {
+  it('skips the eliminated seat when the reshuffle puts it first', () => {
+    const state = buildWrappingState();
+    advanceWithMockedRandom(state, [0.1, 0.9, 0.9]);
+
+    // This rng sequence reshuffles [0,1,2,3] to [3,1,2,0] (eliminated id 3
+    // first), so the first surviving seat is index 1 (id 1), not index 0.
+    expect(state.seatOrder).toEqual([3, 1, 2, 0]);
+    expect(state.activePlayerIndex).toBe(1);
+  });
+
+  it('preserves the once-per-round invariant across many reshuffled rounds', () => {
+    const players: Player[] = [0, 1, 2, 3].map((id) => ({
+      id: id as PlayerId,
+      name: `P${id}`,
+      edge: (['W', 'E', 'N', 'S'] as const)[id]!,
+      purchasePoints: 400,
+      eliminated: false,
+    }));
+    const state = createInitialState(players, 'multi-defender', true);
+    for (const id of [0, 1, 2, 3]) {
+      const unit: Unit = {
+        id: `u${id}`,
+        owner: id as PlayerId,
+        typeId: 'fantassins',
+        position: { q: id, r: 0 },
+        movementLeft: 0,
+        facing: 0,
+        defendedThisPhase: false,
+        destroyed: false,
+      };
+      state.units.push(unit);
+    }
+
+    // A tiny LCG rather than a short repeating sequence, so consecutive
+    // reshuffles actually differ from each other instead of every round
+    // landing on the same permutation.
+    let seed = 42;
+    const lcg = () => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      return seed / 0x7fffffff;
+    };
+    const spy = vi.spyOn(Math, 'random').mockImplementation(lcg);
+
+    try {
+      const ROUNDS = 20;
+      let currentRound: PlayerId[] = [];
+      let lastTurnNumber = state.turnNumber;
+
+      for (let step = 0; step < ROUNDS * players.length; step++) {
+        currentRound.push(state.seatOrder[state.activePlayerIndex]!);
+
+        advancePhase(state); // movement -> combat
+        advancePhase(state); // combat -> next player's movement (reshuffles on wrap)
+
+        if (state.turnNumber !== lastTurnNumber) {
+          expect([...currentRound].sort()).toEqual([0, 1, 2, 3]);
+          currentRound = [];
+          lastTurnNumber = state.turnNumber;
+        }
+      }
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('never reshuffles when a combat phase ends without wrapping to a new round', () => {
     const state = buildWrappingState();
     state.activePlayerIndex = 0; // not the last seat, so finishing combat won't wrap
     const before = [...state.seatOrder];

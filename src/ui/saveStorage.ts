@@ -56,6 +56,7 @@ export function applySavedGame(save: SavedGame): {
   session.edges = [...save.edges];
   session.armySelections = structuredClone(save.armySelections);
   session.combatMode = save.combatMode;
+  session.randomizedTurnOrder = save.gameState.randomizedTurnOrder;
   session.testMode = save.testMode;
   session.gameState = structuredClone(save.gameState);
   return {

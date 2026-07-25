@@ -76,11 +76,11 @@ export class MenuScene extends Phaser.Scene {
     combatModeBtn.on('pointerover', () => combatModeBtn.setStyle({ backgroundColor: '#6a5a3a' }));
     combatModeBtn.on('pointerout', () => combatModeBtn.setStyle({ backgroundColor: '#4a3f2a' }));
 
-    this.add.text(width / 2, 370, 'Ordre de jeu', { fontSize: '16px', color: '#a89878' }).setOrigin(0.5);
+    this.add.text(width / 2, 370, 'Turn order', { fontSize: '16px', color: '#a89878' }).setOrigin(0.5);
     const turnOrderLabel = () =>
       session.randomizedTurnOrder
-        ? 'Ordre des joueurs re-tiré au sort à chaque tour'
-        : 'Ordre des joueurs fixe (tirage initial)';
+        ? 'Re-randomized each turn'
+        : 'Fixed (initial draw)';
     const turnOrderBtn = this.add
       .text(width / 2, 400, turnOrderLabel(), {
         fontSize: '14px',
