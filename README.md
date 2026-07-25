@@ -23,8 +23,10 @@ npm run build   # production build
 
 ## How to play
 
-1. **Menu** — pick 2, 3, or 4 players, and the land-combat rule variant
-   (see "Combining attacks" below; defaults to several-vs-several).
+1. **Menu** — pick 2, 3, or 4 players, the land-combat rule variant
+   (see "Combining attacks" below; defaults to several-vs-several), and
+   whether turn order should be re-randomized each turn (see "Turn order"
+   below; defaults to off).
 2. **Army Builder** — each player spends 400 purchase points on units from
    the shared roster (archers, infantry, cavalry, chariots, elephants,
    phalanxes, and four tiers of warships), subject to per-unit quantity
@@ -122,6 +124,25 @@ player must choose which of their own units to also lose, totaling at
 least the defenders' force — with only one attacker there's no real choice,
 but a multi-unit attack group gets a prompt to pick which units to
 sacrifice.
+
+### Turn order
+
+The rulebook has each of the 4 players draw for edge at the start of the
+game (highest 2 rolls choose E/W, the rest get N/S) and doesn't say anything
+further about turn order, so the seating order fixed by that dice-off is
+kept for the rest of the game by default. This edition also offers an
+optional house rule, chosen once at the Menu screen before a game starts
+(off by default, so existing behaviour is unchanged unless a player opts in):
+
+- **Fixed order** (default; matches the rulebook): the seating order drawn
+  at the initial dice-off holds for every turn of the game.
+- **Re-randomized order**: turn order is reshuffled at the start of every
+  new full turn (i.e. once every player has taken their movement and combat
+  phases), rather than only once at the start of the game. The reshuffle
+  never happens mid-turn — only at the seam between one full turn and the
+  next — so it can't let a player act twice, or be skipped, within the same
+  round; eliminated players are simply never selected as the next to act,
+  same as under fixed order.
 
 ### Naval movement and combat
 
@@ -225,9 +246,6 @@ here rather than silently:
   full movement in a straight line into contact) and the restriction that
   cavalry can never attack phalanxes are not implemented; cavalry always
   attacks at its printed value against any target.
-- **Turn order** among the 4 players is fixed at the initial edge-assignment
-  dice-off; the rulebook doesn't specify whether it should be re-randomized
-  each turn, so this plays it as fixed seating order.
 - **Ship facing at deployment** always starts at a fixed default direction
   (facing index 0) rather than letting the placing player choose — the
   rulebook doesn't cover initial facing at all.
