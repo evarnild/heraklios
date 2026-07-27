@@ -134,6 +134,19 @@ placement screen's highlight switches from the land band to that bay
 (and the camera follows) once the player's queue reaches their first
 ship — see `mapBounds.ts`'s `legalNavalDeploymentHexes`.
 
+Within the land band, the highlight also respects each land unit's normal
+terrain-access restrictions — "chars et cavaleries sont interdits sur les
+flancs abrupts ; chars, cavaleries et éléphants ne peuvent accéder aux
+marais" (`docs/research/05-rules-french-original.md`; plateaux carry no
+such restriction, only their attack-from-below combat bonus). Placing a
+chariot or cavalry unit on a flanc-abrupt hex, or a chariot, cavalry, or
+elephant unit on a marais hex, was previously possible at deployment even
+though the same unit could never move onto that terrain afterward —
+placement now runs the same `data/terrain.ts` `canEnterTerrain` check
+movement already uses (via `engine/movement.ts`'s exported
+`unitCategory`), so the highlighted hexes always match what a unit could
+legally occupy.
+
 ### Combining attacks
 
 Real *Héraklios* land combat lets several friendly units combine their

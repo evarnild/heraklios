@@ -1,17 +1,20 @@
 import type { HexCoord } from '../data/map';
 import { MAP_TERRAIN, hexKey as mapHexKey } from '../data/map';
 import { TERRAIN_EFFECTS, RIVER_CROSSING, canEnterTerrain } from '../data/terrain';
+import { getUnitType } from '../data/units';
 import { hexKey, neighbors } from './hex';
 import { hexesUnderZoc, unitAt, terrainAt, riverBetween } from './combat';
 import { reachableNavalHexes } from './navalMovement';
 import type { GameState, Unit } from './state';
-import { unitType } from './state';
 
 export { reachableNavalHexes, reachableNavalStates, findRammingContacts } from './navalMovement';
 export type { NavalState, RammingContact } from './navalMovement';
 
-function unitCategory(unit: Unit): 'chariot' | 'cavalry' | 'elephant' | 'land' | 'naval' {
-  const t = unitType(unit);
+/** The `canEnterTerrain` category a unit type falls into — exported so
+ * placement (which has a typeId but no `Unit` yet, nothing's been placed)
+ * can run the same terrain-access check as movement does. */
+export function unitCategory(typeId: string): 'chariot' | 'cavalry' | 'elephant' | 'land' | 'naval' {
+  const t = getUnitType(typeId);
   if (t.domain === 'naval') return 'naval';
   if (t.id.startsWith('chars-')) return 'chariot';
   if (t.id.startsWith('cavalerie-')) return 'cavalry';
@@ -32,7 +35,7 @@ function unitCategory(unit: Unit): 'chariot' | 'cavalry' | 'elephant' | 'land' |
  * all. Use `reachableNavalHexes` directly when the ending facing matters.
  */
 export function reachableHexes(state: GameState, unit: Unit): Map<string, number> {
-  const category = unitCategory(unit);
+  const category = unitCategory(unit.typeId);
   if (category === 'naval') {
     const naval = reachableNavalHexes(state, unit);
     return new Map(Array.from(naval, ([key, { cost }]) => [key, cost]));

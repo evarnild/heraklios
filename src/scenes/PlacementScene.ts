@@ -4,8 +4,11 @@ import { legalDeploymentHexes, legalNavalDeploymentHexes } from '../ui/mapBounds
 import { session, buildPlayers } from '../ui/session';
 import { createInitialState } from '../engine/turnManager';
 import { History } from '../engine/history';
+import { unitCategory } from '../engine/movement';
 import type { GameState, Unit } from '../engine/state';
 import { getUnitType } from '../data/units';
+import { canEnterTerrain } from '../data/terrain';
+import { MAP_TERRAIN, hexKey } from '../data/map';
 import type { HexCoord } from '../data/map';
 
 interface QueueItem {
@@ -309,11 +312,22 @@ export class PlacementScene extends Phaser.Scene {
 
   /** The legal-hex set for whatever the queue is currently placing — land
    * band or bay, per `legalLandHexes`/`legalSeaHexes` — or the land set as a
-   * harmless default once the queue is empty (nothing more to click there). */
+   * harmless default once the queue is empty (nothing more to click there).
+   * Land units are further filtered by the same terrain-access rule
+   * `engine/movement.ts` uses for movement (`data/terrain.ts`'s
+   * `canEnterTerrain`): chariots/cavalry can't stand on a flanc-abrupt hex,
+   * and chariots/cavalry/elephants can't stand on a marais hex, even at
+   * initial deployment. */
   private currentLegalHexes(): HexCoord[] {
     const item = this.currentItem();
     if (!item) return this.legalLandHexes;
-    return getUnitType(item.typeId).domain === 'naval' ? this.legalSeaHexes : this.legalLandHexes;
+    const t = getUnitType(item.typeId);
+    if (t.domain === 'naval') return this.legalSeaHexes;
+    const category = unitCategory(item.typeId);
+    return this.legalLandHexes.filter((h) => {
+      const terrain = MAP_TERRAIN.get(hexKey(h.q, h.r));
+      return terrain !== undefined && canEnterTerrain(terrain, category);
+    });
   }
 
   /** Re-highlights the map for the current queue item's domain, re-centering
