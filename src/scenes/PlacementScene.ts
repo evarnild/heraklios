@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { MapView } from '../ui/MapView';
-import { deploymentZone, defaultAnchor, maxAnchor, clampAnchor, zonesAreSeparated } from '../ui/mapBounds';
+import { legalDeploymentHexes, legalNavalDeploymentHexes } from '../ui/mapBounds';
 import { session, buildPlayers } from '../ui/session';
 import { createInitialState } from '../engine/turnManager';
 import { History } from '../engine/history';
@@ -15,9 +15,7 @@ interface QueueItem {
 
 /** Everything a placement undo has to put back — the board plus this scene's
  * own placing progress. See engine/history.ts for why this is snapshot-based.
- * The zone-position choice and any in-progress ship-facing pick are
- * deliberately NOT part of this: the zone is a one-time setup step that
- * happens before any unit is placed (nothing to undo back past), and a
+ * Any in-progress ship-facing pick is deliberately NOT part of this: a
  * pending ship is, by definition, not committed to `state` yet — undoing
  * simply cancels it (see `undo`/`redo` below). */
 interface PlacementSnapshot {
@@ -30,7 +28,21 @@ interface PlacementSnapshot {
 export class PlacementScene extends Phaser.Scene {
   private playerIndex = 0;
   private mapView!: MapView;
-  private zone: HexCoord[] = [];
+  /** Hexes this player may currently place a LAND unit on — the full
+   * 3-hex-deep band along their edge, minus any hex too close to another
+   * army's already-placed units (see `mapBounds.ts`'s `legalDeploymentHexes`).
+   * Computed once in `create`: enemy positions don't change again until the
+   * next player's turn starts. */
+  private legalLandHexes: HexCoord[] = [];
+  /** Same idea as `legalLandHexes`, but for ships: the player's assigned
+   * named bay (see `mapBounds.ts`'s `legalNavalDeploymentHexes`), not the
+   * land band — a fleet deploys in a specific sea zone, never on land. */
+  private legalSeaHexes: HexCoord[] = [];
+  /** Which domain's legal-hex set is currently highlighted on the map, so
+   * `refreshPlacementHighlight` only re-centers the camera when the player's
+   * queue actually crosses from land units to ships or back, not on every
+   * single placement. */
+  private highlightedDomain: 'land' | 'naval' | null = null;
   private queue: QueueItem[] = [];
   private infoText!: Phaser.GameObjects.Text;
   private unitCounter = 0;
@@ -46,19 +58,6 @@ export class PlacementScene extends Phaser.Scene {
   /** Scoped to the current player: cleared in `create`, which re-runs on each
    * per-player `scene.start('Placement', ...)`. */
   private history = new History<PlacementSnapshot>();
-
-  // --- Zone-position step (Feature B) ---
-  /** `'zone'` while the player is still choosing where their strip sits;
-   * `'placing'` once it's confirmed and unit placement is underway. Edges too
-   * short to offer a real choice (`maxAnchor(edge) === 0`) skip straight to
-   * `'placing'` with the only possible anchor — see `create`. */
-  private phase: 'zone' | 'placing' = 'zone';
-  private anchor = 0;
-  private zoneTitleText!: Phaser.GameObjects.Text;
-  private zoneWarningText!: Phaser.GameObjects.Text;
-  private shiftLeftBtn!: Phaser.GameObjects.Text;
-  private shiftRightBtn!: Phaser.GameObjects.Text;
-  private confirmZoneBtn!: Phaser.GameObjects.Text;
 
   // --- Ship-facing choice at deployment (Feature C) ---
   /** A ship the player has clicked a hex for but not yet confirmed — lets
@@ -83,16 +82,16 @@ export class PlacementScene extends Phaser.Scene {
     if (this.playerIndex === 0 || !session.gameState) {
       session.gameState = createInitialState(buildPlayers(), session.combatMode, session.randomizedTurnOrder);
     }
-    if (this.playerIndex === 0 || session.deploymentZones.length !== session.playerCount) {
-      session.deploymentZones = Array.from({ length: session.playerCount }, () => null);
-    }
     this.placedShips = [];
     this.pendingShip = null;
     this.history.clear();
 
     const { width, height } = this.scale;
     const player = session.gameState!.players[this.playerIndex]!;
-    this.anchor = defaultAnchor(player.edge);
+    const enemyHexes = session.gameState!.units.filter((u) => u.owner !== this.playerIndex).map((u) => u.position);
+    this.legalLandHexes = legalDeploymentHexes(player.edge, enemyHexes);
+    this.legalSeaHexes = legalNavalDeploymentHexes(player.edge, enemyHexes);
+    this.highlightedDomain = null;
 
     const titleText = this.add
       .text(width / 2, 20, `${player.name} — place your army (edge ${player.edge})`, {
@@ -106,58 +105,6 @@ export class PlacementScene extends Phaser.Scene {
     this.mapView = new MapView(this, width, height);
     this.mapView.onHexClick = (hex) => this.handleHexClick(hex);
 
-    // --- Zone-position step UI ---
-    this.zoneTitleText = this.add
-      .text(width / 2, 48, '', { fontSize: '14px', color: '#ffe08a' })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(30);
-    this.zoneWarningText = this.add
-      .text(width / 2, 68, '', { fontSize: '13px', color: '#ff8080' })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(30);
-
-    this.shiftLeftBtn = this.add
-      .text(width / 2 - 160, 96, '◀ Shift', {
-        fontSize: '14px',
-        color: '#fff',
-        backgroundColor: '#3a3a55',
-        padding: { x: 10, y: 6 },
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(30)
-      .setInteractive({ useHandCursor: true });
-    this.shiftLeftBtn.on('pointerdown', () => this.shiftZone(-1));
-
-    this.shiftRightBtn = this.add
-      .text(width / 2 + 160, 96, 'Shift ▶', {
-        fontSize: '14px',
-        color: '#fff',
-        backgroundColor: '#3a3a55',
-        padding: { x: 10, y: 6 },
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(30)
-      .setInteractive({ useHandCursor: true });
-    this.shiftRightBtn.on('pointerdown', () => this.shiftZone(1));
-
-    this.confirmZoneBtn = this.add
-      .text(width / 2, 128, 'Confirm zone', {
-        fontSize: '15px',
-        color: '#fff',
-        backgroundColor: '#2a5a2a',
-        padding: { x: 10, y: 6 },
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(30)
-      .setInteractive({ useHandCursor: true });
-    this.confirmZoneBtn.on('pointerdown', () => this.confirmZone());
-
-    // --- Unit-placement step UI (hidden until the zone is confirmed) ---
     this.infoText = this.add
       .text(20, height - 40, '', { fontSize: '15px', color: '#ffe08a' })
       .setScrollFactor(0)
@@ -263,11 +210,6 @@ export class PlacementScene extends Phaser.Scene {
 
     this.mapView.pinUIObjects([
       titleText,
-      this.zoneTitleText,
-      this.zoneWarningText,
-      this.shiftLeftBtn,
-      this.shiftRightBtn,
-      this.confirmZoneBtn,
       this.infoText,
       this.skipBtn,
       this.undoBtn,
@@ -278,13 +220,15 @@ export class PlacementScene extends Phaser.Scene {
       this.cancelShipBtn,
     ]);
 
-    // An edge too short to offer more than one anchor position isn't a real
-    // choice — skip the zone-picking step and go straight to placing units.
-    if (maxAnchor(player.edge) === 0) {
-      this.lockInZone(this.anchor);
-    } else {
-      this.enterZonePhase();
-    }
+    const selection = session.armySelections[this.playerIndex]!;
+    this.queue = Object.entries(selection)
+      .filter(([, count]) => count > 0)
+      .map(([typeId, count]) => ({ typeId, remaining: count }));
+
+    this.refreshPlacementHighlight();
+    this.updateInfo();
+    this.refreshUndoRedoButtons();
+    this.refreshShipControls();
   }
 
   private captureSnapshot(): PlacementSnapshot {
@@ -302,6 +246,7 @@ export class PlacementScene extends Phaser.Scene {
     this.placedShips = structuredClone(snapshot.placedShips);
     this.unitCounter = snapshot.unitCounter;
     this.redrawPlacedUnits();
+    this.refreshPlacementHighlight();
     this.updateInfo();
     this.refreshUndoRedoButtons();
   }
@@ -317,7 +262,6 @@ export class PlacementScene extends Phaser.Scene {
   }
 
   private undo(): void {
-    if (this.phase !== 'placing') return;
     // A pending (unconfirmed) ship isn't part of any snapshot — cancel it
     // rather than leave a stale preview arrow pointing at nothing useful.
     this.cancelPendingShip();
@@ -327,7 +271,6 @@ export class PlacementScene extends Phaser.Scene {
   }
 
   private redo(): void {
-    if (this.phase !== 'placing') return;
     this.cancelPendingShip();
     const entry = this.history.redo(this.captureSnapshot());
     if (!entry) return;
@@ -364,158 +307,39 @@ export class PlacementScene extends Phaser.Scene {
     this.infoText.setText(`Placing: ${t.name} (${item.remaining} left) — click a highlighted hex`);
   }
 
-  // --- Zone-position step (Feature B) ---
-
-  /** All hexes already locked in by earlier players (this player's own
-   * index and any not-yet-placed later players are `null` and skipped) —
-   * used both for the warning highlight and the separation check. Placement
-   * proceeds strictly in player-index order, so every entry below this
-   * player's own index is guaranteed final by the time they reach this step. */
-  private priorZones(): HexCoord[] {
-    return session.deploymentZones.filter((z): z is HexCoord[] => z !== null).flat();
+  /** The legal-hex set for whatever the queue is currently placing — land
+   * band or bay, per `legalLandHexes`/`legalSeaHexes` — or the land set as a
+   * harmless default once the queue is empty (nothing more to click there). */
+  private currentLegalHexes(): HexCoord[] {
+    const item = this.currentItem();
+    if (!item) return this.legalLandHexes;
+    return getUnitType(item.typeId).domain === 'naval' ? this.legalSeaHexes : this.legalLandHexes;
   }
 
-  private candidateZone(): HexCoord[] {
-    const player = session.gameState!.players[this.playerIndex]!;
-    return deploymentZone(player.edge, this.anchor);
-  }
-
-  /**
-   * Whether ANY anchor position on this edge would satisfy the 4-hex
-   * separation from earlier players' zones. The rulebook doesn't say what
-   * happens if a player's whole edge is boxed in (only realistically
-   * possible on a very cramped map, or with more players sharing corners
-   * than this game currently allows — see `session.ts`'s edge assignment,
-   * which always gives each player a distinct edge). Conservative/literal
-   * reading: the separation rule can't be allowed to soft-lock placement, so
-   * `confirmZone` falls back to permitting an otherwise-invalid choice only
-   * when NO position on the edge would have worked anyway.
-   */
-  private anyAnchorSatisfiesSeparation(): boolean {
-    const player = session.gameState!.players[this.playerIndex]!;
-    const prior = this.priorZones();
-    if (prior.length === 0) return true;
-    for (let a = 0; a <= maxAnchor(player.edge); a++) {
-      if (zonesAreSeparated(deploymentZone(player.edge, a), prior, 4)) return true;
-    }
-    return false;
-  }
-
-  private enterZonePhase(): void {
-    this.phase = 'zone';
-    this.setZonePhaseVisible(true);
-    this.setPlacingPhaseVisible(false);
-    this.refreshZoneDisplay();
-  }
-
-  private setZonePhaseVisible(visible: boolean): void {
-    this.zoneTitleText.setVisible(visible);
-    this.zoneWarningText.setVisible(visible);
-    this.shiftLeftBtn.setVisible(visible);
-    this.shiftRightBtn.setVisible(visible);
-    this.confirmZoneBtn.setVisible(visible);
-  }
-
-  private setPlacingPhaseVisible(visible: boolean): void {
-    this.infoText.setVisible(visible);
-    this.skipBtn.setVisible(visible);
-    this.undoBtn.setVisible(visible);
-    this.redoBtn.setVisible(visible);
-    // Ship-facing controls stay hidden unless a ship is actually pending —
-    // `refreshShipControls` (called right after this) has the final say.
-    if (!visible) {
-      this.rotateCCWBtn.setVisible(false);
-      this.rotateCWBtn.setVisible(false);
-      this.confirmShipBtn.setVisible(false);
-      this.cancelShipBtn.setVisible(false);
-    }
-  }
-
-  private shiftZone(direction: 1 | -1): void {
-    if (this.phase !== 'zone') return;
-    const player = session.gameState!.players[this.playerIndex]!;
-    this.anchor = clampAnchor(player.edge, this.anchor + direction);
-    this.refreshZoneDisplay();
-  }
-
-  private refreshZoneDisplay(): void {
-    const player = session.gameState!.players[this.playerIndex]!;
-    const candidate = this.candidateZone();
-    const prior = this.priorZones();
-    const valid = zonesAreSeparated(candidate, prior, 4);
-
-    this.mapView.highlightHexGroups([
-      { hexes: candidate, color: valid ? 0xffd700 : 0xff3030, alpha: 0.4 },
-      { hexes: prior, color: 0x8a3a3a, alpha: 0.35 },
-    ]);
-    if (candidate[0]) this.mapView.centerOn(candidate[0]);
-
-    const atStart = this.anchor <= 0;
-    const atEnd = this.anchor >= maxAnchor(player.edge);
-    this.zoneTitleText.setText(
-      `${player.name} — choose where your 3-hex-deep strip sits along edge ${player.edge} (gold)`,
-    );
-    this.shiftLeftBtn.setAlpha(atStart ? 0.4 : 1);
-    this.shiftRightBtn.setAlpha(atEnd ? 0.4 : 1);
-    if (prior.length === 0) {
-      this.zoneWarningText.setText('');
-    } else if (valid) {
-      this.zoneWarningText.setText('Clear of other armies (need 4+ hexes of separation).');
-      this.zoneWarningText.setColor('#9be89b');
-    } else if (this.anyAnchorSatisfiesSeparation()) {
-      this.zoneWarningText.setText('Too close to another army’s zone (red) — shift away before confirming.');
-      this.zoneWarningText.setColor('#ff8080');
-    } else {
-      this.zoneWarningText.setText('No position on this edge keeps 4+ hexes from every other army — confirm anyway.');
-      this.zoneWarningText.setColor('#ffb060');
-    }
-    this.confirmZoneBtn.setAlpha(valid || !this.anyAnchorSatisfiesSeparation() ? 1 : 0.5);
-  }
-
-  private confirmZone(): void {
-    if (this.phase !== 'zone') return;
-    const candidate = this.candidateZone();
-    const valid = zonesAreSeparated(candidate, this.priorZones(), 4);
-    // See `anyAnchorSatisfiesSeparation`'s doc comment: an invalid choice is
-    // only let through when nothing on this edge would have been valid.
-    if (!valid && this.anyAnchorSatisfiesSeparation()) return;
-    this.lockInZone(this.anchor);
-  }
-
-  /** Finalizes the deployment zone at `anchor`, records it in `session` for
-   * later players' separation checks, and switches to the unit-placement UI. */
-  private lockInZone(anchor: number): void {
-    const player = session.gameState!.players[this.playerIndex]!;
-    this.zone = deploymentZone(player.edge, anchor);
-    session.deploymentZones[this.playerIndex] = this.zone;
-    this.phase = 'placing';
-
-    const selection = session.armySelections[this.playerIndex]!;
-    this.queue = Object.entries(selection)
-      .filter(([, count]) => count > 0)
-      .map(([typeId, count]) => ({ typeId, remaining: count }));
-
-    this.setZonePhaseVisible(false);
-    this.setPlacingPhaseVisible(true);
-    this.mapView.highlightHexes(this.zone, 0x30ff30, 0.35);
-    if (this.zone[0]) this.mapView.centerOn(this.zone[0]);
-    this.updateInfo();
-    this.refreshUndoRedoButtons();
-    this.refreshShipControls();
+  /** Re-highlights the map for the current queue item's domain, re-centering
+   * the camera only when the domain actually changed since the last call —
+   * e.g. once a player's land units are all placed and the queue moves on to
+   * ships, the highlight (and camera) jumps from the land band to the bay. */
+  private refreshPlacementHighlight(): void {
+    const item = this.currentItem();
+    const domain: 'land' | 'naval' = item ? getUnitType(item.typeId).domain : 'land';
+    const legal = this.currentLegalHexes();
+    this.mapView.highlightHexes(legal, 0x30ff30, 0.35);
+    if (domain !== this.highlightedDomain && legal[0]) this.mapView.centerOn(legal[0]);
+    this.highlightedDomain = domain;
   }
 
   // --- Hex click routing ---
 
   private handleHexClick(hex: HexCoord): void {
-    if (this.phase !== 'placing') return;
     this.tryPlace(hex);
   }
 
   private tryPlace(hex: HexCoord): void {
     const item = this.currentItem();
     if (!item) return;
-    const inZone = this.zone.some((h) => h.q === hex.q && h.r === hex.r);
-    if (!inZone) return;
+    const isLegal = this.currentLegalHexes().some((h) => h.q === hex.q && h.r === hex.r);
+    if (!isLegal) return;
     const state = session.gameState!;
     const occupied = state.units.some((u) => !u.destroyed && u.position.q === hex.q && u.position.r === hex.r);
     if (occupied) return;
@@ -551,6 +375,7 @@ export class PlacementScene extends Phaser.Scene {
     state.units.push(unit);
     item.remaining -= 1;
     this.mapView.setUnitMarker(hex, item.typeId, this.playerIndex);
+    this.refreshPlacementHighlight();
     this.updateInfo();
     this.refreshUndoRedoButtons();
   }
@@ -568,10 +393,10 @@ export class PlacementScene extends Phaser.Scene {
 
   private refreshShipControls(): void {
     const pending = !!this.pendingShip;
-    this.rotateCCWBtn.setVisible(this.phase === 'placing' && pending);
-    this.rotateCWBtn.setVisible(this.phase === 'placing' && pending);
-    this.confirmShipBtn.setVisible(this.phase === 'placing' && pending);
-    this.cancelShipBtn.setVisible(this.phase === 'placing' && pending);
+    this.rotateCCWBtn.setVisible(pending);
+    this.rotateCWBtn.setVisible(pending);
+    this.confirmShipBtn.setVisible(pending);
+    this.cancelShipBtn.setVisible(pending);
   }
 
   private rotatePendingShip(direction: 1 | -1): void {
@@ -605,6 +430,7 @@ export class PlacementScene extends Phaser.Scene {
     this.pendingShip = null;
     this.mapView.setFacingIndicators(this.shipArrowList());
     this.refreshShipControls();
+    this.refreshPlacementHighlight();
     this.updateInfo();
     this.refreshUndoRedoButtons();
   }
@@ -618,7 +444,6 @@ export class PlacementScene extends Phaser.Scene {
   }
 
   private finishPlayer(): void {
-    if (this.phase !== 'placing') return;
     this.cancelPendingShip();
     const nextIndex = this.playerIndex + 1;
     this.mapView.clearAllUnitLabels();

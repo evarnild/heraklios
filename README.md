@@ -109,28 +109,30 @@ choice — resolve it first, the same rule "End phase" already follows.
 Per the rulebook, a player's units "must be placed along their assigned
 edge of the map, within a strip no more than 3 hexes wide," with "a
 minimum gap of 4 hexes" separating two different armies at the start
-(`docs/research/02-rules-transcription.md`). Before placing any units,
-each player is shown a candidate strip (gold, or red if it's currently too
-close to another army already placed) and **"◀ Shift" / "Shift ▶"**
-buttons that slide it along their edge; **"Confirm zone"** locks it in and
-switches to unit placement within it (green highlight), the same as
-before. Earlier players' already-confirmed zones are shown too (dim red)
-so it's clear why some positions are blocked. Since every player is always
-assigned a distinct edge (see the edge dice-off above), this separation
-check only ever matters near a shared corner between two adjacent edges —
-opposite edges (e.g. north vs. south) are always far enough apart on this
-map regardless of where either strip sits.
+(`docs/research/02-rules-transcription.md`). The rulebook only bounds that
+strip's *depth* — nothing limits how far along the edge a player may
+spread out — so a player's legal placement area is simply their whole
+edge's 3-hex-deep band, minus any hex within 4 of a unit an earlier player
+has already placed (green highlight, live-updated as pieces go down; no
+separate zone-picking step). Since every player is always assigned a
+distinct edge (see the edge dice-off above), the 4-hex gap only ever
+matters near a shared corner between two adjacent edges — opposite edges
+(e.g. north vs. south) are always far enough apart on this map regardless
+of where units sit.
 
-A strip's length along the edge isn't specified by the rulebook (only its
-3-hex depth is) — this edition gives each player half of their edge's
-available length to choose from, enough room for the anchor to actually
-slide from one end to the other. If literally no position on an edge
-would satisfy the 4-hex gap from an already-placed neighbor (only possible
-on a very cramped edge), "Confirm zone" is allowed anyway rather than
-soft-locking the game — see `PlacementScene.ts`'s
-`anyAnchorSatisfiesSeparation` for this interpretive call, and
-`mapBounds.ts` for the underlying geometry (anchor/window math and the
-separation check itself), which is unit-tested independently of the UI.
+If literally every hex on an edge is within 4 of an already-placed
+neighbor (only possible on a very cramped edge), the gap constraint is
+dropped rather than leaving the player with nowhere to click — see
+`mapBounds.ts`'s `legalDeploymentHexes`, which is unit-tested
+independently of the UI.
+
+A fleet doesn't deploy in that land band at all: per the rulebook, each
+edge has one specific named bay assigned to it (west → Anse d'Hypnos,
+south → Pointe d'Eole, north → Baie d'Argos, east → Cap Zénon) and ships
+may only start there, never in the coastal fringe or open sea. The
+placement screen's highlight switches from the land band to that bay
+(and the camera follows) once the player's queue reaches their first
+ship — see `mapBounds.ts`'s `legalNavalDeploymentHexes`.
 
 ### Combining attacks
 

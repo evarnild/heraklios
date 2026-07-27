@@ -1,7 +1,6 @@
 import type { ArmySelection } from '../engine/army';
 import { emptySelection } from '../engine/army';
 import type { CombatMode, GameState, Player, PlayerId } from '../engine/state';
-import type { HexCoord } from '../data/map';
 
 export type Edge = 'N' | 'S' | 'E' | 'W';
 
@@ -29,16 +28,6 @@ export interface SessionState {
    */
   testMode: boolean;
   gameState: GameState | null;
-  /**
-   * `deploymentZones[i]` is the hex set player `i` locked in on the
-   * Placement screen's zone-position step (see `PlacementScene`), or `null`
-   * before they've chosen. Placement happens one player at a time in index
-   * order, so by the time player `i` picks their own zone, every entry below
-   * it is already final — enough for the 4-hex-separation check (see
-   * `mapBounds.ts`'s `zonesAreSeparated`) without needing every player's
-   * choice up front.
-   */
-  deploymentZones: (HexCoord[] | null)[];
 }
 
 export const session: SessionState = {
@@ -50,7 +39,6 @@ export const session: SessionState = {
   randomizedTurnOrder: false,
   testMode: false,
   gameState: null,
-  deploymentZones: [],
 };
 
 export function resetSession(playerCount: number): void {
@@ -58,7 +46,6 @@ export function resetSession(playerCount: number): void {
   session.testMode = false;
   session.armySelections = Array.from({ length: playerCount }, () => emptySelection());
   session.gameState = null;
-  session.deploymentZones = Array.from({ length: playerCount }, () => null);
   assignEdgesRandomly(playerCount);
 }
 

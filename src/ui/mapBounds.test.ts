@@ -1,198 +1,111 @@
 import { describe, it, expect } from 'vitest';
 import {
   allHexes,
-  deploymentColumns,
-  deploymentZone,
-  stripLength,
-  maxAnchor,
-  defaultAnchor,
-  clampAnchor,
-  zonesAreSeparated,
+  deploymentBand,
+  legalDeploymentHexes,
+  navalDeploymentBand,
+  legalNavalDeploymentHexes,
   seaZoneNear,
   type Edge,
 } from './mapBounds';
 import { hexDistance } from '../engine/hex';
+import { MAP_TERRAIN } from '../data/map';
 
 const EDGES: readonly Edge[] = ['N', 'S', 'E', 'W'];
 
-describe('deploymentColumns', () => {
-  it('covers every hex from the old full-edge zone exactly once', () => {
+describe('deploymentBand', () => {
+  it('returns only real, playable hexes, each at most once', () => {
     for (const edge of EDGES) {
-      const columns = deploymentColumns(edge);
-      const flat = columns.flat();
-      const keys = flat.map((h) => `${h.q},${h.r}`);
-      expect(new Set(keys).size).toBe(keys.length); // no hex appears twice
-      // Every column-derived hex must actually be a real, playable hex.
+      const band = deploymentBand(edge);
+      expect(band.length).toBeGreaterThan(0);
+      const keys = band.map((h) => `${h.q},${h.r}`);
+      expect(new Set(keys).size).toBe(keys.length);
       const allKeys = new Set(allHexes().map((h) => `${h.q},${h.r}`));
       for (const k of keys) expect(allKeys.has(k)).toBe(true);
     }
   });
+});
 
-  it('orders columns strictly along the edge (no gaps collapse, no reordering)', () => {
+describe('legalDeploymentHexes', () => {
+  it('with no enemy units, returns the whole band', () => {
     for (const edge of EDGES) {
-      const columns = deploymentColumns(edge);
-      expect(columns.length).toBeGreaterThan(0);
-      for (const column of columns) expect(column.length).toBeGreaterThan(0);
+      expect(legalDeploymentHexes(edge, [])).toEqual(deploymentBand(edge));
     }
   });
 
-  it('on N/S edges, every hex in a column shares the same q, and columns are strictly ordered by q', () => {
-    // Pins the exact column<->hex mapping: q is exactly proportional to
-    // hexToPixel's x, so grouping by it must never merge two different q's
-    // into one column (the original bug: pixel-rounding merged q=17 and 18)
-    // or reorder columns. A gap bigger than 1 between consecutive columns is
-    // still legal — it just means the map has no playable hex in that row
-    // (e.g. near the scanned page's fold) — so only strict monotonicity is
-    // asserted, not a fixed step of exactly 1.
-    for (const edge of ['N', 'S'] as const) {
-      const columns = deploymentColumns(edge);
-      const qOf = columns.map((col) => {
-        const qs = new Set(col.map((h) => h.q));
-        expect(qs.size).toBe(1); // every hex in a column shares one q
-        return [...qs][0]!;
-      });
-      for (let i = 1; i < qOf.length; i++) {
-        expect(qOf[i]!).toBeGreaterThan(qOf[i - 1]!);
+  it('excludes band hexes within minGap of an enemy hex', () => {
+    for (const edge of EDGES) {
+      const band = deploymentBand(edge);
+      const enemy = band[0]!;
+      const legal = legalDeploymentHexes(edge, [enemy], 4);
+      for (const h of legal) expect(hexDistance(h, enemy)).toBeGreaterThanOrEqual(4);
+    }
+  });
+
+  it('treats exactly minGap as legal, and one less as illegal', () => {
+    const band = deploymentBand('W');
+    const anchor = band[0]!;
+    // Find a band hex at exactly distance 4 and one at distance < 4, if any exist.
+    const atGap = band.find((h) => hexDistance(h, anchor) === 4);
+    const tooClose = band.find((h) => hexDistance(h, anchor) > 0 && hexDistance(h, anchor) < 4);
+    const legal = legalDeploymentHexes('W', [anchor], 4);
+    const legalKeys = new Set(legal.map((h) => `${h.q},${h.r}`));
+    if (atGap) expect(legalKeys.has(`${atGap.q},${atGap.r}`)).toBe(true);
+    if (tooClose) expect(legalKeys.has(`${tooClose.q},${tooClose.r}`)).toBe(false);
+  });
+
+  it('falls back to the whole band rather than returning empty when every hex is boxed in', () => {
+    for (const edge of EDGES) {
+      const band = deploymentBand(edge);
+      // A huge minGap makes every band hex "too close" to any single enemy hex.
+      const legal = legalDeploymentHexes(edge, [band[0]!], 100000);
+      expect(legal).toEqual(band);
+    }
+  });
+});
+
+describe('navalDeploymentBand', () => {
+  const EDGE_ZONE: Record<Edge, string> = {
+    W: 'zone-anse-hypnos',
+    S: 'zone-pointe-eole',
+    N: 'zone-baie-argos',
+    E: 'zone-cap-zenon',
+  };
+
+  it('returns only hexes tagged with that edge\'s specific named bay', () => {
+    for (const edge of EDGES) {
+      const band = navalDeploymentBand(edge);
+      expect(band.length).toBeGreaterThan(0);
+      for (const h of band) {
+        expect(MAP_TERRAIN.get(`${h.q},${h.r}`)).toBe(EDGE_ZONE[edge]);
       }
     }
   });
 
-  it('on E/W edges, every hex in a column shares the same (2r+q), and columns are strictly ordered by it', () => {
-    // Same pin as above, for the axis where depth runs along x instead: y is
-    // exactly proportional to (2r+q), so grouping on that exact integer must
-    // never merge two genuinely different rows or fragment one real row (the
-    // original bug: pixel-rounding produced ragged, unevenly-spaced columns).
-    for (const edge of ['E', 'W'] as const) {
-      const columns = deploymentColumns(edge);
-      const rowOf = columns.map((col) => {
-        const rows = new Set(col.map((h) => 2 * h.r + h.q));
-        expect(rows.size).toBe(1);
-        return [...rows][0]!;
-      });
-      for (let i = 1; i < rowOf.length; i++) {
-        expect(rowOf[i]!).toBeGreaterThan(rowOf[i - 1]!);
-      }
-    }
-  });
-
-  it('every column holds at most 3 hexes (the band is only 3 hexes deep)', () => {
+  it('is disjoint from the land deployment band (ships never share hexes with land units)', () => {
     for (const edge of EDGES) {
-      for (const column of deploymentColumns(edge)) {
-        expect(column.length).toBeLessThanOrEqual(3);
+      const landKeys = new Set(deploymentBand(edge).map((h) => `${h.q},${h.r}`));
+      for (const h of navalDeploymentBand(edge)) {
+        expect(landKeys.has(`${h.q},${h.r}`)).toBe(false);
       }
     }
   });
 });
 
-describe('stripLength / maxAnchor / clampAnchor', () => {
-  it('strip length is at least the minimum and never exceeds the edge', () => {
+describe('legalNavalDeploymentHexes', () => {
+  it('with no enemy units, returns the whole naval band', () => {
     for (const edge of EDGES) {
-      const total = deploymentColumns(edge).length;
-      const len = stripLength(edge);
-      expect(len).toBeGreaterThanOrEqual(3);
-      expect(len).toBeLessThanOrEqual(total);
+      expect(legalNavalDeploymentHexes(edge, [])).toEqual(navalDeploymentBand(edge));
     }
   });
 
-  it('maxAnchor keeps a full-length strip on the edge', () => {
+  it('excludes bay hexes within minGap of an enemy hex', () => {
     for (const edge of EDGES) {
-      const total = deploymentColumns(edge).length;
-      const len = stripLength(edge);
-      expect(maxAnchor(edge)).toBe(total - len);
+      const band = navalDeploymentBand(edge);
+      const enemy = band[0]!;
+      const legal = legalNavalDeploymentHexes(edge, [enemy], 4);
+      for (const h of legal) expect(hexDistance(h, enemy)).toBeGreaterThanOrEqual(4);
     }
-  });
-
-  it('defaultAnchor is a legal (in-range) anchor', () => {
-    for (const edge of EDGES) {
-      const anchor = defaultAnchor(edge);
-      expect(anchor).toBeGreaterThanOrEqual(0);
-      expect(anchor).toBeLessThanOrEqual(maxAnchor(edge));
-    }
-  });
-
-  it('clampAnchor pins out-of-range values to the nearest legal one', () => {
-    for (const edge of EDGES) {
-      expect(clampAnchor(edge, -100)).toBe(0);
-      expect(clampAnchor(edge, 100000)).toBe(maxAnchor(edge));
-      expect(clampAnchor(edge, 0)).toBe(0);
-      expect(clampAnchor(edge, maxAnchor(edge))).toBe(maxAnchor(edge));
-    }
-  });
-});
-
-describe('deploymentZone with an anchor', () => {
-  it('always returns a strip of exactly stripLength(edge) columns worth of hexes', () => {
-    for (const edge of EDGES) {
-      const columns = deploymentColumns(edge);
-      const len = stripLength(edge);
-      for (const anchor of [0, defaultAnchor(edge), maxAnchor(edge)]) {
-        const zone = deploymentZone(edge, anchor);
-        const expectedCount = columns.slice(anchor, anchor + len).reduce((n, c) => n + c.length, 0);
-        expect(zone.length).toBe(expectedCount);
-      }
-    }
-  });
-
-  it('shifting the anchor shifts which hexes are included', () => {
-    for (const edge of EDGES) {
-      if (maxAnchor(edge) === 0) continue; // edge too short to offer a real choice
-      const atStart = new Set(deploymentZone(edge, 0).map((h) => `${h.q},${h.r}`));
-      const atEnd = new Set(deploymentZone(edge, maxAnchor(edge)).map((h) => `${h.q},${h.r}`));
-      expect(atStart).not.toEqual(atEnd);
-    }
-  });
-
-  it('defaults to a centered anchor when none is passed, matching defaultAnchor', () => {
-    for (const edge of EDGES) {
-      const implicit = deploymentZone(edge);
-      const explicit = deploymentZone(edge, defaultAnchor(edge));
-      expect(implicit).toEqual(explicit);
-    }
-  });
-
-  it('every returned hex is within the 3-deep band regardless of anchor', () => {
-    // Sanity check against the un-windowed full band (old behavior) — the
-    // anchored zone must always be a subset of it.
-    for (const edge of EDGES) {
-      const fullBand = new Set(deploymentColumns(edge).flat().map((h) => `${h.q},${h.r}`));
-      const zone = deploymentZone(edge, 0);
-      for (const h of zone) expect(fullBand.has(`${h.q},${h.r}`)).toBe(true);
-    }
-  });
-});
-
-describe('zonesAreSeparated', () => {
-  it('is true for two hex sets far apart', () => {
-    const a = [{ q: 0, r: 0 }];
-    const b = [{ q: 20, r: 20 }];
-    expect(zonesAreSeparated(a, b, 4)).toBe(true);
-  });
-
-  it('is false when the closest pair is under the minimum distance', () => {
-    const a = [{ q: 0, r: 0 }];
-    const b = [{ q: 1, r: 0 }]; // distance 1
-    expect(zonesAreSeparated(a, b, 4)).toBe(false);
-  });
-
-  it('treats exactly the minimum distance as satisfying separation', () => {
-    const a = [{ q: 0, r: 0 }];
-    const b = [{ q: 4, r: 0 }];
-    expect(hexDistance(a[0]!, b[0]!)).toBe(4);
-    expect(zonesAreSeparated(a, b, 4)).toBe(true);
-    const c = [{ q: 3, r: 0 }];
-    expect(hexDistance(a[0]!, c[0]!)).toBe(3);
-    expect(zonesAreSeparated(a, c, 4)).toBe(false);
-  });
-
-  it('checks every pair, not just the first', () => {
-    const a = [{ q: 0, r: 0 }, { q: 100, r: 100 }];
-    const b = [{ q: 200, r: 200 }, { q: 1, r: 0 }]; // second hex is distance 1 from a[0]
-    expect(zonesAreSeparated(a, b, 4)).toBe(false);
-  });
-
-  it('is vacuously true for an empty set on either side', () => {
-    expect(zonesAreSeparated([], [{ q: 0, r: 0 }], 4)).toBe(true);
-    expect(zonesAreSeparated([{ q: 0, r: 0 }], [], 4)).toBe(true);
   });
 });
 
