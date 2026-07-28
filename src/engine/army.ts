@@ -43,3 +43,25 @@ export function emptySelection(): ArmySelection {
   for (const t of UNIT_TYPES) selection[t.id] = 0;
   return selection;
 }
+
+/**
+ * A ready-made 400-point army spanning every unit category, offered as a
+ * one-click starting point on the army-builder screen so a player doesn't
+ * have to hand-tally the budget themselves. Nothing about it is special
+ * once selected — it's just a starting `ArmySelection` the player can then
+ * adjust with the usual +/- controls.
+ */
+export function defaultArmySelection(): ArmySelection {
+  const selection = emptySelection();
+  selection['archers'] = 10;
+  selection['fantassins-archers'] = 5;
+  selection['fantassins-lourds'] = 4;
+  selection['phalanges'] = 3;
+  selection['cavalerie-legere'] = 5;
+  selection['cavalerie-lourde'] = 5;
+  selection['elephants'] = 3;
+  selection['chars-lourds'] = 8;
+  selection['galeres'] = 1;
+  selection['biremes'] = 1;
+  return selection;
+}

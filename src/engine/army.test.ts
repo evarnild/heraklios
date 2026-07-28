@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validateArmy, emptySelection, ARMY_BUDGET } from './army';
+import { validateArmy, emptySelection, defaultArmySelection, ARMY_BUDGET } from './army';
 
 describe('validateArmy', () => {
   it('accepts a valid army within budget and quantity caps', () => {
@@ -32,5 +32,14 @@ describe('validateArmy', () => {
     const result = validateArmy(selection);
     expect(result.valid).toBe(false);
     expect(result.errors.some((e) => e.includes('budget'))).toBe(true);
+  });
+});
+
+describe('defaultArmySelection', () => {
+  it('spends exactly the full budget and stays within every quantity cap', () => {
+    const result = validateArmy(defaultArmySelection());
+    expect(result.valid).toBe(true);
+    expect(result.totalCost).toBe(ARMY_BUDGET);
+    expect(result.remaining).toBe(0);
   });
 });

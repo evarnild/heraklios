@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { UNIT_TYPES } from '../data/units';
-import { validateArmy, ARMY_BUDGET } from '../engine/army';
+import { validateArmy, defaultArmySelection, ARMY_BUDGET } from '../engine/army';
 import { session } from '../ui/session';
 
 export class ArmyBuilderScene extends Phaser.Scene {
@@ -29,6 +29,24 @@ export class ArmyBuilderScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     const selection = session.armySelections[this.playerIndex]!;
+
+    // Pre-fills the selection with a ready-made 400-point army; the +/-
+    // controls below remain fully live afterward, so this is just a
+    // starting point the player can still hand-adjust like any other.
+    const defaultArmyBtn = this.add
+      .text(width - 20, 24, 'Use default army', {
+        fontSize: '14px',
+        color: '#fff',
+        backgroundColor: '#3a3a55',
+        padding: { x: 10, y: 6 },
+      })
+      .setOrigin(1, 0.5)
+      .setInteractive({ useHandCursor: true });
+    defaultArmyBtn.on('pointerdown', () => {
+      const preset = defaultArmySelection();
+      for (const unit of UNIT_TYPES) selection[unit.id] = preset[unit.id] ?? 0;
+      this.refresh();
+    });
 
     const startY = 70;
     const rowH = 32;
