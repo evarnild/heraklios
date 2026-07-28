@@ -31,10 +31,10 @@ npm run build   # production build
    the shared roster (archers, infantry, cavalry, chariots, elephants,
    phalanxes, and four tiers of warships), subject to per-unit quantity
    caps, one player at a time ("pass the device"). The budget must be spent
-   exactly — "Confirm army" is refused while any points are unspent or
-   overspent — and a "Use default army" button offers a ready-made
-   400-point army as a starting point that can still be hand-adjusted
-   afterward.
+   exactly — "Confirm army" stays dimmed and inert while any points are
+   unspent or overspent — and a "Use default army" button offers a
+   ready-made 400-point army as a starting point that can still be
+   hand-adjusted afterward.
 3. **Placement** — each player deploys their purchased units within their
    randomly assigned edge's 3-hex-deep band (green highlight; see
    "Deployment zone position" below). Ships also let the placing player pick

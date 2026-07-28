@@ -6,6 +6,7 @@ import { session } from '../ui/session';
 export class ArmyBuilderScene extends Phaser.Scene {
   private playerIndex = 0;
   private totalText!: Phaser.GameObjects.Text;
+  private confirmBtn!: Phaser.GameObjects.Text;
   private countTexts: Record<string, Phaser.GameObjects.Text> = {};
 
   constructor() {
@@ -83,7 +84,7 @@ export class ArmyBuilderScene extends Phaser.Scene {
       color: '#ffe08a',
     });
 
-    const confirmBtn = this.add
+    this.confirmBtn = this.add
       .text(width - 160, startY + UNIT_TYPES.length * rowH + 20, 'Confirm army', {
         fontSize: '18px',
         color: '#fff',
@@ -92,12 +93,9 @@ export class ArmyBuilderScene extends Phaser.Scene {
       })
       .setInteractive({ useHandCursor: true });
 
-    confirmBtn.on('pointerdown', () => {
+    this.confirmBtn.on('pointerdown', () => {
       const result = validateArmy(selection);
-      if (!result.valid) {
-        this.totalText.setColor('#ff6a6a');
-        return;
-      }
+      if (!result.valid) return;
       const nextIndex = this.playerIndex + 1;
       if (nextIndex < session.playerCount) {
         this.scene.start('ArmyBuilder', { playerIndex: nextIndex });
@@ -116,6 +114,7 @@ export class ArmyBuilderScene extends Phaser.Scene {
     }
     const result = validateArmy(selection);
     this.totalText.setColor(result.valid ? '#ffe08a' : '#ff6a6a');
-    this.totalText.setText(`Total: ${result.totalCost} / ${ARMY_BUDGET}  ${result.errors.join('; ')}`);
+    this.totalText.setText(`Total: ${result.totalCost} / ${ARMY_BUDGET}`);
+    this.confirmBtn.setAlpha(result.valid ? 1 : 0.4);
   }
 }
