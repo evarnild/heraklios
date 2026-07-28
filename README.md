@@ -30,13 +30,16 @@ npm run build   # production build
 2. **Army Builder** — each player spends 400 purchase points on units from
    the shared roster (archers, infantry, cavalry, chariots, elephants,
    phalanxes, and four tiers of warships), subject to per-unit quantity
-   caps, one player at a time ("pass the device").
-3. **Placement** — each player first chooses where along their randomly
-   assigned edge their 3-hex-deep deployment strip sits (see "Deployment
-   zone position" below), then deploys their purchased units within it
-   (green highlight). Ships also let the placing player pick an initial
-   facing (see "Naval movement and combat" below) instead of always
-   starting bow-first in a fixed direction.
+   caps, one player at a time ("pass the device"). The budget must be spent
+   exactly — "Confirm army" is refused while any points are unspent or
+   overspent — and a "Use default army" button offers a ready-made
+   400-point army as a starting point that can still be hand-adjusted
+   afterward.
+3. **Placement** — each player deploys their purchased units within their
+   randomly assigned edge's 3-hex-deep band (green highlight; see
+   "Deployment zone position" below). Ships also let the placing player pick
+   an initial facing (see "Naval movement and combat" below) instead of
+   always starting bow-first in a fixed direction.
 4. **Board** — turns proceed player by player, each running a Movement
    phase (click a unit, then a highlighted reachable hex) followed by a
    Combat phase. In the Combat phase: click friendly units to build an

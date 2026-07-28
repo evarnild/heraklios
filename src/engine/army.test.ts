@@ -2,14 +2,18 @@ import { describe, it, expect } from 'vitest';
 import { validateArmy, emptySelection, defaultArmySelection, ARMY_BUDGET } from './army';
 
 describe('validateArmy', () => {
-  it('accepts a valid army within budget and quantity caps', () => {
+  it('accepts an army that spends exactly the budget and stays within quantity caps', () => {
     const selection = emptySelection();
-    selection['phalanges'] = 5; // cost 15 * 5 = 75, cap is 5
-    selection['elephants'] = 10; // cost 10 * 10 = 100, cap is 10
+    selection['quintiremes'] = 1; // 50, cap is 1
+    selection['triremes'] = 3; // 90, cap is 3
+    selection['biremes'] = 5; // 100, cap is 5
+    selection['galeres'] = 6; // 60, cap is 6
+    selection['elephants'] = 10; // 100, cap is 10
+    // total = 400, exactly the budget
     const result = validateArmy(selection);
     expect(result.valid).toBe(true);
-    expect(result.totalCost).toBe(175);
-    expect(result.remaining).toBe(ARMY_BUDGET - 175);
+    expect(result.totalCost).toBe(400);
+    expect(result.remaining).toBe(0);
   });
 
   it('rejects exceeding a unit quantity cap', () => {
@@ -32,6 +36,20 @@ describe('validateArmy', () => {
     const result = validateArmy(selection);
     expect(result.valid).toBe(false);
     expect(result.errors.some((e) => e.includes('budget'))).toBe(true);
+  });
+
+  it('rejects spending less than the full budget', () => {
+    const selection = emptySelection();
+    selection['phalanges'] = 5; // 75, well within caps but far short of 400
+    const result = validateArmy(selection);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes('budget'))).toBe(true);
+  });
+
+  it('rejects an empty selection, since 0 points is under budget', () => {
+    const result = validateArmy(emptySelection());
+    expect(result.valid).toBe(false);
+    expect(result.totalCost).toBe(0);
   });
 });
 

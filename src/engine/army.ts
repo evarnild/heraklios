@@ -28,6 +28,12 @@ export function validateArmy(selection: ArmySelection): ArmyValidation {
 
   if (totalCost > ARMY_BUDGET) {
     errors.push(`Total cost ${totalCost} exceeds the ${ARMY_BUDGET}-point budget`);
+  } else if (totalCost < ARMY_BUDGET) {
+    // "Once a player's army... totals exactly 400 purchase points, it's time
+    // to place it on the map" (docs/research/02-rules-transcription.md) — an
+    // army isn't ready to confirm until every point is spent, not just under
+    // budget.
+    errors.push(`Total cost ${totalCost} is under the ${ARMY_BUDGET}-point budget — spend all ${ARMY_BUDGET} points to confirm`);
   }
 
   return {
