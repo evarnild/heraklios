@@ -17,29 +17,60 @@ export function allHexes(): HexCoord[] {
   return hexes;
 }
 
-const DEPTH_LIMIT = 90; // ~3 hex-widths deep, per the rulebook (unchanged from before)
+const DEPTH = 3; // "a strip no more than 3 hexes wide" (docs/research/02-rules-transcription.md)
 
-/** The full-length, 3-hex-deep land band along a compass edge, with each
- * hex's pixel position attached (used to find the edge-nearest extreme to
- * measure depth from; `deploymentBand` strips the pixel data back off). */
-function depthBand(edge: Edge): { hex: HexCoord; x: number; y: number }[] {
+/**
+ * The full-length, `DEPTH`-hex-deep land band along a compass edge, computed
+ * with exact axial-coordinate arithmetic rather than a pixel-distance cutoff.
+ *
+ * A fixed pixel-distance threshold (the previous approach) doesn't work here:
+ * for flat-top hexes, `hexToPixel`'s y is `k*(2r+q)` and x is `1.5*HEX_SIZE*q`
+ * — a hex grid's "rows"/"columns" are staggered in pixel space (each step
+ * along the edge shifts the perpendicular baseline too), so a single global
+ * cutoff catches 2 hexes deep in some along-edge positions and 3 in others,
+ * even though every position has a real, well-defined 3rd hex. Exact
+ * per-column selection avoids that: group hexes into the columns that run
+ * perpendicular to `edge` — bucketed by `q` for N/S (moving along a fixed q,
+ * `r`±1 is always a direct hex-grid neighbor, see `engine/hex.ts`'s
+ * `DIRECTIONS`) or by `2r+q` for E/W (same reasoning, one step along a fixed
+ * `2r+q` row is a `q`±2,`r`∓1 combined move — still exactly one hex-grid
+ * step's worth of neighbors chained together) — then take the nearest
+ * `DEPTH` hexes of EACH column by its own exact depth coordinate (`r` for
+ * N/S, `q` for E/W), never by pixel position. A column naturally holds fewer
+ * than `DEPTH` only where the map's hand-drawn boundary is irregular (e.g.
+ * near the scanned page's fold), not because of measurement imprecision.
+ */
+function depthBand(edge: Edge): HexCoord[] {
   const hexes = allHexes().filter((h) => {
     const terrain = MAP_TERRAIN.get(`${h.q},${h.r}`);
     return terrain !== undefined && !isSeaLike(terrain) && terrain !== 'coast';
   });
-  const pixels = hexes.map((h) => ({ hex: h, ...hexToPixel(h) }));
 
-  let sorted: typeof pixels;
-  if (edge === 'W') sorted = [...pixels].sort((a, b) => a.x - b.x);
-  else if (edge === 'E') sorted = [...pixels].sort((a, b) => b.x - a.x);
-  else if (edge === 'N') sorted = [...pixels].sort((a, b) => a.y - b.y);
-  else sorted = [...pixels].sort((a, b) => b.y - a.y);
-
-  const extreme = sorted[0]!;
   const isVertical = edge === 'N' || edge === 'S';
-  return sorted.filter((p) =>
-    isVertical ? Math.abs(p.y - extreme.y) < DEPTH_LIMIT : Math.abs(p.x - extreme.x) < DEPTH_LIMIT,
-  );
+  const columns = new Map<number, HexCoord[]>();
+  for (const h of hexes) {
+    const bucket = isVertical ? h.q : 2 * h.r + h.q;
+    const column = columns.get(bucket);
+    if (column) column.push(h);
+    else columns.set(bucket, [h]);
+  }
+
+  const depthCompare: (a: HexCoord, b: HexCoord) => number =
+    edge === 'N'
+      ? (a, b) => a.r - b.r // smallest r = nearest the north edge
+      : edge === 'S'
+        ? (a, b) => b.r - a.r // largest r = nearest the south edge
+        : edge === 'W'
+          ? (a, b) => a.q - b.q // smallest q = nearest the west edge
+          : (a, b) => b.q - a.q; // largest q = nearest the east edge
+
+  const result: HexCoord[] = [];
+  for (const bucket of [...columns.keys()].sort((a, b) => a - b)) {
+    const column = columns.get(bucket)!;
+    column.sort(depthCompare);
+    result.push(...column.slice(0, DEPTH));
+  }
+  return result;
 }
 
 /** The full-length, 3-hex-deep land band along `edge` — the rulebook only
@@ -53,7 +84,7 @@ const bandCache = new Map<Edge, HexCoord[]>();
 export function deploymentBand(edge: Edge): HexCoord[] {
   const cached = bandCache.get(edge);
   if (cached) return cached;
-  const band = depthBand(edge).map((p) => p.hex);
+  const band = depthBand(edge);
   bandCache.set(edge, band);
   return band;
 }

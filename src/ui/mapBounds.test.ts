@@ -10,6 +10,8 @@ import {
 } from './mapBounds';
 import { hexDistance } from '../engine/hex';
 import { MAP_TERRAIN } from '../data/map';
+import type { HexCoord } from '../data/map';
+import { isSeaLike } from '../data/terrain';
 
 const EDGES: readonly Edge[] = ['N', 'S', 'E', 'W'];
 
@@ -22,6 +24,53 @@ describe('deploymentBand', () => {
       expect(new Set(keys).size).toBe(keys.length);
       const allKeys = new Set(allHexes().map((h) => `${h.q},${h.r}`));
       for (const k of keys) expect(allKeys.has(k)).toBe(true);
+    }
+  });
+});
+
+describe('deploymentBand goes exactly 3 hexes deep per along-edge column', () => {
+  // Independently re-derives every column's full membership straight from the
+  // raw terrain data, using the same exact bucket definition `depthBand`
+  // uses internally (q for N/S, 2r+q for E/W — see its doc comment for why
+  // that's the correct axial-coordinate grouping). A column should be
+  // shorter than 3 only where the map's hand-drawn boundary genuinely has
+  // fewer than 3 land hexes there — never because of a measurement quirk
+  // (the historical bug this guards: a pixel-distance cutoff caught 2 hexes
+  // deep in some columns and 3 in others on the same edge).
+  function landColumns(edge: Edge): Map<number, HexCoord[]> {
+    const isVertical = edge === 'N' || edge === 'S';
+    const landHexes = allHexes().filter((h) => {
+      const t = MAP_TERRAIN.get(`${h.q},${h.r}`);
+      return t !== undefined && !isSeaLike(t) && t !== 'coast';
+    });
+    const columns = new Map<number, HexCoord[]>();
+    for (const h of landHexes) {
+      const bucket = isVertical ? h.q : 2 * h.r + h.q;
+      const column = columns.get(bucket);
+      if (column) column.push(h);
+      else columns.set(bucket, [h]);
+    }
+    return columns;
+  }
+
+  it('every column has min(3, hexes actually available there) hexes in the band', () => {
+    for (const edge of EDGES) {
+      const isVertical = edge === 'N' || edge === 'S';
+      const columns = landColumns(edge);
+      const band = deploymentBand(edge);
+      const bandByBucket = new Map<number, HexCoord[]>();
+      for (const h of band) {
+        const bucket = isVertical ? h.q : 2 * h.r + h.q;
+        const column = bandByBucket.get(bucket);
+        if (column) column.push(h);
+        else bandByBucket.set(bucket, [h]);
+      }
+
+      for (const [bucket, column] of columns) {
+        const expected = Math.min(3, column.length);
+        const actual = bandByBucket.get(bucket)?.length ?? 0;
+        expect(actual).toBe(expected);
+      }
     }
   });
 });
