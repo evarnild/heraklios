@@ -20,25 +20,36 @@ export function allHexes(): HexCoord[] {
 const DEPTH = 3; // "a strip no more than 3 hexes wide" (docs/research/02-rules-transcription.md)
 
 /**
- * The full-length, `DEPTH`-hex-deep land band along a compass edge, computed
- * with exact axial-coordinate arithmetic rather than a pixel-distance cutoff.
+ * The full-length, `DEPTH`-hex-deep land band along a compass edge.
  *
- * A fixed pixel-distance threshold (the previous approach) doesn't work here:
- * for flat-top hexes, `hexToPixel`'s y is `k*(2r+q)` and x is `1.5*HEX_SIZE*q`
- * — a hex grid's "rows"/"columns" are staggered in pixel space (each step
- * along the edge shifts the perpendicular baseline too), so a single global
- * cutoff catches 2 hexes deep in some along-edge positions and 3 in others,
- * even though every position has a real, well-defined 3rd hex. Exact
- * per-column selection avoids that: group hexes into the columns that run
- * perpendicular to `edge` — bucketed by `q` for N/S (moving along a fixed q,
- * `r`±1 is always a direct hex-grid neighbor, see `engine/hex.ts`'s
- * `DIRECTIONS`) or by `2r+q` for E/W (same reasoning, one step along a fixed
- * `2r+q` row is a `q`±2,`r`∓1 combined move — still exactly one hex-grid
- * step's worth of neighbors chained together) — then take the nearest
- * `DEPTH` hexes of EACH column by its own exact depth coordinate (`r` for
- * N/S, `q` for E/W), never by pixel position. A column naturally holds fewer
- * than `DEPTH` only where the map's hand-drawn boundary is irregular (e.g.
- * near the scanned page's fold), not because of measurement imprecision.
+ * N/S is handled with exact per-column arithmetic: hexes are bucketed by `q`
+ * (a fixed-`q` "column" runs due north-south, since `r`±1 is always a direct
+ * hex-grid neighbor there — see `engine/hex.ts`'s `DIRECTIONS`, which
+ * includes `{q:0,r:±1}`), and each column's nearest hexes are taken by
+ * sorting on `r`.
+ *
+ * W/E can't reuse that trick as a single bucket: flat-top hexes have no
+ * fixed-`r` axis with the same property (`{q:1,r:0}`/`{q:-1,r:0}` are valid
+ * neighbor directions, but per `hexToPixel`'s `y = k*(2r+q)` they still
+ * shift `y` — every direction that changes `q` shifts the along-edge
+ * position too). Bucketing by the exact along-edge coordinate `2r+q` still
+ * works, but each such bucket, by construction, only contains every OTHER
+ * `q` (since `r=(bucket-q)/2` needs `q` to share the bucket's parity) — so
+ * hexes within one bucket are 2 real hex-steps apart. Merging each pair of
+ * adjacent buckets (`2k` and `2k+1`) into one along-edge group interleaves
+ * them back into consecutive `q` values, matching how a hex "row" is
+ * visually two staggered sub-lattices one hex-height apart.
+ *
+ * Either way, a bucket isn't just "sorted, take the nearest `DEPTH`": this
+ * map's coastline isn't convex (it's built around a central bay, with 4
+ * named inlets — see `docs/research/01-history-and-background.md`), so a
+ * column/group can contain a short strip of land near the edge, open water,
+ * and then more land further out on the far side of a bay. Taking the
+ * nearest 3 by sort order alone would leap across that gap and include the
+ * unconnected far strip as if it were part of the deployable coastal band.
+ * Each bucket is walked outward from the edge instead, stopping either at
+ * `DEPTH` hexes taken or as soon as the depth coordinate skips (a gap of
+ * more than 1), whichever comes first.
  */
 function depthBand(edge: Edge): HexCoord[] {
   const hexes = allHexes().filter((h) => {
@@ -47,28 +58,35 @@ function depthBand(edge: Edge): HexCoord[] {
   });
 
   const isVertical = edge === 'N' || edge === 'S';
-  const columns = new Map<number, HexCoord[]>();
+  const buckets = new Map<number, HexCoord[]>();
   for (const h of hexes) {
-    const bucket = isVertical ? h.q : 2 * h.r + h.q;
-    const column = columns.get(bucket);
-    if (column) column.push(h);
-    else columns.set(bucket, [h]);
+    const bucket = isVertical ? h.q : Math.floor((2 * h.r + h.q) / 2);
+    const list = buckets.get(bucket);
+    if (list) list.push(h);
+    else buckets.set(bucket, [h]);
   }
 
-  const depthCompare: (a: HexCoord, b: HexCoord) => number =
-    edge === 'N'
-      ? (a, b) => a.r - b.r // smallest r = nearest the north edge
-      : edge === 'S'
-        ? (a, b) => b.r - a.r // largest r = nearest the south edge
-        : edge === 'W'
-          ? (a, b) => a.q - b.q // smallest q = nearest the west edge
-          : (a, b) => b.q - a.q; // largest q = nearest the east edge
+  // Ascending = nearer the edge first; consecutive entries a real single
+  // hex-step apart differ by exactly 1 (see the doc comment above).
+  const signedDepth = (h: HexCoord): number => {
+    if (edge === 'N') return h.r;
+    if (edge === 'S') return -h.r;
+    return edge === 'W' ? h.q : -h.q;
+  };
 
   const result: HexCoord[] = [];
-  for (const bucket of [...columns.keys()].sort((a, b) => a - b)) {
-    const column = columns.get(bucket)!;
-    column.sort(depthCompare);
-    result.push(...column.slice(0, DEPTH));
+  for (const bucket of [...buckets.keys()].sort((a, b) => a - b)) {
+    const sorted = buckets.get(bucket)!.sort((a, b) => signedDepth(a) - signedDepth(b));
+    let previousDepth: number | null = null;
+    let taken = 0;
+    for (const h of sorted) {
+      if (taken >= DEPTH) break;
+      const depth = signedDepth(h);
+      if (previousDepth !== null && depth - previousDepth > 1) break; // open water — stop here
+      result.push(h);
+      previousDepth = depth;
+      taken++;
+    }
   }
   return result;
 }

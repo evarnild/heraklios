@@ -28,48 +28,104 @@ describe('deploymentBand', () => {
   });
 });
 
-describe('deploymentBand goes exactly 3 hexes deep per along-edge column', () => {
-  // Independently re-derives every column's full membership straight from the
-  // raw terrain data, using the same exact bucket definition `depthBand`
-  // uses internally (q for N/S, 2r+q for E/W — see its doc comment for why
-  // that's the correct axial-coordinate grouping). A column should be
+function landHexes(): HexCoord[] {
+  return allHexes().filter((h) => {
+    const t = MAP_TERRAIN.get(`${h.q},${h.r}`);
+    return t !== undefined && !isSeaLike(t) && t !== 'coast';
+  });
+}
+
+describe('deploymentBand goes exactly 3 hexes deep per along-edge bucket', () => {
+  // Independently re-derives every bucket's full membership straight from the
+  // raw terrain data, using the same bucket definition depthBand uses
+  // internally: q for N/S (a fixed-q column runs due north-south, so r is an
+  // exact single-hex-step depth axis there); floor((2r+q)/2) for E/W (each
+  // raw 2r+q value only touches every other q, since r=(bucket-q)/2 needs
+  // integer r — merging pairs of adjacent 2r+q values interleaves them back
+  // into one along-edge group of consecutive q's). A bucket should be
   // shorter than 3 only where the map's hand-drawn boundary genuinely has
-  // fewer than 3 land hexes there — never because of a measurement quirk
-  // (the historical bug this guards: a pixel-distance cutoff caught 2 hexes
-  // deep in some columns and 3 in others on the same edge).
-  function landColumns(edge: Edge): Map<number, HexCoord[]> {
-    const isVertical = edge === 'N' || edge === 'S';
-    const landHexes = allHexes().filter((h) => {
-      const t = MAP_TERRAIN.get(`${h.q},${h.r}`);
-      return t !== undefined && !isSeaLike(t) && t !== 'coast';
-    });
-    const columns = new Map<number, HexCoord[]>();
-    for (const h of landHexes) {
-      const bucket = isVertical ? h.q : 2 * h.r + h.q;
-      const column = columns.get(bucket);
-      if (column) column.push(h);
-      else columns.set(bucket, [h]);
-    }
-    return columns;
+  // fewer than 3 land hexes there — never a measurement quirk (the
+  // historical bugs this guards: a pixel-distance cutoff that caught 2 deep
+  // in some N/S columns and 3 in others; and, on E/W, using the raw
+  // un-merged 2r+q bucket, which skipped every other depth layer and made
+  // the band twice as deep as intended).
+  function bucketOf(edge: Edge, h: HexCoord): number {
+    return edge === 'N' || edge === 'S' ? h.q : Math.floor((2 * h.r + h.q) / 2);
   }
 
-  it('every column has min(3, hexes actually available there) hexes in the band', () => {
+  function landBuckets(edge: Edge): Map<number, HexCoord[]> {
+    const buckets = new Map<number, HexCoord[]>();
+    for (const h of landHexes()) {
+      const bucket = bucketOf(edge, h);
+      const list = buckets.get(bucket);
+      if (list) list.push(h);
+      else buckets.set(bucket, [h]);
+    }
+    return buckets;
+  }
+
+  // The map's coastline isn't convex (it's built around a central bay with 4
+  // named inlets), so a bucket can hold a short strip near the edge, open
+  // water, and then more land beyond the gap on the far shore. The expected
+  // count below only counts hexes contiguous with the edge-nearest end of
+  // the bucket, capped at 3 — matching depthBand's "stop at the first gap"
+  // rule rather than naively taking `min(3, everything in the bucket)`.
+  function depthOf(edge: Edge, h: HexCoord): number {
+    if (edge === 'N') return h.r;
+    if (edge === 'S') return -h.r;
+    return edge === 'W' ? h.q : -h.q;
+  }
+
+  function expectedContiguousCount(edge: Edge, bucketHexes: HexCoord[]): number {
+    const depths = bucketHexes.map((h) => depthOf(edge, h)).sort((a, b) => a - b);
+    let count = 0;
+    let previous: number | null = null;
+    for (const d of depths) {
+      if (count >= 3) break;
+      if (previous !== null && d - previous > 1) break;
+      count++;
+      previous = d;
+    }
+    return count;
+  }
+
+  it('every bucket has the nearest contiguous hexes (capped at 3), never leaping a water gap', () => {
     for (const edge of EDGES) {
-      const isVertical = edge === 'N' || edge === 'S';
-      const columns = landColumns(edge);
+      const buckets = landBuckets(edge);
       const band = deploymentBand(edge);
       const bandByBucket = new Map<number, HexCoord[]>();
       for (const h of band) {
-        const bucket = isVertical ? h.q : 2 * h.r + h.q;
-        const column = bandByBucket.get(bucket);
-        if (column) column.push(h);
+        const bucket = bucketOf(edge, h);
+        const list = bandByBucket.get(bucket);
+        if (list) list.push(h);
         else bandByBucket.set(bucket, [h]);
       }
 
-      for (const [bucket, column] of columns) {
-        const expected = Math.min(3, column.length);
+      for (const [bucket, list] of buckets) {
+        const expected = expectedContiguousCount(edge, list);
         const actual = bandByBucket.get(bucket)?.length ?? 0;
         expect(actual).toBe(expected);
+      }
+    }
+  });
+
+  it('each bucket only ever selects 3 consecutive depths, never a wider spread', () => {
+    // Directly targets the E/W "twice as deep" bug: with the un-merged
+    // bucket, a bucket's 3 selected hexes could be 4 apart in q (0,2,4)
+    // instead of 2 apart (0,1,2). This checks the actual depth coordinate's
+    // spread, independent of how the bucket itself is computed.
+    for (const edge of EDGES) {
+      const isVertical = edge === 'N' || edge === 'S';
+      const bandByBucket = new Map<number, number[]>();
+      for (const h of deploymentBand(edge)) {
+        const bucket = bucketOf(edge, h);
+        const depthValue = isVertical ? h.r : h.q;
+        const list = bandByBucket.get(bucket);
+        if (list) list.push(depthValue);
+        else bandByBucket.set(bucket, [depthValue]);
+      }
+      for (const values of bandByBucket.values()) {
+        expect(Math.max(...values) - Math.min(...values)).toBeLessThanOrEqual(2);
       }
     }
   });
