@@ -115,13 +115,14 @@ silently falling through to select a unit or target underneath the panel.
 
 Army Builder, Placement, and the Board each have an **Abandon** button that
 returns to the Menu — the only way back besides reloading the page, for a
-misbuilt army, a misplaced unit, or a board you just want to walk away from.
-It's guarded by a confirm/cancel prompt (Phaser has no `confirm()`, so this is
-a modal drawn on the canvas, not a browser dialog), since it's the one
-control that discards in-progress work with no undo. On the Board, it's
-disabled — with a log message explaining why — while a retreat, drift,
-advance offer, or exchange-sacrifice choice is still awaiting an answer, the
-same rule undo/redo/save-load/end-phase already follow.
+misbuilt army, a misplaced unit, a wedged board, or one you just want to walk
+away from. It's guarded by a confirm/cancel prompt (Phaser has no
+`confirm()`, so this is a modal drawn on the canvas, not a browser dialog),
+since it's the one control that discards in-progress work with no undo.
+Unlike undo/redo/save-load/end-phase, it's deliberately available even mid
+retreat/drift/advance/exchange-sacrifice choice — Abandon exists specifically
+to escape a board wedged by exactly that kind of stuck state, so disabling it
+in that situation would defeat its own purpose.
 
 Abandoning does **not** clear the autosave: the game you just left is still
 sitting in the Menu's **"Charger une partie"** > Autosave row if you change
