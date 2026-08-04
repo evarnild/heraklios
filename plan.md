@@ -635,3 +635,73 @@ Mitigate by telling one of the two agents explicitly not to touch it, and
 documenting that half by hand at merge time — a README conflict is cheap to
 resolve but pointless to incur.
 
+
+---
+
+## 8. Bug: units cannot move through friendly units
+
+**Status:** confirmed, not started. Found by the user during play review, not
+by any test or agent.
+
+### 8.1 The rule, and what the code does
+
+`docs/research/05-rules-french-original.md:124-126`:
+
+> Une unité ne peut en aucun cas se placer sur une case déjà occupée par
+> une quelconque autre unité. Par contre, au cours d'un mouvement, une
+> unité peut **traverser** une case où se trouve une unité de la même armée.
+
+Matching transcription at `docs/research/02-rules-transcription.md:88-90`:
+"a unit may never *end* its move on a hex already occupied by another unit.
+It *may* pass through a hex occupied by a friendly unit mid-move."
+
+The code conflates "may not stop here" with "may not enter here":
+
+| Site | Current behavior | Should be |
+| --- | --- | --- |
+| `movement.ts:62` (`reachableHexes`) | any occupied hex is impassable | friendly-occupied hexes traversable, not selectable as a destination |
+| `movement.ts:172` (`straightLineMoveCost`) | a friendly unit anywhere on the line aborts the charge | friendlies traversable mid-line; destination still must be empty |
+| `navalMovement.ts:52` | same blanket block | **open question** — see §8.3 |
+
+This is **not** listed in the README's "Known simplifications", so it was an
+unnoticed gap rather than a deliberate deferral.
+
+### 8.2 Why this matters more than it looks
+
+- **It silently weakens the cavalry charge feature** ([§5](#5-outcome)). A
+  charge needs a straight line at full movement; today any friendly unit
+  standing on that line makes the charge impossible. Note
+  `straightLineMoveCost` already special-cases ZOC for the final step
+  (`isFinalStep`, `movement.ts:180-181`) but applies occupancy uniformly —
+  the asymmetry is the bug.
+- **It distorts formation play generally.** A phalanx line blocking its own
+  cavalry is precisely the situation the rule exists to permit.
+
+### 8.3 Design questions to settle before implementing
+
+1. **"Même armée" in a 3-4 player game.** The rule says *same army*, not
+   *not-enemy*. In a 4-player hotseat game each player is their own army, so
+   this should mean **same `owner`**, not merely "not the active player's
+   enemy". Do not implement it as `unit.owner !== active` — that would let
+   units traverse third parties.
+2. **Naval.** The passage sits in the general movement section, but naval
+   movement is facing-based and ramming keys off contact. Whether a ship may
+   traverse a friendly ship needs a decision and a code comment recording it,
+   per this repo's ambiguous-rulebook convention.
+3. **ZOC interaction.** Passing *through* a friendly unit that itself sits in
+   an enemy ZOC: the ZOC stop rule applies independently and must keep
+   working. Worth an explicit test.
+
+### 8.4 The implementation hazard
+
+`reachableHexes` currently returns one `Map<hexKey, cost>` doing double duty
+as "reachable" and "selectable destination". The fix must **separate
+traversal from termination**: expand the search *through* friendly-occupied
+hexes while excluding those hexes from the returned destination set. Getting
+this wrong in the obvious way produces a stacking bug — two units on one hex,
+which the rulebook forbids absolutely.
+
+**Sequence this after Stage 2a lands**, and use the fuzz harness as the
+safety net: its "no two units share a hex" invariant is exactly the check
+that catches a botched fix, and this is a much better first real job for the
+harness than a synthetic one.
