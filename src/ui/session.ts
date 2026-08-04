@@ -62,6 +62,37 @@ function assignEdgesRandomly(playerCount: number): void {
   session.edges = allEdges.slice(0, playerCount);
 }
 
+/**
+ * Clears everything that belongs to the game being left, before handing
+ * control back to the Menu — called by every "Abandon" control
+ * (ArmyBuilder/Placement/Board) and by `GameOverScene`'s "Back to menu"
+ * (which had the same latent gap: nothing previously reset `testMode` on
+ * that path either).
+ *
+ * Without this, a finished or abandoned game's leftovers leak into the
+ * next one. The concrete failure this guards against: a game launched via
+ * one of the Menu's test-mode shortcuts sets `testMode = true`; if a player
+ * then abandons it and picks "Charger une partie" to load a *real* saved
+ * game instead of starting a fresh one (the only other path out of the
+ * Menu that doesn't call `resetSession`), `testMode` would still read
+ * `true` for that resumed real game — silently relaxing the "a die roll is
+ * an undo boundary" rule (see BoardScene's `rollDie`/`clearHistoryOnRoll`)
+ * for a game that never asked for it.
+ *
+ * Deliberately does NOT touch `playerNames`, `combatMode`, or
+ * `randomizedTurnOrder`: those are Menu-chosen preferences meant to persist
+ * across games (see `MenuScene`, which never resets them either), not
+ * leftovers from the game just left. `playerCount` and `edges` are also
+ * left alone — both are fully re-derived by `resetSession` the moment a
+ * player picks a player count on the Menu, and nothing reads them before
+ * that pick happens.
+ */
+export function resetToMenu(): void {
+  session.gameState = null;
+  session.testMode = false;
+  session.armySelections = [];
+}
+
 export function buildPlayers(): Player[] {
   return Array.from({ length: session.playerCount }, (_, i) => ({
     id: i as PlayerId,

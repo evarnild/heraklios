@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import { MapView } from '../ui/MapView';
 import { legalDeploymentHexes, legalNavalDeploymentHexes } from '../ui/mapBounds';
-import { session, buildPlayers } from '../ui/session';
+import { session, buildPlayers, resetToMenu } from '../ui/session';
+import { showConfirmDialog } from '../ui/confirmDialog';
 import { createInitialState } from '../engine/turnManager';
 import { History } from '../engine/history';
 import { unitCategory } from '../engine/movement';
@@ -58,6 +59,7 @@ export class PlacementScene extends Phaser.Scene {
   private skipBtn!: Phaser.GameObjects.Text;
   private undoBtn!: Phaser.GameObjects.Text;
   private redoBtn!: Phaser.GameObjects.Text;
+  private abandonBtn!: Phaser.GameObjects.Text;
   /** Scoped to the current player: cleared in `create`, which re-runs on each
    * per-player `scene.start('Placement', ...)`. */
   private history = new History<PlacementSnapshot>();
@@ -124,6 +126,19 @@ export class PlacementScene extends Phaser.Scene {
       .setDepth(30)
       .setInteractive({ useHandCursor: true });
     this.skipBtn.on('pointerdown', () => this.finishPlayer());
+
+    this.abandonBtn = this.add
+      .text(width - 20, 20, 'Abandon', {
+        fontSize: '13px',
+        color: '#fff',
+        backgroundColor: '#5a2a2a',
+        padding: { x: 8, y: 4 },
+      })
+      .setOrigin(1, 0.5)
+      .setScrollFactor(0)
+      .setDepth(30)
+      .setInteractive({ useHandCursor: true });
+    this.abandonBtn.on('pointerdown', () => this.confirmAbandon());
 
     this.undoBtn = this.add
       .text(20, height - 104, '↶ Undo', {
@@ -215,6 +230,7 @@ export class PlacementScene extends Phaser.Scene {
       titleText,
       this.infoText,
       this.skipBtn,
+      this.abandonBtn,
       this.undoBtn,
       this.redoBtn,
       this.rotateCCWBtn,
@@ -457,6 +473,20 @@ export class PlacementScene extends Phaser.Scene {
     this.mapView.setFacingIndicators(this.shipArrowList());
     this.refreshShipControls();
     this.updateInfo();
+  }
+
+  private confirmAbandon(): void {
+    showConfirmDialog({
+      scene: this,
+      message: 'Abandon this game and return to the menu?\nPlacement made so far will be lost.',
+      confirmLabel: 'Abandon',
+      cancelLabel: 'Keep placing',
+      excludeFromMainCamera: (objects) => this.mapView.excludeFromMainCamera(objects),
+      onConfirm: () => {
+        resetToMenu();
+        this.scene.start('Menu');
+      },
+    });
   }
 
   private finishPlayer(): void {

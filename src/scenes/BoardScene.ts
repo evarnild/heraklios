@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { MapView } from '../ui/MapView';
-import { session } from '../ui/session';
+import { session, resetToMenu } from '../ui/session';
+import { showConfirmDialog } from '../ui/confirmDialog';
 import { SaveLoadPanel } from '../ui/saveLoadPanel';
 import {
   applySavedGame,
@@ -150,6 +151,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   private ramNowBtn!: Phaser.GameObjects.Text;
   private undoBtn!: Phaser.GameObjects.Text;
   private redoBtn!: Phaser.GameObjects.Text;
+  private abandonBtn!: Phaser.GameObjects.Text;
   /** Undo/redo history, scoped to the current phase — `endPhase` clears it,
    * and so does any die roll outside test mode (see `rollDie`). */
   private history = new History<BoardSnapshot>();
@@ -188,7 +190,40 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     super('Board');
   }
 
+  /**
+   * Resets every piece of this scene's own state that isn't part of
+   * `GameState` — `create()` reruns on the SAME `BoardScene` instance every
+   * time this scene is entered (Phaser reuses one instance per registered
+   * scene class rather than constructing a fresh one), a fact `PlacementScene`
+   * already documents at its own equivalent reset. Before "abandon and start
+   * a new game" existed, `BoardScene.create()` only ever ran once per page
+   * load, so none of this mattered; now that a second game can genuinely
+   * reach it, every field below needs to start clean or the new game would
+   * silently inherit e.g. a stale `attackedThisPhase` id, a leftover undo
+   * history from a different game's units, or (worst case) a `decisionPending`
+   * left `true` — which would soft-lock undo/redo/save-load/end-phase on a
+   * board that never asked for it.
+   */
+  private resetSceneState(): void {
+    this.selected = null;
+    this.attackGroup = [];
+    this.defenderGroup = [];
+    this.attackedThisPhase = new Set();
+    this.retreatQueue = [];
+    this.driftQueue = [];
+    this.retreatChoice = null;
+    this.driftState = null;
+    this.decisionPending = false;
+    this.advanceEligibleAttackers = [];
+    this.advanceOfferQueue = [];
+    this.history = new History();
+    this.navalContacts = [];
+    this.rammedThisTurn = new Set();
+    this.pendingActionResolve = null;
+  }
+
   create(): void {
+    this.resetSceneState();
     // A save staged by the Menu takes effect before anything renders. Its
     // presence also means this is a resumed game, so the fresh-game movement
     // reset at the end of `create` must be skipped.
@@ -311,6 +346,18 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       .setInteractive({ useHandCursor: true });
     saveLoadBtn.on('pointerdown', () => this.openSaveLoad());
 
+    this.abandonBtn = this.add
+      .text(16, height - 136, '✕ Abandon game', {
+        fontSize: '12px',
+        color: '#fff',
+        backgroundColor: '#5a2a2a',
+        padding: { x: 8, y: 4 },
+      })
+      .setScrollFactor(0)
+      .setDepth(30)
+      .setInteractive({ useHandCursor: true });
+    this.abandonBtn.on('pointerdown', () => this.confirmAbandon());
+
     this.input.keyboard?.on('keydown-Z', (event: KeyboardEvent) => {
       if (!event.ctrlKey && !event.metaKey) return;
       if (event.shiftKey) this.redo();
@@ -349,6 +396,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       this.undoBtn,
       this.redoBtn,
       saveLoadBtn,
+      this.abandonBtn,
       this.statusText,
       this.logText,
     ]);
@@ -474,6 +522,52 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       onLoad: (save) => this.loadInPlace(save),
       onStatus: (message) => this.log(message),
       onObjectsCreated: (objects) => this.mapView.excludeFromMainCamera(objects),
+    });
+  }
+
+  /**
+   * Abandons the game in progress and returns to the Menu, once the player
+   * confirms — the one genuinely destructive control in this scene, so it
+   * never fires on a single click (see `confirmDialog.ts`).
+   *
+   * Guarded exactly like undo/redo/save-load/end-phase: while a retreat,
+   * drift, advance offer, or exchange-sacrifice choice is pending, this
+   * scene holds a live `PlayerAgent` Promise (`chooseRetreat`,
+   * `choosePushTarget`, `chooseAdvance`, or `chooseExchangeSacrifice`) whose
+   * `.then()` continuation still has to run and mutate `GameState` — nothing
+   * else in this scene resolves or rejects those Promises early, and
+   * abandoning mid-decision shouldn't be the first thing that does. Blocking
+   * the click (matching the existing guard pattern) is simpler and safer
+   * than trying to reject them cleanly: `.then()`, not `.then(.., onRejected)`,
+   * is used everywhere they're awaited, so a rejection would need a new
+   * `.catch()` at every one of those call sites just to make abandoning mid-
+   * decision possible — for a control the player can just as easily click
+   * again after finishing (or undoing) the choice in front of them.
+   */
+  private confirmAbandon(): void {
+    if (this.retreatChoice || this.driftState || this.decisionPending) {
+      this.log('Resolve the pending retreat/drift before abandoning.');
+      return;
+    }
+    showConfirmDialog({
+      scene: this,
+      message: 'Abandon this game and return to the menu?\nProgress since your last save will be lost.',
+      confirmLabel: 'Abandon',
+      cancelLabel: 'Keep playing',
+      excludeFromMainCamera: (objects) => this.mapView.excludeFromMainCamera(objects),
+      onConfirm: () => {
+        // Deliberately NOT clearing the autosave here. It's the crash-
+        // recovery copy (see `autosave`'s doc comment), and a player who
+        // abandons by mistake — or to escape a wedged board, the other
+        // reason this control exists — can still get the game back via the
+        // Menu's "Charger une partie" > Autosave row. Clearing it would risk
+        // the strictly worse outcome the plan calls out: silently
+        // discarding a game the player might have wanted back. Leaving it
+        // costs nothing either way, since the very next real game's first
+        // movement-phase checkpoint (see `endPhase`) overwrites it anyway.
+        resetToMenu();
+        this.scene.start('Menu');
+      },
     });
   }
 
