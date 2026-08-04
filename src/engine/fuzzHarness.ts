@@ -16,7 +16,7 @@ import {
   applyExchangeSacrifice,
   unitAt,
 } from './combat';
-import { resetMovementForActivePlayer, createInitialState } from './turnManager';
+import { resetMovementForActivePlayer, createInitialState, endGameByTimeLimit } from './turnManager';
 import { unitCategory, unitType, type GameState, type Player, type PlayerId, type Unit } from './state';
 
 // ---------------------------------------------------------------------------
@@ -65,14 +65,24 @@ function makeUnit(id: string, owner: PlayerId, typeId: string, position: HexCoor
 }
 
 /**
- * A small, deliberately non-elephant 2-player army: a mix of infantry,
- * ranged, cavalry, a phalanx (to exercise `cavalryMayAttack` both ways —
- * P0's cavalry can eventually reach P1's phalanx, and vice versa), a
- * chariot, and a couple of ships per side (close enough to immediately
- * exercise boarding, and within a few moves of a bow-on ramming contact).
- * Kept small (6 land + 2 naval per side) so a random-play game reaches
- * elimination in a bounded number of turns — see `playRandomGame`'s
- * `turnCap`.
+ * A small, deliberately non-elephant 2-player army: cavalry, a phalanx (to
+ * exercise `cavalryMayAttack` both ways — P0's cavalry can eventually reach
+ * P1's phalanx, and vice versa), a ranged unit, and one ship per side
+ * (started already adjacent with matching/parallel facing, so boarding is
+ * immediately legal in the first combat phase).
+ *
+ * Kept DELIBERATELY small (3 land + 1 naval per side, 8 units total) for
+ * performance, not realism — `legalActions` recomputes a full
+ * `reachableHexes` BFS for every living unit of the active player on EVERY
+ * single action choice (not just once per phase), so a game's total cost is
+ * roughly (units) x (actions per game), and a full soak run needs many
+ * seeds to be worth anything (see `fuzzHarness.test.ts`'s `GAME_COUNT`).
+ * More units and a longer `turnCap` were tried first and worked fine
+ * correctness-wise, just far too slowly for a test suite that has to stay
+ * runnable on every `npm test` — see `playRandomGame`'s doc comment for the
+ * separate (and more interesting) discovery that also shaped `turnCap`'s
+ * default: near-even 1v1 match-ups never eliminate a unit at all under this
+ * CRT, only ever retreat it.
  */
 export function buildFuzzGameState(): GameState {
   const players: Player[] = [
@@ -86,28 +96,18 @@ export function buildFuzzGameState(): GameState {
     makeUnit('p0-cav-l', 0, 'cavalerie-legere', landHex(0)),
     makeUnit('p0-phalanx', 0, 'phalanges', landHex(1)),
     makeUnit('p0-archers', 0, 'fantassins-archers', landHex(2)),
-    makeUnit('p0-chariot', 0, 'chars-lourds', landHex(3)),
-    makeUnit('p0-cav-h', 0, 'cavalerie-lourde', landHex(4)),
-    makeUnit('p0-inf', 0, 'fantassins', landHex(5)),
 
     // Player 1 — advancing from the high end, starting adjacent to P0's line
     // so combat is reachable within the first couple of turns rather than
     // requiring many pure-movement turns to close distance.
-    makeUnit('p1-inf-lourds', 1, 'fantassins-lourds', landHex(6)),
-    makeUnit('p1-cav-h', 1, 'cavalerie-lourde', landHex(7)),
-    makeUnit('p1-phalanx', 1, 'phalanges', landHex(8)),
-    makeUnit('p1-archers', 1, 'archers', landHex(9)),
-    makeUnit('p1-chariot', 1, 'chars-legers', landHex(10)),
-    makeUnit('p1-inf', 1, 'fantassins', landHex(11)),
+    makeUnit('p1-cav-h', 1, 'cavalerie-lourde', landHex(3)),
+    makeUnit('p1-phalanx', 1, 'phalanges', landHex(4)),
+    makeUnit('p1-archers', 1, 'archers', landHex(5)),
 
-    // Naval: two ships per side. The birèmes start already adjacent with
-    // matching (parallel) facing, so boarding is immediately legal in the
-    // first combat phase; the galères start 3 hexes apart, close enough for
-    // a ramming contact within a turn or two of naval movement.
+    // Naval: one ship per side, already adjacent with matching facing so
+    // boarding is immediately legal in the first combat phase.
     makeUnit('p0-galley', 0, 'galeres', seaHex(0), 0),
-    makeUnit('p0-bireme', 0, 'biremes', seaHex(1), 0),
-    makeUnit('p1-bireme', 1, 'biremes', seaHex(2), 0),
-    makeUnit('p1-galley', 1, 'galeres', seaHex(3), 3),
+    makeUnit('p1-galley', 1, 'galeres', seaHex(1), 0),
   ];
 
   return state;
@@ -311,6 +311,11 @@ export interface HarnessStats {
   seed: number;
   gameOver: boolean;
   winnerId: PlayerId | null;
+  /** True when the game reached `turnCap` and was ended by
+   * `endGameByTimeLimit` (highest army value wins) rather than by mutual
+   * elimination — see `playRandomGame`'s doc comment for why this is a
+   * legitimate rulebook ending, not a harness failure. */
+  endedByTimeLimit: boolean;
   turnsReached: number;
   totalActions: number;
   actionsByKind: Partial<Record<Action['kind'], number>>;
@@ -322,13 +327,18 @@ export interface HarnessStats {
 }
 
 export interface PlayRandomGameOptions {
-  /** Hard cap on `state.turnNumber` (a full round, all players) — exceeding
-   * it throws rather than looping forever, per plan.md §6.3's "games
-   * terminate rather than looping forever" invariant. */
+  /** Turn number (a full round, all players) at which the game is ended via
+   * `endGameByTimeLimit` — the rulebook's own "on se fixera des temps
+   * limites pour la partie entière" ending (docs/research/05-rules-french-original.md:41),
+   * not a harness failure. See `playRandomGame`'s doc comment for why this,
+   * rather than playing to full mutual elimination, is this harness's
+   * primary termination path. */
   turnCap?: number;
-  /** Hard cap on the total number of actions applied, as a second safety
-   * valve independent of `turnCap` (a pathological phase that never
-   * exhausts movement/attacks would otherwise spin within a single turn). */
+  /** A hard, much-higher safety valve independent of `turnCap`: if this many
+   * actions are applied without EITHER a natural elimination ending or
+   * `turnCap` being reached, something is genuinely looping (e.g. within a
+   * single stuck phase) and this throws loudly rather than hanging, per
+   * plan.md §6.3's "games terminate rather than looping forever" invariant. */
   actionCap?: number;
 }
 
@@ -351,10 +361,37 @@ function emptyContext(): { attackedThisPhase: Set<string>; rammedThisTurn: Set<s
  * elephants are excluded from `buildFuzzGameState()` specifically so this
  * can never legitimately happen; a violation means the exclusion itself has
  * broken, not that a drift needs handling.
+ *
+ * TERMINATION — read this before changing `turnCap`: with `legalActions`'
+ * combat enumeration deliberately singleton-only (one attacker vs. one
+ * defender — see its own doc comment in engine/actions.ts), most 1v1
+ * match-ups land on a force ratio between roughly 1:2 and 3:1, and
+ * `data/combatTable.ts`'s CRT gives EVERY die face on those columns an
+ * AR/DR (retreat) result — no die roll at any of those ratios ever
+ * eliminates a unit. Discovered empirically while building this harness: an
+ * early version played purely to mutual elimination and reliably blew past
+ * a turnCap of 500 (7,000+ actions) without ONE side ever running out of
+ * units, because random 1v1 pairing overwhelmingly produces exactly those
+ * ratios. Only a lopsided match-up (a phalanx against an archer, say) ever
+ * reaches the CRT's eliminating columns.
+ *
+ * So this harness does NOT rely on mutual elimination as its main
+ * termination path — it uses the rulebook's OWN other ending instead:
+ * "on se fixera des temps limites pour la partie entière ... [et désigne
+ * vainqueur] le joueur dont l'armée a la plus grande valeur"
+ * (docs/research/05-rules-french-original.md:41) — a time/turn limit ends
+ * the game, greatest army value wins. `turnManager.ts`'s
+ * `endGameByTimeLimit` already implements exactly this (interestingly, it's
+ * currently uncalled from `BoardScene` — nothing enforces a turn limit in
+ * actual hotseat play today; worth flagging separately, out of scope here).
+ * Reaching `turnCap` here calls it and reports `endedByTimeLimit: true`; it
+ * is treated as a normal game ending, not a failure. `actionCap` remains a
+ * SEPARATE, much higher hard stop purely against a genuine infinite loop
+ * within a phase — it should never legitimately fire.
  */
 export async function playRandomGame(seed: number, options: PlayRandomGameOptions = {}): Promise<HarnessStats> {
-  const turnCap = options.turnCap ?? 500;
-  const actionCap = options.actionCap ?? 50_000;
+  const turnCap = options.turnCap ?? 25;
+  const actionCap = options.actionCap ?? 20_000;
 
   const rng = createSeededRng(seed);
   const agent = new RandomAgent(rng);
@@ -372,6 +409,7 @@ export async function playRandomGame(seed: number, options: PlayRandomGameOption
     seed,
     gameOver: false,
     winnerId: null,
+    endedByTimeLimit: false,
     turnsReached: state.turnNumber,
     totalActions: 0,
     actionsByKind: {},
@@ -386,9 +424,10 @@ export async function playRandomGame(seed: number, options: PlayRandomGameOption
 
   while (!state.gameOver) {
     if (state.turnNumber > turnCap) {
-      throw new Error(
-        `playRandomGame(seed=${seed}): exceeded turnCap=${turnCap} without the game ending — looks like an infinite loop (${stats.totalActions} actions applied so far)`,
-      );
+      // A normal ending, not a failure — see this function's doc comment.
+      endGameByTimeLimit(state);
+      stats.endedByTimeLimit = true;
+      break;
     }
     if (stats.totalActions > actionCap) {
       throw new Error(

@@ -1,6 +1,6 @@
 import type { HexCoord } from '../data/map';
 import { MAP_TERRAIN, RIVER_HEXSIDES, riverEdgeKey, hexKey as mapHexKey } from '../data/map';
-import { TERRAIN_EFFECTS, RIVER_CROSSING, isSeaLike, type TerrainType } from '../data/terrain';
+import { TERRAIN_EFFECTS, RIVER_CROSSING, canEnterTerrain, isSeaLike, type TerrainType } from '../data/terrain';
 import { resolveLandCombat, ratioToColumnIndex, RATIO_COLUMNS, type CombatResult } from '../data/combatTable';
 import { isRammingSuccessful, type ShipTypeId } from '../data/navalRamming';
 import { resolveBoarding, type BoardingResult } from '../data/navalBoarding';
@@ -273,14 +273,30 @@ export function canElephantEnterHex(hex: HexCoord): boolean {
 
 /**
  * The 6 hexes adjacent to `unit` that it may legally retreat into: on the
- * map, unoccupied (by either side — no stacking), and not under an enemy
- * zone of control ("a retreating unit may never be forced to retreat into
- * an enemy ZOC hex"). The owning player picks among these.
+ * map, terrain its category can actually enter, unoccupied (by either side —
+ * no stacking), and not under an enemy zone of control ("a retreating unit
+ * may never be forced to retreat into an enemy ZOC hex"). The owning player
+ * picks among these.
+ *
+ * The terrain check was added after the Stage 2 fuzz harness (plan.md §6)
+ * caught cavalry and chariots retreating onto steep-flank terrain, and a
+ * chariot onto marsh — both are in `TERRAIN_EFFECTS`' `forbiddenFor` list
+ * for those categories (see `data/terrain.ts`) and already block ordinary
+ * movement via `reachableHexes`'s `canEnterTerrain` check, but a combat
+ * retreat was a second, separate path onto the map that this function
+ * hadn't applied the same restriction to. `canEnterTerrain`'s `isGalley`
+ * parameter is left at its default (`false`): a ship is never in
+ * `pendingRetreats`/`pendingDrifts` in the first place (see
+ * `applyLandCombatResult` — only land combat forces a retreat), so this
+ * path never needs the land/naval domain split that flag exists for.
  */
 export function legalRetreatHexes(state: GameState, unit: Unit): HexCoord[] {
   const enemyZoc = hexesUnderZoc(state, unit.owner);
+  const category = unitCategory(unit.typeId);
   return DIRECTIONS.map((d) => hexAdd(unit.position, d)).filter((hex) => {
-    if (!MAP_TERRAIN.has(mapHexKey(hex.q, hex.r))) return false; // off the map
+    const terrain = MAP_TERRAIN.get(mapHexKey(hex.q, hex.r));
+    if (terrain === undefined) return false; // off the map
+    if (!canEnterTerrain(terrain, category)) return false;
     if (unitAt(state, hex)) return false; // occupied, friend or foe
     if (enemyZoc.has(mapHexKey(hex.q, hex.r))) return false;
     return true;
@@ -297,13 +313,20 @@ export function legalRetreatHexes(state: GameState, unit: Unit): HexCoord[] {
  * occupied by an enemy — the exception only covers being boxed in by one's
  * own side.
  *
- * Only neighbors that themselves have somewhere legal to retreat to are
- * offered: "pushed aside" means that unit actually retreats to make room
- * (see `completePush`), not swapping places — a neighbor with no room of
- * its own can't make room for anyone else either.
+ * Only neighbors that themselves have somewhere legal to retreat to, AND
+ * whose hex `unit` itself could actually enter, are offered: "pushed aside"
+ * means that unit actually retreats to make room (see `completePush`), not
+ * swapping places — a neighbor with no room of its own can't make room for
+ * anyone else either, and `unit` taking that neighbor's hex is only a real
+ * option if its own category can enter that terrain (found by the Stage 2
+ * fuzz harness, plan.md §6: a cavalry/chariot/elephant unit boxed in by
+ * friendlies standing on steep-flank/marsh terrain — legal for THEM, not
+ * for the boxed-in unit's category — could otherwise be pushed onto terrain
+ * `legalRetreatHexes` would never offer it directly).
  */
 export function pushCandidates(state: GameState, unit: Unit): Unit[] {
   const neighbors = DIRECTIONS.map((d) => hexAdd(unit.position, d));
+  const category = unitCategory(unit.typeId);
   const friendlyOccupants: Unit[] = [];
   for (const hex of neighbors) {
     if (!MAP_TERRAIN.has(mapHexKey(hex.q, hex.r))) return [];
@@ -311,7 +334,9 @@ export function pushCandidates(state: GameState, unit: Unit): Unit[] {
     if (!occupant || occupant.owner !== unit.owner) return [];
     friendlyOccupants.push(occupant);
   }
-  return friendlyOccupants.filter((f) => legalRetreatHexes(state, f).length > 0);
+  return friendlyOccupants.filter(
+    (f) => canEnterTerrain(terrainAt(f.position), category) && legalRetreatHexes(state, f).length > 0,
+  );
 }
 
 /** Moves a retreating unit to a player-chosen hex from `legalRetreatHexes`. */

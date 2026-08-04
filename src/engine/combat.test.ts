@@ -282,6 +282,30 @@ describe('legalRetreatHexes', () => {
     expect(legal).not.toContainEqual(NEIGHBORS[2]); // empty, but under enemy ZOC
     expect(legal).not.toContainEqual(NEIGHBORS[3]); // empty, but under enemy ZOC
   });
+
+  // Regression for a real defect the Stage 2 fuzz harness caught (plan.md
+  // §6): this function checked on-map/occupied/ZOC but never terrain
+  // restrictions, so a combat retreat could force cavalry, chariots, or
+  // elephants onto terrain `reachableHexes` would never otherwise let them
+  // enter under their own power.
+  it('excludes terrain the retreating unit cannot enter — cavalry may not retreat onto a steep flank', () => {
+    // (0,23) is 'plain'; its neighbor (0,24) is 'steep-flank', forbidden to
+    // cavalry (see data/terrain.ts's TERRAIN_EFFECTS['steep-flank'].forbiddenFor).
+    const cav = makeUnit({ typeId: 'cavalerie-legere', position: { q: 0, r: 23 } });
+    const state = makeState([cav]);
+    const legal = legalRetreatHexes(state, cav);
+    expect(legal).not.toContainEqual({ q: 0, r: 24 });
+  });
+
+  it('excludes marsh terrain for a chariot forced to retreat', () => {
+    // (7,15) is 'marsh' (forbidden to chariots); (8,15) is also 'marsh' but
+    // (7,14) is a known plain neighbor to place the chariot on (see
+    // data/map.ts's terrain listing around this row).
+    const chariot = makeUnit({ typeId: 'chars-lourds', position: { q: 7, r: 14 } });
+    const state = makeState([chariot]);
+    const legal = legalRetreatHexes(state, chariot);
+    expect(legal).not.toContainEqual({ q: 7, r: 15 });
+  });
 });
 
 describe('pushCandidates', () => {
@@ -319,6 +343,37 @@ describe('pushCandidates', () => {
     const candidates = pushCandidates(state, unit);
     expect(candidates.map((u) => u.id)).not.toContain('f0');
     expect(candidates).toHaveLength(5);
+  });
+
+  // Regression for a real defect the Stage 2 fuzz harness caught (plan.md
+  // §6), the push-mechanic sibling of legalRetreatHexes's own terrain fix
+  // above: a friendly unit standing on terrain the BOXED-IN unit's category
+  // cannot enter (legal for the friendly itself, e.g. a land unit on marsh)
+  // must not be offered as a push target — completePush would otherwise
+  // move the boxed-in unit onto terrain it could never reach under its own
+  // power.
+  it("excludes a friendly neighbor whose hex the boxed-in unit's own category could not enter", () => {
+    // (7,14) is 'plain' with a full ring of 6 on-map neighbors; two of them
+    // — (8,14) and (7,15) — are 'marsh', forbidden to chariots (see
+    // data/map.ts's terrain listing around this row, and this file's own
+    // "excludes marsh terrain for a chariot forced to retreat" test above).
+    const center = { q: 7, r: 14 };
+    const ring = [
+      { q: 8, r: 14 }, // marsh
+      { q: 8, r: 13 }, // plain
+      { q: 7, r: 13 }, // plain
+      { q: 6, r: 14 }, // plain
+      { q: 6, r: 15 }, // plain
+      { q: 7, r: 15 }, // marsh
+    ];
+    const chariot = makeUnit({ typeId: 'chars-lourds', position: center });
+    const friendlies = ring.map((pos, i) => makeUnit({ typeId: 'fantassins', position: pos, id: `f${i}` }));
+    const state = makeState([chariot, ...friendlies]);
+
+    const candidates = pushCandidates(state, chariot);
+    expect(candidates.map((u) => u.id)).not.toContain('f0'); // (8,14), marsh
+    expect(candidates.map((u) => u.id)).not.toContain('f5'); // (7,15), marsh
+    expect(candidates.map((u) => u.id).sort()).toEqual(['f1', 'f2', 'f3', 'f4']);
   });
 });
 
