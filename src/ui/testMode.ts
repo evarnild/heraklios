@@ -1,6 +1,7 @@
 import { session } from './session';
 import { deploymentBand, seaZoneNear } from './mapBounds';
 import { createInitialState } from '../engine/turnManager';
+import { emptySelection } from '../engine/army';
 import type { Unit, Player, PlayerId } from '../engine/state';
 import { UNIT_TYPES, getUnitType } from '../data/units';
 import type { HexCoord } from '../data/map';
@@ -37,6 +38,15 @@ export function startTestGame(): void {
   session.playerCount = 2;
   session.testMode = true;
   session.edges = ['W', 'E'];
+  // These shortcuts build units directly, bypassing `ArmyBuilder`/
+  // `resetSession` entirely — so unlike a real game, nothing else ever sizes
+  // `armySelections` to match `playerCount`. Left stale (e.g. from an
+  // abandoned real game with a different player count — see `resetToMenu`'s
+  // doc comment), it would otherwise get baked into this game's own save
+  // file with a mismatched length. `resetToMenu` already clears it to `[]`
+  // on abandon; this sets it back to a *correctly-sized* (if unused) array
+  // so a save captured mid test-mode game is internally consistent too.
+  session.armySelections = Array.from({ length: 2 }, () => emptySelection());
 
   const players: Player[] = [
     { id: 0 as PlayerId, name: session.playerNames[0]!, edge: 'W', purchasePoints: 400, eliminated: false },
@@ -89,6 +99,15 @@ export function startCloseCombatTestGame(): void {
   session.playerCount = 2;
   session.testMode = true;
   session.edges = ['W', 'E'];
+  // These shortcuts build units directly, bypassing `ArmyBuilder`/
+  // `resetSession` entirely — so unlike a real game, nothing else ever sizes
+  // `armySelections` to match `playerCount`. Left stale (e.g. from an
+  // abandoned real game with a different player count — see `resetToMenu`'s
+  // doc comment), it would otherwise get baked into this game's own save
+  // file with a mismatched length. `resetToMenu` already clears it to `[]`
+  // on abandon; this sets it back to a *correctly-sized* (if unused) array
+  // so a save captured mid test-mode game is internally consistent too.
+  session.armySelections = Array.from({ length: 2 }, () => emptySelection());
 
   const players: Player[] = [
     { id: 0 as PlayerId, name: session.playerNames[0]!, edge: 'W', purchasePoints: 400, eliminated: false },

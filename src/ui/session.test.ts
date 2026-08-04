@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { session, resetSession, resetToMenu } from './session';
+import { startTestGame } from './testMode';
+import { captureCurrentGame } from './saveStorage';
 import { emptySelection } from '../engine/army';
 import type { GameState } from '../engine/state';
 
@@ -50,6 +52,36 @@ describe('resetToMenu', () => {
     resetToMenu();
     expect(session.playerCount).toBe(2);
     expect(session.edges).toEqual(['W', 'E']);
+  });
+});
+
+describe('the armySelections leak is closed end-to-end (session -> save)', () => {
+  it('leaves a subsequent test-mode game\'s save consistent with its own playerCount', () => {
+    // A real 4-player game reaches ArmyBuilder/Placement/Board — `resetSession`
+    // sizes `armySelections` to match, same as `MenuScene`'s player-count
+    // buttons do.
+    resetSession(4);
+    session.armySelections = session.armySelections.map(() => emptySelection());
+    expect(session.armySelections).toHaveLength(4);
+
+    // Abandon it, then launch a 2-player test-mode game instead of a real
+    // one, via the shortcut `testMode.ts` provides.
+    resetToMenu();
+    startTestGame();
+    expect(session.playerCount).toBe(2);
+
+    // Two independent fixes cooperate to make this hold, and this test
+    // would fail if either regressed: `resetToMenu` clears the abandoned
+    // game's `armySelections` rather than leaving it stale (so a shortcut
+    // that forgot to size its own never silently inherits a WRONG, if
+    // same-length, army from a different game); `startTestGame` itself sets
+    // `armySelections` to match ITS OWN `playerCount` (`resetToMenu` alone
+    // only gets it to `[]`, still mismatched against `playerCount: 2` on its
+    // own — see `testMode.ts`'s comment at the equivalent line). Without
+    // both, this capture would carry a mismatched `armySelections` into a
+    // save that claims `playerCount: 2`.
+    const save = captureCurrentGame({ attackedThisPhase: [], rammedThisTurn: [] });
+    expect(save.armySelections).toHaveLength(save.playerCount);
   });
 });
 

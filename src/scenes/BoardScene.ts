@@ -384,7 +384,13 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         lineSpacing: 4,
       })
       .setScrollFactor(0)
-      .setDepth(30);
+      // One below the buttons' depth (30): a long combat log (several lines
+      // are routine — see `logCombatOutcome`) can grow tall enough to
+      // visually reach the save/load/undo/redo/abandon buttons below it.
+      // Equal depth would let creation order decide which one wins that
+      // overlap; this guarantees the buttons stay legible and on top
+      // regardless, without having to cap or scroll the log itself.
+      .setDepth(29);
 
     this.mapView.pinUIObjects([
       panelBg,
@@ -473,24 +479,22 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.rammedThisTurn = bookkeeping.rammedThisTurn;
   }
 
-  /** Loads without leaving the scene — `create` would otherwise re-run and
-   * hand the active player a fresh movement allowance. */
+  /**
+   * Loads without leaving the scene — `create` would otherwise re-run and
+   * hand the active player a fresh movement allowance.
+   *
+   * Reuses `resetSceneState()` rather than re-listing the same fields here —
+   * this used to inline its own copy of 12 of `resetSceneState`'s 15
+   * resets (missing `pendingActionResolve`), which meant a new field had to
+   * be remembered in two places to stay correct. Same order `create()` uses
+   * below: reset this scene's own state first, then `adoptSave` overwrites
+   * `attackedThisPhase`/`rammedThisTurn` from the save (`resetSceneState`
+   * would otherwise leave them empty, which is wrong for a resumed game
+   * already partway through a phase).
+   */
   private loadInPlace(save: SavedGame): void {
+    this.resetSceneState();
     this.adoptSave(save);
-    this.selected = null;
-    this.attackGroup = [];
-    this.defenderGroup = [];
-    this.retreatQueue = [];
-    this.driftQueue = [];
-    this.retreatChoice = null;
-    this.driftState = null;
-    this.decisionPending = false;
-    this.advanceEligibleAttackers = [];
-    this.advanceOfferQueue = [];
-    this.navalContacts = [];
-    // The loaded position is a new starting point; undoing into the previous
-    // game's actions would be meaningless.
-    this.history.clear();
     this.clearNavalMovementControls();
     this.mapView.clearHighlights();
     this.renderAllUnits();
@@ -530,25 +534,35 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * confirms — the one genuinely destructive control in this scene, so it
    * never fires on a single click (see `confirmDialog.ts`).
    *
-   * Guarded exactly like undo/redo/save-load/end-phase: while a retreat,
-   * drift, advance offer, or exchange-sacrifice choice is pending, this
-   * scene holds a live `PlayerAgent` Promise (`chooseRetreat`,
-   * `choosePushTarget`, `chooseAdvance`, or `chooseExchangeSacrifice`) whose
-   * `.then()` continuation still has to run and mutate `GameState` — nothing
-   * else in this scene resolves or rejects those Promises early, and
-   * abandoning mid-decision shouldn't be the first thing that does. Blocking
-   * the click (matching the existing guard pattern) is simpler and safer
-   * than trying to reject them cleanly: `.then()`, not `.then(.., onRejected)`,
-   * is used everywhere they're awaited, so a rejection would need a new
-   * `.catch()` at every one of those call sites just to make abandoning mid-
-   * decision possible — for a control the player can just as easily click
-   * again after finishing (or undoing) the choice in front of them.
+   * Deliberately UNGUARDED — this does NOT check `retreatChoice`/
+   * `driftState`/`decisionPending` the way undo/redo/save-load/end-phase do.
+   * An earlier version of this method did, on the theory that a live
+   * `PlayerAgent` Promise (`chooseRetreat`, `choosePushTarget`,
+   * `chooseAdvance`, `chooseExchangeSacrifice`) needs its `.then()` to run
+   * before the scene can safely move on. That reasoning turns out to argue
+   * the opposite way: every one of those `.then()`s only mutates
+   * `session.gameState` and this scene's own fields, and both are about to
+   * be discarded anyway — `resetToMenu()` nulls `gameState`,
+   * `scene.start('Menu')` fires `Systems.shutdown()`, which destroys every
+   * GameObject in this scene's display list (including whichever prompt's
+   * buttons hold the pending `resolve`/`onChosen` closure — see
+   * `DisplayList.shutdown()` in Phaser's source), and `resetSceneState()`
+   * nulls `retreatChoice`/`driftState`/`decisionPending` itself the next
+   * time this scene's `create()` runs. A leaked Promise here is inert, not
+   * dangerous — it has nothing left to resolve into.
+   *
+   * More importantly, per plan.md §7.1 this control's actual job is to
+   * escape a *wedged* board — and a board can only be wedged by a defect
+   * that leaves `decisionPending` (or the others) stuck `true` with no
+   * prompt left on screen to answer (a throw from inside one of the
+   * `choose*` Promise executors is exactly this shape, since nothing awaits
+   * those executors with a `.catch()`). Guarding Abandon on the very flags a
+   * wedge gets stuck on would make this control unavailable in precisely
+   * the situation it exists for. The confirm dialog's own backdrop already
+   * stops a stray click from reaching a still-live prompt underneath while
+   * it's open, which is the only thing a guard here would otherwise add.
    */
   private confirmAbandon(): void {
-    if (this.retreatChoice || this.driftState || this.decisionPending) {
-      this.log('Resolve the pending retreat/drift before abandoning.');
-      return;
-    }
     showConfirmDialog({
       scene: this,
       message: 'Abandon this game and return to the menu?\nProgress since your last save will be lost.',
@@ -563,10 +577,14 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         // Menu's "Charger une partie" > Autosave row. Clearing it would risk
         // the strictly worse outcome the plan calls out: silently
         // discarding a game the player might have wanted back. Leaving it
-        // costs nothing either way: `create()` below writes a fresh
-        // autosave unconditionally (see its last few lines), so the very
-        // next game to reach this scene overwrites it as soon as it does,
-        // whether that's a fresh game or another loaded save.
+        // costs nothing either way: `create()` calls `autosave()`
+        // unconditionally near the bottom, and — because `resetSceneState()`
+        // runs first and clears `retreatChoice`/`driftState`/
+        // `decisionPending` — `autosave()`'s own guard on those three flags
+        // (see its doc comment) never actually blocks that write. So the
+        // very next game to reach this scene overwrites the abandoned one's
+        // autosave as soon as it does, whether that's a fresh game or
+        // another loaded save.
         resetToMenu();
         this.scene.start('Menu');
       },
@@ -1219,18 +1237,35 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         `${unitType(unit).name} is surrounded by friendly units — click one to retreat and make room.`,
       );
       this.choosePushTarget(state, unit, pushTargets).then((pushed) => {
-        const legalHexesForPushed = legalRetreatHexes(this.state(), pushed);
-        this.appendLine(`${unitType(pushed).name} must retreat to make room — click a highlighted hex.`);
-        this.chooseRetreat(this.state(), pushed, legalHexesForPushed).then((pushedHex) => {
-          try {
-            completePush(unit, pushed, pushedHex);
-            this.appendLine(`${unitType(pushed).name} retreats, making room for ${unitType(unit).name}.`);
-            this.renderAllUnits();
-          } finally {
-            this.decisionPending = false;
-          }
-          onDone();
-        });
+        // Unlike every other `.then()` in this file, this one can't just
+        // clear `decisionPending` in a `finally`: `decisionPending` is
+        // already `true` from `choosePushTarget` above, and the happy path
+        // here hands it straight to a SECOND choice (the pushed unit's own
+        // retreat) that still needs it `true`. A `finally` would clear it
+        // out from under that still-pending prompt. So: catch instead,
+        // clear only on the throwing path, and rethrow so the failure stays
+        // visible (an uncaught rejection in the console) rather than
+        // silently swallowed — a throw from either line below, with no
+        // `try`, used to leave `decisionPending` latched `true` forever with
+        // no prompt left on screen to ever answer it (the pushed unit's own
+        // retreat choice never got asked to begin with).
+        try {
+          const legalHexesForPushed = legalRetreatHexes(this.state(), pushed);
+          this.appendLine(`${unitType(pushed).name} must retreat to make room — click a highlighted hex.`);
+          this.chooseRetreat(this.state(), pushed, legalHexesForPushed).then((pushedHex) => {
+            try {
+              completePush(unit, pushed, pushedHex);
+              this.appendLine(`${unitType(pushed).name} retreats, making room for ${unitType(unit).name}.`);
+              this.renderAllUnits();
+            } finally {
+              this.decisionPending = false;
+            }
+            onDone();
+          });
+        } catch (err) {
+          this.decisionPending = false;
+          throw err;
+        }
       });
       return;
     }

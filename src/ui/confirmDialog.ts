@@ -19,6 +19,25 @@ export interface ConfirmDialogOptions {
 }
 
 /**
+ * Module-level, not per-scene: only one scene is ever active in this
+ * single-page hotseat app, and every caller of `showConfirmDialog` opens
+ * from whichever scene is currently running.
+ *
+ * Guards against a genuine re-entrancy hole: the backdrop below blocks a
+ * SECOND click across separate frames/events, but not a second click within
+ * the SAME frame. Phaser's `MouseManager` dispatches DOM mouse events
+ * synchronously, and its `InputPlugin` sorts hit-test candidates by each
+ * object's index in `pointer.camera.renderList` — a backdrop created during
+ * click #1 hasn't been added to that render list yet (rendering happens
+ * later in the frame), so it sorts as index 0, below the button that opened
+ * it, and `topOnly` picks that same button again. Two clicks landing in one
+ * frame (Phaser's input plugin can batch queued pointer events) would
+ * therefore open two stacked dialogs; dismissing the top one would leave the
+ * other as a permanently visible, backdrop-having orphan.
+ */
+let dialogOpen = false;
+
+/**
  * A modal Yes/No confirmation. Phaser renders entirely inside a `<canvas>`,
  * so a browser `confirm()`/`alert()` would either not appear at all or block
  * the render thread — this project never uses either (per CLAUDE.md);
@@ -31,8 +50,19 @@ export interface ConfirmDialogOptions {
  * this dialog exists specifically for the app's one genuinely destructive
  * action (abandoning a game in progress) and a stray click reaching the
  * board or a button underneath while it's open should never do anything.
+ * That backdrop only intercepts *object* clicks, same as `SaveLoadPanel`'s:
+ * map drag/zoom (`MapView.enableDrag`/`enableZoom`) and the Ctrl+Z/Y undo
+ * shortcuts are scene-level input, not routed through any game object, so
+ * they still work while this is open. Matches existing behavior, not a
+ * regression introduced here.
+ *
+ * A no-op (rather than a second dialog) while one is already open — see
+ * `dialogOpen`'s doc comment for why the backdrop alone doesn't cover this.
  */
 export function showConfirmDialog(options: ConfirmDialogOptions): void {
+  if (dialogOpen) return;
+  dialogOpen = true;
+
   const { scene, message, onConfirm, onCancel, excludeFromMainCamera } = options;
   const confirmLabel = options.confirmLabel ?? 'Yes';
   const cancelLabel = options.cancelLabel ?? 'Cancel';
@@ -98,6 +128,7 @@ export function showConfirmDialog(options: ConfirmDialogOptions): void {
   excludeFromMainCamera?.(objects);
 
   const cleanup = () => {
+    dialogOpen = false;
     for (const object of objects) object.destroy();
   };
 
@@ -108,5 +139,14 @@ export function showConfirmDialog(options: ConfirmDialogOptions): void {
   cancelBtn.on('pointerdown', () => {
     cleanup();
     onCancel?.();
+  });
+
+  // Defensive: if the scene shuts down (e.g. `onConfirm` itself calls
+  // `scene.start(...)`) before either button is clicked, don't leave
+  // `dialogOpen` latched `true` forever — nothing would ever clear it, and
+  // every future `showConfirmDialog` call (even from a different scene)
+  // would silently no-op.
+  scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+    dialogOpen = false;
   });
 }

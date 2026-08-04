@@ -82,25 +82,40 @@ function assignEdgesRandomly(playerCount: number): void {
  * which is exactly the kind of thing that quietly stops being true the next
  * time one of those three paths changes.
  *
- * `armySelections` is the one field where the leak IS concretely reachable
- * today: the test-mode shortcuts deliberately skip `resetSession` (they
- * build their armies directly, not from `armySelections`) and never touch
- * it either. Abandon a real game mid-`ArmyBuilder`/`Placement`/`Board` —
- * `session.armySelections` still holds that game's `playerCount`-length
- * selections — then launch a test-mode game instead of a real one, and its
- * first autosave (`BoardScene.autosave`, unconditional) or manual save
- * bakes that stale, mismatched-length `armySelections` into the SavedGame
- * alongside the test game's own (different) `playerCount` and units — see
- * `saveStorage.ts`'s `captureCurrentGame`, which reads `session.armySelections`
- * with no awareness of which game populated it.
+ * `armySelections` is the one field where the leak was concretely
+ * reachable: the test-mode shortcuts (`testMode.ts`) deliberately skip
+ * `resetSession` and build their armies directly rather than from
+ * `armySelections`. Abandon a real game mid-`ArmyBuilder`/`Placement`/
+ * `Board` — `session.armySelections` still holds that game's
+ * `playerCount`-length selections — then launch a test-mode game instead of
+ * a real one, and its first autosave (`BoardScene.autosave`, unconditional
+ * once `resetSceneState` has cleared the flags it's guarded on) or manual
+ * save would bake that stale, mismatched-length `armySelections` into the
+ * SavedGame alongside the test game's own (different) `playerCount` and
+ * units — see `saveStorage.ts`'s `captureCurrentGame`, which reads
+ * `session.armySelections` with no awareness of which game populated it.
+ * Closing this took two changes, not one: this function clears the field so
+ * a stale, WRONG army can't survive an abandon at all, and `testMode.ts`'s
+ * shortcuts now also set it to a correctly-*sized* (if otherwise unused)
+ * array of their own — clearing here alone would still leave a length
+ * mismatch (`[]` vs. that shortcut's own `playerCount`), just a more
+ * obviously-empty one instead of a stale-and-plausible one. See the
+ * end-to-end test in `session.test.ts` that exercises both together.
  *
  * Deliberately does NOT touch `playerNames`, `combatMode`, or
- * `randomizedTurnOrder`: those are Menu-chosen preferences meant to persist
- * across games (see `MenuScene`, which never resets them either), not
- * leftovers from the game just left. `playerCount` and `edges` are also
- * left alone — both are fully re-derived by `resetSession` the moment a
- * player picks a player count on the Menu, and nothing reads them before
- * that pick happens.
+ * `randomizedTurnOrder`: these are meant to persist across games as the
+ * Menu's own sticky preferences (see `MenuScene`, which never resets them
+ * either) — NOT necessarily "chosen on the Menu" for the game just
+ * abandoned specifically, since `applySavedGame` also overwrites
+ * `combatMode`/`randomizedTurnOrder` from whatever a *loaded* save carried.
+ * So abandoning a loaded single-defender-rule game, say, does leave
+ * single-defender as the Menu's preference for the next game too — a
+ * genuine carry-over, but not a silent one: it's the same toggle visible
+ * (and changeable) right there on the Menu screen, not a value some other
+ * game's leftover state quietly overrides underneath the player. `playerCount`
+ * and `edges` are also left alone — both are fully re-derived by
+ * `resetSession` the moment a player picks a player count on the Menu, and
+ * nothing reads them before that pick happens.
  */
 export function resetToMenu(): void {
   session.gameState = null;
