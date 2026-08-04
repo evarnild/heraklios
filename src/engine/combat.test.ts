@@ -13,6 +13,7 @@ import {
   commonValidTargets,
   completePush,
   defenderCanJoin,
+  eligibleAdvanceCandidates,
   exchangeSacrificeMeetsThreshold,
   legalRetreatHexes,
   pushCandidates,
@@ -70,6 +71,37 @@ describe('canUnitEnterHex', () => {
   it('rejects a hex off the map', () => {
     const unit = makeUnit({ typeId: 'fantassins', position: { q: 0, r: 0 } });
     expect(canUnitEnterHex(unit, { q: -9999, r: -9999 })).toBe(false);
+  });
+});
+
+describe('eligibleAdvanceCandidates', () => {
+  // HIGH finding from adversarial review: an earlier version of the fuzz
+  // harness's own advance-offer plumbing filtered by `!destroyed` alone,
+  // with no terrain check — since that filter existed only in the harness
+  // (not as a shared, tested engine function), it silently prevented the
+  // harness's OWN terrain invariant from ever seeing the identical bug that
+  // is confirmed live in `BoardScene.ts`'s `promptAdvanceChoice`. Extracted
+  // here so both callers share one tested implementation.
+  it('excludes a destroyed candidate', () => {
+    const alive = makeUnit({ id: 'a', typeId: 'fantassins', position: { q: 0, r: 0 } });
+    const dead = makeUnit({ id: 'd', typeId: 'fantassins', position: { q: 1, r: 0 }, destroyed: true });
+    const result = eligibleAdvanceCandidates([alive, dead], { q: 5, r: 5 });
+    expect(result.map((u) => u.id)).toEqual(['a']);
+  });
+
+  it('excludes a candidate whose category cannot enter the vacated hex\'s terrain', () => {
+    const chariot = makeUnit({ id: 'c', typeId: 'chars-lourds', position: { q: 0, r: 0 } });
+    const infantry = makeUnit({ id: 'i', typeId: 'fantassins', position: { q: 1, r: 0 } });
+    // (7,15) is 'marsh' — forbidden to chariots, fine for infantry.
+    const result = eligibleAdvanceCandidates([chariot, infantry], { q: 7, r: 15 });
+    expect(result.map((u) => u.id)).toEqual(['i']);
+  });
+
+  it('returns every alive, terrain-eligible candidate when the vacated hex is unrestricted', () => {
+    const a = makeUnit({ id: 'a', typeId: 'fantassins', position: { q: 0, r: 0 } });
+    const b = makeUnit({ id: 'b', typeId: 'cavalerie-legere', position: { q: 1, r: 0 } });
+    const result = eligibleAdvanceCandidates([a, b], { q: 5, r: 5 }); // plain
+    expect(result.map((u) => u.id).sort()).toEqual(['a', 'b']);
   });
 });
 
@@ -324,6 +356,22 @@ describe('legalRetreatHexes', () => {
     const legal = legalRetreatHexes(state, chariot);
     expect(legal).not.toContainEqual({ q: 7, r: 15 });
   });
+
+  // HIGH finding from adversarial review: the terrain fix above has a
+  // consequence that was never pinned down — a unit with NO legal retreat
+  // hex at all (not boxed by units or ZOC, genuinely surrounded by terrain
+  // its category can't enter) is eliminated outright by
+  // `applyLandCombatResult` (see its `forceRetreat` helper below), even with
+  // no enemy adjacent and nothing boxing it in. This is not hypothetical on
+  // the shipped map: (4,9) is 'plateau', and all 6 of its neighbors —
+  // (5,9),(5,8),(4,8),(3,9),(3,10),(4,10) — are 'steep-flank', forbidden to
+  // cavalry/chariots (see data/map.ts). Light cavalry sitting on (4,9) that
+  // is ever forced to retreat (AR/DR) has nowhere to go and is destroyed.
+  it('a unit terrain-boxed with no legal retreat and no push option is eliminated — (4,9) on the shipped map', () => {
+    const cav = makeUnit({ typeId: 'cavalerie-legere', position: { q: 4, r: 9 } });
+    expect(legalRetreatHexes(makeState([cav]), cav)).toHaveLength(0);
+    expect(pushCandidates(makeState([cav]), cav)).toHaveLength(0);
+  });
 });
 
 describe('pushCandidates', () => {
@@ -434,6 +482,26 @@ describe('applyLandCombatResult — AR/DR retreats', () => {
     const outcome = applyLandCombatResult(state, [attacker], [defender], 'AR');
     expect(outcome.pendingRetreats).toHaveLength(0);
     expect(attacker.destroyed).toBe(true);
+  });
+
+  // HIGH finding from adversarial review: the elimination above isn't only
+  // an off-map/synthetic edge case — it's reachable ON the shipped map via
+  // pure terrain (no enemy adjacency, no ZOC, no friendly boxing needed).
+  // (4,9) is 'plateau' ringed by 6 'steep-flank' hexes, all forbidden to
+  // cavalry (see the `legalRetreatHexes`/`pushCandidates` test above this
+  // file for the full neighbor listing). Light cavalry sitting there that
+  // is ever forced to retreat is destroyed outright, with the defender
+  // placed far away specifically to prove this has nothing to do with
+  // combat proximity — it's pure terrain geometry.
+  it('destroys cavalry retreating from (4,9) on the shipped map — a real, not synthetic, terrain-boxed hex', () => {
+    const cav = makeUnit({ typeId: 'cavalerie-legere', position: { q: 4, r: 9 } });
+    const defender = makeUnit({ typeId: 'fantassins', position: { q: 9000, r: 9000 }, owner: 1 });
+    const state = makeState([cav, defender]);
+
+    const outcome = applyLandCombatResult(state, [cav], [defender], 'AR');
+    expect(outcome.pendingRetreats).toHaveLength(0);
+    expect(outcome.pendingDrifts).toHaveLength(0);
+    expect(cav.destroyed).toBe(true);
   });
 
   it('defers a retreating elephant to pendingDrifts instead of resolving a retreat here', () => {

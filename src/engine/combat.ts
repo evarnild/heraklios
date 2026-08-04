@@ -46,6 +46,29 @@ export function canUnitEnterHex(unit: Unit, hex: HexCoord): boolean {
   return canEnterTerrain(terrain, unitCategory(unit.typeId), unit.typeId === 'galeres');
 }
 
+/**
+ * The subset of `candidates` (attackers eligible to advance into a hex a
+ * combat just vacated) that could ACTUALLY occupy `vacatedHex`: still
+ * alive, and — per `canUnitEnterHex` above — terrain its own category can
+ * enter, which is not necessarily the same terrain the unit that vacated it
+ * could stand on.
+ *
+ * Exported specifically so both callers of the post-combat "advance into
+ * the vacated hex" offer can share ONE implementation of this filter rather
+ * than each re-deriving it: `engine/fuzzHarness.ts`'s `processAdvanceOffer`
+ * uses this (adversarial review of the Stage 2 fuzz harness found an
+ * earlier version of that function only filtered by `!u.destroyed`, with no
+ * terrain check, silently offering a cavalry/chariot attacker a marsh or
+ * steep-flank hex it could never otherwise stand on). `BoardScene.ts`'s
+ * `promptAdvanceChoice` has the IDENTICAL gap today (confirmed live, not
+ * fixed here — out of this task's scope, which excludes `src/scenes/`) and
+ * should call this same function once that's addressed, rather than getting
+ * its own separate, divergent terrain check.
+ */
+export function eligibleAdvanceCandidates(candidates: readonly Unit[], vacatedHex: HexCoord): Unit[] {
+  return candidates.filter((u) => !u.destroyed && canUnitEnterHex(u, vacatedHex));
+}
+
 /** True if a (normal) river runs along the hexside shared by two adjacent hexes. */
 export function riverBetween(a: HexCoord, b: HexCoord): boolean {
   return RIVER_HEXSIDES.has(riverEdgeKey(a, b));
@@ -305,17 +328,36 @@ export function canElephantEnterHex(hex: HexCoord): boolean {
  * may never be forced to retreat into an enemy ZOC hex"). The owning player
  * picks among these.
  *
- * The terrain check was added after the Stage 2 fuzz harness (plan.md §6)
- * caught cavalry and chariots retreating onto steep-flank terrain, and a
- * chariot onto marsh — both are in `TERRAIN_EFFECTS`' `forbiddenFor` list
- * for those categories (see `data/terrain.ts`) and already block ordinary
- * movement via `reachableHexes`'s `canEnterTerrain` check, but a combat
- * retreat was a second, separate path onto the map that this function
- * hadn't applied the same restriction to. `canEnterTerrain`'s `isGalley`
- * parameter is left at its default (`false`): a ship is never in
- * `pendingRetreats`/`pendingDrifts` in the first place (see
- * `applyLandCombatResult` — only land combat forces a retreat), so this
- * path never needs the land/naval domain split that flag exists for.
+ * INTERPRETATION — the terrain check was added after the Stage 2 fuzz
+ * harness (plan.md §6) caught cavalry and chariots retreating onto
+ * steep-flank terrain, and a chariot onto marsh. The rulebook's own N.B. on
+ * terrain restrictions ("Chars et cavaleries sont interdits sur les flancs
+ * abrupts ; chars, cavaleries et éléphants ne peuvent accéder aux marais. La
+ * mer n'est pas accessible aux armées de terre" — `docs/research/05-rules-french-original.md:186-188`)
+ * sits in the MOVEMENT/terrain-cost section, not the retreat rules, so
+ * applying it to a forced retreat is a reading, not a literal restatement —
+ * but it's the reading the rulebook's own later paragraph on retreat
+ * supports: sea is named as the LEADING example of "impossibilité de
+ * reculer" ⇒ elimination ("Une unité qui se trouve dans l'impossibilité de
+ * reculer, soit parce qu'elle est en bordure de mer, soit parce qu'elle est
+ * entourée de zones de contrôle ennemies, est tout simplement retirée du
+ * jeu" — `:239-241`). If sea (one terrain-accessibility rule from the same
+ * N.B.) already blocks retreat and eliminates on failure, steep-flank/marsh
+ * (the other two rules in that same sentence) reads as intended to as well —
+ * treating sea specially while letting cavalry retreat onto ground it could
+ * never otherwise stand on would be the inconsistent reading, and is what
+ * this codebase did before this fix.
+ *
+ * This can genuinely eliminate a unit with no enemy adjacent and no ZOC
+ * involved at all: (4,9) on the shipped map is 'plateau' ringed by 6
+ * 'steep-flank' hexes (see `combat.test.ts`'s "(4,9) on the shipped map"
+ * tests), so cavalry retreating from there has nowhere to go and is
+ * destroyed by `applyLandCombatResult`'s `forceRetreat`, below.
+ *
+ * `canEnterTerrain`'s `isGalley` parameter is left at its default (`false`):
+ * a ship is never in `pendingRetreats`/`pendingDrifts` in the first place
+ * (see `applyLandCombatResult` — only land combat forces a retreat), so
+ * this path never needs the land/naval domain split that flag exists for.
  */
 export function legalRetreatHexes(state: GameState, unit: Unit): HexCoord[] {
   const enemyZoc = hexesUnderZoc(state, unit.owner);

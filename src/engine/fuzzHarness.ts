@@ -8,7 +8,7 @@ import type { PlayerAgent } from './agent';
 import { RandomAgent } from './randomAgent';
 import { createSeededRng } from './rng';
 import {
-  canUnitEnterHex,
+  eligibleAdvanceCandidates,
   legalRetreatHexes,
   pushCandidates,
   retreatUnitTo,
@@ -174,6 +174,63 @@ export function assertInvariants(state: GameState, context: string): void {
   }
 }
 
+/** Every sea-like/coastal `TerrainType` value, hardcoded (see
+ * `assertHardcodedTerrainRestrictions`'s doc comment for why this doesn't
+ * import `isSeaLike`/`ZONE_TERRAINS` from `data/terrain.ts`). */
+const HARDCODED_SEA_OR_COAST_TERRAIN = new Set([
+  'sea',
+  'coast',
+  'zone-anse-hypnos',
+  'zone-pointe-eole',
+  'zone-baie-argos',
+  'zone-cap-zenon',
+]);
+
+/**
+ * MEDIUM finding from adversarial review: `assertInvariants`' terrain check
+ * above calls `canEnterTerrain`/reads `TERRAIN_EFFECTS` — independent of the
+ * ENGINE logic around it (mutation-tested, see this task's PR description),
+ * but NOT of the underlying DATA. Setting
+ * `TERRAIN_EFFECTS['steep-flank'].forbiddenFor = []` would gut the
+ * restriction everywhere it's consulted, including inside that check's own
+ * oracle, and the invariant would go completely silent.
+ *
+ * This restates the rulebook's own terrain-restriction sentence — "Chars et
+ * cavaleries sont interdits sur les flancs abrupts ; chars, cavaleries et
+ * éléphants ne peuvent accéder aux marais. La mer n'est pas accessible aux
+ * armées de terre." (`docs/research/05-rules-french-original.md:186-188`) —
+ * as literal, hardcoded terrain-name string comparisons, deliberately
+ * calling neither `canEnterTerrain` nor `TERRAIN_EFFECTS` nor
+ * `isSeaLike`/`ZONE_TERRAINS`, so it stays independent of every one of those
+ * being tampered with.
+ */
+function assertHardcodedTerrainRestrictions(state: GameState, context: string): void {
+  for (const unit of state.units) {
+    if (unit.destroyed) continue;
+    const terrain = MAP_TERRAIN.get(mapHexKey(unit.position.q, unit.position.r));
+    if (terrain === undefined) continue; // off-map is assertInvariants' concern, not this check's
+
+    const category = unitCategory(unit.typeId);
+    const isChariotOrCavalry = category === 'chariot' || category === 'cavalry';
+
+    if (isChariotOrCavalry && terrain === 'steep-flank') {
+      throw new Error(
+        `Invariant violated (${context}): unit ${unit.id} (${category}) stands on steep-flank terrain — "Chars et cavaleries sont interdits sur les flancs abrupts" (docs/research/05-rules-french-original.md:186-188)`,
+      );
+    }
+    if ((isChariotOrCavalry || category === 'elephant') && terrain === 'marsh') {
+      throw new Error(
+        `Invariant violated (${context}): unit ${unit.id} (${category}) stands on marsh terrain — "chars, cavaleries et éléphants ne peuvent accéder aux marais" (docs/research/05-rules-french-original.md:186-188)`,
+      );
+    }
+    if (category !== 'naval' && HARDCODED_SEA_OR_COAST_TERRAIN.has(terrain)) {
+      throw new Error(
+        `Invariant violated (${context}): land unit ${unit.id} (${category}) stands on sea/coast terrain "${terrain}" — "La mer n'est pas accessible aux armées de terre" (docs/research/05-rules-french-original.md:186-188)`,
+      );
+    }
+  }
+}
+
 /**
  * "Turn order preserved" as its own explicit check, separate from
  * `assertInvariants`' more general `activePlayerIndex`-is-valid check above:
@@ -192,6 +249,57 @@ function assertTurnOrderPreserved(state: GameState, initialSeatOrder: readonly P
   if (!unchanged) {
     throw new Error(
       `Invariant violated (${context}): seatOrder changed from [${initialSeatOrder.join(',')}] to [${state.seatOrder.join(',')}] despite randomizedTurnOrder being off`,
+    );
+  }
+}
+
+/**
+ * The seat the turn should hand off to after a combat->movement `endPhase`,
+ * from `fromIndex` (the OLD `activePlayerIndex`): the next seat around
+ * `seatOrder`, skipping any eliminated player — mirroring `advancePhase`'s
+ * own skip-eliminated-seats loop in turnManager.ts, but re-derived here from
+ * raw `eliminated` flags rather than by calling `advancePhase` again, so
+ * this stays an independent oracle rather than the code re-checking itself.
+ */
+function nextLivingSeatIndex(
+  seatOrder: readonly PlayerId[],
+  eliminated: ReadonlyMap<PlayerId, boolean>,
+  fromIndex: number,
+): number {
+  let idx = fromIndex;
+  for (let i = 0; i < seatOrder.length; i++) {
+    idx = (idx + 1) % seatOrder.length;
+    if (!eliminated.get(seatOrder[idx]!)) return idx;
+  }
+  return fromIndex; // no living seat at all — gameOver should already be true by this point
+}
+
+/**
+ * MEDIUM finding from adversarial review: `assertTurnOrderPreserved` above
+ * only proves `seatOrder` itself wasn't mutated — a bug that stuck
+ * `activePlayerIndex` on one seat, or skipped a seat it shouldn't have,
+ * would pass it silently. This checks the actual ADVANCEMENT: called around
+ * every `endPhase` action that ends a COMBAT phase (the only kind that
+ * changes whose turn it is — a movement->combat `endPhase` keeps the same
+ * player), the new `activePlayerIndex` must be exactly the next living seat
+ * after the old one, per `nextLivingSeatIndex` above. Not a blind "+1 mod
+ * length": `buildFuzzGameState()`'s 2 players are never both eliminated
+ * before `turnCap` in the games this harness has actually run, but a much
+ * longer local soak (see fuzzHarness.test.ts's `GAME_COUNT`) could reach
+ * one, and this stays correct (rather than throwing a false positive) if a
+ * seat is ever legitimately skipped.
+ */
+function assertSeatAdvancedCorrectly(
+  seatOrder: readonly PlayerId[],
+  eliminatedBefore: ReadonlyMap<PlayerId, boolean>,
+  previousIndex: number,
+  newIndex: number,
+  context: string,
+): void {
+  const expected = nextLivingSeatIndex(seatOrder, eliminatedBefore, previousIndex);
+  if (newIndex !== expected) {
+    throw new Error(
+      `Invariant violated (${context}): activePlayerIndex went from ${previousIndex} to ${newIndex} after a combat phase ended, expected ${expected} (the next non-eliminated seat) — turn order advanced incorrectly`,
     );
   }
 }
@@ -223,6 +331,11 @@ function assertMovementWasRefilled(state: GameState, context: string): void {
   }
 }
 
+/** The two cavalry type ids on the shipped roster (`data/units.ts`),
+ * hardcoded rather than derived via `unitCategory` — see
+ * `assertNoCavalryVsPhalanx`'s doc comment for why. */
+const CAVALRY_TYPE_IDS = new Set(['cavalerie-legere', 'cavalerie-lourde']);
+
 /**
  * The known-real bug class from plan.md §5: cavalry may never resolve an
  * attack against a phalanx, whether alone or as part of a combined group.
@@ -231,21 +344,26 @@ function assertMovementWasRefilled(state: GameState, context: string): void {
  * should never fire in a correctly-behaving engine — it exists to CATCH a
  * regression, not to enforce the rule itself.
  *
- * DELIBERATELY does NOT call `cavalryMayAttack` — mutation-testing this
- * exact check (see this task's PR description / plan.md §6) found that an
- * earlier version DID call it, which meant a mutation that broke
- * `cavalryMayAttack` itself (e.g. making it always return `true`) broke the
- * one function this check exists to guard AND the guard's own oracle
- * together, so the "invariant" caught nothing — a broken rule and a broken
- * check that reads the same broken rule always agree. This re-derives the
- * restriction from the raw unit data (category + type id) instead, so it
- * stays independent of whatever `combat.ts` actually does.
+ * DELIBERATELY does NOT call `cavalryMayAttack`, and DELIBERATELY does NOT
+ * even call the shared `unitCategory` helper for the attacker side — both
+ * are things a single mutation could break out from under this check.
+ * Mutation-testing this exact function (see this task's PR description /
+ * plan.md §6) found that an earlier version DID call `cavalryMayAttack`,
+ * so mutating that function to always return `true` broke the one thing
+ * this check exists to guard AND the guard's own oracle together, and the
+ * "invariant" caught nothing. `unitCategory` itself is one step removed
+ * from that same trap (a `unitCategory` mutation that stopped recognizing
+ * `cavalerie-*` as `'cavalry'` would fool BOTH the real rule in combat.ts
+ * AND this check, for the same reason) — closed here by hardcoding the two
+ * cavalry type ids directly instead. `unitType(defender).id === 'phalanges'`
+ * for the defender side was already independent (a raw type id string
+ * comparison, not a `unitCategory` call) and is unchanged.
  */
 function assertNoCavalryVsPhalanx(state: GameState, attackerIds: string[], defenderIds: string[]): void {
   const attackers = attackerIds.map((id) => requireUnit(state, id));
   const defenders = defenderIds.map((id) => requireUnit(state, id));
   for (const attacker of attackers) {
-    if (unitCategory(attacker.typeId) !== 'cavalry') continue;
+    if (!CAVALRY_TYPE_IDS.has(attacker.typeId)) continue;
     for (const defender of defenders) {
       if (unitType(defender).id === 'phalanges') {
         throw new Error(
@@ -325,23 +443,28 @@ async function resolveUnitRetreat(state: GameState, unit: Unit, agent: PlayerAge
 /**
  * DEVIATION FROM `BoardScene.promptAdvanceChoice` — found by the fuzz
  * harness, plan.md §6, and NOT fixed at the source: `BoardScene`'s own
- * advance-offer candidate list is only filtered by `!u.destroyed`, the same
- * as the `alive` filter below, with no terrain check — so a vacated hex
- * illegal for the advancing unit's category (e.g. a defeated defender's
- * marsh/steep-flank hex, legal for THAT unit but not for a cavalry/chariot
- * attacker in the same combat group) can be, and today in real hotseat play
- * IS, offered and accepted through the actual UI. Filtering through
- * `canUnitEnterHex` here (see engine/combat.ts) is a genuine, if narrow,
- * behavior difference from `BoardScene` — done here rather than in
- * `BoardScene.ts` itself because this task's boundaries exclude touching
- * `src/scenes/`. Reported separately rather than silently patched around:
- * `BoardScene.ts`'s `promptAdvanceChoice` (around its `candidates =
- * this.advanceEligibleAttackers.filter((u) => !u.destroyed)` line) should
- * gain the same `canUnitEnterHex` filter.
+ * advance-offer candidate list is only filtered by `!u.destroyed`, with no
+ * terrain check — so a vacated hex illegal for the advancing unit's
+ * category (e.g. a defeated defender's marsh/steep-flank hex, legal for
+ * THAT unit but not for a cavalry/chariot attacker in the same combat
+ * group) can be, and today in real hotseat play IS, offered and accepted
+ * through the actual UI.
+ *
+ * `eligibleAdvanceCandidates` (engine/combat.ts) is the extracted, tested,
+ * shared fix for this — used here rather than reimplementing the filter
+ * inline specifically so it ISN'T only the harness's own private correction
+ * (a prior version filtered inline here, which meant this harness's own
+ * terrain invariant could never see the identical bug that's confirmed live
+ * in `BoardScene.ts`: the harness silently corrected the exact defect it
+ * would otherwise have caught). `BoardScene.ts`'s `promptAdvanceChoice`
+ * (around its `candidates = this.advanceEligibleAttackers.filter((u) =>
+ * !u.destroyed)` line) should call the same exported function — not fixed
+ * there directly because this task's boundaries exclude touching
+ * `src/scenes/`.
  */
 async function processAdvanceOffer(state: GameState, vacatedHex: HexCoord, candidates: Unit[], agent: PlayerAgent): Promise<void> {
   if (unitAt(state, vacatedHex)) return; // already re-occupied by an earlier choice in this batch
-  const alive = candidates.filter((u) => !u.destroyed && canUnitEnterHex(u, vacatedHex));
+  const alive = eligibleAdvanceCandidates(candidates, vacatedHex);
   if (alive.length === 0) return;
   const chosen = await agent.chooseAdvance(state, alive, vacatedHex);
   if (chosen) chosen.position = vacatedHex;
@@ -485,6 +608,7 @@ export async function playRandomGame(seed: number, options: PlayRandomGameOption
   };
 
   assertInvariants(state, 'initial state');
+  assertHardcodedTerrainRestrictions(state, 'initial state');
 
   while (!state.gameOver) {
     if (state.turnNumber > turnCap) {
@@ -508,6 +632,7 @@ export async function playRandomGame(seed: number, options: PlayRandomGameOption
     stats.actionsByKind[action.kind] = (stats.actionsByKind[action.kind] ?? 0) + 1;
     stats.turnsReached = Math.max(stats.turnsReached, state.turnNumber);
     assertInvariants(state, `after action #${stats.totalActions} (${action.kind})`);
+    assertHardcodedTerrainRestrictions(state, `after action #${stats.totalActions} (${action.kind})`);
     assertTurnOrderPreserved(state, initialSeatOrder, `after action #${stats.totalActions} (${action.kind})`);
   }
 
@@ -526,6 +651,9 @@ async function applyOneAction(
 ): Promise<void> {
   switch (action.kind) {
     case 'endPhase': {
+      const wasCombatPhase = state.phase === 'combat';
+      const previousIndex = state.activePlayerIndex;
+      const eliminatedBefore = new Map(state.players.map((p) => [p.id, p.eliminated] as const));
       applyAction(state, action, rng);
       // Mirrors BoardScene.endPhase exactly (BoardScene.ts:1736-1765): the
       // scene-local attack/ram bookkeeping lives outside GameState (see
@@ -535,6 +663,15 @@ async function applyOneAction(
       if (!state.gameOver && state.phase === 'movement') {
         context.rammedThisTurn.clear();
         assertMovementWasRefilled(state, 'after endPhase into a fresh movement phase');
+      }
+      if (wasCombatPhase && !state.gameOver) {
+        assertSeatAdvancedCorrectly(
+          state.seatOrder,
+          eliminatedBefore,
+          previousIndex,
+          state.activePlayerIndex,
+          'after endPhase ended a combat phase',
+        );
       }
       return;
     }
