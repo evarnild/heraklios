@@ -6,6 +6,7 @@ import {
   applyRammingResult,
   canBoard,
   canElephantEnterHex,
+  cavalryMayAttack,
   checkRangedEligibility,
   commonValidTargets,
   completePush,
@@ -174,6 +175,37 @@ describe('validTargets / commonValidTargets / unionValidTargets', () => {
     const state = makeState([archer, melee, shared, farAway]);
     expect(commonValidTargets(state, [archer, melee])).toHaveLength(1);
     expect(commonValidTargets(state, [archer, melee, farAway])).toHaveLength(0);
+  });
+});
+
+describe('cavalryMayAttack — phalanx restriction', () => {
+  it('forbids cavalry from targeting a phalanx, whether light or heavy', () => {
+    const phalanx = makeUnit({ typeId: 'phalanges', position: { q: 0, r: 0 }, owner: 1 });
+    const light = makeUnit({ typeId: 'cavalerie-legere', position: { q: 1, r: 0 } });
+    const heavy = makeUnit({ typeId: 'cavalerie-lourde', position: { q: 1, r: 0 } });
+    expect(cavalryMayAttack(light, phalanx)).toBe(false);
+    expect(cavalryMayAttack(heavy, phalanx)).toBe(false);
+  });
+
+  it('allows cavalry to attack any other unit type', () => {
+    const infantry = makeUnit({ typeId: 'fantassins', position: { q: 0, r: 0 }, owner: 1 });
+    const cav = makeUnit({ typeId: 'cavalerie-legere', position: { q: 1, r: 0 } });
+    expect(cavalryMayAttack(cav, infantry)).toBe(true);
+  });
+
+  it('allows non-cavalry units to attack a phalanx normally', () => {
+    const phalanx = makeUnit({ typeId: 'phalanges', position: { q: 0, r: 0 }, owner: 1 });
+    const infantry = makeUnit({ typeId: 'fantassins', position: { q: 1, r: 0 } });
+    expect(cavalryMayAttack(infantry, phalanx)).toBe(true);
+  });
+
+  it('excludes a phalanx from validTargets for an adjacent cavalry unit, but not for adjacent infantry', () => {
+    const phalanx = makeUnit({ typeId: 'phalanges', position: { q: 0, r: 0 }, owner: 1 });
+    const cav = makeUnit({ typeId: 'cavalerie-legere', position: { q: 1, r: 0 } });
+    const infantry = makeUnit({ typeId: 'fantassins', position: { q: -1, r: 0 } });
+    const state = makeState([phalanx, cav, infantry]);
+    expect(validTargets(state, cav)).toHaveLength(0);
+    expect(validTargets(state, infantry).map((u) => u.id)).toEqual([phalanx.id]);
   });
 });
 
