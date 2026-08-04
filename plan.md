@@ -420,10 +420,18 @@ an illegal hex, no negative `movementLeft`, no cavalry ever resolving an
 attack against a phalanx, turn order preserved, games terminate).
 
 **Stage 2 is the point of this scope.** It is a bug-finding tool in its own
-right and would very likely have caught the multi-defender phalanx bypass
-from [§5](#5-outcome) — a defect that reached review precisely because
-hand-written tests follow happy paths. It also validates the stage-1
-abstraction under load before any strategy code depends on it.
+right — a defect class that reaches review precisely because hand-written
+tests follow happy paths. It also validates the stage-1 abstraction under
+load before any strategy code depends on it.
+
+> **Correction (post-2a).** An earlier version of this paragraph claimed the
+> harness "would very likely have caught the multi-defender phalanx bypass
+> from [§5](#5-outcome)". **That was wrong, and it was this plan's claim, not
+> the implementer's.** `legalActions` enumerates *singleton* attacks only
+> (`actions.ts:343-353`), so the harness structurally cannot assemble a
+> combined attack group — the bypass required exactly that. Measured over
+> 100 seeded games: `multiAttacker: 0`, `pushTarget: 0`, `exchangeChoice: 0`.
+> See [§6.8](#68-stage-2a-outcome) for what 2a does and does not cover.
 
 ### 6.4 Deferred: stages 3-4
 
@@ -705,3 +713,57 @@ which the rulebook forbids absolutely.
 safety net: its "no two units share a hex" invariant is exactly the check
 that catches a botched fix, and this is a much better first real job for the
 harness than a synthetic one.
+
+---
+
+## 9. Live defects found by Stage 2a (not yet fixed)
+
+Both confirmed by adversarial review against the shipped code. Neither is
+fixed on any branch; both affect hotseat play today.
+
+### 9.1 Post-combat advance ignores terrain restrictions
+
+`src/scenes/BoardScene.ts:1385`:
+
+```ts
+const candidates = this.advanceEligibleAttackers.filter((u) => !u.destroyed);
+```
+
+No terrain check, and `:1391-1393` assigns `chosen.position = vacatedHex`
+unconditionally. So cavalry or a chariot that defeats an infantry or archer
+unit standing on marsh or a steep flank is *offered*, and permitted, to
+advance onto terrain it may never enter — violating
+`05-rules-french-original.md:186`. Elephants advancing onto marsh are
+affected too. Reachable in ordinary play: the only nearby restriction
+(cavalry-vs-phalanx) doesn't cover infantry or archers.
+
+**Fix:** add `&& canUnitEnterHex(u, vacatedHex)` at `BoardScene.ts:1385`.
+`canUnitEnterHex` already exists in `combat.ts:43` and is tested. Coordinate
+with Stage 2a's `eligibleAdvanceCandidates` helper if that lands first — they
+should share one implementation, not two.
+
+### 9.2 `endGameByTimeLimit` is never called
+
+`turnManager.ts:131` defines it; a repo-wide grep finds callers only in
+`fuzzHarness.ts`. **No scene calls it.** So real hotseat play has no
+turn-limit ending, and the rulebook's `on se fixera des temps limites pour la
+partie entière` (`05-rules-french-original.md:41`) is unreachable outside the
+fuzzer. Games can only end by elimination.
+
+Needs a decision, not just a fix: what sets the limit (a Menu option? a fixed
+count?) and how the player is told it's the final turn. Until then it belongs
+in the README's "Known simplifications".
+
+---
+
+## 10. Sequenced queue
+
+Current order of work, so parallel runs don't collide:
+
+| # | Item | Touches | Notes |
+| --- | --- | --- | --- |
+| 1 | Stage 2a review fixes | `src/engine/` | In flight. |
+| 2 | [§8](#8-bug-units-cannot-move-through-friendly-units) move-through-friendlies | `engine/movement.ts`, `navalMovement.ts` | Gated on 2a landing — the harness's no-stacking invariant is the safety net for it. |
+| 3 | [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) advance terrain | `scenes/BoardScene.ts` | Parallel-safe with #2 (different files). |
+| 4 | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2b drift extraction | `BoardScene.ts:1208-1360`, `engine/` | **Not** parallel with #3 — same file. |
+| 5 | [§9.2](#92-endgamebytimelimit-is-never-called) turn-limit ending | design + scenes | Needs a decision first. |
