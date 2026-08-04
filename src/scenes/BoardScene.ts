@@ -1245,10 +1245,11 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         // out from under that still-pending prompt. So: catch instead,
         // clear only on the throwing path, and rethrow so the failure stays
         // visible (an uncaught rejection in the console) rather than
-        // silently swallowed — a throw from either line below, with no
-        // `try`, used to leave `decisionPending` latched `true` forever with
-        // no prompt left on screen to ever answer it (the pushed unit's own
-        // retreat choice never got asked to begin with).
+        // silently swallowed — a throw from any of the three statements
+        // below, with no `try`, used to leave `decisionPending` latched
+        // `true` forever with no prompt left on screen to ever answer it
+        // (the pushed unit's own retreat choice never got asked to begin
+        // with).
         try {
           const legalHexesForPushed = legalRetreatHexes(this.state(), pushed);
           this.appendLine(`${unitType(pushed).name} must retreat to make room — click a highlighted hex.`);

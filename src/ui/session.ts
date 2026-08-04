@@ -90,17 +90,25 @@ function assignEdgesRandomly(playerCount: number): void {
  * `playerCount`-length selections — then launch a test-mode game instead of
  * a real one, and its first autosave (`BoardScene.autosave`, unconditional
  * once `resetSceneState` has cleared the flags it's guarded on) or manual
- * save would bake that stale, mismatched-length `armySelections` into the
- * SavedGame alongside the test game's own (different) `playerCount` and
- * units — see `saveStorage.ts`'s `captureCurrentGame`, which reads
- * `session.armySelections` with no awareness of which game populated it.
- * Closing this took two changes, not one: this function clears the field so
- * a stale, WRONG army can't survive an abandon at all, and `testMode.ts`'s
- * shortcuts now also set it to a correctly-*sized* (if otherwise unused)
- * array of their own — clearing here alone would still leave a length
- * mismatch (`[]` vs. that shortcut's own `playerCount`), just a more
- * obviously-empty one instead of a stale-and-plausible one. See the
- * end-to-end test in `session.test.ts` that exercises both together.
+ * save would bake that stale, WRONG `armySelections` into the SavedGame
+ * alongside the test game's own (different) `playerCount` and units — see
+ * `saveStorage.ts`'s `captureCurrentGame`, which reads `session.armySelections`
+ * with no awareness of which game populated it. This function alone closes
+ * that: `armySelections` is `[]` at module load (see `session`'s initial
+ * value above), and clearing it back to `[]` here just restores that
+ * day-one state before the next game gets a chance to read it, rather than
+ * leaving the abandoned game's real selections in place for something else
+ * to pick up by accident.
+ *
+ * Separately — NOT required to close the leak above, since `[]` was never
+ * wrong, just unused by test-mode games — `testMode.ts`'s shortcuts also now
+ * size `armySelections` to match their OWN `playerCount`. `[]` next to
+ * `playerCount: 2` is a length mismatch too, just one that's always been
+ * there for a cold "Mode test" launch straight from the Menu (nothing ever
+ * populated it for that path) and is harmless since nothing reads
+ * `armySelections` in test mode. Worth tidying since this feature's own
+ * test (`session.test.ts`) made the mismatch newly visible and easy to
+ * assert against, not because it was a reachable bug on its own.
  *
  * Deliberately does NOT touch `playerNames`, `combatMode`, or
  * `randomizedTurnOrder`: these are meant to persist across games as the

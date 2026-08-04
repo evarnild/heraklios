@@ -55,7 +55,7 @@ describe('resetToMenu', () => {
   });
 });
 
-describe('the armySelections leak is closed end-to-end (session -> save)', () => {
+describe("startTestGame sizes armySelections to its own playerCount", () => {
   it('leaves a subsequent test-mode game\'s save consistent with its own playerCount', () => {
     // A real 4-player game reaches ArmyBuilder/Placement/Board — `resetSession`
     // sizes `armySelections` to match, same as `MenuScene`'s player-count
@@ -70,16 +70,17 @@ describe('the armySelections leak is closed end-to-end (session -> save)', () =>
     startTestGame();
     expect(session.playerCount).toBe(2);
 
-    // Two independent fixes cooperate to make this hold, and this test
-    // would fail if either regressed: `resetToMenu` clears the abandoned
-    // game's `armySelections` rather than leaving it stale (so a shortcut
-    // that forgot to size its own never silently inherits a WRONG, if
-    // same-length, army from a different game); `startTestGame` itself sets
-    // `armySelections` to match ITS OWN `playerCount` (`resetToMenu` alone
-    // only gets it to `[]`, still mismatched against `playerCount: 2` on its
-    // own — see `testMode.ts`'s comment at the equivalent line). Without
-    // both, this capture would carry a mismatched `armySelections` into a
-    // save that claims `playerCount: 2`.
+    // This specifically exercises `startTestGame`'s own `armySelections`
+    // sizing (see `testMode.ts`'s comment at the equivalent line) — it does
+    // NOT exercise `resetToMenu`'s `armySelections` clearing, even though
+    // the scenario above sounds like it should: `startTestGame`
+    // unconditionally overwrites `armySelections` to match its own
+    // `playerCount`, which masks whatever `resetToMenu` left behind at the
+    // point this test asserts. Deleting `resetToMenu`'s
+    // `session.armySelections = []` line does NOT fail this test — only the
+    // direct, narrower test above ("clears army selections left by the
+    // abandoned game") catches that regression. Both together give full
+    // coverage; neither alone would.
     const save = captureCurrentGame({ attackedThisPhase: [], rammedThisTurn: [] });
     expect(save.armySelections).toHaveLength(save.playerCount);
   });

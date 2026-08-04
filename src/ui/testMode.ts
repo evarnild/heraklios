@@ -40,12 +40,15 @@ export function startTestGame(): void {
   session.edges = ['W', 'E'];
   // These shortcuts build units directly, bypassing `ArmyBuilder`/
   // `resetSession` entirely — so unlike a real game, nothing else ever sizes
-  // `armySelections` to match `playerCount`. Left stale (e.g. from an
-  // abandoned real game with a different player count — see `resetToMenu`'s
-  // doc comment), it would otherwise get baked into this game's own save
-  // file with a mismatched length. `resetToMenu` already clears it to `[]`
-  // on abandon; this sets it back to a *correctly-sized* (if unused) array
-  // so a save captured mid test-mode game is internally consistent too.
+  // `armySelections` to match `playerCount`; a cold "Mode test" launch from
+  // the Menu has always left it at its `[]` initial value, mismatched
+  // against `playerCount: 2` (harmless, since test-mode games never read
+  // `armySelections`). Not a leak fix on its own — `resetToMenu` already
+  // covers the actually-reachable version of this (a genuinely stale,
+  // WRONG `armySelections` surviving an abandon; see its doc comment) — just
+  // tidying so a save captured mid test-mode game is internally consistent
+  // too, since `session.test.ts` made the pre-existing mismatch easy to
+  // assert against.
   session.armySelections = Array.from({ length: 2 }, () => emptySelection());
 
   const players: Player[] = [
@@ -101,12 +104,15 @@ export function startCloseCombatTestGame(): void {
   session.edges = ['W', 'E'];
   // These shortcuts build units directly, bypassing `ArmyBuilder`/
   // `resetSession` entirely — so unlike a real game, nothing else ever sizes
-  // `armySelections` to match `playerCount`. Left stale (e.g. from an
-  // abandoned real game with a different player count — see `resetToMenu`'s
-  // doc comment), it would otherwise get baked into this game's own save
-  // file with a mismatched length. `resetToMenu` already clears it to `[]`
-  // on abandon; this sets it back to a *correctly-sized* (if unused) array
-  // so a save captured mid test-mode game is internally consistent too.
+  // `armySelections` to match `playerCount`; a cold "Mode test" launch from
+  // the Menu has always left it at its `[]` initial value, mismatched
+  // against `playerCount: 2` (harmless, since test-mode games never read
+  // `armySelections`). Not a leak fix on its own — `resetToMenu` already
+  // covers the actually-reachable version of this (a genuinely stale,
+  // WRONG `armySelections` surviving an abandon; see its doc comment) — just
+  // tidying so a save captured mid test-mode game is internally consistent
+  // too, since `session.test.ts` made the pre-existing mismatch easy to
+  // assert against.
   session.armySelections = Array.from({ length: 2 }, () => emptySelection());
 
   const players: Player[] = [
