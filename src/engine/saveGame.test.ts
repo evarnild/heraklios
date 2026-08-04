@@ -89,6 +89,25 @@ describe('save round-trip', () => {
     expect(ship.facing).toBe(1);
     expect(ship.equipmentPoints).toBeGreaterThan(0);
   });
+
+  it('preserves a charging unit\'s `charged: true` flag through both structuredClone and JSON round-trips', () => {
+    // Regression coverage for the design-decision comment above
+    // `SAVE_VERSION`: a mid-turn save made AFTER a charge (and before that
+    // unit has attacked) must NOT lose the charge on reload — `charged` is
+    // a plain boolean on a plain-data `Unit`, so it round-trips exactly like
+    // every other field.
+    const save = sampleSave();
+    const infantry = save.gameState.units.find((u) => u.id === 'p0u0')!;
+    infantry.charged = true;
+
+    const clonedThenParsed = parseSavedGame(JSON.stringify(structuredClone(save)));
+    if (!('save' in clonedThenParsed)) throw new Error('expected a valid save');
+    expect(clonedThenParsed.save.gameState.units.find((u) => u.id === 'p0u0')!.charged).toBe(true);
+
+    const jsonRoundTripped = parseSavedGame(JSON.stringify(save));
+    if (!('save' in jsonRoundTripped)) throw new Error('expected a valid save');
+    expect(jsonRoundTripped.save.gameState.units.find((u) => u.id === 'p0u0')!.charged).toBe(true);
+  });
 });
 
 describe('isValidSavedGame', () => {

@@ -199,15 +199,31 @@ not necessarily a straight one. Instead, `evaluateCharge` independently
 walks the specific straight line from the unit's pre-move hex to the
 clicked destination and checks it's fully legal (on the map, unoccupied,
 not passing through — merely stopping on — an enemy zone of control) and
-costs exactly the unit's full movement allowance.
+costs exactly the unit's full movement allowance — a unit that already spent
+part of its allowance earlier in the same Movement phase can never charge on
+a later move, even one that happens to be a straight line spending exactly
+what's left, because that's not its FULL printed allowance. Since a
+straight line can occasionally cost MORE than `reachableHexes`'s cheapest
+route to that same hex (e.g. a direct line crossing a river that a detour
+would avoid), a charging move deducts `evaluateCharge`'s straight-line cost,
+not the cheaper cost the reachable-hex highlight was computed from — so a
+charge always leaves the unit at exactly 0 movement remaining.
 
 Separately — and regardless of charging — **phalanxes can never be
 attacked by cavalry**, by charge or by an ordinary attack: "la cavalerie ne
 peut effectuer de charge ou plus simplement d'attaques contre ces unités"
 (`docs/research/05-rules-french-original.md`). A phalanx is filtered out of
-`validTargets` for any cavalry attacker (and therefore out of every
-attack-group's `commonValidTargets`/`unionValidTargets` too), while
-remaining a normal target for every other unit type.
+`validTargets` for any cavalry attacker, which alone covers a single
+attacker/single defender combat; combining attacks (see below) needs one
+more check, since a phalanx can otherwise be reachable through a
+non-cavalry groupmate's `validTargets` even while a cavalry unit sits
+elsewhere in the same attack group — `attackerCanJoin`/`defenderCanJoin`
+(the functions that gate joining either side of a combining-attacks group)
+explicitly re-check the restriction against every member of the OTHER
+side, not just the one candidate being added, so a phalanx is unreachable
+by any group that contains cavalry and vice versa, regardless of the order
+units join in. Every other unit type can still target (or be grouped
+against) a phalanx normally.
 
 ### Turn order
 

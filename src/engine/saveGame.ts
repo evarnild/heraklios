@@ -17,14 +17,16 @@ export const SAVE_VERSION = 1;
 // absence is indistinguishable, in behaviour, from its default.
 //
 // `Unit.charged` (added for cavalry charges) follows the same reasoning: it's
-// read only via `if (unit.charged)` in `currentAttack`, so a save from before
-// the field existed loads with it `undefined` (falsy), same as an
-// un-charged unit — no migration or stricter validation needed. The one
-// behavioural wrinkle is a save made mid-Combat-phase, after a charge but
-// before that unit has attacked: reloading it forgets the charge and the
-// unit's next attack (if any, before the phase ends) resolves at its
-// ordinary, non-doubled value. This is judged an acceptable, rare edge case
-// rather than a reason to add a migration for a single boolean.
+// read only via `if (unit.charged)` (see `currentAttack`), so the ONLY save
+// files affected by its absence are ones written by a pre-feature build of
+// the game — which, by definition, never recorded a charge to begin with —
+// and those simply deserialize the field as `undefined` (falsy), identical
+// in behaviour to an explicit `false`. This is not a lossy round-trip for
+// saves made WITH this feature: `charged: true` is a plain boolean on a
+// plain-data `Unit`, so it survives `structuredClone`/`JSON.stringify`
+// exactly like every other `Unit` field (verified in `saveGame.test.ts`) —
+// a save made mid-Combat-phase, after a charge but before that unit has
+// attacked, reloads with the charge (and its doubled attack) intact.
 
 export type EdgeCode = 'N' | 'S' | 'E' | 'W';
 
