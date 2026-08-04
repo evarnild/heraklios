@@ -21,6 +21,7 @@ function makeUnit(owner: PlayerId, typeId: string, position: HexCoord, facing = 
     facing,
     equipmentPoints: t.domain === 'naval' ? Math.ceil(t.defense / 5) : undefined,
     defendedThisPhase: false,
+    charged: false,
     destroyed: false,
   };
 }

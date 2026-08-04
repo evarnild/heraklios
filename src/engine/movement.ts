@@ -2,25 +2,20 @@ import type { HexCoord } from '../data/map';
 import { MAP_TERRAIN, hexKey as mapHexKey } from '../data/map';
 import { TERRAIN_EFFECTS, RIVER_CROSSING, canEnterTerrain } from '../data/terrain';
 import { getUnitType } from '../data/units';
-import { hexKey, neighbors } from './hex';
+import { hexKey, hexAdd, hexEquals, hexDistance, neighbors, DIRECTIONS } from './hex';
 import { hexesUnderZoc, unitAt, terrainAt, riverBetween } from './combat';
 import { reachableNavalHexes } from './navalMovement';
-import type { GameState, Unit } from './state';
+import { unitCategory, type GameState, type Unit } from './state';
 
 export { reachableNavalHexes, reachableNavalStates, findRammingContacts } from './navalMovement';
 export type { NavalState, RammingContact } from './navalMovement';
 
-/** The `canEnterTerrain` category a unit type falls into — exported so
- * placement (which has a typeId but no `Unit` yet, nothing's been placed)
- * can run the same terrain-access check as movement does. */
-export function unitCategory(typeId: string): 'chariot' | 'cavalry' | 'elephant' | 'land' | 'naval' {
-  const t = getUnitType(typeId);
-  if (t.domain === 'naval') return 'naval';
-  if (t.id.startsWith('chars-')) return 'chariot';
-  if (t.id.startsWith('cavalerie-')) return 'cavalry';
-  if (t.id === 'elephants') return 'elephant';
-  return 'land';
-}
+/** The `canEnterTerrain` category a unit type falls into — re-exported from
+ * `engine/state.ts` (its actual home, chosen to avoid a `combat.ts` <->
+ * `movement.ts` import cycle — see the doc comment there) so placement
+ * (which has a typeId but no `Unit` yet, nothing's been placed) and existing
+ * tests can keep importing it from here. */
+export { unitCategory };
 
 /**
  * Computes every hex reachable by `unit` given its remaining movement,
@@ -89,4 +84,145 @@ export function reachableHexes(state: GameState, unit: Unit): Map<string, number
 
 export function terrainMoveCost(hex: HexCoord): number {
   return TERRAIN_EFFECTS[terrainAt(hex)].moveCost;
+}
+
+/**
+ * DESIGN NOTE — how charge eligibility is detected (see `evaluateCharge`
+ * below, and `Unit.charged` in `engine/state.ts`):
+ *
+ * `reachableHexes` above is a BFS/Dijkstra hybrid that returns only
+ * `Map<hexKey, cost>` — the cheapest cost to reach each hex, not *how* the
+ * unit got there. A charge ("uses its full movement allowance in a straight
+ * line and ends adjacent to an enemy unit") needs the actual path, not just
+ * the destination, so one of two things has to give:
+ *
+ *   (a) Track parent pointers through `reachableHexes`'s BFS and reconstruct
+ *       the path to whatever hex the player eventually clicks; or
+ *   (b) Recompute, independently, whether a *specific* straight-line path
+ *       from the unit's start-of-move hex to the clicked destination is both
+ *       legal and exactly exhausts the unit's movement allowance.
+ *
+ * (b) is what's implemented here. Reasons:
+ *   - The UI (`BoardScene.onHexClick`) is a single click straight to a
+ *     destination hex, computed against `reachableHexes`'s cheapest-cost
+ *     map — there's no click-by-click path for the engine to observe, so a
+ *     "note the path as the player walks it" approach doesn't fit this
+ *     game's movement UI at all.
+ *   - BFS parent-pointer reconstruction would only recover the ONE path the
+ *     algorithm happened to keep (ties broken arbitrarily by traversal
+ *     order — see `existing === undefined || newCost < existing` above), not
+ *     necessarily a straight one, even when a same-cost straight path to
+ *     that same hex also exists. Reconstructing forces `reachableHexes`
+ *     itself to start tracking parents/directions purely to serve this one
+ *     caller, complicating its cheapest-path contract for every other user
+ *     (naval movement, placement, the reachable-hex highlight).
+ *   - A charge is really a question about ONE specific candidate hex ("is
+ *     THIS destination reachable by a straight full-allowance walk?"), which
+ *     `straightLineMoveCost` below answers directly and cheaply, without
+ *     needing to enumerate or compare every other path to every other hex.
+ *
+ * A unit that had already partially moved earlier in the same Movement phase
+ * (so `unit.movementLeft` is less than its full allowance) can never charge
+ * on a later move even if that later move happens to be a straight,
+ * fully-remaining-movement walk: the rulebook's "emploie son potentiel de
+ * déplacement au maximum" (uses its movement potential AT MAXIMUM) is read
+ * literally here as spending the unit's ENTIRE printed allowance in that one
+ * straight walk, not merely whatever was left after an earlier, unrelated
+ * move. `evaluateCharge` enforces this by requiring `unit.movementLeft`
+ * (before the move) to equal the type's full `movement` stat.
+ */
+
+/**
+ * The single direction (from `hex.ts`'s `DIRECTIONS`) that, repeated
+ * `hexDistance(from, to)` times, walks from `from` to `to` — or `undefined`
+ * if the two hexes aren't collinear along one of the 6 hex directions (or
+ * are the same hex).
+ */
+function straightLineDirection(from: HexCoord, to: HexCoord): HexCoord | undefined {
+  const distance = hexDistance(from, to);
+  if (distance === 0) return undefined;
+  return DIRECTIONS.find((dir) => hexEquals(hexAdd(from, { q: dir.q * distance, r: dir.r * distance }), to));
+}
+
+/**
+ * The movement-point cost of walking `unit` from its current position to
+ * `destination` along a single straight hex-line (see `straightLineDirection`),
+ * applying the exact same terrain/occupancy/ZOC-stop rules `reachableHexes`
+ * does — or `undefined` if `destination` isn't reachable that way at all
+ * (not collinear, off the map, blocked terrain, occupied, or would require
+ * passing through — not just stopping on — an enemy ZOC hex).
+ */
+function straightLineMoveCost(state: GameState, unit: Unit, destination: HexCoord): number | undefined {
+  const direction = straightLineDirection(unit.position, destination);
+  if (!direction) return undefined;
+  const category = unitCategory(unit.typeId);
+  if (category === 'naval') return undefined; // naval facing/rotation isn't a straight walk in this sense; charges are land-only anyway (see evaluateCharge)
+  const isGalley = unit.typeId === 'galeres';
+  const enemyZoc = hexesUnderZoc(state, unit.owner);
+  if (enemyZoc.has(hexKey(unit.position))) return undefined; // starting inside an enemy ZOC: reachableHexes disallows moving at all from there, so no charge either
+
+  const distance = hexDistance(unit.position, destination);
+  let current = unit.position;
+  let cost = 0;
+  for (let step = 1; step <= distance; step++) {
+    const next = hexAdd(current, direction);
+    const terrain = MAP_TERRAIN.get(mapHexKey(next.q, next.r));
+    if (terrain === undefined) return undefined; // off the map
+    if (!canEnterTerrain(terrain, category, isGalley)) return undefined;
+    if (unitAt(state, next)) return undefined; // hexes may hold at most one unit
+
+    let moveCost = TERRAIN_EFFECTS[terrain].moveCost;
+    if (riverBetween(current, next)) moveCost += RIVER_CROSSING.extraMoveCost;
+    cost += moveCost;
+
+    // A unit that enters an enemy ZOC hex must stop there — a straight walk
+    // can only pass through one if it's the final (destination) hex.
+    const isFinalStep = step === distance;
+    if (!isFinalStep && enemyZoc.has(hexKey(next))) return undefined;
+
+    current = next;
+  }
+  return cost;
+}
+
+/**
+ * Whether moving `unit` (still at its pre-move position) to `destination`
+ * qualifies as a cavalry charge: the unit is cavalry, the move spends its
+ * ENTIRE movement allowance walking a single straight hex-line to
+ * `destination`, and `destination` ends adjacent to at least one enemy unit.
+ * See the design note above `straightLineDirection` for why this is computed
+ * directly rather than by reconstructing a path out of `reachableHexes`.
+ *
+ * Returns the movement-point cost to deduct for a qualifying charge (by
+ * construction this always equals the unit's full allowance — a charge only
+ * qualifies when the straight-line cost exactly exhausts it, see below — but
+ * returning the cost rather than `true` makes that contract explicit at the
+ * call site instead of implicit), or `null` if the move isn't a charge.
+ *
+ * IMPORTANT: the straight-line cost computed here can differ from
+ * `reachableHexes`'s cheapest-path cost to the same hex whenever a detour
+ * (e.g. avoiding a river-crossing surcharge) is cheaper than a direct line —
+ * on the shipped map this really happens (e.g. light cavalry from (10,1) to
+ * (14,1): straight cost 6, cheapest 5). Callers MUST deduct THIS function's
+ * returned cost when charging, not `reachableHexes`'s cheaper cost — using
+ * the cheaper cost would grant the doubled attack while leaving unspent
+ * movement, contradicting "emploie son potentiel de déplacement au maximum."
+ *
+ * Callers (`BoardScene`) should call this BEFORE mutating `unit.position` /
+ * `unit.movementLeft`: on a non-null result, deduct the returned cost (not
+ * `reachableHexes`'s cost) and set `unit.charged = true`; otherwise fall
+ * back to `reachableHexes`'s cheapest-path cost for an ordinary move. See
+ * `Unit.charged`'s doc comment in `engine/state.ts` for the field's lifecycle.
+ */
+export function evaluateCharge(state: GameState, unit: Unit, destination: HexCoord): number | null {
+  if (unitCategory(unit.typeId) !== 'cavalry') return null;
+  const fullAllowance = getUnitType(unit.typeId).movement;
+  if (unit.movementLeft !== fullAllowance) return null; // already spent some movement this phase
+  const cost = straightLineMoveCost(state, unit, destination);
+  if (cost === undefined || cost !== fullAllowance) return null; // must exactly exhaust the allowance
+  const endsAdjacentToEnemy = neighbors(destination).some((hex) => {
+    const occupant = unitAt(state, hex);
+    return occupant !== undefined && occupant.owner !== unit.owner;
+  });
+  return endsAdjacentToEnemy ? cost : null;
 }

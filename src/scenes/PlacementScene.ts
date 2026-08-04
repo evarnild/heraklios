@@ -384,6 +384,7 @@ export class PlacementScene extends Phaser.Scene {
       facing: 0,
       equipmentPoints: undefined,
       defendedThisPhase: false,
+      charged: false,
       destroyed: false,
     };
     state.units.push(unit);
@@ -435,6 +436,7 @@ export class PlacementScene extends Phaser.Scene {
       facing: pending.facing,
       equipmentPoints: Math.ceil(t.defense / 5),
       defendedThisPhase: false,
+      charged: false,
       destroyed: false,
     };
     state.units.push(unit);

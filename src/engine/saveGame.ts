@@ -15,6 +15,18 @@ export const SAVE_VERSION = 1;
 // falsy and reproduces exactly the fixed-order behaviour that file was saved
 // with. No migration and no stricter validation is needed for a field whose
 // absence is indistinguishable, in behaviour, from its default.
+//
+// `Unit.charged` (added for cavalry charges) follows the same reasoning: it's
+// read only via `if (unit.charged)` (see `currentAttack`), so the ONLY save
+// files affected by its absence are ones written by a pre-feature build of
+// the game — which, by definition, never recorded a charge to begin with —
+// and those simply deserialize the field as `undefined` (falsy), identical
+// in behaviour to an explicit `false`. This is not a lossy round-trip for
+// saves made WITH this feature: `charged: true` is a plain boolean on a
+// plain-data `Unit`, so it survives `structuredClone`/`JSON.stringify`
+// exactly like every other `Unit` field (verified in `saveGame.test.ts`) —
+// a save made mid-Combat-phase, after a charge but before that unit has
+// attacked, reloads with the charge (and its doubled attack) intact.
 
 export type EdgeCode = 'N' | 'S' | 'E' | 'W';
 
