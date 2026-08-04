@@ -321,9 +321,13 @@ what the game will use — see `src/map-editor/`.
 - `src/data/map.ts` — the actual board's hex terrain, derived from the
   scanned map (see `tools/map-extract/README.md` for how).
 - `src/engine/` — pure game logic: hex math, army validation, movement/ZOC,
-  combat resolution, turn sequencing, the undo/redo history primitive, and the
-  save-file format and its validation. Fully unit-tested and independent of
-  Phaser (the browser-side half of saving — `localStorage` and file
+  combat resolution, turn sequencing, the undo/redo history primitive, an
+  injectable die roll, a headless action layer (`actions.ts`'s
+  `legalActions`/`applyAction`, enumerating and applying every
+  move/attack/end-phase a player can take, plus the `PlayerAgent` interface
+  in `agent.ts` that a human or a future bot answers), and the save-file
+  format and its validation. Fully unit-tested and independent of Phaser
+  (the browser-side half of saving — `localStorage` and file
   download/upload — lives in `src/ui/saveStorage.ts`).
 - `src/scenes/` — the Phaser UI: menu, army builder, placement, board,
   game-over.

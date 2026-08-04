@@ -149,7 +149,42 @@ function parseHexKey(key: string): HexCoord {
  * against `state` at all (unknown/destroyed unit, unreachable hex, etc.) —
  * callers are expected to only ever pass something out of `legalActions`,
  * or something a UI has already validated the same way `BoardScene` did.
+ *
+ * Overloaded on `action.kind` purely for caller ergonomics: `BoardScene`
+ * calls this with a literal `{kind: '...'}` at nearly every call site, and
+ * without these overloads every one of them would need a manual
+ * `if (result.kind !== '...') throw` narrowing check before touching a
+ * kind-specific field. The last (general `Action`) overload covers a caller
+ * — like `legalActions`' own tests — holding a non-literal `Action` value.
  */
+export function applyAction(state: GameState, action: { kind: 'endPhase' }, rng?: () => number): EndPhaseResult;
+export function applyAction(
+  state: GameState,
+  action: { kind: 'landMove'; unitId: string; to: HexCoord },
+  rng?: () => number,
+): LandMoveResult;
+export function applyAction(
+  state: GameState,
+  action: { kind: 'navalMove'; unitId: string; to: HexCoord },
+  rng?: () => number,
+): NavalMoveResult;
+export function applyAction(
+  state: GameState,
+  action: { kind: 'navalRotate'; unitId: string; direction: 1 | -1 },
+  rng?: () => number,
+): NavalRotateResult;
+export function applyAction(state: GameState, action: { kind: 'ram'; unitId: string }, rng?: () => number): RamResult;
+export function applyAction(
+  state: GameState,
+  action: { kind: 'landAttack'; attackerIds: string[]; defenderIds: string[] },
+  rng?: () => number,
+): LandAttackResult;
+export function applyAction(
+  state: GameState,
+  action: { kind: 'board'; attackerId: string; defenderId: string },
+  rng?: () => number,
+): BoardResult;
+export function applyAction(state: GameState, action: Action, rng?: () => number): ActionResult;
 export function applyAction(
   state: GameState,
   action: Action,

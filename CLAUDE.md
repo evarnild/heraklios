@@ -48,13 +48,19 @@ and rendering.
   (`hex.ts`), army-purchase validation (`army.ts`), movement/ZOC
   (`movement.ts`, `navalMovement.ts`), combat resolution (`combat.ts`), turn
   sequencing (`turnManager.ts`), the state shape (`state.ts`), the undo/redo
-  primitive (`history.ts`), and save-file serialization/validation
-  (`saveGame.ts`).
+  primitive (`history.ts`), save-file serialization/validation
+  (`saveGame.ts`), an injectable die roll (`dice.ts`), and the headless
+  action layer (`actions.ts`'s `legalActions`/`applyAction`, plus the
+  `PlayerAgent` interface in `agent.ts`) that enumerates and applies every
+  move/attack/end-phase a player (human or, eventually, a bot) can take.
 - `src/scenes/` — the Phaser scenes, run in sequence: `MenuScene` →
   `ArmyBuilderScene` → `PlacementScene` → `BoardScene` → `GameOverScene`.
   `BoardScene.ts` is by far the largest file in the repo (~1600 lines) and
   owns movement clicks, combat-group building, retreat/drift prompts, and
-  naval rotation/ramming/boarding UI.
+  naval rotation/ramming/boarding UI; it implements `PlayerAgent` via those
+  same prompts and delegates every actual state mutation to
+  `engine/actions.ts`'s `applyAction` rather than mutating `GameState`
+  inline.
 - `src/ui/` — shared, Phaser-adjacent helpers used across scenes:
   `MapView.ts`/`hexRender.ts` (camera + hex grid rendering), `session.ts`
   (the in-memory `SessionState` — player setup, army selections, combat mode,
