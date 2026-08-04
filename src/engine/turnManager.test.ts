@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { advancePhase, createInitialState, shuffleSeatOrder } from './turnManager';
+import { advancePhase, createInitialState, resetMovementForActivePlayer, shuffleSeatOrder } from './turnManager';
 import type { GameState, Player, PlayerId, Unit } from './state';
 
 /** Deterministic stand-in for `Math.random`: cycles through a fixed sequence
@@ -40,6 +40,69 @@ describe('shuffleSeatOrder', () => {
     for (const id of seatOrder) {
       expect(shuffled.filter((x) => x === id)).toHaveLength(1);
     }
+  });
+});
+
+describe('resetMovementForActivePlayer', () => {
+  function buildState(): GameState {
+    const players: Player[] = [0, 1].map((id) => ({
+      id: id as PlayerId,
+      name: `P${id}`,
+      edge: id === 0 ? 'W' : 'E',
+      purchasePoints: 400,
+      eliminated: false,
+    }));
+    const state = createInitialState(players, 'multi-defender');
+    const active: Unit = {
+      id: 'active-cav',
+      owner: 0,
+      typeId: 'cavalerie-legere',
+      position: { q: 0, r: 0 },
+      movementLeft: 2, // partially spent
+      facing: 0,
+      defendedThisPhase: false,
+      charged: true,
+      destroyed: false,
+    };
+    const destroyedOwn: Unit = {
+      id: 'destroyed-own',
+      owner: 0,
+      typeId: 'fantassins',
+      position: { q: 1, r: 0 },
+      movementLeft: 0,
+      facing: 0,
+      defendedThisPhase: false,
+      charged: false,
+      destroyed: true,
+    };
+    const other: Unit = {
+      id: 'other-player',
+      owner: 1,
+      typeId: 'fantassins',
+      position: { q: 2, r: 0 },
+      movementLeft: 1,
+      facing: 0,
+      defendedThisPhase: false,
+      charged: false,
+      destroyed: false,
+    };
+    state.units = [active, destroyedOwn, other];
+    return state;
+  }
+
+  it('refills the active player\'s living units to their full movement allowance and clears charged', () => {
+    const state = buildState();
+    resetMovementForActivePlayer(state);
+    const active = state.units.find((u) => u.id === 'active-cav')!;
+    expect(active.movementLeft).toBe(6); // cavalerie-legere's full printed movement
+    expect(active.charged).toBe(false);
+  });
+
+  it('leaves the other player\'s units and destroyed units untouched', () => {
+    const state = buildState();
+    resetMovementForActivePlayer(state);
+    expect(state.units.find((u) => u.id === 'other-player')!.movementLeft).toBe(1);
+    expect(state.units.find((u) => u.id === 'destroyed-own')!.movementLeft).toBe(0);
   });
 });
 

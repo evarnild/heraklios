@@ -1,5 +1,5 @@
 import type { CombatMode, GameState, Player, PlayerId } from './state';
-import { armyValue, livingUnits } from './state';
+import { armyValue, livingUnits, unitType } from './state';
 
 export function createInitialState(
   players: Player[],
@@ -97,6 +97,35 @@ export function advancePhase(state: GameState): void {
 
   state.activePlayerIndex = nextIndex;
   state.phase = 'movement';
+}
+
+/**
+ * Refills the active player's units to their full printed movement allowance
+ * and clears any cavalry charge from last turn (see `Unit.charged`'s doc
+ * comment: a charge only doubles attack through the charging player's own
+ * following Combat phase, so it's cleared here, at the start of that
+ * player's NEXT Movement phase). Extracted out of `BoardScene`'s
+ * once-scene-only `resetMovementForActivePlayer` so a headless caller (a
+ * future self-play harness) gets the same turn-start bookkeeping a human
+ * player does — `BoardScene` now delegates to this and only keeps its own
+ * scene-only `rammedThisTurn` bookkeeping (which lives outside `GameState`
+ * entirely, see engine/actions.ts's `ActionContext` doc comment) locally.
+ *
+ * Deliberately NOT folded into `advancePhase` itself: `advancePhase` is
+ * exercised directly by existing tests that don't expect a movement-reset
+ * side effect, and the two concerns (whose turn/phase it is vs. what that
+ * turn's units start with) are easier to reason about — and to skip
+ * independently, e.g. for a fresh game's very first movement phase, which
+ * never went through `advancePhase` at all — kept separate.
+ */
+export function resetMovementForActivePlayer(state: GameState): void {
+  const activeOwner = state.seatOrder[state.activePlayerIndex]!;
+  for (const u of state.units) {
+    if (!u.destroyed && u.owner === activeOwner) {
+      u.movementLeft = unitType(u).movement;
+      u.charged = false;
+    }
+  }
 }
 
 export function endGameByTimeLimit(state: GameState): void {

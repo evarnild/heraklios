@@ -104,8 +104,12 @@ Two boundaries deliberately limit how far back it reaches:
   player's committed turn. During placement it's likewise scoped to the
   player currently deploying.
 
-Undo is also refused while a retreat or elephant drift is still awaiting a
-choice — resolve it first, the same rule "End phase" already follows.
+Undo is also refused while a retreat, elephant drift, post-combat advance
+offer, or exchange-sacrifice choice is still awaiting an answer — resolve it
+first, the same rule "End phase" already follows. The advance-offer and
+exchange-sacrifice panels are properly modal for the same reason: clicking
+the board while one is open is ignored rather than (as in earlier builds)
+silently falling through to select a unit or target underneath the panel.
 
 ### Deployment zone position
 
@@ -321,10 +325,14 @@ what the game will use — see `src/map-editor/`.
 - `src/data/map.ts` — the actual board's hex terrain, derived from the
   scanned map (see `tools/map-extract/README.md` for how).
 - `src/engine/` — pure game logic: hex math, army validation, movement/ZOC,
-  combat resolution, turn sequencing, the undo/redo history primitive, and the
-  save-file format and its validation. Fully unit-tested and independent of
-  Phaser (the browser-side half of saving — `localStorage` and file
-  download/upload — lives in `src/ui/saveStorage.ts`).
+  combat resolution, turn sequencing, the undo/redo history primitive, an
+  injectable die roll, a headless action layer (`actions.ts`'s
+  `legalActions`/`applyAction`, enumerating and applying every
+  move/attack/end-phase a player can take, plus the `PlayerAgent` interface
+  in `agent.ts` for the retreat/push/advance/exchange decisions a human or a
+  future bot answers), and the save-file format and its validation. Fully
+  unit-tested and independent of Phaser (the browser-side half of saving —
+  `localStorage` and file download/upload — lives in `src/ui/saveStorage.ts`).
 - `src/scenes/` — the Phaser UI: menu, army builder, placement, board,
   game-over.
 - `src/ui/` — shared rendering helpers (hex grid rendering/camera, session

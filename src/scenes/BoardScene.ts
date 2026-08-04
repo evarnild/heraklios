@@ -9,8 +9,11 @@ import {
   writeSlot,
 } from '../ui/saveStorage';
 import type { SavedGame } from '../engine/saveGame';
-import { advancePhase } from '../engine/turnManager';
-import { reachableHexes, reachableNavalHexes, findRammingContacts, evaluateCharge, type RammingContact } from '../engine/movement';
+import { resetMovementForActivePlayer } from '../engine/turnManager';
+import { applyAction, type Action } from '../engine/actions';
+import type { PlayerAgent, ActionObserver } from '../engine/agent';
+import { rollDie as engineRollDie } from '../engine/dice';
+import { reachableHexes, reachableNavalHexes, findRammingContacts, type RammingContact } from '../engine/movement';
 import {
   describeLandAttack,
   applyLandCombatResult,
@@ -27,16 +30,12 @@ import {
   attackerCanJoin,
   defenderCanJoin,
   cavalryMayAttack,
-  resolveNavalBoarding,
-  applyRammingResult,
-  applyBoardingResult,
   unitAt,
   type LandAttackDetail,
   type LandCombatOutcome,
 } from '../engine/combat';
 import { directionForDie, hexAdd } from '../engine/hex';
 import { History } from '../engine/history';
-import { isRammingHitWithBonus, type ShipTypeId } from '../data/navalRamming';
 import { unitType, currentAttack, currentDefense, type GameState, type Unit } from '../engine/state';
 import type { HexCoord } from '../data/map';
 
@@ -55,17 +54,17 @@ interface RetreatQueueItem {
 }
 
 /** The current retreat/push sub-choice awaiting a click:
- * - 'retreat': `unit` retreats to one of `legalHexes`.
+ * - 'retreat': `unit` retreats to one of `legalHexes` — also reused,
+ *   unmodified, for a *pushed* unit's own retreat destination once
+ *   'choosePushTarget' has picked who gets pushed (see `PlayerAgent`'s doc
+ *   comment in engine/agent.ts for why one shape covers both).
  * - 'choosePushTarget': `unit` is boxed in by friendlies; pick which one of
  *   `pushTargets` retreats to make room.
- * - 'pushedRetreat': the chosen `pushed` unit now retreats to one of
- *   `legalHexes` (its own, not `unit`'s) to complete the push.
- * `onDone` fires once the choice is fully resolved — shared by the normal
- * post-combat retreat queue and, mid-drift, a trampled unit's own retreat. */
+ * `onChosen` fires with the player's pick — shared by the normal post-combat
+ * retreat queue and, mid-drift, a trampled unit's own retreat. */
 type RetreatChoice =
-  | { kind: 'retreat'; unit: Unit; legalHexes: HexCoord[]; onDone: () => void }
-  | { kind: 'choosePushTarget'; unit: Unit; pushTargets: Unit[]; onDone: () => void }
-  | { kind: 'pushedRetreat'; unit: Unit; pushed: Unit; legalHexes: HexCoord[]; onDone: () => void };
+  | { kind: 'retreat'; legalHexes: HexCoord[]; onChosen: (hex: HexCoord) => void }
+  | { kind: 'choosePushTarget'; pushTargets: Unit[]; onChosen: (pushed: Unit) => void };
 
 /** An elephant's "drift" in progress: direction rolled, walking one hex at
  * a time, real combat resolved against anything encountered. `remainingSteps`
@@ -96,7 +95,7 @@ interface BoardSnapshot {
   selectedId: string | null;
 }
 
-export class BoardScene extends Phaser.Scene {
+export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObserver {
   private mapView!: MapView;
   /** Movement-phase single-unit selection (unrelated to combat grouping). */
   private selected: Unit | null = null;
@@ -110,6 +109,35 @@ export class BoardScene extends Phaser.Scene {
   private driftQueue: RetreatQueueItem[] = [];
   private retreatChoice: RetreatChoice | null = null;
   private driftState: DriftState | null = null;
+  /**
+   * True from the moment any `PlayerAgent` `choose*` method creates its
+   * pending promise until its resolution has been fully applied (the
+   * mutation + continuation that runs in the caller's `.then()`) — a wider
+   * window than `retreatChoice`/`driftState` alone cover. `chooseRetreat`
+   * and `choosePushTarget` clear `retreatChoice` and call the promise's
+   * `resolve` in the SAME synchronous tick (`handleRetreatChoiceClick`), but
+   * `.then()` — which performs the actual mutation — only runs as a
+   * microtask afterward; `chooseAdvance`/`chooseExchangeSacrifice` have no
+   * equivalent tracked field at all otherwise. If Phaser ever dispatched two
+   * pointer events within the same task (its input plugin batches queued
+   * events), the second could see every existing guard below as "nothing
+   * pending" and fall through to `toggleAttacker`/undo/autosave/etc. against
+   * a board that's about to change underneath it. Included in the same
+   * guards as `retreatChoice`/`driftState`.
+   *
+   * Every `.then()` continuation that clears this flag does so in a
+   * `finally` around the mutation, never after it unguarded: a throw from
+   * `retreatUnitTo`/`renderAllUnits`/etc. would otherwise leave this `true`
+   * forever, soft-locking every guard it gates (undo, autosave, save/load,
+   * `onHexClick`, ending the phase, starting a new attack) with no recovery
+   * short of a page reload — a strictly WORSE failure mode than the
+   * pre-`decisionPending` board, which such a throw merely left
+   * inconsistent-but-usable. The continuation's next step (`onDone()` /
+   * `beginAdvanceOffers`) always runs OUTSIDE that `finally`, since it may
+   * itself await a further choice and re-set this flag — clearing it again
+   * once the next step returns would wipe out that new choice's flag.
+   */
+  private decisionPending = false;
   /** The attacking side from the combat currently driving the queues above —
    * used to offer the advance choice once each defender's retreat/drift
    * settles. */
@@ -136,6 +164,25 @@ export class BoardScene extends Phaser.Scene {
    * the Combat phase that follows. Cleared at the start of each new
    * Movement phase (a fresh turn for whoever's up next). */
   private rammedThisTurn = new Set<string>();
+  /** The `rng` handed to `applyAction` for the die rolls it performs
+   * internally (ram, land attack, boarding) — a raw uniform [0,1) generator,
+   * per `engine/dice.ts`'s `rollDie(rng)` contract (the same one
+   * `shuffleSeatOrder` establishes in turnManager.ts), NOT a finished die
+   * face — `applyAction` converts it to a face itself. Enforces the same
+   * "a real roll clears undo history outside test mode" rule `rollDie`
+   * below enforces for its own rolls, via the shared `clearHistoryOnRoll`
+   * so that rule has exactly one implementation, not two. An arrow-function
+   * field (not a method) so its `this` binding survives being passed around
+   * as a bare callback. */
+  private diceRng = (): number => {
+    this.clearHistoryOnRoll();
+    return Math.random();
+  };
+  /** Set only while an `observeCommittedAction` call is pending (nothing in
+   * this hotseat scene calls it yet — see `ActionObserver`'s doc comment in
+   * engine/agent.ts) — resolved by `reportAction` the next time any of this
+   * scene's click handlers commits a whole `Action` via `applyAction`. */
+  private pendingActionResolve: ((action: Action) => void) | null = null;
 
   constructor() {
     super('Board');
@@ -321,17 +368,7 @@ export class BoardScene extends Phaser.Scene {
   }
 
   private resetMovementForActivePlayer(): void {
-    const state = this.state();
-    const player = state.players[state.seatOrder[state.activePlayerIndex]!]!;
-    for (const u of state.units) {
-      if (!u.destroyed && u.owner === player.id) {
-        u.movementLeft = unitType(u).movement;
-        // A charge only doubles attack through the charging player's own
-        // following Combat phase (see `Unit.charged`'s doc comment) — clear
-        // it here, at the start of that player's NEXT Movement phase.
-        u.charged = false;
-      }
-    }
+    resetMovementForActivePlayer(this.state());
     this.rammedThisTurn.clear();
   }
 
@@ -399,6 +436,7 @@ export class BoardScene extends Phaser.Scene {
     this.driftQueue = [];
     this.retreatChoice = null;
     this.driftState = null;
+    this.decisionPending = false;
     this.advanceEligibleAttackers = [];
     this.advanceOfferQueue = [];
     this.navalContacts = [];
@@ -419,14 +457,14 @@ export class BoardScene extends Phaser.Scene {
    * on — a manual save reports the same problem where it matters.
    */
   private autosave(): void {
-    if (this.retreatChoice || this.driftState) return;
+    if (this.retreatChoice || this.driftState || this.decisionPending) return;
     writeSlot('autosave', this.captureSave());
   }
 
   private openSaveLoad(): void {
     // A pending retreat/drift can't be captured at all: those sequences carry
     // `onComplete` closures, which don't survive serialization.
-    if (this.retreatChoice || this.driftState) {
+    if (this.retreatChoice || this.driftState || this.decisionPending) {
       this.log('Resolve the pending retreat/drift before saving or loading.');
       return;
     }
@@ -486,6 +524,7 @@ export class BoardScene extends Phaser.Scene {
     this.driftQueue = [];
     this.retreatChoice = null;
     this.driftState = null;
+    this.decisionPending = false;
     this.advanceEligibleAttackers = [];
     this.advanceOfferQueue = [];
     this.navalContacts = [];
@@ -504,7 +543,7 @@ export class BoardScene extends Phaser.Scene {
   }
 
   private undo(): void {
-    if (this.retreatChoice || this.driftState) {
+    if (this.retreatChoice || this.driftState || this.decisionPending) {
       this.log('Resolve the pending retreat/drift before undoing.');
       return;
     }
@@ -518,7 +557,7 @@ export class BoardScene extends Phaser.Scene {
   }
 
   private redo(): void {
-    if (this.retreatChoice || this.driftState) {
+    if (this.retreatChoice || this.driftState || this.decisionPending) {
       this.log('Resolve the pending retreat/drift before redoing.');
       return;
     }
@@ -532,17 +571,67 @@ export class BoardScene extends Phaser.Scene {
   }
 
   /**
-   * Every die roll in the game goes through here, so the fairness rule has a
-   * single enforcement point: outside test mode a rolled die is a commit
-   * point and the history is dropped, since undoing past a roll would let a
-   * player re-roll a result they didn't like.
+   * Outside test mode, a real die roll is a commit point and the undo
+   * history is dropped, since undoing past a roll would let a player
+   * re-roll a result they didn't like. Shared by `rollDie` below (every die
+   * roll this scene still drives directly — an elephant's drift direction,
+   * and the trampling combat during a drift) AND `diceRng` above (the rolls
+   * `applyAction` performs internally) — factored out so this rule has
+   * exactly one implementation instead of two copies that could drift out
+   * of sync with each other.
    */
-  private rollDie(): number {
+  private clearHistoryOnRoll(): void {
     if (!session.testMode) {
       this.history.clear();
       this.refreshUndoRedoButtons();
     }
-    return 1 + Math.floor(Math.random() * 6);
+  }
+
+  /**
+   * Every direct die roll this scene still drives itself goes through here
+   * (see `clearHistoryOnRoll`'s doc comment for which ones, and why they
+   * aren't yet routed through `applyAction`/`diceRng`). Delegates the actual
+   * face math to `engine/dice.ts`'s `rollDie` — the SAME function
+   * `applyAction` uses internally for its own rolls — so there is exactly
+   * one implementation of "what a d6 roll is" in the codebase, not one here
+   * and a second one duplicated inline.
+   */
+  private rollDie(rng: () => number = Math.random): number {
+    this.clearHistoryOnRoll();
+    return engineRollDie(rng);
+  }
+
+  /**
+   * `ActionObserver.observeCommittedAction` — resolves with the next whole
+   * `Action` this scene commits, reported by `reportAction` AFTER
+   * `applyAction` has already run. See `ActionObserver`'s doc comment in
+   * engine/agent.ts for why this is an observer, not a chooser: `BoardScene`
+   * is click-driven and always applies an action itself, synchronously, the
+   * moment it's chosen (a combat attacker/defender GROUP in particular is
+   * built through a sequence of individual add/remove clicks — there's no
+   * single moment "the next action" exists as a value before the player
+   * presses "Resolve attack"), so it cannot honestly offer a "choose, then
+   * I'll apply it" contract without double-applying.
+   *
+   * Nothing in hotseat play calls this today — no driver loop needs to watch
+   * a human's actions in Stage 1 — but it's a genuine, correct
+   * implementation, not a stub, ready for a future spectator/replay view.
+   */
+  observeCommittedAction(_state: GameState, _legal: Action[]): Promise<Action> {
+    return new Promise((resolve) => {
+      this.pendingActionResolve = resolve;
+    });
+  }
+
+  /** Resolves a pending `observeCommittedAction` call (if any) with `action`
+   * — called once, right after each click handler below commits that exact
+   * action via `applyAction`. A no-op whenever nothing is awaiting it, which
+   * is always true in ordinary hotseat play (see that method's doc comment). */
+  private reportAction(action: Action): void {
+    const resolve = this.pendingActionResolve;
+    if (!resolve) return;
+    this.pendingActionResolve = null;
+    resolve(action);
   }
 
   private refreshUndoRedoButtons(): void {
@@ -585,6 +674,10 @@ export class BoardScene extends Phaser.Scene {
       this.handleRetreatChoiceClick(hex);
       return;
     }
+    // An advance/exchange-sacrifice panel is up (or one JUST resolved and its
+    // mutation hasn't landed yet — see `decisionPending`'s doc comment):
+    // ignore ordinary board clicks rather than let them race against it.
+    if (this.decisionPending) return;
 
     const state = this.state();
     const occupant = unitAt(state, hex);
@@ -612,23 +705,12 @@ export class BoardScene extends Phaser.Scene {
       const reachable = reachableHexes(state, this.selected);
       const key = `${hex.q},${hex.r}`;
       if (reachable.has(key)) {
-        // Must be evaluated BEFORE mutating position/movementLeft — charge
-        // eligibility depends on the unit's pre-move state (see
-        // `evaluateCharge`'s doc comment in engine/movement.ts). A charging
-        // move's straight-line cost can differ from (and even exceed, once
-        // a river surcharge along the direct line is considered)
-        // `reachable`'s cheapest-path cost to the same hex — the unit must
-        // pay the STRAIGHT cost to actually have "used its full movement
-        // potential in a straight line," so `chargeCost`, not `reachable`'s
-        // cost, is what gets deducted whenever this move qualifies.
-        const chargeCost = evaluateCharge(state, this.selected, hex);
-        const cost = chargeCost ?? reachable.get(key)!;
         const unitName = unitType(this.selected).name;
         this.recordAction(`Move ${unitName}`);
-        this.selected.movementLeft -= cost;
-        this.selected.position = hex;
-        this.selected.charged = chargeCost !== null;
-        if (chargeCost !== null) this.log(`${unitName} charges!`);
+        const action: Action = { kind: 'landMove', unitId: this.selected.id, to: hex };
+        const result = applyAction(state, action);
+        this.reportAction(action);
+        if (result.charged) this.log(`${unitName} charges!`);
         this.renderAllUnits();
         this.deselectMovement();
       }
@@ -702,8 +784,9 @@ export class BoardScene extends Phaser.Scene {
       return;
     }
     this.recordAction(`Turn ${unitType(ship).name}`);
-    ship.facing = (ship.facing + direction + 6) % 6;
-    ship.movementLeft -= 1;
+    const action: Action = { kind: 'navalRotate', unitId: ship.id, direction };
+    applyAction(this.state(), action);
+    this.reportAction(action);
     this.renderAllUnits();
     this.refreshNavalMovementControls(ship);
   }
@@ -731,9 +814,9 @@ export class BoardScene extends Phaser.Scene {
       .sort((a, b) => a.cost - b.cost)[0];
     if (contact) {
       this.recordAction(`Move ${unitType(ship).name} into contact`);
-      ship.movementLeft -= contact.cost;
-      ship.position = contact.hex;
-      ship.facing = contact.facing;
+      const action: Action = { kind: 'navalMove', unitId: ship.id, to: hex };
+      applyAction(state, action);
+      this.reportAction(action);
       this.renderAllUnits();
       this.promptRam(ship, contact.target, contact.bonus);
       return;
@@ -742,9 +825,9 @@ export class BoardScene extends Phaser.Scene {
     const dest = reachableNavalHexes(state, ship).get(key);
     if (!dest) return;
     this.recordAction(`Move ${unitType(ship).name}`);
-    ship.movementLeft -= dest.cost;
-    ship.position = hex;
-    ship.facing = dest.facing;
+    const action: Action = { kind: 'navalMove', unitId: ship.id, to: hex };
+    applyAction(state, action);
+    this.reportAction(action);
     this.renderAllUnits();
     this.refreshNavalMovementControls(ship);
   }
@@ -801,12 +884,13 @@ export class BoardScene extends Phaser.Scene {
     yesBtn.on('pointerdown', () => {
       cleanup();
       this.recordAction(`Ram ${unitType(defender).name}`);
-      const dieRoll = this.rollDie();
-      const hit = isRammingHitWithBonus(attacker.typeId as ShipTypeId, defender.typeId as ShipTypeId, bonus, dieRoll);
-      applyRammingResult(defender, hit);
+      const action: Action = { kind: 'ram', unitId: attacker.id };
+      const result = applyAction(this.state(), action, this.diceRng);
+      this.reportAction(action);
       this.rammedThisTurn.add(attacker.id);
-      attacker.movementLeft = 0;
-      this.log(`Ramming attempt (bonus +${bonus}): die ${dieRoll} -> ${hit ? 'SUNK!' : 'missed'}`);
+      this.log(
+        `Ramming attempt (bonus +${result.bonus}): die ${result.dieRoll} -> ${result.hit ? 'SUNK!' : 'missed'}`,
+      );
       this.renderAllUnits();
       this.deselectMovement();
     });
@@ -1002,24 +1086,56 @@ export class BoardScene extends Phaser.Scene {
   /** Resolves a single unit's retreat: a legal hex to move to, or (if boxed
    * in by friendlies) a push, or elimination if neither is available. Calls
    * `onDone` once fully resolved. Shared by the normal post-combat retreat
-   * queue and, mid-drift, a unit the elephant tramples into. */
+   * queue and, mid-drift, a unit the elephant tramples into. Rehomed onto
+   * the `PlayerAgent` methods below (`chooseRetreat`/`choosePushTarget`) —
+   * this is now just the sequencing glue that decides WHICH question to ask
+   * and applies the engine mutation once it's answered, not the prompt UI
+   * itself. */
   private beginUnitRetreatChoice(unit: Unit, onDone: () => void): void {
     const state = this.state();
     const legalHexes = legalRetreatHexes(state, unit);
     if (legalHexes.length > 0) {
-      this.retreatChoice = { kind: 'retreat', unit, legalHexes, onDone };
-      this.mapView.highlightHexes(legalHexes, 0x4aa6ff, 0.5);
       this.appendLine(`${unitType(unit).name} must retreat — click a highlighted hex.`);
+      this.chooseRetreat(state, unit, legalHexes).then((hex) => {
+        // `decisionPending` must clear even if the mutation below throws —
+        // otherwise every guard it gates (undo, autosave, onHexClick, ...)
+        // stays soft-locked with no way to recover short of a page reload,
+        // a strictly WORSE failure mode than the pre-`decisionPending` board
+        // (which was merely left inconsistent). `onDone()` stays OUTSIDE the
+        // `finally`: it's the next step in the queue, which may itself await
+        // another choice and re-set `decisionPending` — clearing it again
+        // once `onDone()` returns would wipe out that new choice's flag.
+        try {
+          retreatUnitTo(unit, hex);
+          this.appendLine(`${unitType(unit).name} retreats.`);
+          this.renderAllUnits();
+        } finally {
+          this.decisionPending = false;
+        }
+        onDone();
+      });
       return;
     }
 
     const pushTargets = pushCandidates(state, unit);
     if (pushTargets.length > 0) {
-      this.retreatChoice = { kind: 'choosePushTarget', unit, pushTargets, onDone };
-      this.mapView.highlightHexes(pushTargets.map((u) => u.position), 0xffb020, 0.5);
       this.appendLine(
         `${unitType(unit).name} is surrounded by friendly units — click one to retreat and make room.`,
       );
+      this.choosePushTarget(state, unit, pushTargets).then((pushed) => {
+        const legalHexesForPushed = legalRetreatHexes(this.state(), pushed);
+        this.appendLine(`${unitType(pushed).name} must retreat to make room — click a highlighted hex.`);
+        this.chooseRetreat(this.state(), pushed, legalHexesForPushed).then((pushedHex) => {
+          try {
+            completePush(unit, pushed, pushedHex);
+            this.appendLine(`${unitType(pushed).name} retreats, making room for ${unitType(unit).name}.`);
+            this.renderAllUnits();
+          } finally {
+            this.decisionPending = false;
+          }
+          onDone();
+        });
+      });
       return;
     }
 
@@ -1032,6 +1148,31 @@ export class BoardScene extends Phaser.Scene {
     onDone();
   }
 
+  /** `PlayerAgent.chooseRetreat` — highlights `options` and resolves with
+   * whichever one the player clicks (routed here by `handleRetreatChoiceClick`).
+   * Reused, unmodified, for a pushed unit's own retreat destination (see
+   * `beginUnitRetreatChoice`'s push branch). `unit` isn't needed by the
+   * choice itself (only `options`/the click matter) — it exists purely to
+   * satisfy `PlayerAgent`'s signature. */
+  chooseRetreat(_state: GameState, _unit: Unit, options: HexCoord[]): Promise<HexCoord> {
+    this.decisionPending = true;
+    return new Promise((resolve) => {
+      this.retreatChoice = { kind: 'retreat', legalHexes: options, onChosen: resolve };
+      this.mapView.highlightHexes(options, 0x4aa6ff, 0.5);
+    });
+  }
+
+  /** `PlayerAgent.choosePushTarget` — highlights `candidates` and resolves
+   * with whichever friendly unit the player clicks to push aside. `unit`
+   * isn't needed by the choice itself, same as `chooseRetreat` above. */
+  choosePushTarget(_state: GameState, _unit: Unit, candidates: Unit[]): Promise<Unit> {
+    this.decisionPending = true;
+    return new Promise((resolve) => {
+      this.retreatChoice = { kind: 'choosePushTarget', pushTargets: candidates, onChosen: resolve };
+      this.mapView.highlightHexes(candidates.map((u) => u.position), 0xffb020, 0.5);
+    });
+  }
+
   private handleRetreatChoiceClick(hex: HexCoord): void {
     const choice = this.retreatChoice;
     if (!choice) return;
@@ -1039,35 +1180,17 @@ export class BoardScene extends Phaser.Scene {
     if (choice.kind === 'retreat') {
       const match = choice.legalHexes.find((h) => h.q === hex.q && h.r === hex.r);
       if (!match) return;
-      retreatUnitTo(choice.unit, match);
-      this.appendLine(`${unitType(choice.unit).name} retreats.`);
-      this.renderAllUnits();
-      const onDone = choice.onDone;
       this.retreatChoice = null;
-      onDone();
+      choice.onChosen(match);
       return;
     }
 
-    if (choice.kind === 'choosePushTarget') {
-      const occupant = unitAt(this.state(), hex);
-      const pushed = occupant && choice.pushTargets.some((u) => u.id === occupant.id) ? occupant : null;
-      if (!pushed) return;
-      const legalHexes = legalRetreatHexes(this.state(), pushed);
-      this.retreatChoice = { kind: 'pushedRetreat', unit: choice.unit, pushed, legalHexes, onDone: choice.onDone };
-      this.mapView.highlightHexes(legalHexes, 0x4aa6ff, 0.5);
-      this.appendLine(`${unitType(pushed).name} must retreat to make room — click a highlighted hex.`);
-      return;
-    }
-
-    // choice.kind === 'pushedRetreat'
-    const match = choice.legalHexes.find((h) => h.q === hex.q && h.r === hex.r);
-    if (!match) return;
-    completePush(choice.unit, choice.pushed, match);
-    this.appendLine(`${unitType(choice.pushed).name} retreats, making room for ${unitType(choice.unit).name}.`);
-    this.renderAllUnits();
-    const onDone = choice.onDone;
+    // choice.kind === 'choosePushTarget'
+    const occupant = unitAt(this.state(), hex);
+    const pushed = occupant && choice.pushTargets.some((u) => u.id === occupant.id) ? occupant : null;
+    if (!pushed) return;
     this.retreatChoice = null;
-    onDone();
+    choice.onChosen(pushed);
   }
 
   /**
@@ -1142,8 +1265,19 @@ export class BoardScene extends Phaser.Scene {
     this.resolveDriftHit(drift, nextHex, occupant);
   }
 
-  /** A drifting elephant reaching an occupied hex: a real combat (elephant
-   * as attacker, occupant as defender), same engine as any other attack. */
+  /**
+   * A drifting elephant reaching an occupied hex: a real combat (elephant
+   * as attacker, occupant as defender), same engine as any other attack —
+   * but resolved by calling `describeLandAttack`/`applyLandCombatResult`
+   * directly rather than via `applyAction`'s `landAttack` case, since the
+   * whole drift cascade is out of stage-1 scope (see the class-level design
+   * note near `DriftState`). NOTE for Stage 2: this means a headless caller
+   * has no `applyAction`-based way to resolve a drift at all — a
+   * `LandCombatOutcome.pendingDrifts` entry from `applyAction`'s own
+   * `landAttack` case is a real dead end for a fuzz harness today. Elephant
+   * drifts can't be exercised by Stage 2's fuzzer until this cascade gets
+   * its own extraction pass.
+   */
   private resolveDriftHit(drift: DriftState, hex: HexCoord, occupant: Unit): void {
     const { elephant } = drift;
     const state = this.state();
@@ -1237,10 +1371,9 @@ export class BoardScene extends Phaser.Scene {
    * "Whenever a combat forces a retreat, the attacker may optionally
    * advance into the hex the defender vacated" — extended here to also
    * cover a defender being eliminated outright (DE/EX), since that frees
-   * the hex just as plainly. Offers one button per still-living attacker
-   * from the combat that triggered this, plus a decline option; at most
-   * one may move in (only one unit can occupy the hex). Calls `onDone`
-   * once the choice (or non-choice) is made.
+   * the hex just as plainly. Delegates the actual choice to `chooseAdvance`
+   * (the `PlayerAgent` method) and applies the resulting mutation here, then
+   * calls `onDone` once the choice (or non-choice) is settled.
    */
   private promptAdvanceChoice(vacatedHex: HexCoord, onDone: () => void): void {
     if (unitAt(this.state(), vacatedHex)) {
@@ -1254,78 +1387,96 @@ export class BoardScene extends Phaser.Scene {
       onDone();
       return;
     }
+    this.chooseAdvance(this.state(), candidates, vacatedHex).then((chosen) => {
+      try {
+        if (chosen) {
+          chosen.position = vacatedHex;
+          this.log(`${unitType(chosen).name} advances into the vacated hex.`);
+          this.renderAllUnits();
+        }
+      } finally {
+        this.decisionPending = false;
+      }
+      onDone();
+    });
+  }
 
-    const { width, height } = this.scale;
-    const rowHeight = 26;
-    const panelHeight = 76 + candidates.length * rowHeight;
-    const panelY = height / 2;
-    const top = panelY - panelHeight / 2;
+  /** `PlayerAgent.chooseAdvance` — offers one button per candidate plus a
+   * decline option (at most one unit can occupy `vacated`); resolves with
+   * whichever the player picks, or `null` on decline. Purely a choice: the
+   * caller (`promptAdvanceChoice`) applies the resulting move. */
+  chooseAdvance(_state: GameState, candidates: Unit[], _vacated: HexCoord): Promise<Unit | null> {
+    this.decisionPending = true;
+    return new Promise((resolve) => {
+      const { width, height } = this.scale;
+      const rowHeight = 26;
+      const panelHeight = 76 + candidates.length * rowHeight;
+      const panelY = height / 2;
+      const top = panelY - panelHeight / 2;
 
-    const panel = this.add
-      .rectangle(width / 2, panelY, 320, panelHeight, 0x1a1408, 0.97)
-      .setScrollFactor(0)
-      .setDepth(20);
-    const title = this.add
-      .text(width / 2, top + 20, 'Advance into the vacated hex?', {
-        fontSize: '13px',
-        color: '#fff',
-        align: 'center',
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(21);
-
-    const buttons: Phaser.GameObjects.Text[] = [];
-    const cleanup = () => {
-      panel.destroy();
-      title.destroy();
-      for (const b of buttons) b.destroy();
-    };
-
-    candidates.forEach((unit, i) => {
-      const btn = this.add
-        .text(width / 2, top + 48 + i * rowHeight, `Advance ${unitType(unit).name}`, {
+      const panel = this.add
+        .rectangle(width / 2, panelY, 320, panelHeight, 0x1a1408, 0.97)
+        .setScrollFactor(0)
+        .setDepth(20);
+      const title = this.add
+        .text(width / 2, top + 20, 'Advance into the vacated hex?', {
           fontSize: '13px',
           color: '#fff',
-          backgroundColor: '#553',
+          align: 'center',
+        })
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(21);
+
+      const buttons: Phaser.GameObjects.Text[] = [];
+      const cleanup = () => {
+        panel.destroy();
+        title.destroy();
+        for (const b of buttons) b.destroy();
+      };
+
+      candidates.forEach((unit, i) => {
+        const btn = this.add
+          .text(width / 2, top + 48 + i * rowHeight, `Advance ${unitType(unit).name}`, {
+            fontSize: '13px',
+            color: '#fff',
+            backgroundColor: '#553',
+            padding: { x: 10, y: 6 },
+          })
+          .setOrigin(0.5)
+          .setScrollFactor(0)
+          .setDepth(21)
+          .setInteractive({ useHandCursor: true });
+        btn.on('pointerdown', () => {
+          cleanup();
+          resolve(unit);
+        });
+        buttons.push(btn);
+      });
+
+      const declineBtn = this.add
+        .text(width / 2, top + panelHeight - 20, "Don't advance", {
+          fontSize: '13px',
+          color: '#fff',
+          backgroundColor: '#2a5a2a',
           padding: { x: 10, y: 6 },
         })
         .setOrigin(0.5)
         .setScrollFactor(0)
         .setDepth(21)
         .setInteractive({ useHandCursor: true });
-      btn.on('pointerdown', () => {
+      declineBtn.on('pointerdown', () => {
         cleanup();
-        unit.position = vacatedHex;
-        this.log(`${unitType(unit).name} advances into the vacated hex.`);
-        this.renderAllUnits();
-        onDone();
+        resolve(null);
       });
-      buttons.push(btn);
-    });
+      buttons.push(declineBtn);
 
-    const declineBtn = this.add
-      .text(width / 2, top + panelHeight - 20, "Don't advance", {
-        fontSize: '13px',
-        color: '#fff',
-        backgroundColor: '#2a5a2a',
-        padding: { x: 10, y: 6 },
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(21)
-      .setInteractive({ useHandCursor: true });
-    declineBtn.on('pointerdown', () => {
-      cleanup();
-      onDone();
+      this.mapView.excludeFromMainCamera([panel, title, ...buttons]);
     });
-    buttons.push(declineBtn);
-
-    this.mapView.excludeFromMainCamera([panel, title, ...buttons]);
   }
 
   private resolveGroupAttack(): void {
-    if (this.retreatChoice || this.driftState) {
+    if (this.retreatChoice || this.driftState || this.decisionPending) {
       this.log('Resolve the pending retreat/drift before starting a new attack.');
       return;
     }
@@ -1347,22 +1498,35 @@ export class BoardScene extends Phaser.Scene {
     this.recordAction(
       `Attack with ${this.attackGroup.length} unit(s)`,
     );
-    const dieRoll = this.rollDie();
-    const detail = describeLandAttack(this.attackGroup, this.defenderGroup, dieRoll);
-    const attackersFromThisCombat = [...this.attackGroup];
-    // Defenders keep their `.position` when destroyed (only `.destroyed`
-    // flips), but capture it explicitly before resolving for clarity.
-    const originalDefenderHexById = new Map(this.defenderGroup.map((d) => [d.id, { ...d.position }]));
-    for (const u of this.attackGroup) this.attackedThisPhase.add(u.id);
-    const outcome = applyLandCombatResult(state, this.attackGroup, this.defenderGroup, detail.result);
-    this.logCombatOutcome(this.attackGroup, this.defenderGroup, detail);
+    const attackerIds = this.attackGroup.map((u) => u.id);
+    const defenderIds = this.defenderGroup.map((u) => u.id);
+    for (const id of attackerIds) this.attackedThisPhase.add(id);
+    const action: Action = { kind: 'landAttack', attackerIds, defenderIds };
+    const { detail, outcome, attackers: attackersFromThisCombat, defenderOriginalHexes } = applyAction(
+      state,
+      action,
+      this.diceRng,
+    );
+    this.reportAction(action);
+    this.logCombatOutcome(attackersFromThisCombat, this.defenderGroup, detail);
 
     if (outcome.requiresExchangeChoice) {
-      this.promptExchangeSacrifice(
-        this.attackGroup,
-        outcome.requiredSacrificeForce,
-        [...originalDefenderHexById.values()],
-      );
+      this.chooseExchangeSacrifice(state, attackersFromThisCombat, outcome.requiredSacrificeForce).then((chosen) => {
+        try {
+          applyExchangeSacrifice(chosen);
+          this.log(
+            `Exchange: defender(s) destroyed; sacrificed ${chosen.map((u) => unitType(u).name).join(', ') || 'none'}.`,
+          );
+          this.renderAllUnits();
+          this.clearCombatSelection();
+        } finally {
+          this.decisionPending = false;
+        }
+        this.beginAdvanceOffers(
+          defenderOriginalHexes,
+          attackersFromThisCombat.filter((u) => !u.destroyed),
+        );
+      });
       return;
     }
     this.renderAllUnits();
@@ -1375,7 +1539,7 @@ export class BoardScene extends Phaser.Scene {
       // The defender(s) were eliminated outright rather than retreating —
       // per the same "advance into the vacated hex" option, extended here
       // to cover elimination too, since that frees the hex just as plainly.
-      this.beginAdvanceOffers([...originalDefenderHexById.values()], attackersFromThisCombat);
+      this.beginAdvanceOffers(defenderOriginalHexes, attackersFromThisCombat);
     }
   }
 
@@ -1410,101 +1574,96 @@ export class BoardScene extends Phaser.Scene {
     this.log(lines.join('\n'));
   }
 
-  /** On an EX (exchange) result with more than one attacking unit, the
-   * attacking player must choose which of their own units to also lose,
-   * totaling at least the defenders' force (see `applyLandCombatResult`).
-   * `defenderHexes` are the (now-vacated, since EX always destroys the
-   * defenders) hexes to offer the surviving attackers an advance into
-   * afterward. */
-  private promptExchangeSacrifice(attackers: Unit[], requiredForce: number, defenderHexes: HexCoord[]): void {
-    const { width, height } = this.scale;
-    const rowHeight = 24;
-    const panelHeight = 110 + attackers.length * rowHeight;
-    const panelY = height / 2;
-    const top = panelY - panelHeight / 2;
+  /** `PlayerAgent.chooseExchangeSacrifice` — on an EX (exchange) result with
+   * more than one attacking unit, the attacking player must choose which of
+   * their own units to also lose, totaling at least `requiredForce` (see
+   * `exchangeSacrificeMeetsThreshold`). Resolves only once a valid selection
+   * is confirmed; the caller applies the actual sacrifice. */
+  chooseExchangeSacrifice(_state: GameState, attackers: Unit[], requiredForce: number): Promise<Unit[]> {
+    this.decisionPending = true;
+    return new Promise((resolve) => {
+      const { width, height } = this.scale;
+      const rowHeight = 24;
+      const panelHeight = 110 + attackers.length * rowHeight;
+      const panelY = height / 2;
+      const top = panelY - panelHeight / 2;
 
-    const panel = this.add
-      .rectangle(width / 2, panelY, 340, panelHeight, 0x1a1408, 0.97)
-      .setScrollFactor(0)
-      .setDepth(20);
-    const title = this.add
-      .text(width / 2, top + 20, `Exchange: choose losses\n(need ≥ ${requiredForce} attack force)`, {
-        fontSize: '13px',
-        color: '#fff',
-        align: 'center',
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(21);
-    const totalText = this.add
-      .text(width / 2, top + panelHeight - 44, '', { fontSize: '13px', color: '#e8d9b0' })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(21);
-    const confirmBtn = this.add
-      .text(width / 2, top + panelHeight - 16, 'Confirm losses', {
-        fontSize: '14px',
-        color: '#fff',
-        backgroundColor: '#553',
-        padding: { x: 10, y: 6 },
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(21)
-      .setInteractive({ useHandCursor: true });
-
-    const selected = new Set<string>();
-    const label = (u: Unit) => `${selected.has(u.id) ? '☒' : '☐'} ${unitType(u).name} (atk ${currentAttack(u)})`;
-    const updateTotal = () => {
-      const chosen = attackers.filter((u) => selected.has(u.id));
-      const sum = chosen.reduce((s, u) => s + currentAttack(u), 0);
-      const met = exchangeSacrificeMeetsThreshold(chosen, requiredForce);
-      totalText.setText(`Selected force: ${sum} / ${requiredForce}${met ? ' ✓' : ''}`);
-      confirmBtn.setStyle({ backgroundColor: met ? '#2a5a2a' : '#553' });
-    };
-
-    const rowTexts: Phaser.GameObjects.Text[] = attackers.map((unit, i) => {
-      const rowText = this.add
-        .text(width / 2, top + 56 + i * rowHeight, label(unit), {
+      const panel = this.add
+        .rectangle(width / 2, panelY, 340, panelHeight, 0x1a1408, 0.97)
+        .setScrollFactor(0)
+        .setDepth(20);
+      const title = this.add
+        .text(width / 2, top + 20, `Exchange: choose losses\n(need ≥ ${requiredForce} attack force)`, {
           fontSize: '13px',
-          color: '#e8d9b0',
+          color: '#fff',
+          align: 'center',
+        })
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(21);
+      const totalText = this.add
+        .text(width / 2, top + panelHeight - 44, '', { fontSize: '13px', color: '#e8d9b0' })
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(21);
+      const confirmBtn = this.add
+        .text(width / 2, top + panelHeight - 16, 'Confirm losses', {
+          fontSize: '14px',
+          color: '#fff',
+          backgroundColor: '#553',
+          padding: { x: 10, y: 6 },
         })
         .setOrigin(0.5)
         .setScrollFactor(0)
         .setDepth(21)
         .setInteractive({ useHandCursor: true });
-      rowText.on('pointerdown', () => {
-        if (selected.has(unit.id)) selected.delete(unit.id);
-        else selected.add(unit.id);
-        rowText.setText(label(unit));
-        rowText.setColor(selected.has(unit.id) ? '#ff8080' : '#e8d9b0');
-        updateTotal();
+
+      const selected = new Set<string>();
+      const label = (u: Unit) => `${selected.has(u.id) ? '☒' : '☐'} ${unitType(u).name} (atk ${currentAttack(u)})`;
+      const updateTotal = () => {
+        const chosen = attackers.filter((u) => selected.has(u.id));
+        const sum = chosen.reduce((s, u) => s + currentAttack(u), 0);
+        const met = exchangeSacrificeMeetsThreshold(chosen, requiredForce);
+        totalText.setText(`Selected force: ${sum} / ${requiredForce}${met ? ' ✓' : ''}`);
+        confirmBtn.setStyle({ backgroundColor: met ? '#2a5a2a' : '#553' });
+      };
+
+      const rowTexts: Phaser.GameObjects.Text[] = attackers.map((unit, i) => {
+        const rowText = this.add
+          .text(width / 2, top + 56 + i * rowHeight, label(unit), {
+            fontSize: '13px',
+            color: '#e8d9b0',
+          })
+          .setOrigin(0.5)
+          .setScrollFactor(0)
+          .setDepth(21)
+          .setInteractive({ useHandCursor: true });
+        rowText.on('pointerdown', () => {
+          if (selected.has(unit.id)) selected.delete(unit.id);
+          else selected.add(unit.id);
+          rowText.setText(label(unit));
+          rowText.setColor(selected.has(unit.id) ? '#ff8080' : '#e8d9b0');
+          updateTotal();
+        });
+        return rowText;
       });
-      return rowText;
-    });
 
-    updateTotal();
-    this.mapView.excludeFromMainCamera([panel, title, totalText, confirmBtn, ...rowTexts]);
+      updateTotal();
+      this.mapView.excludeFromMainCamera([panel, title, totalText, confirmBtn, ...rowTexts]);
 
-    confirmBtn.on('pointerdown', () => {
-      const chosen = attackers.filter((u) => selected.has(u.id));
-      if (!exchangeSacrificeMeetsThreshold(chosen, requiredForce)) {
-        this.log(`Select units totaling at least ${requiredForce} attack force before confirming.`);
-        return;
-      }
-      applyExchangeSacrifice(chosen);
-      panel.destroy();
-      title.destroy();
-      totalText.destroy();
-      confirmBtn.destroy();
-      for (const t of rowTexts) t.destroy();
-      this.log(`Exchange: defender(s) destroyed; sacrificed ${chosen.map((u) => unitType(u).name).join(', ') || 'none'}.`);
-      this.renderAllUnits();
-      this.clearCombatSelection();
-      this.beginAdvanceOffers(
-        defenderHexes,
-        attackers.filter((u) => !u.destroyed),
-      );
+      confirmBtn.on('pointerdown', () => {
+        const chosen = attackers.filter((u) => selected.has(u.id));
+        if (!exchangeSacrificeMeetsThreshold(chosen, requiredForce)) {
+          this.log(`Select units totaling at least ${requiredForce} attack force before confirming.`);
+          return;
+        }
+        panel.destroy();
+        title.destroy();
+        totalText.destroy();
+        confirmBtn.destroy();
+        for (const t of rowTexts) t.destroy();
+        resolve(chosen);
+      });
     });
   }
 
@@ -1560,9 +1719,9 @@ export class BoardScene extends Phaser.Scene {
       cleanup();
       this.recordAction(`Board ${unitType(defender).name}`);
       this.attackedThisPhase.add(attacker.id);
-      const dieRoll = this.rollDie();
-      const result = resolveNavalBoarding(currentAttack(attacker), currentDefense(defender), dieRoll);
-      applyBoardingResult(attacker, defender, result);
+      const action: Action = { kind: 'board', attackerId: attacker.id, defenderId: defender.id };
+      const { dieRoll, result } = applyAction(this.state(), action, this.diceRng);
+      this.reportAction(action);
       this.log(`Boarding: die ${dieRoll} -> ${result.side ?? 'no effect'} loses ${result.equipmentLoss} equipment`);
       this.renderAllUnits();
       this.clearCombatSelection();
@@ -1575,7 +1734,7 @@ export class BoardScene extends Phaser.Scene {
   }
 
   private endPhase(): void {
-    if (this.retreatChoice || this.driftState) {
+    if (this.retreatChoice || this.driftState || this.decisionPending) {
       this.log('Resolve the pending retreat/drift before ending the phase.');
       return;
     }
@@ -1586,14 +1745,20 @@ export class BoardScene extends Phaser.Scene {
     this.history.clear();
     this.refreshUndoRedoButtons();
     const state = this.state();
-    advancePhase(state);
+    const endAction: Action = { kind: 'endPhase' };
+    applyAction(state, endAction);
+    this.reportAction(endAction);
     this.attackedThisPhase.clear();
     if (state.gameOver) {
       this.scene.start('GameOver');
       return;
     }
     if (state.phase === 'movement') {
-      this.resetMovementForActivePlayer();
+      // `applyAction`'s 'endPhase' case already refilled movement/charge for
+      // the new active player (see engine/actions.ts) — only the scene-local
+      // ramming bookkeeping (kept outside `GameState`, see `rammedThisTurn`'s
+      // doc comment) still needs resetting here.
+      this.rammedThisTurn.clear();
       // A player's movement phase beginning is the natural checkpoint: a
       // crash or closed tab then costs at most that one turn.
       this.autosave();
