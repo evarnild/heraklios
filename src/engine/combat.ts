@@ -192,13 +192,25 @@ export function unionValidTargets(state: GameState, group: Unit[]): Unit[] {
 
 /** Whether `candidate` may join the attacking side of a combat currently
  * targeting `defenderGroup`, per the join rule for `mode`. An empty
- * defender group (nothing targeted yet) always allows joining. */
+ * defender group (nothing targeted yet) always allows joining.
+ *
+ * The phalanx restriction is checked against the WHOLE `defenderGroup` here,
+ * not just via `validTargets`/`unionValidTargets` below: in 'multi-defender'
+ * mode, `unionValidTargets` only asks whether *some* attacker can reach a
+ * given defender, which a phalanx can satisfy through a non-cavalry
+ * groupmate even while a cavalry unit sits elsewhere in the same attack
+ * group — that cavalry unit would then get credit (and, if charging, a
+ * doubled attack value) for a combat the rulebook forbids it from joining at
+ * all. So this explicit check rejects a cavalry candidate whenever ANY
+ * current defender is a phalanx, regardless of what the rest of the group
+ * could otherwise reach. */
 export function attackerCanJoin(
   state: GameState,
   candidate: Unit,
   defenderGroup: Unit[],
   mode: CombatMode,
 ): boolean {
+  if (defenderGroup.some((d) => !cavalryMayAttack(candidate, d))) return false;
   if (defenderGroup.length === 0) return true;
   const targets = validTargets(state, candidate);
   if (mode === 'single-defender') {
@@ -208,13 +220,21 @@ export function attackerCanJoin(
 }
 
 /** Whether `candidate` may join the defending side of a combat currently
- * being attacked by `attackGroup`, per the join rule for `mode`. */
+ * being attacked by `attackGroup`, per the join rule for `mode`.
+ *
+ * Mirrors `attackerCanJoin`'s explicit phalanx check, for the same reason:
+ * `unionValidTargets` alone would let a phalanx join as a valid
+ * 'multi-defender' target on the strength of a non-cavalry attacker already
+ * in `attackGroup`, even though a cavalry unit sits in that same group and
+ * may never attack it. Reject the join outright if any current attacker
+ * can't legally attack `candidate`. */
 export function defenderCanJoin(
   state: GameState,
   candidate: Unit,
   attackGroup: Unit[],
   mode: CombatMode,
 ): boolean {
+  if (attackGroup.some((a) => !cavalryMayAttack(a, candidate))) return false;
   if (mode === 'single-defender') {
     return commonValidTargets(state, attackGroup).some((u) => u.id === candidate.id);
   }

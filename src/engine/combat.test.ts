@@ -4,12 +4,14 @@ import {
   applyExchangeSacrifice,
   applyLandCombatResult,
   applyRammingResult,
+  attackerCanJoin,
   canBoard,
   canElephantEnterHex,
   cavalryMayAttack,
   checkRangedEligibility,
   commonValidTargets,
   completePush,
+  defenderCanJoin,
   exchangeSacrificeMeetsThreshold,
   legalRetreatHexes,
   pushCandidates,
@@ -206,6 +208,48 @@ describe('cavalryMayAttack — phalanx restriction', () => {
     const state = makeState([phalanx, cav, infantry]);
     expect(validTargets(state, cav)).toHaveLength(0);
     expect(validTargets(state, infantry).map((u) => u.id)).toEqual([phalanx.id]);
+  });
+});
+
+describe('attackerCanJoin / defenderCanJoin — phalanx restriction is group-aware', () => {
+  // Regression for an adversarial-review finding: `unionValidTargets` (the
+  // 'multi-defender' eligibility rule) only asks whether SOME attacker can
+  // reach a given defender, so a phalanx was reachable through a non-cavalry
+  // groupmate even while a cavalry unit sat elsewhere in the same attack
+  // group — which the rulebook forbids outright. `attackerCanJoin` /
+  // `defenderCanJoin` must reject the phalanx (or the cavalry) regardless of
+  // which unit joins the group first.
+  it('defenderCanJoin rejects a phalanx once cavalry is anywhere in the attack group, in either build order', () => {
+    const phalanx = makeUnit({ typeId: 'phalanges', position: { q: 0, r: 0 }, owner: 1 });
+    const infantry = makeUnit({ typeId: 'fantassins', position: { q: -1, r: 0 } });
+    const cavalry = makeUnit({ typeId: 'cavalerie-legere', position: { q: 1, r: 0 } });
+    const state = makeState([phalanx, infantry, cavalry]);
+
+    // Sanity check: infantry ALONE (no cavalry in the group) may legitimately target the phalanx.
+    expect(defenderCanJoin(state, phalanx, [infantry], 'multi-defender')).toBe(true);
+
+    // "infantry-then-cavalry": infantry joined the attack group before the
+    // phalanx was offered as a target, then cavalry joined too.
+    expect(defenderCanJoin(state, phalanx, [infantry, cavalry], 'multi-defender')).toBe(false);
+    // "cavalry-then-infantry": same final group, built in the other order —
+    // group-membership checks must not depend on array order.
+    expect(defenderCanJoin(state, phalanx, [cavalry, infantry], 'multi-defender')).toBe(false);
+  });
+
+  it('attackerCanJoin rejects a cavalry candidate from joining a group already attacking a phalanx', () => {
+    const phalanx = makeUnit({ typeId: 'phalanges', position: { q: 0, r: 0 }, owner: 1 });
+    const cavalry = makeUnit({ typeId: 'cavalerie-legere', position: { q: 1, r: 0 } });
+    const state = makeState([phalanx, cavalry]);
+    expect(attackerCanJoin(state, cavalry, [phalanx], 'multi-defender')).toBe(false);
+    expect(attackerCanJoin(state, cavalry, [phalanx], 'single-defender')).toBe(false);
+  });
+
+  it('single-defender mode was already safe: commonValidTargets already excludes the phalanx once cavalry is in the group', () => {
+    const phalanx = makeUnit({ typeId: 'phalanges', position: { q: 0, r: 0 }, owner: 1 });
+    const infantry = makeUnit({ typeId: 'fantassins', position: { q: -1, r: 0 } });
+    const cavalry = makeUnit({ typeId: 'cavalerie-legere', position: { q: 1, r: 0 } });
+    const state = makeState([phalanx, infantry, cavalry]);
+    expect(defenderCanJoin(state, phalanx, [infantry, cavalry], 'single-defender')).toBe(false);
   });
 });
 
