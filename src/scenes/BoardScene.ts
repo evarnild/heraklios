@@ -563,8 +563,10 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         // Menu's "Charger une partie" > Autosave row. Clearing it would risk
         // the strictly worse outcome the plan calls out: silently
         // discarding a game the player might have wanted back. Leaving it
-        // costs nothing either way, since the very next real game's first
-        // movement-phase checkpoint (see `endPhase`) overwrites it anyway.
+        // costs nothing either way: `create()` below writes a fresh
+        // autosave unconditionally (see its last few lines), so the very
+        // next game to reach this scene overwrites it as soon as it does,
+        // whether that's a fresh game or another loaded save.
         resetToMenu();
         this.scene.start('Menu');
       },
