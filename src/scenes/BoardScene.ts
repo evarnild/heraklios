@@ -26,6 +26,7 @@ import {
   unionValidTargets,
   attackerCanJoin,
   defenderCanJoin,
+  cavalryMayAttack,
   resolveNavalBoarding,
   applyRammingResult,
   applyBoardingResult,
@@ -900,7 +901,16 @@ export class BoardScene extends Phaser.Scene {
       return;
     }
     if (!defenderCanJoin(state, unit, this.attackGroup, state.combatMode)) {
-      this.log(`${unitType(unit).name} isn't reachable by the current attack group.`);
+      // Distinguish "genuinely unreachable" from "reachable, but cavalry in
+      // the group makes this specific target illegal" (a phalanx) — the
+      // generic message would otherwise be misleading when some OTHER
+      // groupmate could in fact reach this unit just fine (see
+      // `defenderCanJoin`'s doc comment in engine/combat.ts).
+      if (this.attackGroup.some((a) => !cavalryMayAttack(a, unit))) {
+        this.log(`${unitType(unit).name} can't be attacked by cavalry — remove the cavalry from the group first.`);
+      } else {
+        this.log(`${unitType(unit).name} isn't reachable by the current attack group.`);
+      }
       return;
     }
     this.recordAction(`Target ${unitType(unit).name}`);
@@ -913,9 +923,16 @@ export class BoardScene extends Phaser.Scene {
     const eligible =
       this.attackGroup.length === 0
         ? []
-        : state.combatMode === 'single-defender'
-          ? commonValidTargets(state, this.attackGroup)
-          : unionValidTargets(state, this.attackGroup);
+        : (state.combatMode === 'single-defender'
+            ? commonValidTargets(state, this.attackGroup)
+            : unionValidTargets(state, this.attackGroup)
+          ) // `unionValidTargets` alone can admit a phalanx reachable only
+            // through a non-cavalry groupmate even while cavalry sits
+            // elsewhere in `attackGroup` — re-check the group-aware rule
+            // `defenderCanJoin` actually enforces so the highlight can't
+            // paint a target that clicking it would then reject (see
+            // engine/combat.ts's `defenderCanJoin` doc comment).
+            .filter((u) => defenderCanJoin(state, u, this.attackGroup, state.combatMode));
     const eligibleNotChosen = eligible.filter((u) => !this.defenderGroup.some((d) => d.id === u.id));
     this.mapView.highlightHexGroups([
       { hexes: this.attackGroup.map((u) => u.position), color: 0x4aa6ff, alpha: 0.45 },
