@@ -175,6 +175,28 @@ export function assertInvariants(state: GameState, context: string): void {
 }
 
 /**
+ * "Turn order preserved" as its own explicit check, separate from
+ * `assertInvariants`' more general `activePlayerIndex`-is-valid check above:
+ * `buildFuzzGameState()` never opts into `randomizedTurnOrder` (see
+ * `createInitialState`'s default in turnManager.ts), so `state.seatOrder`
+ * should be BYTE-IDENTICAL to `initialSeatOrder` for the entire game —
+ * `advancePhase` only ever reshuffles it when that flag is set. Takes the
+ * game's actual starting order as a parameter rather than re-deriving an
+ * expectation, so this stays correct even if `buildFuzzGameState()`'s
+ * player list or seat count ever changes.
+ */
+function assertTurnOrderPreserved(state: GameState, initialSeatOrder: readonly PlayerId[], context: string): void {
+  const unchanged =
+    state.seatOrder.length === initialSeatOrder.length &&
+    state.seatOrder.every((id, i) => id === initialSeatOrder[i]);
+  if (!unchanged) {
+    throw new Error(
+      `Invariant violated (${context}): seatOrder changed from [${initialSeatOrder.join(',')}] to [${state.seatOrder.join(',')}] despite randomizedTurnOrder being off`,
+    );
+  }
+}
+
+/**
  * Direct regression guard for the exact HIGH defect plan.md §6.6 records:
  * `applyAction`'s `endPhase` case once transitioned into a fresh movement
  * phase WITHOUT refilling movement, so a headless caller got
@@ -445,6 +467,7 @@ export async function playRandomGame(seed: number, options: PlayRandomGameOption
   // leaning on `endPhase`'s refill for a turn that hasn't happened yet.
   resetMovementForActivePlayer(state);
 
+  const initialSeatOrder = [...state.seatOrder];
   const context = emptyContext();
   const stats: HarnessStats = {
     seed,
@@ -485,6 +508,7 @@ export async function playRandomGame(seed: number, options: PlayRandomGameOption
     stats.actionsByKind[action.kind] = (stats.actionsByKind[action.kind] ?? 0) + 1;
     stats.turnsReached = Math.max(stats.turnsReached, state.turnNumber);
     assertInvariants(state, `after action #${stats.totalActions} (${action.kind})`);
+    assertTurnOrderPreserved(state, initialSeatOrder, `after action #${stats.totalActions} (${action.kind})`);
   }
 
   stats.gameOver = true;
