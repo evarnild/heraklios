@@ -124,6 +124,18 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * pending" and fall through to `toggleAttacker`/undo/autosave/etc. against
    * a board that's about to change underneath it. Included in the same
    * guards as `retreatChoice`/`driftState`.
+   *
+   * Every `.then()` continuation that clears this flag does so in a
+   * `finally` around the mutation, never after it unguarded: a throw from
+   * `retreatUnitTo`/`renderAllUnits`/etc. would otherwise leave this `true`
+   * forever, soft-locking every guard it gates (undo, autosave, save/load,
+   * `onHexClick`, ending the phase, starting a new attack) with no recovery
+   * short of a page reload — a strictly WORSE failure mode than the
+   * pre-`decisionPending` board, which such a throw merely left
+   * inconsistent-but-usable. The continuation's next step (`onDone()` /
+   * `beginAdvanceOffers`) always runs OUTSIDE that `finally`, since it may
+   * itself await a further choice and re-set this flag — clearing it again
+   * once the next step returns would wipe out that new choice's flag.
    */
   private decisionPending = false;
   /** The attacking side from the combat currently driving the queues above —
@@ -1085,10 +1097,21 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     if (legalHexes.length > 0) {
       this.appendLine(`${unitType(unit).name} must retreat — click a highlighted hex.`);
       this.chooseRetreat(state, unit, legalHexes).then((hex) => {
-        retreatUnitTo(unit, hex);
-        this.appendLine(`${unitType(unit).name} retreats.`);
-        this.renderAllUnits();
-        this.decisionPending = false;
+        // `decisionPending` must clear even if the mutation below throws —
+        // otherwise every guard it gates (undo, autosave, onHexClick, ...)
+        // stays soft-locked with no way to recover short of a page reload,
+        // a strictly WORSE failure mode than the pre-`decisionPending` board
+        // (which was merely left inconsistent). `onDone()` stays OUTSIDE the
+        // `finally`: it's the next step in the queue, which may itself await
+        // another choice and re-set `decisionPending` — clearing it again
+        // once `onDone()` returns would wipe out that new choice's flag.
+        try {
+          retreatUnitTo(unit, hex);
+          this.appendLine(`${unitType(unit).name} retreats.`);
+          this.renderAllUnits();
+        } finally {
+          this.decisionPending = false;
+        }
         onDone();
       });
       return;
@@ -1103,10 +1126,13 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         const legalHexesForPushed = legalRetreatHexes(this.state(), pushed);
         this.appendLine(`${unitType(pushed).name} must retreat to make room — click a highlighted hex.`);
         this.chooseRetreat(this.state(), pushed, legalHexesForPushed).then((pushedHex) => {
-          completePush(unit, pushed, pushedHex);
-          this.appendLine(`${unitType(pushed).name} retreats, making room for ${unitType(unit).name}.`);
-          this.renderAllUnits();
-          this.decisionPending = false;
+          try {
+            completePush(unit, pushed, pushedHex);
+            this.appendLine(`${unitType(pushed).name} retreats, making room for ${unitType(unit).name}.`);
+            this.renderAllUnits();
+          } finally {
+            this.decisionPending = false;
+          }
           onDone();
         });
       });
@@ -1362,12 +1388,15 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       return;
     }
     this.chooseAdvance(this.state(), candidates, vacatedHex).then((chosen) => {
-      if (chosen) {
-        chosen.position = vacatedHex;
-        this.log(`${unitType(chosen).name} advances into the vacated hex.`);
-        this.renderAllUnits();
+      try {
+        if (chosen) {
+          chosen.position = vacatedHex;
+          this.log(`${unitType(chosen).name} advances into the vacated hex.`);
+          this.renderAllUnits();
+        }
+      } finally {
+        this.decisionPending = false;
       }
-      this.decisionPending = false;
       onDone();
     });
   }
@@ -1483,13 +1512,16 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
 
     if (outcome.requiresExchangeChoice) {
       this.chooseExchangeSacrifice(state, attackersFromThisCombat, outcome.requiredSacrificeForce).then((chosen) => {
-        applyExchangeSacrifice(chosen);
-        this.log(
-          `Exchange: defender(s) destroyed; sacrificed ${chosen.map((u) => unitType(u).name).join(', ') || 'none'}.`,
-        );
-        this.renderAllUnits();
-        this.clearCombatSelection();
-        this.decisionPending = false;
+        try {
+          applyExchangeSacrifice(chosen);
+          this.log(
+            `Exchange: defender(s) destroyed; sacrificed ${chosen.map((u) => unitType(u).name).join(', ') || 'none'}.`,
+          );
+          this.renderAllUnits();
+          this.clearCombatSelection();
+        } finally {
+          this.decisionPending = false;
+        }
         this.beginAdvanceOffers(
           defenderOriginalHexes,
           attackersFromThisCombat.filter((u) => !u.destroyed),

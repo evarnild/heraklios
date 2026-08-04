@@ -104,8 +104,12 @@ Two boundaries deliberately limit how far back it reaches:
   player's committed turn. During placement it's likewise scoped to the
   player currently deploying.
 
-Undo is also refused while a retreat or elephant drift is still awaiting a
-choice — resolve it first, the same rule "End phase" already follows.
+Undo is also refused while a retreat, elephant drift, post-combat advance
+offer, or exchange-sacrifice choice is still awaiting an answer — resolve it
+first, the same rule "End phase" already follows. The advance-offer and
+exchange-sacrifice panels are properly modal for the same reason: clicking
+the board while one is open is ignored rather than (as in earlier builds)
+silently falling through to select a unit or target underneath the panel.
 
 ### Deployment zone position
 
