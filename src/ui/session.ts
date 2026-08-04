@@ -66,18 +66,33 @@ function assignEdgesRandomly(playerCount: number): void {
  * Clears everything that belongs to the game being left, before handing
  * control back to the Menu — called by every "Abandon" control
  * (ArmyBuilder/Placement/Board) and by `GameOverScene`'s "Back to menu"
- * (which had the same latent gap: nothing previously reset `testMode` on
- * that path either).
+ * (which had the same latent gap: nothing previously reset session state on
+ * that path either, it just happened to never matter because a finished
+ * game is never resumed).
  *
- * Without this, a finished or abandoned game's leftovers leak into the
- * next one. The concrete failure this guards against: a game launched via
- * one of the Menu's test-mode shortcuts sets `testMode = true`; if a player
- * then abandons it and picks "Charger une partie" to load a *real* saved
- * game instead of starting a fresh one (the only other path out of the
- * Menu that doesn't call `resetSession`), `testMode` would still read
- * `true` for that resumed real game — silently relaxing the "a die roll is
- * an undo boundary" rule (see BoardScene's `rollDie`/`clearHistoryOnRoll`)
- * for a game that never asked for it.
+ * Every one of the three ways to actually *start* a game already
+ * re-initializes `gameState`/`testMode` itself before Board becomes
+ * reachable — `resetSession` (a fresh player-count pick), the test-mode
+ * shortcuts in `testMode.ts` (`startTestGame`/`startCloseCombatTestGame`),
+ * and `applySavedGame` (loading a save) — so on its own this function isn't
+ * fixing a reachable bug in those three fields *today*. It exists as the
+ * single, tested place that makes "an abandoned game's state cannot outlive
+ * the abandon" an invariant rather than something that happens to hold
+ * because three unrelated call sites are each individually careful,
+ * which is exactly the kind of thing that quietly stops being true the next
+ * time one of those three paths changes.
+ *
+ * `armySelections` is the one field where the leak IS concretely reachable
+ * today: the test-mode shortcuts deliberately skip `resetSession` (they
+ * build their armies directly, not from `armySelections`) and never touch
+ * it either. Abandon a real game mid-`ArmyBuilder`/`Placement`/`Board` —
+ * `session.armySelections` still holds that game's `playerCount`-length
+ * selections — then launch a test-mode game instead of a real one, and its
+ * first autosave (`BoardScene.autosave`, unconditional) or manual save
+ * bakes that stale, mismatched-length `armySelections` into the SavedGame
+ * alongside the test game's own (different) `playerCount` and units — see
+ * `saveStorage.ts`'s `captureCurrentGame`, which reads `session.armySelections`
+ * with no awareness of which game populated it.
  *
  * Deliberately does NOT touch `playerNames`, `combatMode`, or
  * `randomizedTurnOrder`: those are Menu-chosen preferences meant to persist

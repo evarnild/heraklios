@@ -28,12 +28,13 @@ describe('resetToMenu', () => {
     expect(session.gameState).toBeNull();
   });
 
-  it('clears testMode, so a subsequently loaded real game does not inherit the relaxed undo rule', () => {
+  it('clears testMode as a defense-in-depth invariant, even though every current entry point also sets it itself', () => {
     resetToMenu();
     expect(session.testMode).toBe(false);
   });
 
-  it('clears army selections made for the abandoned game', () => {
+  it('clears army selections left by the abandoned game — otherwise a stale, mismatched-length array would ' +
+      'survive into a test-mode game (which never repopulates it) and get baked into that game\'s save file', () => {
     resetToMenu();
     expect(session.armySelections).toEqual([]);
   });
