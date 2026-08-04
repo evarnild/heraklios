@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { session } from '../ui/session';
+import { session, resetToMenu } from '../ui/session';
 import { armyValue } from '../engine/state';
 
 export class GameOverScene extends Phaser.Scene {
@@ -37,6 +37,15 @@ export class GameOverScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
-    restartBtn.on('pointerdown', () => this.scene.start('Menu'));
+    // The game just ended, so there's nothing destructive to confirm here —
+    // but it's the same "returning to the Menu without resetting `session`
+    // leaks the finished game's setup into the next one" gap the Abandon
+    // controls guard against elsewhere (see `resetToMenu`'s doc comment),
+    // and this was the only pre-existing `scene.start('Menu')` in the
+    // codebase, so it had the same latent bug.
+    restartBtn.on('pointerdown', () => {
+      resetToMenu();
+      this.scene.start('Menu');
+    });
   }
 }

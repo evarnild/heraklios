@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import { UNIT_TYPES } from '../data/units';
 import { validateArmy, defaultArmySelection, ARMY_BUDGET } from '../engine/army';
-import { session } from '../ui/session';
+import { session, resetToMenu } from '../ui/session';
+import { showConfirmDialog } from '../ui/confirmDialog';
 
 export class ArmyBuilderScene extends Phaser.Scene {
   private playerIndex = 0;
@@ -28,6 +29,28 @@ export class ArmyBuilderScene extends Phaser.Scene {
         color: '#e8d9b0',
       })
       .setOrigin(0.5);
+
+    const abandonBtn = this.add
+      .text(20, 24, 'Abandon', {
+        fontSize: '14px',
+        color: '#fff',
+        backgroundColor: '#5a2a2a',
+        padding: { x: 10, y: 6 },
+      })
+      .setOrigin(0, 0.5)
+      .setInteractive({ useHandCursor: true });
+    abandonBtn.on('pointerdown', () => {
+      showConfirmDialog({
+        scene: this,
+        message: 'Abandon this game and return to the menu?\nArmy selections made so far will be lost.',
+        confirmLabel: 'Abandon',
+        cancelLabel: 'Keep building',
+        onConfirm: () => {
+          resetToMenu();
+          this.scene.start('Menu');
+        },
+      });
+    });
 
     const selection = session.armySelections[this.playerIndex]!;
 

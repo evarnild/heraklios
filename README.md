@@ -111,6 +111,24 @@ exchange-sacrifice panels are properly modal for the same reason: clicking
 the board while one is open is ignored rather than (as in earlier builds)
 silently falling through to select a unit or target underneath the panel.
 
+### Abandoning a game
+
+Army Builder, Placement, and the Board each have an **Abandon** button that
+returns to the Menu — the only way back besides reloading the page, for a
+misbuilt army, a misplaced unit, a wedged board, or one you just want to walk
+away from. It's guarded by a confirm/cancel prompt (Phaser has no
+`confirm()`, so this is a modal drawn on the canvas, not a browser dialog),
+since it's the one control that discards in-progress work with no undo.
+Unlike undo/redo/save-load/end-phase, it's deliberately available even mid
+retreat/drift/advance/exchange-sacrifice choice — Abandon exists specifically
+to escape a board wedged by exactly that kind of stuck state, so disabling it
+in that situation would defeat its own purpose.
+
+Abandoning does **not** clear the autosave: the game you just left is still
+sitting in the Menu's **"Charger une partie"** > Autosave row if you change
+your mind or abandoned by mistake, and it's overwritten the moment any other
+game reaches the Board anyway.
+
 ### Deployment zone position
 
 Per the rulebook, a player's units "must be placed along their assigned
