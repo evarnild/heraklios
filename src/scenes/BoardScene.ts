@@ -611,17 +611,23 @@ export class BoardScene extends Phaser.Scene {
       const reachable = reachableHexes(state, this.selected);
       const key = `${hex.q},${hex.r}`;
       if (reachable.has(key)) {
-        const cost = reachable.get(key)!;
         // Must be evaluated BEFORE mutating position/movementLeft — charge
         // eligibility depends on the unit's pre-move state (see
-        // `evaluateCharge`'s doc comment in engine/movement.ts).
-        const charged = evaluateCharge(state, this.selected, hex);
+        // `evaluateCharge`'s doc comment in engine/movement.ts). A charging
+        // move's straight-line cost can differ from (and even exceed, once
+        // a river surcharge along the direct line is considered)
+        // `reachable`'s cheapest-path cost to the same hex — the unit must
+        // pay the STRAIGHT cost to actually have "used its full movement
+        // potential in a straight line," so `chargeCost`, not `reachable`'s
+        // cost, is what gets deducted whenever this move qualifies.
+        const chargeCost = evaluateCharge(state, this.selected, hex);
+        const cost = chargeCost ?? reachable.get(key)!;
         const unitName = unitType(this.selected).name;
         this.recordAction(`Move ${unitName}`);
         this.selected.movementLeft -= cost;
         this.selected.position = hex;
-        this.selected.charged = charged;
-        if (charged) this.log(`${unitName} charges!`);
+        this.selected.charged = chargeCost !== null;
+        if (chargeCost !== null) this.log(`${unitName} charges!`);
         this.renderAllUnits();
         this.deselectMovement();
       }

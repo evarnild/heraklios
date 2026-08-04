@@ -193,18 +193,36 @@ function straightLineMoveCost(state: GameState, unit: Unit, destination: HexCoor
  * See the design note above `straightLineDirection` for why this is computed
  * directly rather than by reconstructing a path out of `reachableHexes`.
  *
+ * Returns the movement-point cost to deduct for a qualifying charge (by
+ * construction this always equals the unit's full allowance — a charge only
+ * qualifies when the straight-line cost exactly exhausts it, see below — but
+ * returning the cost rather than `true` makes that contract explicit at the
+ * call site instead of implicit), or `null` if the move isn't a charge.
+ *
+ * IMPORTANT: the straight-line cost computed here can differ from
+ * `reachableHexes`'s cheapest-path cost to the same hex whenever a detour
+ * (e.g. avoiding a river-crossing surcharge) is cheaper than a direct line —
+ * on the shipped map this really happens (e.g. light cavalry from (10,1) to
+ * (14,1): straight cost 6, cheapest 5). Callers MUST deduct THIS function's
+ * returned cost when charging, not `reachableHexes`'s cheaper cost — using
+ * the cheaper cost would grant the doubled attack while leaving unspent
+ * movement, contradicting "emploie son potentiel de déplacement au maximum."
+ *
  * Callers (`BoardScene`) should call this BEFORE mutating `unit.position` /
- * `unit.movementLeft`, then set `unit.charged` to the result — see
+ * `unit.movementLeft`: on a non-null result, deduct the returned cost (not
+ * `reachableHexes`'s cost) and set `unit.charged = true`; otherwise fall
+ * back to `reachableHexes`'s cheapest-path cost for an ordinary move. See
  * `Unit.charged`'s doc comment in `engine/state.ts` for the field's lifecycle.
  */
-export function evaluateCharge(state: GameState, unit: Unit, destination: HexCoord): boolean {
-  if (unitCategory(unit.typeId) !== 'cavalry') return false;
+export function evaluateCharge(state: GameState, unit: Unit, destination: HexCoord): number | null {
+  if (unitCategory(unit.typeId) !== 'cavalry') return null;
   const fullAllowance = getUnitType(unit.typeId).movement;
-  if (unit.movementLeft !== fullAllowance) return false; // already spent some movement this phase
+  if (unit.movementLeft !== fullAllowance) return null; // already spent some movement this phase
   const cost = straightLineMoveCost(state, unit, destination);
-  if (cost === undefined || cost !== fullAllowance) return false; // must exactly exhaust the allowance
-  return neighbors(destination).some((hex) => {
+  if (cost === undefined || cost !== fullAllowance) return null; // must exactly exhaust the allowance
+  const endsAdjacentToEnemy = neighbors(destination).some((hex) => {
     const occupant = unitAt(state, hex);
     return occupant !== undefined && occupant.owner !== unit.owner;
   });
+  return endsAdjacentToEnemy ? cost : null;
 }
