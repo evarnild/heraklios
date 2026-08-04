@@ -492,6 +492,105 @@ bar for this project, not an extra.
 **Known gap carried into Stage 2:** the elephant drift/trample cascade was
 not extracted and still mutates `GameState` inline, so a headless caller
 cannot resolve `outcome.pendingDrifts`. **Elephants cannot be fuzzed until
-that is addressed** — Stage 2 must either exclude them from generated armies
-or extract the cascade first.
+that is addressed** — see [§6.7](#67-the-elephant-problem-stage-2-split) for
+the decided approach.
+
+### 6.7 The elephant problem: Stage 2 split
+
+`pendingDrifts` is populated **only** for elephants (`combat.ts:385`), so
+excluding them provably keeps it empty — the exclusion is verifiable, not
+approximate. But `defaultArmySelection()` puts **3 elephants** in a standard
+army (`army.ts:68`): they are not an exotic corner case, they are in the army
+people actually play.
+
+Decided approach — split Stage 2 rather than choosing between the extremes:
+
+| Sub-stage | Work |
+| --- | --- |
+| **2a** | Fuzz harness, elephants excluded from generated armies, with a *loud* guard (below). |
+| **2b** | Extract drift as a pure **step function**, using 2a's harness as the safety net. |
+| **2c** | Enable elephants in the harness; delete the guard and the skipped test. |
+
+**Why this order.** The fuzz harness is a *test tool for refactors*.
+Extracting drift first means reviewing another gnarly `BoardScene` change by
+hand — and on Stage 1 that approach found two HIGH defects yet still missed
+things until someone actually wrote a driver ([§6.6](#66-stage-1-outcome)).
+Doing the hardest refactor first discards the very tool built to make hard
+refactors safe.
+
+**The exclusion must fail loudly.** This is the real risk: a green fuzzer
+creates false confidence and the incentive to return evaporates. So 2a must
+assert `outcome.pendingDrifts.length === 0` and **throw** if it ever sees
+one, and carry a permanently-skipped test (e.g. `"elephants: drift cascade
+not yet fuzzable (Stage 2b)"`) so the gap prints on every run. An exclusion
+that cannot be forgotten is a different thing from one that can.
+
+**2b is deliberately not a full orchestration refactor.** The cascade in
+`BoardScene.ts:1208-1360` is ~150 lines, but the rules primitives already
+live in the engine — `canElephantEnterHex`, `directionForDie`, `traceLine`.
+Only the step loop is missing. Extract a pure:
+
+```ts
+driftStep(state, elephant, dieRoll) -> { moved, hitUnit, eliminated, ... }
+```
+
+The scene keeps its animation loop and calls the engine per step; the harness
+calls the same function in a tight loop. Full extraction of the
+trample/nested-retreat orchestration stays deferred indefinitely — it is not
+needed to make drift fuzzable.
+
+---
+
+## 7. Start a new game at any time
+
+**Status:** planned, not started. **Parallelizable with Stage 2a** — see
+[§7.3](#73-running-this-in-parallel).
+
+### 7.1 The gap
+
+The only `scene.start('Menu')` in the codebase is `GameOverScene.ts:40`. From
+`ArmyBuilderScene`, `PlacementScene`, or `BoardScene` there is no way back:
+a player who misbuilds an army, misplaces a unit, or simply wants to restart
+must either play the game to completion or reload the page. Reloading is
+also the only escape from a wedged board — which [§6.6](#66-stage-1-outcome)'s
+LOW-A soft-lock made briefly reachable.
+
+### 7.2 What it needs
+
+- An "Abandon / new game" control on `BoardScene`'s chrome, and the same on
+  `ArmyBuilderScene` and `PlacementScene` (the pre-game scenes strand a
+  player just as effectively).
+- **A confirmation step.** Abandoning discards an in-progress game; this is
+  the one genuinely destructive control in the UI.
+- **`SessionState` reset.** `ui/session.ts` holds player setup, army
+  selections, combat mode and test mode across scene handoffs. Returning to
+  the Menu without clearing it leaks the previous game's selections into the
+  next one — this is the most likely source of a subtle bug here, and the
+  thing to test hardest.
+- **Autosave interaction.** `BoardScene` autosaves to `localStorage`
+  (`ui/saveStorage.ts`). Decide deliberately whether starting a new game
+  clears the autosave, leaves it, or offers to save first — silently
+  clobbering a game the player might have wanted back is the bad outcome.
+- **Clean teardown, and this is new since Stage 1.** `BoardScene` now holds
+  *pending Promises* — `decisionPending`, `pendingActionResolve`, and the
+  four `PlayerAgent` `choose*` continuations. Abandoning mid-decision (during
+  a retreat, drift, advance offer, or exchange sacrifice) leaves those
+  unresolved. Either block the control while `decisionPending` is true —
+  matching the existing guard pattern — or resolve/reject them on teardown.
+  Leaking them is a real hazard, not a theoretical one.
+
+### 7.3 Running this in parallel
+
+This pairs well with **Stage 2a** and badly with **Stage 2b**:
+
+- **2a** is pure engine plus new test files (`engine/`, a harness module). It
+  does not touch `src/scenes/`. Genuinely disjoint from this work.
+- **2b** edits `BoardScene.ts:1208-1360` — the same file this task adds
+  chrome and teardown logic to. **Do not run these two concurrently.**
+
+**The one real contention point is `README.md`**, which both agents are
+instructed to update (see [§2](#2-how-the-orchestration-works)'s warning).
+Mitigate by telling one of the two agents explicitly not to touch it, and
+documenting that half by hand at merge time — a README conflict is cheap to
+resolve but pointless to incur.
 
