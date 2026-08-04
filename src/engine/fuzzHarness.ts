@@ -8,7 +8,6 @@ import type { PlayerAgent } from './agent';
 import { RandomAgent } from './randomAgent';
 import { createSeededRng } from './rng';
 import {
-  cavalryMayAttack,
   canUnitEnterHex,
   legalRetreatHexes,
   pushCandidates,
@@ -93,16 +92,28 @@ export function buildFuzzGameState(): GameState {
   const state = createInitialState(players, 'multi-defender');
 
   state.units = [
-    // Player 0 — advancing from the low end of the land row.
+    // Player 0 — advancing from the low end of the land row. `p0-cav-l` is
+    // placed immediately ADJACENT to `p1-phalanx` (distance 1, not just
+    // "close") deliberately: `cavalryMayAttack` is this repo's one
+    // known-real bug class worth mutation-testing (plan.md §5/§6), and an
+    // invariant that only MIGHT get exercised depending on how random
+    // movement happens to unfold is a weak regression guard. Starting the
+    // matchup already adjacent means the very first combat phase offers the
+    // (illegally, if the restriction were ever broken) forbidden attack —
+    // confirmed by deliberately breaking `cavalryMayAttack` and re-running
+    // this file's own soak test, which failed immediately with this
+    // layout after going UNCAUGHT with an earlier, more spread-out one.
     makeUnit('p0-cav-l', 0, 'cavalerie-legere', landHex(0)),
-    makeUnit('p0-phalanx', 0, 'phalanges', landHex(1)),
-    makeUnit('p0-archers', 0, 'fantassins-archers', landHex(2)),
+    makeUnit('p0-phalanx', 0, 'phalanges', landHex(2)),
+    makeUnit('p0-archers', 0, 'fantassins-archers', landHex(4)),
 
-    // Player 1 — advancing from the high end, starting adjacent to P0's line
-    // so combat is reachable within the first couple of turns rather than
-    // requiring many pure-movement turns to close distance.
+    // Player 1 — mirrored so BOTH directions of the cavalry/phalanx check
+    // (P0's cavalry vs. P1's phalanx, and vice versa) are exercised from
+    // turn one: `p1-phalanx` sits right next to `p0-cav-l` (landHex(1) is
+    // adjacent to landHex(0)), and `p1-cav-h` sits right next to
+    // `p0-phalanx` (landHex(3) is adjacent to landHex(2)).
+    makeUnit('p1-phalanx', 1, 'phalanges', landHex(1)),
     makeUnit('p1-cav-h', 1, 'cavalerie-lourde', landHex(3)),
-    makeUnit('p1-phalanx', 1, 'phalanges', landHex(4)),
     makeUnit('p1-archers', 1, 'archers', landHex(5)),
 
     // Naval: one ship per side, already adjacent with matching facing so
@@ -190,19 +201,31 @@ function assertMovementWasRefilled(state: GameState, context: string): void {
   }
 }
 
-/** The known-real bug class from plan.md §5: cavalry may never resolve an
+/**
+ * The known-real bug class from plan.md §5: cavalry may never resolve an
  * attack against a phalanx, whether alone or as part of a combined group.
  * `legalActions`/`attackerCanJoin`/`defenderCanJoin` already enforce this
  * when building the action space (see engine/combat.ts), so this check
  * should never fire in a correctly-behaving engine — it exists to CATCH a
- * regression, not to enforce the rule itself (mutation-tested, see this
- * repo's PR description / plan.md §6). */
+ * regression, not to enforce the rule itself.
+ *
+ * DELIBERATELY does NOT call `cavalryMayAttack` — mutation-testing this
+ * exact check (see this task's PR description / plan.md §6) found that an
+ * earlier version DID call it, which meant a mutation that broke
+ * `cavalryMayAttack` itself (e.g. making it always return `true`) broke the
+ * one function this check exists to guard AND the guard's own oracle
+ * together, so the "invariant" caught nothing — a broken rule and a broken
+ * check that reads the same broken rule always agree. This re-derives the
+ * restriction from the raw unit data (category + type id) instead, so it
+ * stays independent of whatever `combat.ts` actually does.
+ */
 function assertNoCavalryVsPhalanx(state: GameState, attackerIds: string[], defenderIds: string[]): void {
   const attackers = attackerIds.map((id) => requireUnit(state, id));
   const defenders = defenderIds.map((id) => requireUnit(state, id));
   for (const attacker of attackers) {
+    if (unitCategory(attacker.typeId) !== 'cavalry') continue;
     for (const defender of defenders) {
-      if (!cavalryMayAttack(attacker, defender)) {
+      if (unitType(defender).id === 'phalanges') {
         throw new Error(
           `Invariant violated: cavalry unit ${attacker.id} (${attacker.typeId}) resolved an attack against phalanx ${defender.id} — the cavalry/phalanx restriction was bypassed`,
         );
