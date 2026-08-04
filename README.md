@@ -174,6 +174,41 @@ least the defenders' force — with only one attacker there's no real choice,
 but a multi-unit attack group gets a prompt to pick which units to
 sacrifice.
 
+### Cavalry charges and phalanxes
+
+Per the rulebook: "à chaque fois qu'elle emploie son potentiel de
+déplacement au maximum en ligne droite et que la dernière case où elle
+aboutit jouxte une unité ennemie, il s'agit d'une charge" — whenever a
+cavalry unit (light or heavy) spends its *entire* printed movement
+allowance moving in one straight line and ends adjacent to an enemy unit,
+that move is a **charge**, doubling its attack value for the rest of that
+player's turn (light cavalry 3→6, heavy 6→12; the doubled value also counts
+normally toward an EX exchange-sacrifice threshold). Any other cavalry move
+— shorter than its full allowance, not a straight line, or not ending
+adjacent to an enemy — is an ordinary attack at the printed value. The
+Movement-phase log calls out "`<unit>` charges!" when a move qualifies.
+
+Eligibility is recomputed from scratch for the exact destination hex the
+player clicks, independently of the cheapest-path search that decides which
+hexes are highlighted as reachable at all (`engine/movement.ts`'s
+`reachableHexes`) — see that file's `evaluateCharge`/`straightLineMoveCost`
+doc comments for why: the click-to-destination movement UI never exposes an
+actual walked path for the engine to inspect, and reconstructing one out of
+`reachableHexes`'s BFS would only recover an arbitrary tied-shortest path,
+not necessarily a straight one. Instead, `evaluateCharge` independently
+walks the specific straight line from the unit's pre-move hex to the
+clicked destination and checks it's fully legal (on the map, unoccupied,
+not passing through — merely stopping on — an enemy zone of control) and
+costs exactly the unit's full movement allowance.
+
+Separately — and regardless of charging — **phalanxes can never be
+attacked by cavalry**, by charge or by an ordinary attack: "la cavalerie ne
+peut effectuer de charge ou plus simplement d'attaques contre ces unités"
+(`docs/research/05-rules-french-original.md`). A phalanx is filtered out of
+`validTargets` for any cavalry attacker (and therefore out of every
+attack-group's `commonValidTargets`/`unionValidTargets` too), while
+remaining a normal target for every other unit type.
+
 ### Turn order
 
 The rulebook has each of the 4 players draw for edge at the start of the
@@ -297,10 +332,6 @@ what the game will use — see `src/map-editor/`.
 A few places trade a little rules fidelity for a shippable scope — flagged
 here rather than silently:
 
-- **Cavalry charges** (doubling attack value when a cavalry unit uses its
-  full movement in a straight line into contact) and the restriction that
-  cavalry can never attack phalanxes are not implemented; cavalry always
-  attacks at its printed value against any target.
 - **Naval movement is destination-click, not path-drawn.** Clicking a
   highlighted hex moves the selected ship there by the cheapest combination
   of rotation + forward moves (or, for an orange-highlighted contact hex,
