@@ -19,6 +19,33 @@ export function terrainAt(hex: HexCoord): TerrainType {
   return MAP_TERRAIN.get(mapHexKey(hex.q, hex.r)) ?? 'plain';
 }
 
+/**
+ * Whether `unit` could physically occupy `hex` at all (on the map, terrain
+ * its category can enter), ignoring occupancy/ZOC — a general-purpose
+ * predicate any "can this specific unit go here" caller can share rather
+ * than re-deriving `MAP_TERRAIN` lookup + `unitCategory` + `canEnterTerrain`
+ * itself.
+ *
+ * Written for the post-combat "advance into the vacated hex" offer (see
+ * `PlayerAgent.chooseAdvance` in engine/agent.ts): the hex a defeated or
+ * retreating defender just vacated was legal for THAT unit's category, not
+ * necessarily for whichever attacker is being offered the chance to advance
+ * into it — the advance-offer sibling of the terrain gaps the Stage 2 fuzz
+ * harness found in `legalRetreatHexes`/`pushCandidates` above (plan.md §6).
+ * That offer itself is applied by the CALLER (`BoardScene`'s
+ * `promptAdvanceChoice`, mirrored headlessly in `engine/fuzzHarness.ts`),
+ * not by any function in this file, so this predicate is exported for both
+ * to filter candidates through before ever asking `chooseAdvance` — see
+ * `fuzzHarness.ts`'s own doc comment on where this fix was actually wired
+ * in, since it is NOT retrofitted into `BoardScene` here (out of this
+ * change's scope; see plan.md §6 boundaries).
+ */
+export function canUnitEnterHex(unit: Unit, hex: HexCoord): boolean {
+  const terrain = MAP_TERRAIN.get(mapHexKey(hex.q, hex.r));
+  if (terrain === undefined) return false; // off the map
+  return canEnterTerrain(terrain, unitCategory(unit.typeId), unit.typeId === 'galeres');
+}
+
 /** True if a (normal) river runs along the hexside shared by two adjacent hexes. */
 export function riverBetween(a: HexCoord, b: HexCoord): boolean {
   return RIVER_HEXSIDES.has(riverEdgeKey(a, b));

@@ -9,6 +9,7 @@ import { RandomAgent } from './randomAgent';
 import { createSeededRng } from './rng';
 import {
   cavalryMayAttack,
+  canUnitEnterHex,
   legalRetreatHexes,
   pushCandidates,
   retreatUnitTo,
@@ -276,9 +277,26 @@ async function resolveUnitRetreat(state: GameState, unit: Unit, agent: PlayerAge
   unit.destroyed = true;
 }
 
+/**
+ * DEVIATION FROM `BoardScene.promptAdvanceChoice` — found by the fuzz
+ * harness, plan.md §6, and NOT fixed at the source: `BoardScene`'s own
+ * advance-offer candidate list is only filtered by `!u.destroyed`, the same
+ * as the `alive` filter below, with no terrain check — so a vacated hex
+ * illegal for the advancing unit's category (e.g. a defeated defender's
+ * marsh/steep-flank hex, legal for THAT unit but not for a cavalry/chariot
+ * attacker in the same combat group) can be, and today in real hotseat play
+ * IS, offered and accepted through the actual UI. Filtering through
+ * `canUnitEnterHex` here (see engine/combat.ts) is a genuine, if narrow,
+ * behavior difference from `BoardScene` — done here rather than in
+ * `BoardScene.ts` itself because this task's boundaries exclude touching
+ * `src/scenes/`. Reported separately rather than silently patched around:
+ * `BoardScene.ts`'s `promptAdvanceChoice` (around its `candidates =
+ * this.advanceEligibleAttackers.filter((u) => !u.destroyed)` line) should
+ * gain the same `canUnitEnterHex` filter.
+ */
 async function processAdvanceOffer(state: GameState, vacatedHex: HexCoord, candidates: Unit[], agent: PlayerAgent): Promise<void> {
   if (unitAt(state, vacatedHex)) return; // already re-occupied by an earlier choice in this batch
-  const alive = candidates.filter((u) => !u.destroyed);
+  const alive = candidates.filter((u) => !u.destroyed && canUnitEnterHex(u, vacatedHex));
   if (alive.length === 0) return;
   const chosen = await agent.chooseAdvance(state, alive, vacatedHex);
   if (chosen) chosen.position = vacatedHex;
@@ -390,7 +408,7 @@ function emptyContext(): { attackedThisPhase: Set<string>; rammedThisTurn: Set<s
  * within a phase — it should never legitimately fire.
  */
 export async function playRandomGame(seed: number, options: PlayRandomGameOptions = {}): Promise<HarnessStats> {
-  const turnCap = options.turnCap ?? 25;
+  const turnCap = options.turnCap ?? 7;
   const actionCap = options.actionCap ?? 20_000;
 
   const rng = createSeededRng(seed);

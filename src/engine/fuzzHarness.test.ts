@@ -8,11 +8,19 @@ import type { CombatResult } from '../data/combatTable';
  * 5000) and rerun `npx vitest run src/engine/fuzzHarness.test.ts`. Kept as a
  * plain constant rather than an env var so it works with no Node type
  * definitions in this project's `tsconfig.json` (`types: ["vitest/globals"]`
- * only). 200 keeps the default suite fast (a couple of seconds) while still
- * being enough seeds to reliably hit every action kind and combat result at
- * least once.
+ * only).
+ *
+ * 100 keeps the default suite around 8-10 seconds — `legalActions`
+ * recomputes a full `reachableHexes` BFS for every living unit on EVERY
+ * single action choice (see `buildFuzzGameState`'s doc comment in
+ * fuzzHarness.ts for why the harness's own army is kept deliberately small
+ * to help with exactly this), so "low hundreds of games, a few seconds" and
+ * "enough seeds to reliably hit every action kind and combat result at
+ * least once" turned out to be in tension — 100 was chosen as the point
+ * where every result kind still reliably shows up (see the assertions
+ * below) without the default `npm test` run stalling on this one file.
  */
-const GAME_COUNT = 200;
+const GAME_COUNT = 100;
 
 describe('buildFuzzGameState', () => {
   it('never includes an elephant — the exclusion this whole harness depends on (plan.md §6.7)', () => {
@@ -45,7 +53,7 @@ describe('playRandomGame', () => {
     expect(a).not.toEqual(b);
   });
 
-  it('always terminates with a declared winner or a draw-by-mutual-elimination, never the turn/action cap', async () => {
+  it('always terminates, whether by mutual elimination or the rulebook time-limit ending, never the action-cap infinite-loop guard', async () => {
     const stats = await playRandomGame(777);
     expect(stats.gameOver).toBe(true);
   });
@@ -91,6 +99,8 @@ describe('fuzz harness: seeded self-play soak', () => {
     const turns = allStats.map((g) => g.turnsReached);
     const wins = allStats.filter((g) => g.winnerId !== null).length;
     const draws = allStats.length - wins;
+    const endedByTimeLimit = allStats.filter((g) => g.endedByTimeLimit).length;
+    const endedByElimination = allStats.length - endedByTimeLimit;
 
     // Instrumentation report — this IS the deliverable Stage 1's postmortem
     // (plan.md §6.6) says matters most: a harness that ran green while
@@ -105,7 +115,8 @@ describe('fuzz harness: seeded self-play soak', () => {
         `[fuzz] combatResultCounts: ${JSON.stringify(combatResultCounts)}`,
         `[fuzz] landAttacksResolved=${totalLandAttacks} ramsResolved=${totalRams} (hits=${totalRamHits}) boardingsResolved=${totalBoardings}`,
         `[fuzz] turnsReached: min=${Math.min(...turns)} max=${Math.max(...turns)} avg=${(turns.reduce((a, b) => a + b, 0) / turns.length).toFixed(1)}`,
-        `[fuzz] outcomes: ${wins} decisive win(s), ${draws} mutual-elimination draw(s)`,
+        `[fuzz] outcomes: ${wins} decisive win(s), ${draws} draw(s) (mutual elimination or tied army value)`,
+        `[fuzz] endings: ${endedByElimination} by mutual elimination, ${endedByTimeLimit} by the rulebook's turn-limit/army-value ending`,
       ].join('\n'),
     );
 

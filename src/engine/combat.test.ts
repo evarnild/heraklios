@@ -7,6 +7,7 @@ import {
   attackerCanJoin,
   canBoard,
   canElephantEnterHex,
+  canUnitEnterHex,
   cavalryMayAttack,
   checkRangedEligibility,
   commonValidTargets,
@@ -54,6 +55,23 @@ function makeState(units: Unit[]): GameState {
   state.units = units;
   return state;
 }
+
+describe('canUnitEnterHex', () => {
+  it('rejects terrain forbidden to the unit\'s category', () => {
+    const chariot = makeUnit({ typeId: 'chars-lourds', position: { q: 0, r: 0 } });
+    expect(canUnitEnterHex(chariot, { q: 7, r: 15 })).toBe(false); // marsh
+  });
+
+  it('allows the same hex for a category that terrain does not forbid', () => {
+    const fantassins = makeUnit({ typeId: 'fantassins', position: { q: 0, r: 0 } });
+    expect(canUnitEnterHex(fantassins, { q: 7, r: 15 })).toBe(true); // marsh, but land is never forbidden there
+  });
+
+  it('rejects a hex off the map', () => {
+    const unit = makeUnit({ typeId: 'fantassins', position: { q: 0, r: 0 } });
+    expect(canUnitEnterHex(unit, { q: -9999, r: -9999 })).toBe(false);
+  });
+});
 
 describe('checkRangedEligibility', () => {
   it('lets archers fire at exactly their range', () => {
