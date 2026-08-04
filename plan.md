@@ -384,7 +384,14 @@ layer*, after which the AI itself is comparatively small.
 
 ### 6.3 Committed scope: stages 1–2
 
-**Stage 1 — headless action layer.** New `engine/actions.ts` exposing
+**Stage 1 — headless action layer. ✅ Shipped** — merged to `main` as
+`9cb7ed7` on 2026-08-04 (5 commits, 206 tests, tsc/build clean). Landed
+`engine/actions.ts`, `engine/agent.ts` (`PlayerAgent` + `ActionObserver`),
+`engine/dice.ts`, and rehomed `BoardScene`'s movement/attack/ram/boarding/
+end-phase mutations. Two HIGH defects were caught in review and fixed before
+merge — see [§6.6](#66-stage-1-outcome). Original spec follows.
+
+New `engine/actions.ts` exposing
 `legalActions(state)` and `applyAction(state, action, rng)`, where apply
 either completes or returns a *pending decision* for a caller to answer.
 Move the mutation sequences listed in [§6.2](#62-what-actually-blocks-an-ai)
@@ -434,14 +441,57 @@ clean.
 
 ### 6.5 Decisions to make before starting
 
-- **`BoardScene` refactor blast radius** is the main risk in this plan: the
-  largest file in the repo, and by convention the least tested. Stage 1
-  should land as its own reviewed branch with no AI code riding along.
+- **`BoardScene` refactor blast radius** — settled for Stage 1: it landed as
+  its own reviewed branch with no AI code riding along, and review confirmed
+  no behavioral regression. Still the main risk for any future extraction
+  (drift cascade, post-combat advance).
 - **Undo/redo semantics with an AI seat.** A die roll clears the history
   stack, and an AI turn contains many rolls. Likely resolution: undo rewinds
   past the AI's *entire* turn rather than into the middle of it — but this
-  needs deciding, not defaulting.
+  needs deciding, not defaulting. **Still open**; a Stage 3/4 decision.
 - **Save format.** Which seats are AI must persist or loading a game silently
   turns them human; that implies a `SAVE_VERSION` bump and updates to
-  `engine/saveGame.ts` + `ui/saveStorage.ts`. Deferred to stage 4, but the
-  stage-1 state shape should not make it awkward.
+  `engine/saveGame.ts` + `ui/saveStorage.ts`. **Still open**, deferred to
+  stage 4. Stage 1 left this unforeclosed: `GameState`'s shape is unchanged,
+  and `ActionContext` mirrors the existing `SavedGame`/`GameState` split
+  rather than creating a new one.
+
+### 6.6 Stage 1 outcome
+
+Merged as `9cb7ed7`. The implement → verify loop ran twice, and the review
+caught two defects that the 202-test green suite did not:
+
+- **HIGH: `applyAction({kind:'endPhase'})` never refilled movement.** The
+  refill lived only in `BoardScene`, so a headless caller got `advancePhase`
+  without it. After turn 1 every unit sat at `movementLeft === 0`,
+  `legalActions` returned only `endPhase` forever, and **Stage 2's fuzzer
+  would have reported clean while exercising nothing** — the worst available
+  failure mode for a test harness. Fixed by moving the refill into
+  `applyAction`.
+- **HIGH: `chooseAction` violated the contract it type-claimed.** It resolved
+  *after* `applyAction`, so any driver written to the documented interface
+  (`const a = await agent.chooseAction(...); applyAction(state, a)`) would
+  double-apply every action. Fixed by splitting `ActionObserver` out of
+  `PlayerAgent`, so the misleading signature is gone from the type system
+  rather than merely from the docs.
+
+Plus four MEDIUMs, of which two are worth remembering as patterns:
+`legalActions`' `context` was *optional* despite its omission producing
+illegal actions (now required); and the charge regression test ran along an
+all-plain hex row where both cost models agree, so it could not have detected
+a revert of the fix it appeared to guard (now uses a divergent pair, and was
+mutation-tested).
+
+**Verification that worked, worth reusing:** the reviewer wrote a throwaway
+driver playing full turns through `legalActions`/`applyAction` alone, then
+*deleted the fix* and re-ran it — movement died after turn 2 and no attack
+ever occurred. A unit test asserting "`movementLeft` is non-zero" would have
+passed in both cases. Mutation-testing a regression guard is now the expected
+bar for this project, not an extra.
+
+**Known gap carried into Stage 2:** the elephant drift/trample cascade was
+not extracted and still mutates `GameState` inline, so a headless caller
+cannot resolve `outcome.pendingDrifts`. **Elephants cannot be fuzzed until
+that is addressed** — Stage 2 must either exclude them from generated armies
+or extract the cascade first.
+
