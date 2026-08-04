@@ -41,16 +41,39 @@ describe('buildFuzzGameState', () => {
 });
 
 describe('playRandomGame', () => {
-  it('is fully deterministic: the same seed replays identically', async () => {
-    const a = await playRandomGame(12345);
-    const b = await playRandomGame(12345);
-    expect(a).toEqual(b);
+  // HIGH finding from adversarial review: comparing `HarnessStats` objects
+  // directly is a weaker proof than it looks like. `seed` is one of the
+  // fields on `HarnessStats` (assigned from the function's own argument),
+  // so `a.seed !== b.seed` alone guarantees `toEqual`/`not.toEqual` come out
+  // the "right" way regardless of whether the games themselves actually
+  // differ — a same-seed test could pass by accident (if `seed` were ever
+  // omitted from the comparison) and a different-seeds test is trivially
+  // true from `seed` alone even if the two games are otherwise identical.
+  // These use `options.trace` (a full action-by-action log, not aggregate
+  // counters) instead, so the comparison is actually on GAME CONTENT: two
+  // structurally different games with equal totals would still be caught.
+  it('is fully deterministic: the same seed replays an identical action trace', async () => {
+    const traceA: string[] = [];
+    const traceB: string[] = [];
+    const a = await playRandomGame(12345, { trace: traceA });
+    const b = await playRandomGame(12345, { trace: traceB });
+    expect(traceA.length).toBeGreaterThan(0);
+    expect(traceA).toEqual(traceB);
+    // Aggregate stats are still asserted too (destructuring `seed` out, per
+    // the finding above) — a real, non-tautological cross-check that the
+    // trace and the summary counters agree on the same game.
+    const { seed: seedA, ...restA } = a;
+    const { seed: seedB, ...restB } = b;
+    expect(seedA).toBe(seedB);
+    expect(restA).toEqual(restB);
   });
 
-  it('different seeds produce different games', async () => {
-    const a = await playRandomGame(1);
-    const b = await playRandomGame(2);
-    expect(a).not.toEqual(b);
+  it('different seeds produce different action traces', async () => {
+    const traceA: string[] = [];
+    const traceB: string[] = [];
+    await playRandomGame(1, { trace: traceA });
+    await playRandomGame(2, { trace: traceB });
+    expect(traceA).not.toEqual(traceB);
   });
 
   it('always terminates, whether by mutual elimination or the rulebook time-limit ending, never the action-cap infinite-loop guard', async () => {
@@ -117,6 +140,14 @@ describe('fuzz harness: seeded self-play soak', () => {
         `[fuzz] turnsReached: min=${Math.min(...turns)} max=${Math.max(...turns)} avg=${(turns.reduce((a, b) => a + b, 0) / turns.length).toFixed(1)}`,
         `[fuzz] outcomes: ${wins} decisive win(s), ${draws} draw(s) (mutual elimination or tied army value)`,
         `[fuzz] endings: ${endedByElimination} by mutual elimination, ${endedByTimeLimit} by the rulebook's turn-limit/army-value ending`,
+        // MEDIUM finding from adversarial review: the `it.skip(...)` above
+        // prints only as an anonymous "1 skipped" in vitest's summary — a
+        // full-text search of a `vitest run` for "not yet fuzzable" finds
+        // nothing. plan.md §6.7 requires the elephant gap to print on every
+        // run; this line, inside the unconditional report block, is what
+        // actually satisfies that (searchable, unconditional, not dependent
+        // on vitest's own skip-reporting format).
+        `[fuzz] GAP: elephants excluded — drift cascade not yet fuzzable (Stage 2b, plan.md §6.7)`,
       ].join('\n'),
     );
 

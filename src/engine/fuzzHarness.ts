@@ -526,6 +526,44 @@ export interface PlayRandomGameOptions {
    * single stuck phase) and this throws loudly rather than hanging, per
    * plan.md §6.3's "games terminate rather than looping forever" invariant. */
   actionCap?: number;
+  /**
+   * When provided, every action chosen is pushed onto this array as a
+   * compact string (see `formatAction`) — a full, ordered, action-by-action
+   * trace of the game, not just its aggregate `HarnessStats`.
+   *
+   * Exists specifically so "the same seed replays identically" can be
+   * proven ON THE TRACE, not just on summary counters: `HarnessStats` alone
+   * can't distinguish two structurally DIFFERENT games that happen to reach
+   * equal totals (adversarial review's HIGH finding — see
+   * `fuzzHarness.test.ts`'s determinism/different-seeds tests, which pass
+   * an array here and compare it directly). A trace is also this task's
+   * whole point in miniature: it's exactly the artifact that turns "seed 42
+   * found a bug" into a reproducible, step-by-step repro someone else can
+   * replay without re-running the fuzzer.
+   */
+  trace?: string[];
+}
+
+/** A compact, stable, one-line string for `action` — used only for
+ * `PlayRandomGameOptions.trace`, so it only needs to be distinct enough to
+ * tell two actions apart, not pretty. */
+function formatAction(action: Action): string {
+  switch (action.kind) {
+    case 'endPhase':
+      return 'endPhase';
+    case 'landMove':
+      return `landMove:${action.unitId}->(${action.to.q},${action.to.r})`;
+    case 'navalMove':
+      return `navalMove:${action.unitId}->(${action.to.q},${action.to.r})`;
+    case 'navalRotate':
+      return `navalRotate:${action.unitId}:${action.direction}`;
+    case 'ram':
+      return `ram:${action.unitId}`;
+    case 'landAttack':
+      return `landAttack:[${action.attackerIds.join(',')}]->[${action.defenderIds.join(',')}]`;
+    case 'board':
+      return `board:${action.attackerId}->${action.defenderId}`;
+  }
 }
 
 function emptyContext(): { attackedThisPhase: Set<string>; rammedThisTurn: Set<string> } {
@@ -626,6 +664,7 @@ export async function playRandomGame(seed: number, options: PlayRandomGameOption
     const legal = legalActions(state, context);
     assertNoActionTargetsADeadUnit(state, legal);
     const action = agent.chooseNextAction(state, legal);
+    options.trace?.push(formatAction(action));
     await applyOneAction(state, action, agent, rng, context, stats);
 
     stats.totalActions++;
