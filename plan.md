@@ -189,18 +189,47 @@ run exists for this feature — this is a first attempt, not a resume.
 3. No stale `feat/cavalry-charges` worktree or branch left over from a
    previous attempt (`git worktree list`, `git branch`).
 
-### The `node_modules` problem — validated solution
+### The `node_modules` problem
 
-A fresh worktree has **no `node_modules`** (gitignored), so `npx tsc` and
-`npx vitest` fail outright. Don't have the agent run `npm install` from
-scratch. Instead, junction to the main install:
+A fresh worktree has **no `node_modules`** (gitignored), so the toolchain
+isn't resolvable there.
+
+**Check the junction target actually exists first** — during the AI action
+layer run the main tree's `node_modules` was *empty*, so the junction below
+silently produced a worktree with no toolchain and the agent had to
+`npm install` in its worktree anyway:
+
+```bash
+ls node_modules | wc -l    # must be non-zero before junctioning
+```
+
+If the main install is present, junction to it (no admin rights needed,
+transparent to Node's module resolution):
 
 ```bash
 powershell -Command "New-Item -ItemType Junction -Path node_modules -Target 'C:/Users/eric/src/heraklios/node_modules'"
 ```
 
-Windows directory junctions need no admin rights and are transparent to
-Node's module resolution. Verify with `npx tsc --version`.
+If it's empty or missing, just run `npm install` in the worktree (~11s) —
+the junction is an optimization, not a requirement.
+
+### ⚠️ `npx tsc` can report a false green
+
+**Never verify a type-check with bare `npx tsc --noEmit`.** With no local
+install, `npx` silently downloads an unrelated package named `tsc` from the
+registry, which exits 0 without type-checking anything. This produced a
+bogus "clean" result on `main` during the Feature A merge, and the reviewer
+hit the same trap from the main tree during the AI action layer review.
+
+Always invoke the project's own binary, and confirm the exit code:
+
+```bash
+./node_modules/.bin/tsc --noEmit; echo "exit: $?"
+./node_modules/.bin/vitest run
+```
+
+`vitest` does not have this failure mode (it produced genuine results even
+via `npx`), but prefer the local binary for both.
 
 ### Reviewer must check out DETACHED
 
