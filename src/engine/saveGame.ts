@@ -15,6 +15,16 @@ export const SAVE_VERSION = 1;
 // falsy and reproduces exactly the fixed-order behaviour that file was saved
 // with. No migration and no stricter validation is needed for a field whose
 // absence is indistinguishable, in behaviour, from its default.
+//
+// `Unit.charged` (added for cavalry charges) follows the same reasoning: it's
+// read only via `if (unit.charged)` in `currentAttack`, so a save from before
+// the field existed loads with it `undefined` (falsy), same as an
+// un-charged unit — no migration or stricter validation needed. The one
+// behavioural wrinkle is a save made mid-Combat-phase, after a charge but
+// before that unit has attacked: reloading it forgets the charge and the
+// unit's next attack (if any, before the phase ends) resolves at its
+// ordinary, non-doubled value. This is judged an acceptable, rare edge case
+// rather than a reason to add a migration for a single boolean.
 
 export type EdgeCode = 'N' | 'S' | 'E' | 'W';
 

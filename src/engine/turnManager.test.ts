@@ -69,6 +69,7 @@ describe('advancePhase — randomized turn order reshuffle', () => {
         movementLeft: 0,
         facing: 0,
         defendedThisPhase: false,
+        charged: false,
         destroyed: false,
       };
       state.units.push(unit);
@@ -160,6 +161,7 @@ describe('advancePhase — randomized turn order reshuffle', () => {
         movementLeft: 0,
         facing: 0,
         defendedThisPhase: false,
+        charged: false,
         destroyed: false,
       };
       state.units.push(unit);

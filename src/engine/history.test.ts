@@ -129,6 +129,7 @@ describe('GameState snapshots', () => {
         facing: 2,
         equipmentPoints: t.domain === 'naval' ? Math.ceil(t.defense / 5) : undefined,
         defendedThisPhase: false,
+        charged: false,
         destroyed: false,
       };
     };

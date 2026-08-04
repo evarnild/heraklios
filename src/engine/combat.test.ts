@@ -40,6 +40,7 @@ function makeUnit(overrides: Partial<Unit> & { typeId: string; position: { q: nu
     movementLeft: 0,
     facing: 0,
     defendedThisPhase: false,
+    charged: false,
     destroyed: false,
     ...overrides,
   };

@@ -10,6 +10,7 @@ import {
   type Unit,
   type CombatMode,
   unitType,
+  unitCategory,
   currentAttack,
   currentDefense,
 } from './state';
@@ -115,15 +116,32 @@ export function describeLandAttack(
 }
 
 /**
+ * Phalanxes' long lances (5-7m) make them unapproachable by horse: "la
+ * cavalerie ne peut effectuer de charge ou plus simplement d'attaques contre
+ * ces unités" (`docs/research/05-rules-french-original.md`) — cavalry may
+ * never attack a phalanx, whether by charge or by an ordinary attack. This
+ * is the ONLY unit-vs-unit targeting restriction beyond range/adjacency, so
+ * it's kept as its own small predicate rather than folded into
+ * `checkRangedEligibility` (which only knows the attacker and a distance,
+ * not the defender's type).
+ */
+export function cavalryMayAttack(attacker: Unit, defender: Unit): boolean {
+  if (unitCategory(attacker.typeId) !== 'cavalry') return true;
+  return unitType(defender).id !== 'phalanges';
+}
+
+/**
  * Every enemy unit `attacker` could individually reach on its own (right
  * range for archers, adjacency for melee, domain rules for naval),
  * excluding anything already resolved against this combat phase ("a unit
- * may only be attacked once per combat phase").
+ * may only be attacked once per combat phase") and, for cavalry, phalanx
+ * targets (see `cavalryMayAttack`).
  */
 export function validTargets(state: GameState, attacker: Unit): Unit[] {
   const t = unitType(attacker);
   return state.units.filter((u) => {
     if (u.destroyed || u.owner === attacker.owner || u.defendedThisPhase) return false;
+    if (!cavalryMayAttack(attacker, u)) return false;
     const dist = hexDistance(attacker.position, u.position);
     // Ramming is a movement-phase event (see `navalMovement.findRammingContacts`) —
     // by the time the Combat phase runs, the only naval option left is boarding.

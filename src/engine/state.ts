@@ -27,11 +27,39 @@ export interface Unit {
   equipmentPoints?: number;
   /** True once this unit has been the target of a combat resolution this phase — "a unit may only be attacked once per combat phase," regardless of the result. Reset at the start of each combat phase. */
   defendedThisPhase: boolean;
+  /**
+   * Cavalry only: true when this unit's most recent move satisfied the
+   * charge condition (see `engine/movement.ts`'s `evaluateCharge` for the
+   * exact eligibility check) — spent its ENTIRE movement allowance moving
+   * in one straight line and ended adjacent to an enemy unit. Doubles
+   * `currentAttack` for the rest of the owning player's turn (through their
+   * following Combat phase), then is cleared at the start of their next
+   * Movement phase (`BoardScene.resetMovementForActivePlayer`, mirroring how
+   * `movementLeft` itself is refreshed there). Always false for non-cavalry.
+   */
+  charged: boolean;
   destroyed: boolean;
 }
 
 export function unitType(unit: Unit): UnitType {
   return getUnitType(unit.typeId);
+}
+
+/**
+ * The `canEnterTerrain` category a unit type falls into. Lives here (rather
+ * than in `engine/movement.ts`, its original home) so both `movement.ts` and
+ * `combat.ts` can use it without creating a `combat.ts` <-> `movement.ts`
+ * import cycle (`movement.ts` already imports several helpers from
+ * `combat.ts`) — `state.ts` sits below both. `movement.ts` re-exports it
+ * unchanged for existing callers (`PlacementScene`, its own tests).
+ */
+export function unitCategory(typeId: string): 'chariot' | 'cavalry' | 'elephant' | 'land' | 'naval' {
+  const t = getUnitType(typeId);
+  if (t.domain === 'naval') return 'naval';
+  if (t.id.startsWith('chars-')) return 'chariot';
+  if (t.id.startsWith('cavalerie-')) return 'cavalry';
+  if (t.id === 'elephants') return 'elephant';
+  return 'land';
 }
 
 export function currentAttack(unit: Unit): number {
@@ -41,6 +69,11 @@ export function currentAttack(unit: Unit): number {
     const lost = Math.max(0, fullEquipment - unit.equipmentPoints);
     return Math.max(0, t.attack - lost * 5);
   }
+  // Charging cavalry doubles its printed attack value (light 3->6, heavy
+  // 6->12, matching the rulebook's worked example). `unit.charged` is only
+  // ever set for cavalry (see `evaluateCharge`), but the category check here
+  // is cheap insurance against that flag ever being set on the wrong type.
+  if (unit.charged && unitCategory(unit.typeId) === 'cavalry') return t.attack * 2;
   return t.attack;
 }
 

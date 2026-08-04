@@ -10,7 +10,7 @@ import {
 } from '../ui/saveStorage';
 import type { SavedGame } from '../engine/saveGame';
 import { advancePhase } from '../engine/turnManager';
-import { reachableHexes, reachableNavalHexes, findRammingContacts, type RammingContact } from '../engine/movement';
+import { reachableHexes, reachableNavalHexes, findRammingContacts, evaluateCharge, type RammingContact } from '../engine/movement';
 import {
   describeLandAttack,
   applyLandCombatResult,
@@ -325,6 +325,10 @@ export class BoardScene extends Phaser.Scene {
     for (const u of state.units) {
       if (!u.destroyed && u.owner === player.id) {
         u.movementLeft = unitType(u).movement;
+        // A charge only doubles attack through the charging player's own
+        // following Combat phase (see `Unit.charged`'s doc comment) — clear
+        // it here, at the start of that player's NEXT Movement phase.
+        u.charged = false;
       }
     }
     this.rammedThisTurn.clear();
@@ -608,9 +612,16 @@ export class BoardScene extends Phaser.Scene {
       const key = `${hex.q},${hex.r}`;
       if (reachable.has(key)) {
         const cost = reachable.get(key)!;
-        this.recordAction(`Move ${unitType(this.selected).name}`);
+        // Must be evaluated BEFORE mutating position/movementLeft — charge
+        // eligibility depends on the unit's pre-move state (see
+        // `evaluateCharge`'s doc comment in engine/movement.ts).
+        const charged = evaluateCharge(state, this.selected, hex);
+        const unitName = unitType(this.selected).name;
+        this.recordAction(`Move ${unitName}`);
         this.selected.movementLeft -= cost;
         this.selected.position = hex;
+        this.selected.charged = charged;
+        if (charged) this.log(`${unitName} charges!`);
         this.renderAllUnits();
         this.deselectMovement();
       }
