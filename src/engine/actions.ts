@@ -19,7 +19,7 @@ import {
   type LandAttackDetail,
   type LandCombatOutcome,
 } from './combat';
-import { advancePhase } from './turnManager';
+import { advancePhase, resetMovementForActivePlayer } from './turnManager';
 import { unitType, currentAttack, currentDefense, type GameState, type Unit } from './state';
 
 /**
@@ -88,7 +88,17 @@ export interface LandAttackResult {
    * `pendingDrifts` and `pendingRetreats` tell the caller which of its own
    * further prompts (exchange sacrifice, retreat/push, drift) still need
    * resolving before the combat is fully settled, exactly as `BoardScene`
-   * already branches on this same object today. */
+   * already branches on this same object today.
+   *
+   * NOTE for a headless caller (Stage 2's fuzz harness): `pendingRetreats`
+   * has an engine-side resolution path (`legalRetreatHexes`/`pushCandidates`
+   * plus `retreatUnitTo`/`completePush`), but `pendingDrifts` does not yet —
+   * an elephant's drift/trample cascade is still resolved entirely inside
+   * `BoardScene` (`resolveDriftHit`, calling `describeLandAttack`/
+   * `applyLandCombatResult` directly, not through `applyAction`), which is
+   * out of this stage's scope. A `pendingDrifts` entry here is a dead end
+   * for a purely `applyAction`-driven caller today — elephants can't be
+   * fuzzed until that cascade gets its own extraction pass. */
   outcome: LandCombatOutcome;
   /** The units that actually fought (post-mutation references), for the
    * caller's advance-into-vacated-hex offer. */
@@ -193,11 +203,22 @@ export function applyAction(
   switch (action.kind) {
     case 'endPhase': {
       advancePhase(state);
+      // Refill the new active player's movement/charge state, same as a
+      // human's Movement phase beginning (see turnManager.ts's doc comment
+      // on why this is a separate call rather than folded into
+      // advancePhase itself). `state.gameOver` skips straight past this —
+      // there's no "new active player" to refill for.
+      if (!state.gameOver && state.phase === 'movement') {
+        resetMovementForActivePlayer(state);
+      }
       return { kind: 'endPhase' };
     }
 
     case 'landMove': {
       const unit = requireLivingUnit(state, action.unitId);
+      if (unitType(unit).domain === 'naval') {
+        throw new Error(`applyAction: unit "${unit.id}" is naval — use 'navalMove', not 'landMove'`);
+      }
       const reachable = reachableHexes(state, unit);
       const key = hexKey(action.to);
       const reachableCost = reachable.get(key);
@@ -330,8 +351,17 @@ const EMPTY_SET: ReadonlySet<string> = new Set();
  * combine attacks can still do so by calling `applyAction` directly with a
  * larger `attackerIds`/`defenderIds` it assembles itself, exactly as
  * `BoardScene` does; only the *enumeration* stays singleton-only here.
+ *
+ * `context` is REQUIRED, not defaulted: an omitted default of "nothing has
+ * acted yet" would silently re-offer `landAttack`/`board` for a unit that
+ * already attacked this phase, or naval actions for a ship that already
+ * rammed — wrong answers, not degraded ones, and exactly the kind of trap a
+ * caller wouldn't notice until a fuzz run found a unit attacking twice.
+ * Callers with no such bookkeeping (e.g. a test that doesn't care) pass `{}`
+ * deliberately, so the omission is visible at the call site instead of
+ * silently defaulted away.
  */
-export function legalActions(state: GameState, context: ActionContext = {}): Action[] {
+export function legalActions(state: GameState, context: ActionContext): Action[] {
   const actions: Action[] = [{ kind: 'endPhase' }];
   const activeOwner = state.seatOrder[state.activePlayerIndex]!;
   const attackedThisPhase = context.attackedThisPhase ?? EMPTY_SET;

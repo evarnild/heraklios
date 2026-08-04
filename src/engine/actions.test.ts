@@ -43,13 +43,13 @@ function fixedRng(value: number): () => number {
 describe('legalActions', () => {
   it('always includes endPhase', () => {
     const state = makeState([]);
-    expect(legalActions(state)).toContainEqual({ kind: 'endPhase' });
+    expect(legalActions(state, {})).toContainEqual({ kind: 'endPhase' });
   });
 
   it('movement phase: enumerates exactly one landMove per hex reachableHexes reports for a land unit', () => {
     const unit = makeUnit({ typeId: 'fantassins', position: LAND_ROW_START, movementLeft: 3 });
     const state = makeState([unit]);
-    const actions = legalActions(state);
+    const actions = legalActions(state, {});
     const moves = actions.filter((a) => a.kind === 'landMove');
     const expectedHexKeys = new Set(reachableHexes(state, unit).keys());
     expect(moves).toHaveLength(expectedHexKeys.size);
@@ -65,20 +65,20 @@ describe('legalActions', () => {
     const own = makeUnit({ typeId: 'fantassins', position: LAND_ROW_START, movementLeft: 3, owner: 0 });
     const enemy = makeUnit({ typeId: 'fantassins', position: { q: 14, r: 3 }, movementLeft: 3, owner: 1 });
     const state = makeState([own, enemy]);
-    const actions = legalActions(state);
+    const actions = legalActions(state, {});
     expect(actions.some((a) => a.kind === 'landMove' && a.unitId === enemy.id)).toBe(false);
   });
 
   it('movement phase: ignores destroyed units', () => {
     const unit = makeUnit({ typeId: 'fantassins', position: LAND_ROW_START, movementLeft: 3, destroyed: true });
     const state = makeState([unit]);
-    expect(legalActions(state).filter((a) => a.kind === 'landMove')).toHaveLength(0);
+    expect(legalActions(state, {}).filter((a) => a.kind === 'landMove')).toHaveLength(0);
   });
 
   it('movement phase: a naval unit gets navalMove, both navalRotate directions, but no ram without a contact', () => {
     const ship = makeUnit({ typeId: 'biremes', position: SEA_CENTER, facing: 0, movementLeft: 3 });
     const state = makeState([ship]);
-    const actions = legalActions(state);
+    const actions = legalActions(state, {});
     expect(actions.some((a) => a.kind === 'navalMove')).toBe(true);
     expect(actions).toContainEqual({ kind: 'navalRotate', unitId: ship.id, direction: 1 });
     expect(actions).toContainEqual({ kind: 'navalRotate', unitId: ship.id, direction: -1 });
@@ -90,7 +90,7 @@ describe('legalActions', () => {
     const ship = makeUnit({ id: 'a', typeId: 'galeres', position: SEA_CENTER, facing: 0, movementLeft: 8 });
     const enemy = makeUnit({ id: 'd', typeId: 'galeres', owner: 1, position: forward, movementLeft: 0 });
     const state = makeState([ship, enemy]);
-    expect(legalActions(state)).toContainEqual({ kind: 'ram', unitId: 'a' });
+    expect(legalActions(state, {})).toContainEqual({ kind: 'ram', unitId: 'a' });
   });
 
   it('movement phase: a ship that already rammed this turn gets no naval actions', () => {
@@ -104,7 +104,7 @@ describe('legalActions', () => {
     const attacker = makeUnit({ typeId: 'fantassins', position: LAND_ROW_START, owner: 0 });
     const target = makeUnit({ typeId: 'fantassins', position: { q: 11, r: 3 }, owner: 1 });
     const state = makeState([attacker, target], 'combat');
-    expect(legalActions(state)).toContainEqual({
+    expect(legalActions(state, {})).toContainEqual({
       kind: 'landAttack',
       attackerIds: [attacker.id],
       defenderIds: [target.id],
@@ -123,7 +123,7 @@ describe('legalActions', () => {
     const cavalry = makeUnit({ typeId: 'cavalerie-legere', position: LAND_ROW_START, owner: 0 });
     const phalanx = makeUnit({ typeId: 'phalanges', position: { q: 11, r: 3 }, owner: 1 });
     const state = makeState([cavalry, phalanx], 'combat');
-    expect(legalActions(state).some((a) => a.kind === 'landAttack')).toBe(false);
+    expect(legalActions(state, {}).some((a) => a.kind === 'landAttack')).toBe(false);
   });
 
   it('combat phase: a naval unit gets a board action against an adjacent, parallel-facing enemy ship', () => {
@@ -131,7 +131,7 @@ describe('legalActions', () => {
     const forward = { q: SEA_CENTER.q + DIRECTIONS[0]!.q, r: SEA_CENTER.r + DIRECTIONS[0]!.r };
     const defender = makeUnit({ id: 'd', typeId: 'galeres', position: forward, facing: 0, owner: 1 });
     const state = makeState([attacker, defender], 'combat');
-    expect(legalActions(state)).toContainEqual({ kind: 'board', attackerId: 'a', defenderId: 'd' });
+    expect(legalActions(state, {})).toContainEqual({ kind: 'board', attackerId: 'a', defenderId: 'd' });
   });
 });
 
@@ -155,10 +155,36 @@ describe('applyAction — landMove', () => {
     expect(cav.movementLeft).toBe(0); // full 6-point allowance spent
   });
 
+  // Regression for a bug an adversarial review caught in the ORIGINAL
+  // (pre-actions.ts) implementation, and for a gap in this file's own first
+  // charge test above: (10,3)->(16,3) is an all-plain row where the
+  // straight-line cost and `reachableHexes`' cheapest-path cost happen to be
+  // identical (both 6), so swapping `chargeCost ?? reachableCost` back to
+  // plain `reachableCost` would still pass that test. This pair — verified
+  // in engine/movement.test.ts's own "returns the (costlier) straight-line
+  // cost..." heavy-cavalry case — has a cheapest path (3) strictly CHEAPER
+  // than the straight line (4), so only deducting the straight-line cost
+  // (not the cheaper detour) can leave `movementLeft` at exactly 0.
+  it('deducts the straight-line charge cost even when a cheaper detour to the same hex exists', () => {
+    const cav = makeUnit({ typeId: 'cavalerie-lourde', position: { q: 20, r: 4 }, movementLeft: 4 });
+    const enemy = makeUnit({ typeId: 'fantassins', owner: 1, position: { q: 20, r: 1 } });
+    const state = makeState([cav, enemy]);
+    const result = applyAction(state, { kind: 'landMove', unitId: cav.id, to: { q: 20, r: 2 } });
+    expect(result).toMatchObject({ kind: 'landMove', charged: true });
+    expect(cav.movementLeft).toBe(0); // straight-line cost 4, NOT the cheaper 3-cost detour
+  });
+
   it('throws for a hex the unit cannot reach', () => {
     const unit = makeUnit({ typeId: 'fantassins', position: LAND_ROW_START, movementLeft: 1 });
     const state = makeState([unit]);
     expect(() => applyAction(state, { kind: 'landMove', unitId: unit.id, to: { q: 19, r: 3 } })).toThrow();
+  });
+
+  it('throws for a naval unit — it must use navalMove instead', () => {
+    const ship = makeUnit({ typeId: 'galeres', position: SEA_CENTER, facing: 0, movementLeft: 4 });
+    const state = makeState([ship]);
+    const forward = { q: SEA_CENTER.q + DIRECTIONS[0]!.q, r: SEA_CENTER.r + DIRECTIONS[0]!.r };
+    expect(() => applyAction(state, { kind: 'landMove', unitId: ship.id, to: forward })).toThrow();
   });
 
   it('throws for an unknown unit id', () => {
@@ -307,6 +333,58 @@ describe('applyAction — endPhase', () => {
     expect(result).toEqual({ kind: 'endPhase' });
     expect(state.phase).toBe('combat');
     expect(unit.defendedThisPhase).toBe(false);
+  });
+
+  // Regression for a bug an adversarial review caught: a headless caller
+  // driving nothing but legalActions/applyAction (the whole point of this
+  // module) got advancePhase's phase transition WITHOUT the movement/charge
+  // refill BoardScene separately applied — so after turn 1 every unit had
+  // movementLeft === 0 forever and legalActions degenerated to "just
+  // endPhase," silently. `applyAction`'s 'endPhase' case must refill the
+  // newly active player itself.
+  it('refills the newly active player\'s movement and clears charged after a full endPhase cycle, with no scene involved', () => {
+    const p0Unit = makeUnit({
+      id: 'p0u',
+      typeId: 'cavalerie-legere',
+      position: LAND_ROW_START,
+      owner: 0,
+      movementLeft: 2, // partially spent this (about-to-end) turn
+    });
+    p0Unit.charged = true;
+    const p1Unit = makeUnit({
+      id: 'p1u',
+      typeId: 'fantassins',
+      position: { q: 0, r: 0 },
+      owner: 1,
+      movementLeft: 0,
+    });
+    const state = makeState([p0Unit, p1Unit], 'movement'); // active player defaults to seat 0 (owner 0)
+
+    applyAction(state, { kind: 'endPhase' }); // p0: movement -> combat
+    applyAction(state, { kind: 'endPhase' }); // p0 combat -> p1 movement
+    expect(state.phase).toBe('movement');
+    expect(p1Unit.movementLeft).toBe(3); // fantassins' full printed allowance, not the stale 0
+
+    applyAction(state, { kind: 'endPhase' }); // p1: movement -> combat
+    applyAction(state, { kind: 'endPhase' }); // p1 combat -> wraps back to p0's movement
+
+    expect(state.phase).toBe('movement');
+    expect(p0Unit.movementLeft).toBe(6); // cavalerie-legere's full allowance, not the stale 2
+    expect(p0Unit.charged).toBe(false);
+  });
+
+  it('legalActions is not stuck offering only endPhase once a fresh movement phase begins headlessly', () => {
+    const p0Unit = makeUnit({ id: 'p0u', typeId: 'fantassins', position: LAND_ROW_START, owner: 0, movementLeft: 0 });
+    const p1Unit = makeUnit({ id: 'p1u', typeId: 'fantassins', position: { q: 0, r: 0 }, owner: 1, movementLeft: 0 });
+    const state = makeState([p0Unit, p1Unit], 'combat'); // p0's combat phase is about to end
+
+    applyAction(state, { kind: 'endPhase' }); // -> p1's movement phase
+    applyAction(state, { kind: 'endPhase' }); // -> p1's combat phase
+    applyAction(state, { kind: 'endPhase' }); // -> wraps back to p0's fresh movement phase
+
+    expect(state.phase).toBe('movement');
+    const actions = legalActions(state, {});
+    expect(actions.some((a) => a.kind === 'landMove')).toBe(true);
   });
 });
 

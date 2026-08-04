@@ -325,10 +325,10 @@ what the game will use — see `src/map-editor/`.
   injectable die roll, a headless action layer (`actions.ts`'s
   `legalActions`/`applyAction`, enumerating and applying every
   move/attack/end-phase a player can take, plus the `PlayerAgent` interface
-  in `agent.ts` that a human or a future bot answers), and the save-file
-  format and its validation. Fully unit-tested and independent of Phaser
-  (the browser-side half of saving — `localStorage` and file
-  download/upload — lives in `src/ui/saveStorage.ts`).
+  in `agent.ts` for the retreat/push/advance/exchange decisions a human or a
+  future bot answers), and the save-file format and its validation. Fully
+  unit-tested and independent of Phaser (the browser-side half of saving —
+  `localStorage` and file download/upload — lives in `src/ui/saveStorage.ts`).
 - `src/scenes/` — the Phaser UI: menu, army builder, placement, board,
   game-over.
 - `src/ui/` — shared rendering helpers (hex grid rendering/camera, session

@@ -50,17 +50,24 @@ and rendering.
   sequencing (`turnManager.ts`), the state shape (`state.ts`), the undo/redo
   primitive (`history.ts`), save-file serialization/validation
   (`saveGame.ts`), an injectable die roll (`dice.ts`), and the headless
-  action layer (`actions.ts`'s `legalActions`/`applyAction`, plus the
-  `PlayerAgent` interface in `agent.ts`) that enumerates and applies every
-  move/attack/end-phase a player (human or, eventually, a bot) can take.
+  action layer `actions.ts`'s `legalActions`/`applyAction` enumerate and
+  apply every move/attack/end-phase the active player (human or,
+  eventually, a bot) can take. `agent.ts` defines two separate interfaces:
+  `PlayerAgent` (the mid-resolution decisions a retreat/push/advance/exchange
+  can force) and `ActionObserver` (an after-the-fact "what action just got
+  committed" hook — NOT a top-level action chooser; see its doc comment for
+  why unifying hotseat and AI action *selection* is still open, deferred to
+  Stage 4).
 - `src/scenes/` — the Phaser scenes, run in sequence: `MenuScene` →
   `ArmyBuilderScene` → `PlacementScene` → `BoardScene` → `GameOverScene`.
   `BoardScene.ts` is by far the largest file in the repo (~1600 lines) and
   owns movement clicks, combat-group building, retreat/drift prompts, and
-  naval rotation/ramming/boarding UI; it implements `PlayerAgent` via those
-  same prompts and delegates every actual state mutation to
-  `engine/actions.ts`'s `applyAction` rather than mutating `GameState`
-  inline.
+  naval rotation/ramming/boarding UI; it implements `PlayerAgent` and
+  `ActionObserver` via those same prompts, and delegates its movement,
+  attack, ram, boarding and end-phase mutations to `engine/actions.ts`'s
+  `applyAction`. The elephant drift/trample cascade and the post-combat
+  advance/elimination bookkeeping are not yet extracted and still mutate
+  `GameState` inline.
 - `src/ui/` — shared, Phaser-adjacent helpers used across scenes:
   `MapView.ts`/`hexRender.ts` (camera + hex grid rendering), `session.ts`
   (the in-memory `SessionState` — player setup, army selections, combat mode,

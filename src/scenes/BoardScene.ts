@@ -11,7 +11,8 @@ import {
 import type { SavedGame } from '../engine/saveGame';
 import { resetMovementForActivePlayer } from '../engine/turnManager';
 import { applyAction, type Action } from '../engine/actions';
-import type { PlayerAgent } from '../engine/agent';
+import type { PlayerAgent, ActionObserver } from '../engine/agent';
+import { rollDie as engineRollDie } from '../engine/dice';
 import { reachableHexes, reachableNavalHexes, findRammingContacts, type RammingContact } from '../engine/movement';
 import {
   describeLandAttack,
@@ -62,8 +63,8 @@ interface RetreatQueueItem {
  * `onChosen` fires with the player's pick — shared by the normal post-combat
  * retreat queue and, mid-drift, a trampled unit's own retreat. */
 type RetreatChoice =
-  | { kind: 'retreat'; unit: Unit; legalHexes: HexCoord[]; onChosen: (hex: HexCoord) => void }
-  | { kind: 'choosePushTarget'; unit: Unit; pushTargets: Unit[]; onChosen: (pushed: Unit) => void };
+  | { kind: 'retreat'; legalHexes: HexCoord[]; onChosen: (hex: HexCoord) => void }
+  | { kind: 'choosePushTarget'; pushTargets: Unit[]; onChosen: (pushed: Unit) => void };
 
 /** An elephant's "drift" in progress: direction rolled, walking one hex at
  * a time, real combat resolved against anything encountered. `remainingSteps`
@@ -94,7 +95,7 @@ interface BoardSnapshot {
   selectedId: string | null;
 }
 
-export class BoardScene extends Phaser.Scene implements PlayerAgent {
+export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObserver {
   private mapView!: MapView;
   /** Movement-phase single-unit selection (unrelated to combat grouping). */
   private selected: Unit | null = null;
@@ -108,6 +109,23 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent {
   private driftQueue: RetreatQueueItem[] = [];
   private retreatChoice: RetreatChoice | null = null;
   private driftState: DriftState | null = null;
+  /**
+   * True from the moment any `PlayerAgent` `choose*` method creates its
+   * pending promise until its resolution has been fully applied (the
+   * mutation + continuation that runs in the caller's `.then()`) — a wider
+   * window than `retreatChoice`/`driftState` alone cover. `chooseRetreat`
+   * and `choosePushTarget` clear `retreatChoice` and call the promise's
+   * `resolve` in the SAME synchronous tick (`handleRetreatChoiceClick`), but
+   * `.then()` — which performs the actual mutation — only runs as a
+   * microtask afterward; `chooseAdvance`/`chooseExchangeSacrifice` have no
+   * equivalent tracked field at all otherwise. If Phaser ever dispatched two
+   * pointer events within the same task (its input plugin batches queued
+   * events), the second could see every existing guard below as "nothing
+   * pending" and fall through to `toggleAttacker`/undo/autosave/etc. against
+   * a board that's about to change underneath it. Included in the same
+   * guards as `retreatChoice`/`driftState`.
+   */
+  private decisionPending = false;
   /** The attacking side from the combat currently driving the queues above —
    * used to offer the advance choice once each defender's retreat/drift
    * settles. */
@@ -135,25 +153,23 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent {
    * Movement phase (a fresh turn for whoever's up next). */
   private rammedThisTurn = new Set<string>();
   /** The `rng` handed to `applyAction` for the die rolls it performs
-   * internally (ram, land attack, boarding). Bundles the exact same "outside
-   * test mode, a rolled die clears the undo history" side effect `rollDie`
-   * below enforces for the die rolls this scene still drives directly (an
-   * elephant's drift direction, and the trampling combat during a drift) —
-   * `applyAction` itself stays pure and doesn't know undo history exists at
-   * all, it just calls whatever `rng` it's given, per `engine/dice.ts`'s
-   * RNG-injection convention. An arrow-function field (not a method) so its
-   * `this` binding survives being passed around as a bare callback. */
+   * internally (ram, land attack, boarding) — a raw uniform [0,1) generator,
+   * per `engine/dice.ts`'s `rollDie(rng)` contract (the same one
+   * `shuffleSeatOrder` establishes in turnManager.ts), NOT a finished die
+   * face — `applyAction` converts it to a face itself. Enforces the same
+   * "a real roll clears undo history outside test mode" rule `rollDie`
+   * below enforces for its own rolls, via the shared `clearHistoryOnRoll`
+   * so that rule has exactly one implementation, not two. An arrow-function
+   * field (not a method) so its `this` binding survives being passed around
+   * as a bare callback. */
   private diceRng = (): number => {
-    if (!session.testMode) {
-      this.history.clear();
-      this.refreshUndoRedoButtons();
-    }
+    this.clearHistoryOnRoll();
     return Math.random();
   };
-  /** Set only while a `chooseAction` call is pending (nothing in this
-   * hotseat scene calls it yet — see `chooseAction`'s doc comment) —
-   * resolved by `reportAction` the next time any of this scene's click
-   * handlers commits a whole `Action` via `applyAction`. */
+  /** Set only while an `observeCommittedAction` call is pending (nothing in
+   * this hotseat scene calls it yet — see `ActionObserver`'s doc comment in
+   * engine/agent.ts) — resolved by `reportAction` the next time any of this
+   * scene's click handlers commits a whole `Action` via `applyAction`. */
   private pendingActionResolve: ((action: Action) => void) | null = null;
 
   constructor() {
@@ -408,6 +424,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent {
     this.driftQueue = [];
     this.retreatChoice = null;
     this.driftState = null;
+    this.decisionPending = false;
     this.advanceEligibleAttackers = [];
     this.advanceOfferQueue = [];
     this.navalContacts = [];
@@ -428,14 +445,14 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent {
    * on — a manual save reports the same problem where it matters.
    */
   private autosave(): void {
-    if (this.retreatChoice || this.driftState) return;
+    if (this.retreatChoice || this.driftState || this.decisionPending) return;
     writeSlot('autosave', this.captureSave());
   }
 
   private openSaveLoad(): void {
     // A pending retreat/drift can't be captured at all: those sequences carry
     // `onComplete` closures, which don't survive serialization.
-    if (this.retreatChoice || this.driftState) {
+    if (this.retreatChoice || this.driftState || this.decisionPending) {
       this.log('Resolve the pending retreat/drift before saving or loading.');
       return;
     }
@@ -495,6 +512,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent {
     this.driftQueue = [];
     this.retreatChoice = null;
     this.driftState = null;
+    this.decisionPending = false;
     this.advanceEligibleAttackers = [];
     this.advanceOfferQueue = [];
     this.navalContacts = [];
@@ -513,7 +531,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent {
   }
 
   private undo(): void {
-    if (this.retreatChoice || this.driftState) {
+    if (this.retreatChoice || this.driftState || this.decisionPending) {
       this.log('Resolve the pending retreat/drift before undoing.');
       return;
     }
@@ -527,7 +545,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent {
   }
 
   private redo(): void {
-    if (this.retreatChoice || this.driftState) {
+    if (this.retreatChoice || this.driftState || this.decisionPending) {
       this.log('Resolve the pending retreat/drift before redoing.');
       return;
     }
@@ -541,43 +559,61 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent {
   }
 
   /**
-   * Every die roll in the game goes through here, so the fairness rule has a
-   * single enforcement point: outside test mode a rolled die is a commit
-   * point and the history is dropped, since undoing past a roll would let a
-   * player re-roll a result they didn't like.
+   * Outside test mode, a real die roll is a commit point and the undo
+   * history is dropped, since undoing past a roll would let a player
+   * re-roll a result they didn't like. Shared by `rollDie` below (every die
+   * roll this scene still drives directly — an elephant's drift direction,
+   * and the trampling combat during a drift) AND `diceRng` above (the rolls
+   * `applyAction` performs internally) — factored out so this rule has
+   * exactly one implementation instead of two copies that could drift out
+   * of sync with each other.
    */
-  private rollDie(): number {
+  private clearHistoryOnRoll(): void {
     if (!session.testMode) {
       this.history.clear();
       this.refreshUndoRedoButtons();
     }
-    return 1 + Math.floor(Math.random() * 6);
   }
 
   /**
-   * `PlayerAgent.chooseAction` — resolves with the next whole `Action` this
-   * scene commits via `applyAction`, reported by `reportAction`.
-   *
-   * Nothing in hotseat play calls this today: `BoardScene`'s input is
-   * click-driven rather than pull-based (a combat attacker/defender GROUP,
-   * in particular, is built through a sequence of individual add/remove
-   * clicks — there's no single moment "the next action" exists before the
-   * player presses "Resolve attack"), and rebuilding that into a loop that
-   * repeatedly awaits `chooseAction` would be exactly the prompt-flow
-   * redesign plan.md's stage-1 scope warns against. This is still a genuine,
-   * correct implementation — not a stub — ready for a future headless
-   * driver (or a spectator/replay view) that wants to observe each action a
-   * human takes as it commits, via `reportAction` below.
+   * Every direct die roll this scene still drives itself goes through here
+   * (see `clearHistoryOnRoll`'s doc comment for which ones, and why they
+   * aren't yet routed through `applyAction`/`diceRng`). Delegates the actual
+   * face math to `engine/dice.ts`'s `rollDie` — the SAME function
+   * `applyAction` uses internally for its own rolls — so there is exactly
+   * one implementation of "what a d6 roll is" in the codebase, not one here
+   * and a second one duplicated inline.
    */
-  chooseAction(_state: GameState, _legal: Action[]): Promise<Action> {
+  private rollDie(rng: () => number = Math.random): number {
+    this.clearHistoryOnRoll();
+    return engineRollDie(rng);
+  }
+
+  /**
+   * `ActionObserver.observeCommittedAction` — resolves with the next whole
+   * `Action` this scene commits, reported by `reportAction` AFTER
+   * `applyAction` has already run. See `ActionObserver`'s doc comment in
+   * engine/agent.ts for why this is an observer, not a chooser: `BoardScene`
+   * is click-driven and always applies an action itself, synchronously, the
+   * moment it's chosen (a combat attacker/defender GROUP in particular is
+   * built through a sequence of individual add/remove clicks — there's no
+   * single moment "the next action" exists as a value before the player
+   * presses "Resolve attack"), so it cannot honestly offer a "choose, then
+   * I'll apply it" contract without double-applying.
+   *
+   * Nothing in hotseat play calls this today — no driver loop needs to watch
+   * a human's actions in Stage 1 — but it's a genuine, correct
+   * implementation, not a stub, ready for a future spectator/replay view.
+   */
+  observeCommittedAction(_state: GameState, _legal: Action[]): Promise<Action> {
     return new Promise((resolve) => {
       this.pendingActionResolve = resolve;
     });
   }
 
-  /** Resolves a pending `chooseAction` call (if any) with `action` — called
-   * once, right after each click handler below commits that exact action via
-   * `applyAction`. A no-op whenever nothing is awaiting `chooseAction`, which
+  /** Resolves a pending `observeCommittedAction` call (if any) with `action`
+   * — called once, right after each click handler below commits that exact
+   * action via `applyAction`. A no-op whenever nothing is awaiting it, which
    * is always true in ordinary hotseat play (see that method's doc comment). */
   private reportAction(action: Action): void {
     const resolve = this.pendingActionResolve;
@@ -626,6 +662,10 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent {
       this.handleRetreatChoiceClick(hex);
       return;
     }
+    // An advance/exchange-sacrifice panel is up (or one JUST resolved and its
+    // mutation hasn't landed yet — see `decisionPending`'s doc comment):
+    // ignore ordinary board clicks rather than let them race against it.
+    if (this.decisionPending) return;
 
     const state = this.state();
     const occupant = unitAt(state, hex);
@@ -1048,6 +1088,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent {
         retreatUnitTo(unit, hex);
         this.appendLine(`${unitType(unit).name} retreats.`);
         this.renderAllUnits();
+        this.decisionPending = false;
         onDone();
       });
       return;
@@ -1065,6 +1106,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent {
           completePush(unit, pushed, pushedHex);
           this.appendLine(`${unitType(pushed).name} retreats, making room for ${unitType(unit).name}.`);
           this.renderAllUnits();
+          this.decisionPending = false;
           onDone();
         });
       });
@@ -1083,19 +1125,24 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent {
   /** `PlayerAgent.chooseRetreat` — highlights `options` and resolves with
    * whichever one the player clicks (routed here by `handleRetreatChoiceClick`).
    * Reused, unmodified, for a pushed unit's own retreat destination (see
-   * `beginUnitRetreatChoice`'s push branch). */
-  chooseRetreat(_state: GameState, unit: Unit, options: HexCoord[]): Promise<HexCoord> {
+   * `beginUnitRetreatChoice`'s push branch). `unit` isn't needed by the
+   * choice itself (only `options`/the click matter) — it exists purely to
+   * satisfy `PlayerAgent`'s signature. */
+  chooseRetreat(_state: GameState, _unit: Unit, options: HexCoord[]): Promise<HexCoord> {
+    this.decisionPending = true;
     return new Promise((resolve) => {
-      this.retreatChoice = { kind: 'retreat', unit, legalHexes: options, onChosen: resolve };
+      this.retreatChoice = { kind: 'retreat', legalHexes: options, onChosen: resolve };
       this.mapView.highlightHexes(options, 0x4aa6ff, 0.5);
     });
   }
 
   /** `PlayerAgent.choosePushTarget` — highlights `candidates` and resolves
-   * with whichever friendly unit the player clicks to push aside. */
-  choosePushTarget(_state: GameState, unit: Unit, candidates: Unit[]): Promise<Unit> {
+   * with whichever friendly unit the player clicks to push aside. `unit`
+   * isn't needed by the choice itself, same as `chooseRetreat` above. */
+  choosePushTarget(_state: GameState, _unit: Unit, candidates: Unit[]): Promise<Unit> {
+    this.decisionPending = true;
     return new Promise((resolve) => {
-      this.retreatChoice = { kind: 'choosePushTarget', unit, pushTargets: candidates, onChosen: resolve };
+      this.retreatChoice = { kind: 'choosePushTarget', pushTargets: candidates, onChosen: resolve };
       this.mapView.highlightHexes(candidates.map((u) => u.position), 0xffb020, 0.5);
     });
   }
@@ -1192,8 +1239,19 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent {
     this.resolveDriftHit(drift, nextHex, occupant);
   }
 
-  /** A drifting elephant reaching an occupied hex: a real combat (elephant
-   * as attacker, occupant as defender), same engine as any other attack. */
+  /**
+   * A drifting elephant reaching an occupied hex: a real combat (elephant
+   * as attacker, occupant as defender), same engine as any other attack —
+   * but resolved by calling `describeLandAttack`/`applyLandCombatResult`
+   * directly rather than via `applyAction`'s `landAttack` case, since the
+   * whole drift cascade is out of stage-1 scope (see the class-level design
+   * note near `DriftState`). NOTE for Stage 2: this means a headless caller
+   * has no `applyAction`-based way to resolve a drift at all — a
+   * `LandCombatOutcome.pendingDrifts` entry from `applyAction`'s own
+   * `landAttack` case is a real dead end for a fuzz harness today. Elephant
+   * drifts can't be exercised by Stage 2's fuzzer until this cascade gets
+   * its own extraction pass.
+   */
   private resolveDriftHit(drift: DriftState, hex: HexCoord, occupant: Unit): void {
     const { elephant } = drift;
     const state = this.state();
@@ -1309,6 +1367,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent {
         this.log(`${unitType(chosen).name} advances into the vacated hex.`);
         this.renderAllUnits();
       }
+      this.decisionPending = false;
       onDone();
     });
   }
@@ -1318,6 +1377,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent {
    * whichever the player picks, or `null` on decline. Purely a choice: the
    * caller (`promptAdvanceChoice`) applies the resulting move. */
   chooseAdvance(_state: GameState, candidates: Unit[], _vacated: HexCoord): Promise<Unit | null> {
+    this.decisionPending = true;
     return new Promise((resolve) => {
       const { width, height } = this.scale;
       const rowHeight = 26;
@@ -1387,7 +1447,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent {
   }
 
   private resolveGroupAttack(): void {
-    if (this.retreatChoice || this.driftState) {
+    if (this.retreatChoice || this.driftState || this.decisionPending) {
       this.log('Resolve the pending retreat/drift before starting a new attack.');
       return;
     }
@@ -1429,6 +1489,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent {
         );
         this.renderAllUnits();
         this.clearCombatSelection();
+        this.decisionPending = false;
         this.beginAdvanceOffers(
           defenderOriginalHexes,
           attackersFromThisCombat.filter((u) => !u.destroyed),
@@ -1487,6 +1548,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent {
    * `exchangeSacrificeMeetsThreshold`). Resolves only once a valid selection
    * is confirmed; the caller applies the actual sacrifice. */
   chooseExchangeSacrifice(_state: GameState, attackers: Unit[], requiredForce: number): Promise<Unit[]> {
+    this.decisionPending = true;
     return new Promise((resolve) => {
       const { width, height } = this.scale;
       const rowHeight = 24;
@@ -1640,7 +1702,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent {
   }
 
   private endPhase(): void {
-    if (this.retreatChoice || this.driftState) {
+    if (this.retreatChoice || this.driftState || this.decisionPending) {
       this.log('Resolve the pending retreat/drift before ending the phase.');
       return;
     }
@@ -1660,7 +1722,11 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent {
       return;
     }
     if (state.phase === 'movement') {
-      this.resetMovementForActivePlayer();
+      // `applyAction`'s 'endPhase' case already refilled movement/charge for
+      // the new active player (see engine/actions.ts) — only the scene-local
+      // ramming bookkeeping (kept outside `GameState`, see `rammedThisTurn`'s
+      // doc comment) still needs resetting here.
+      this.rammedThisTurn.clear();
       // A player's movement phase beginning is the natural checkpoint: a
       // crash or closed tab then costs at most that one turn.
       this.autosave();
