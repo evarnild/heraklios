@@ -525,19 +525,60 @@ one, and carry a permanently-skipped test (e.g. `"elephants: drift cascade
 not yet fuzzable (Stage 2b)"`) so the gap prints on every run. An exclusion
 that cannot be forgotten is a different thing from one that can.
 
-**2b is deliberately not a full orchestration refactor.** The cascade in
-`BoardScene.ts:1208-1360` is ~150 lines, but the rules primitives already
-live in the engine — `canElephantEnterHex`, `directionForDie`, `traceLine`.
-Only the step loop is missing. Extract a pure:
+#### What 2b actually has to solve
+
+An earlier sketch of this plan proposed a simple
+`driftStep(state, elephant, dieRoll)` returning "moved / hit / eliminated".
+**Reading the real cascade, that is too optimistic** — recording the
+correction here so 2b doesn't get under-scoped the way it nearly was.
+
+`stepDrift` (`BoardScene.ts:1231`) is the easy half: walk one hex, eliminate
+off-map (`canElephantEnterHex`), advance into empty hexes, else hand off to
+`resolveDriftHit`. That part genuinely is a pure step function.
+
+`resolveDriftHit` (`:1281`) is the hard half. It rolls a die, resolves a real
+combat, and branches five ways:
+
+| Result | Behavior |
+| --- | --- |
+| `AE`/`EX` | Elephant destroyed; cascade ends. |
+| `AR` | Elephant repelled and **re-drifts in a newly rolled direction** (recurses into `beginDrift`). |
+| `DE` | Elephant advances into the hex and keeps drifting. |
+| `DR`, occupant is an elephant | Occupant **drifts recursively**, with a *forbidden direction* so it can't drift back into its trampler (`:1331`). |
+| `DR`, occupant is anything else | Occupant needs a **retreat choice — a live `PlayerAgent` decision** (`:1334`) — before the original elephant may continue. |
+
+So a drift can contain a nested drift, a nested *player decision*, and an
+unbounded chain of both.
+
+**The real blocker is not the rules — it is that the continuation lives in
+closures.** `continueAfterVacated` (`:1320`) captures the drift and must
+re-assign `this.driftState` on resume "because a nested choice/drift may have
+taken over"; `finishDrift` fires a captured `onComplete`. A headless caller
+cannot enter a JS closure stack.
+
+The correct shape is therefore the **same pending-decision pattern
+`applyAction` already uses**, with the continuation made explicit and
+serializable instead of implicit in closures:
 
 ```ts
-driftStep(state, elephant, dieRoll) -> { moved, hitUnit, eliminated, ... }
+type DriftEvent =
+  | { kind: 'moved'; to: HexCoord }
+  | { kind: 'eliminated'; unit: Unit; reason: 'off-map' | 'combat' }
+  | { kind: 'needsRetreatChoice'; unit: Unit; options: HexCoord[] }
+  | { kind: 'done' };
+
+// `drift` is an explicit resumable stack, not a closure chain.
+driftStep(state, drift: DriftState, rng): DriftEvent
 ```
 
-The scene keeps its animation loop and calls the engine per step; the harness
-calls the same function in a tight loop. Full extraction of the
-trample/nested-retreat orchestration stays deferred indefinitely — it is not
-needed to make drift fuzzable.
+The scene keeps its animation loop and pumps this; the harness pumps the same
+function, answering `needsRetreatChoice` via its agent. Nested drifts become
+frames pushed onto `DriftState`, not recursive calls.
+
+This is a larger job than the original sketch implied — but it is still far
+smaller than lifting the whole cascade into `applyAction`, and converting
+closure-continuations into an explicit stack is the *only* part that is
+strictly required to make drift fuzzable.
 
 ---
 
