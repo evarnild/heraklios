@@ -57,7 +57,16 @@ and rendering.
   can force) and `ActionObserver` (an after-the-fact "what action just got
   committed" hook — NOT a top-level action chooser; see its doc comment for
   why unifying hotseat and AI action *selection* is still open, deferred to
-  Stage 4).
+  Stage 4). Stage 2 (plan.md §6.3) adds `rng.ts` (a seeded LCG for
+  deterministic replay), `randomAgent.ts`'s `RandomAgent` (a trivial
+  uniform-random `PlayerAgent`, driven by that seed), and `fuzzHarness.ts`
+  (`playRandomGame(seed)`, a fully headless self-play driver — no Phaser,
+  no scenes — with its own continuously-checked invariants). Elephants are
+  deliberately excluded from the harness's armies: the drift/trample
+  cascade isn't extracted yet (still `BoardScene`'s), so a headless caller
+  has no way to resolve it — see plan.md §6.7 and `fuzzHarness.ts`'s own
+  doc comments for the loud guard against that gap being silently
+  reintroduced.
 - `src/scenes/` — the Phaser scenes, run in sequence: `MenuScene` →
   `ArmyBuilderScene` → `PlacementScene` → `BoardScene` → `GameOverScene`.
   `BoardScene.ts` is by far the largest file in the repo (~1600 lines) and
