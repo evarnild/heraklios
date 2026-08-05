@@ -62,11 +62,27 @@ export function unitCategory(typeId: string): 'chariot' | 'cavalry' | 'elephant'
   return 'land';
 }
 
+/**
+ * Naval-only: the ship's equipment points when fully equipped — one point
+ * per 5 points of printed defense, rounding up. This is the same formula
+ * every unit-creation site (`PlacementScene`, `testMode.ts`,
+ * `fuzzHarness.ts`, and the save/history test fixtures) uses to seed a
+ * fresh ship's `equipmentPoints`, pulled out here as the single shared
+ * source of truth so combat-log formatting (see `BoardScene`'s boarding
+ * prompt) can show "N/max equipment" without re-deriving the formula.
+ * Returns 0 for land units, whose `equipmentPoints` is always `undefined`
+ * ("not applicable" rather than "zero").
+ */
+export function maxEquipmentPoints(unit: Unit): number {
+  const t = unitType(unit);
+  if (t.domain !== 'naval') return 0;
+  return Math.ceil(t.defense / 5);
+}
+
 export function currentAttack(unit: Unit): number {
   const t = unitType(unit);
   if (t.domain === 'naval' && unit.equipmentPoints !== undefined) {
-    const fullEquipment = Math.ceil(t.defense / 5);
-    const lost = Math.max(0, fullEquipment - unit.equipmentPoints);
+    const lost = Math.max(0, maxEquipmentPoints(unit) - unit.equipmentPoints);
     return Math.max(0, t.attack - lost * 5);
   }
   // Charging cavalry doubles its printed attack value (light 3->6, heavy
@@ -80,8 +96,7 @@ export function currentAttack(unit: Unit): number {
 export function currentDefense(unit: Unit): number {
   const t = unitType(unit);
   if (t.domain === 'naval' && unit.equipmentPoints !== undefined) {
-    const fullEquipment = Math.ceil(t.defense / 5);
-    const lost = Math.max(0, fullEquipment - unit.equipmentPoints);
+    const lost = Math.max(0, maxEquipmentPoints(unit) - unit.equipmentPoints);
     return Math.max(0, t.defense - lost * 5);
   }
   return t.defense;

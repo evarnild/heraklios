@@ -95,7 +95,33 @@ export interface LandAttackDetail {
   defenseForce: number;
   /** Force-ratio column label, e.g. "4-1" (see `RATIO_COLUMNS`). */
   ratioLabel: string;
+  /** Index into `RATIO_COLUMNS` (and, equivalently, each row of
+   * `data/combatTable.ts`'s `LAND_CRT`) that `ratioLabel` names — the exact
+   * column `resolveLandCombat` looked up, so a result can be audited
+   * against the printed table by column *and* row rather than just the
+   * ratio label. */
+  crtColumnIndex: number;
+  /** Combined die modifier actually applied: `terrainOnlyModifier` plus
+   * `RIVER_CROSSING.combatModifier` if `riverCrossingApplied`. */
   terrainModifier: number;
+  /** The terrain component of `terrainModifier` alone, excluding the river
+   * crossing bonus (a hexside property, not a terrain type — see
+   * `riverBetween`). 0 when no defender's terrain contributed a bonus. */
+  terrainOnlyModifier: number;
+  /** Which terrain type contributed `terrainOnlyModifier` — the worst-case
+   * defender hex per this function's own doc comment above — or `null` if
+   * `terrainOnlyModifier` is 0 (plain terrain, or a conditional bonus like
+   * plateau/steep-flank that didn't trigger because no attacker was below). */
+  terrainModifierSource: TerrainType | null;
+  /** The specific defender hex `terrainModifierSource` was read from, paired
+   * with it so a multi-defender combat's modifier can be traced to exactly
+   * one hex rather than just a terrain type. `null` iff `terrainModifierSource`
+   * is `null`. */
+  terrainModifierSourceHex: HexCoord | null;
+  /** Whether the river-crossing bonus (`RIVER_CROSSING.combatModifier`)
+   * contributed to `terrainModifier` — true if any attacker crossed a river
+   * hexside to reach any defender. */
+  riverCrossingApplied: boolean;
   rawDieRoll: number;
   /** `rawDieRoll + terrainModifier`, before the [1,6] clamp the CRT applies. */
   modifiedDieRoll: number;
@@ -110,7 +136,9 @@ function computeLandAttackDetail(
   const attackForce = attackers.reduce((sum, u) => sum + currentAttack(u), 0);
   const defenseForce = defenders.reduce((sum, u) => sum + currentDefense(u), 0);
 
-  let modifier = 0;
+  let terrainOnlyModifier = 0;
+  let terrainModifierSource: TerrainType | null = null;
+  let terrainModifierSourceHex: HexCoord | null = null;
   let acrossRiver = false;
   for (const defender of defenders) {
     const defenderTerrain = terrainAt(defender.position);
@@ -123,16 +151,34 @@ function computeLandAttackDetail(
       const attackingFromBelow = attackers.some((a) => terrainAt(a.position) !== defenderTerrain);
       defenderModifier = attackingFromBelow ? terrain.combatModifier : 0;
     }
-    modifier = Math.max(modifier, defenderModifier);
+    if (defenderModifier > terrainOnlyModifier) {
+      terrainOnlyModifier = defenderModifier;
+      terrainModifierSource = defenderTerrain;
+      terrainModifierSourceHex = defender.position;
+    }
     if (attackers.some((a) => riverBetween(a.position, defender.position))) acrossRiver = true;
   }
-  if (acrossRiver) modifier += RIVER_CROSSING.combatModifier;
+  const modifier = terrainOnlyModifier + (acrossRiver ? RIVER_CROSSING.combatModifier : 0);
 
   const modifiedDieRoll = rawDieRoll + modifier;
   const result = resolveLandCombat(attackForce, defenseForce, modifiedDieRoll);
-  const ratioLabel = RATIO_COLUMNS[ratioToColumnIndex(attackForce, defenseForce)]!;
+  const crtColumnIndex = ratioToColumnIndex(attackForce, defenseForce);
+  const ratioLabel = RATIO_COLUMNS[crtColumnIndex]!;
 
-  return { attackForce, defenseForce, ratioLabel, terrainModifier: modifier, rawDieRoll, modifiedDieRoll, result };
+  return {
+    attackForce,
+    defenseForce,
+    ratioLabel,
+    crtColumnIndex,
+    terrainModifier: modifier,
+    terrainOnlyModifier,
+    terrainModifierSource,
+    terrainModifierSourceHex,
+    riverCrossingApplied: acrossRiver,
+    rawDieRoll,
+    modifiedDieRoll,
+    result,
+  };
 }
 
 /**

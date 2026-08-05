@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { currentAttack, currentDefense, type Unit } from './state';
+import { currentAttack, currentDefense, maxEquipmentPoints, type Unit } from './state';
 import { getUnitType } from '../data/units';
 
 function makeUnit(overrides: Partial<Unit> & { typeId: string }): Unit {
@@ -47,5 +47,27 @@ describe('currentAttack — cavalry charge doubling', () => {
     const t = getUnitType('cavalerie-legere');
     const cav = makeUnit({ typeId: 'cavalerie-legere', charged: true });
     expect(currentDefense(cav)).toBe(t.defense);
+  });
+});
+
+describe('maxEquipmentPoints', () => {
+  it('is 0 for land units', () => {
+    const infantry = makeUnit({ typeId: 'fantassins' });
+    expect(maxEquipmentPoints(infantry)).toBe(0);
+  });
+
+  it('rounds a ship\'s printed defense up to the nearest 5-point equipment point, for every hull', () => {
+    // galères: defense 10 -> 2; birèmes: 15 -> 3; trirèmes: 20 -> 4; quintirèmes: 25 -> 5.
+    expect(maxEquipmentPoints(makeUnit({ typeId: 'galeres' }))).toBe(2);
+    expect(maxEquipmentPoints(makeUnit({ typeId: 'biremes' }))).toBe(3);
+    expect(maxEquipmentPoints(makeUnit({ typeId: 'triremes' }))).toBe(4);
+    expect(maxEquipmentPoints(makeUnit({ typeId: 'quintiremes' }))).toBe(5);
+  });
+
+  it('matches the equipment loss the same ship actually takes in currentAttack/currentDefense', () => {
+    const ship = makeUnit({ typeId: 'triremes', equipmentPoints: 1 }); // 3 of 4 points lost
+    const t = getUnitType('triremes');
+    expect(currentAttack(ship)).toBe(Math.max(0, t.attack - 3 * 5));
+    expect(currentDefense(ship)).toBe(Math.max(0, t.defense - 3 * 5));
   });
 });

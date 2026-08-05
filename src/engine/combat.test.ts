@@ -13,6 +13,7 @@ import {
   commonValidTargets,
   completePush,
   defenderCanJoin,
+  describeLandAttack,
   eligibleAdvanceCandidates,
   exchangeSacrificeMeetsThreshold,
   legalRetreatHexes,
@@ -161,6 +162,55 @@ describe('resolveLandAttack', () => {
     expect(riverBetween(a, b)).toBe(true);
     expect(['AE', 'AR', 'DE', 'DR', 'EX']).toContain(withRiver);
     expect(['AE', 'AR', 'DE', 'DR', 'EX']).toContain(noRiver);
+  });
+});
+
+describe('describeLandAttack — audit fields', () => {
+  it('names the terrain and hex responsible for a triggered conditional bonus (plateau)', () => {
+    // (4,9) is 'plateau' (combatModifier 2, conditionalOnAttackingFromBelow) on
+    // the shipped map — see the retreat tests below for the same fixture.
+    const attacker = makeUnit({ typeId: 'fantassins', position: { q: 0, r: 0 } }); // 'plain'
+    const defender = makeUnit({ typeId: 'fantassins', position: { q: 4, r: 9 } }); // 'plateau'
+    const detail = describeLandAttack([attacker], [defender], 3);
+    expect(detail.terrainModifierSource).toBe('plateau');
+    expect(detail.terrainModifierSourceHex).toEqual({ q: 4, r: 9 });
+    expect(detail.terrainOnlyModifier).toBe(2);
+    expect(detail.riverCrossingApplied).toBe(false);
+    expect(detail.terrainModifier).toBe(2);
+    expect(detail.modifiedDieRoll).toBe(5);
+  });
+
+  it('reports no terrain source when the defender is on unmodified (plain) terrain', () => {
+    const attacker = makeUnit({ typeId: 'fantassins', position: { q: 0, r: 0 } });
+    const defender = makeUnit({ typeId: 'fantassins', position: { q: 1, r: 0 } }); // 'plain'
+    const detail = describeLandAttack([attacker], [defender], 3);
+    expect(detail.terrainModifierSource).toBeNull();
+    expect(detail.terrainModifierSourceHex).toBeNull();
+    expect(detail.terrainOnlyModifier).toBe(0);
+    expect(detail.terrainModifier).toBe(0);
+  });
+
+  it('flags the river-crossing bonus separately from any terrain modifier', () => {
+    const [a, b] = sampleRiverEdge(); // both 'plain' on the shipped map
+    const attacker = makeUnit({ typeId: 'fantassins', position: a });
+    const defender = makeUnit({ typeId: 'fantassins', position: b });
+    const detail = describeLandAttack([attacker], [defender], 2);
+    expect(detail.riverCrossingApplied).toBe(true);
+    expect(detail.terrainOnlyModifier).toBe(0);
+    expect(detail.terrainModifierSource).toBeNull();
+    expect(detail.terrainModifierSourceHex).toBeNull();
+    expect(detail.terrainModifier).toBe(1); // RIVER_CROSSING.combatModifier
+    expect(detail.modifiedDieRoll).toBe(3);
+  });
+
+  it('exposes the exact CRT column index behind ratioLabel', () => {
+    const a1 = makeUnit({ typeId: 'fantassins', position: { q: 9000, r: 9000 } }); // attack 2
+    const a2 = makeUnit({ typeId: 'fantassins', position: { q: 9000, r: 9001 } }); // attack 2
+    const defender = makeUnit({ typeId: 'fantassins', position: { q: 9001, r: 9000 }, owner: 1 }); // defense 1
+    const detail = describeLandAttack([a1, a2], [defender], 1);
+    // 4:1 ratio -> RATIO_COLUMNS index 7 ('4-1').
+    expect(detail.ratioLabel).toBe('4-1');
+    expect(detail.crtColumnIndex).toBe(7);
   });
 });
 

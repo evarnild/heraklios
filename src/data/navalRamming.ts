@@ -81,4 +81,21 @@ export function isRammingHitWithBonus(
   return rammingSuccessRange(attackerType, defenderType, bonus).includes(dieRoll);
 }
 
+/**
+ * The complete printed table row for this matchup — every entry in
+ * `RAMMING_SUCCESS_DICE`, regardless of what any actual bonus level (capped
+ * at 2) can expose. For rows with 4+ entries this is WIDER than
+ * `rammingSuccessRange(attackerType, defenderType, 2)` ever returns (see
+ * that function's doc comment on the bonus-vs-table conflict this
+ * codebase's interpretation papers over). Exposed so the UI can show the
+ * effective range a player actually rolls against right next to the full
+ * table, making that gap visible in play rather than only in this comment.
+ */
+export function fullRammingSuccessRange(
+  attackerType: ShipTypeId,
+  defenderType: ShipTypeId,
+): readonly number[] {
+  return RAMMING_SUCCESS_DICE[attackerType][defenderType];
+}
+
 export { SHIP_ORDER };

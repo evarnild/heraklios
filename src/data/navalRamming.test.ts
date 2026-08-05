@@ -4,6 +4,7 @@ import {
   rammingBonusFromUnusedMovement,
   rammingSuccessRange,
   isRammingHitWithBonus,
+  fullRammingSuccessRange,
 } from './navalRamming';
 
 describe('isRammingSuccessful', () => {
@@ -53,5 +54,23 @@ describe('rammingSuccessRange / isRammingHitWithBonus', () => {
     expect(isRammingHitWithBonus('galeres', 'galeres', 0, 2)).toBe(false);
     expect(isRammingHitWithBonus('galeres', 'galeres', 2, 3)).toBe(true);
     expect(isRammingHitWithBonus('galeres', 'galeres', 2, 4)).toBe(false);
+  });
+});
+
+describe('fullRammingSuccessRange', () => {
+  it('matches rammingSuccessRange at max bonus for a matchup with 3 or fewer entries', () => {
+    expect(fullRammingSuccessRange('galeres', 'galeres')).toEqual([1, 2, 3]);
+    expect(fullRammingSuccessRange('galeres', 'galeres')).toEqual(rammingSuccessRange('galeres', 'galeres', 2));
+  });
+
+  it('is WIDER than rammingSuccessRange at max bonus for a matchup with 4+ entries', () => {
+    // Table row is [1,2,3,4] for trirème vs galère; max bonus only unlocks 1-2-3.
+    expect(fullRammingSuccessRange('triremes', 'galeres')).toEqual([1, 2, 3, 4]);
+    expect(rammingSuccessRange('triremes', 'galeres', 2)).toEqual([1, 2, 3]);
+  });
+
+  it('is WIDER than rammingSuccessRange at max bonus for the widest row (quintirème vs galère)', () => {
+    expect(fullRammingSuccessRange('quintiremes', 'galeres')).toEqual([1, 2, 3, 4, 5]);
+    expect(rammingSuccessRange('quintiremes', 'galeres', 2)).toEqual([1, 2, 3]);
   });
 });
