@@ -311,6 +311,36 @@ lower bonus exposes only the first `1 + bonus` entries of it — reproducing
 the worked example exactly for every matchup narrow enough to fit, and
 capping the benefit of movement alone at "1, 2, or 3" for the widest rows.
 
+### Combat log detail
+
+Every combat resolution's log entry is written to be auditable against the
+printed tables in `docs/research/`, not just a bottom-line result:
+
+- **Land combat** lists each attacker's/defender's individual and total
+  force, the ratio *and* the exact CRT column it resolved to (name and
+  index, so it can be checked directly against `src/data/combatTable.ts`),
+  the die roll with every contributor to its modifier named separately —
+  which terrain (and which defender's hex, for a multi-defender combat) and
+  whether the river-crossing bonus also applied — and the result. An **EX**
+  result additionally states the exchange-sacrifice threshold the attacking
+  player's chosen units must meet.
+- **Ramming** shows the effective success range for the bonus actually
+  rolled with *and* the matchup's full printed-table range side by side
+  (e.g. "Succeeds on: 1-2 (full table for this matchup: 1-2-3-4 at max
+  bonus)"), making the bonus-narrows-the-range interpretation above visible
+  in play rather than only in `navalRamming.ts`'s comments, along with the
+  unused-movement-point count the bonus was computed from.
+- **Boarding** shows both ships' attack/defense force entering the combat,
+  the resolved boarding-CRT column, the die roll and result, and each
+  ship's equipment points (and the attack/defense derived from them) before
+  and after — equipment points are a ship's remaining fighting strength, so
+  this is "how many attackers/defenders each ship has left." Unlike
+  ramming, `src/data/navalBoarding.ts`'s table has no single win/lose die
+  threshold to surface the same way — a roll resolves to one of several
+  graduated, column-dependent outcomes on either side rather than a boolean
+  hit/miss — so the boarding CRT column is the closest equivalent audit
+  trail.
+
 ## Map editor
 
 `npm run dev` also serves a standalone hex-map editor at `/map-editor.html`,
