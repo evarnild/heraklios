@@ -29,6 +29,30 @@ export interface NavalState {
  *
  * Dijkstra over the tiny (hex × 6 facings) state graph — no priority queue
  * needed at this scale, a re-sorted array is plenty.
+ *
+ * RULING (plan.md §8.3) — ships do NOT get the land "may traverse a
+ * friendly-occupied hex mid-move" exception: `forwardHex` below stays fully
+ * impassable whenever ANY unit occupies it, friendly or not, unlike land's
+ * `reachableHexes`. Kept naval movement as-is deliberately, for two reasons:
+ *   1. The traversal passage sits in the rulebook's general/land movement
+ *      section (`05-rules-french-original.md:124-126`); naval movement and
+ *      combat get their own separate section (facing, ramming, boarding)
+ *      that never restates or alludes to it, so extending it to ships is an
+ *      addition to the text, not a reading of it.
+ *   2. Mechanically it doesn't fit this state graph without real risk: every
+ *      node this function returns is treated elsewhere (`reachableNavalHexes`,
+ *      `findRammingContacts`) as a real, occupiable (hex, facing) the ship
+ *      could actually be declaring a ram from — not merely a waypoint on a
+ *      path, the way a land hex is just an entry in `costSoFar`. Letting a
+ *      ship's state "pass through" a hex a friendly ship already physically
+ *      occupies would mean treating that hex as simultaneously
+ *      double-occupied for ramming-contact purposes, which is a much sharper
+ *      version of the stacking hazard land's fix had to guard against (see
+ *      `reachableHexes` in `movement.ts`), for a maneuver (hull-to-hull
+ *      passage) galleys in this period's line-abreast tactics rarely needed.
+ * If this is ever revisited, it needs its own destination/traversal split
+ * mirroring `reachableHexes`'s, with ramming contacts still confined to
+ * genuinely reachable STOPPING states.
  */
 export function reachableNavalStates(state: GameState, unit: Unit): Map<string, NavalState> {
   const isGalley = unit.typeId === 'galeres';
