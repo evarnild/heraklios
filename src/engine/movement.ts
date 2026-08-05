@@ -28,6 +28,24 @@ export { unitCategory };
  * rotating costs movement points) — this wrapper just drops the facing from
  * the result for callers that only care about which hexes are reachable at
  * all. Use `reachableNavalHexes` directly when the ending facing matters.
+ *
+ * TRAVERSAL VS. TERMINATION (see `docs/research/05-rules-french-original.md:
+ * 124-126`): "une unité ne peut en aucun cas se placer sur une case déjà
+ * occupée par une quelconque autre unité. Par contre, au cours d'un
+ * mouvement, une unité peut traverser une case où se trouve une unité de la
+ * même armée" — a unit may never END its move on any occupied hex, but MAY
+ * pass through a hex occupied by a unit of the SAME ARMY mid-move. "Même
+ * armée" is read literally as same `owner`, not merely "not an enemy" — in
+ * a 3-4 player hotseat game each player is a distinct army, so a unit must
+ * not be able to traverse a third party's units just because that party
+ * isn't presently at war with the mover. The BFS below therefore expands
+ * THROUGH friendly-occupied hexes (tracking cost as normal, so a charge or
+ * a long march isn't blocked by a friendly line) while still excluding
+ * every currently-occupied hex — friendly or not — from the returned
+ * destination map, preserving the "every key is a legal landing spot"
+ * contract every caller (`BoardScene`, `actions.ts`'s `legalActions`/
+ * `applyAction`, the fuzz harness) already relies on. Enemy-occupied hexes
+ * remain fully impassable, exactly as before.
  */
 export function reachableHexes(state: GameState, unit: Unit): Map<string, number> {
   const category = unitCategory(unit.typeId);
@@ -40,6 +58,11 @@ export function reachableHexes(state: GameState, unit: Unit): Map<string, number
   const startKey = hexKey(unit.position);
 
   const costSoFar = new Map<string, number>([[startKey, 0]]);
+  // Hexes reached above that are occupied (necessarily by a friendly unit —
+  // an enemy-occupied hex is never entered into `costSoFar` at all) and so
+  // must be stripped from the returned destination map at the end, even
+  // though they were legitimately traversed to compute cost beyond them.
+  const occupiedKeys = new Set<string>();
   const frontier: HexCoord[] = [unit.position];
   const startedInZoc = enemyZoc.has(startKey);
 
@@ -59,7 +82,12 @@ export function reachableHexes(state: GameState, unit: Unit): Map<string, number
       const terrain = MAP_TERRAIN.get(mapHexKey(next.q, next.r));
       if (terrain === undefined) continue; // off the map
       if (!canEnterTerrain(terrain, category, isGalley)) continue;
-      if (unitAt(state, next)) continue; // hexes may hold at most one unit
+      const occupant = unitAt(state, next);
+      // An enemy (or third-party, in a 3-4 player game) unit blocks entry
+      // outright. A friendly unit (same owner) may be traversed mid-move —
+      // it's tracked into `occupiedKeys` below so it's excluded from the
+      // final destination set instead.
+      if (occupant && occupant.owner !== unit.owner) continue;
 
       let moveCost = TERRAIN_EFFECTS[terrain].moveCost;
       // Crossing a river hexside costs extra (naval movement is handled
@@ -74,11 +102,15 @@ export function reachableHexes(state: GameState, unit: Unit): Map<string, number
       if (existing === undefined || newCost < existing) {
         costSoFar.set(nextKey, newCost);
         frontier.push(next);
+        // Occupancy is a property of the hex, not of the path taken to
+        // reach it, so this is idempotent across re-discoveries of `next`.
+        if (occupant) occupiedKeys.add(nextKey);
       }
     }
   }
 
   costSoFar.delete(startKey);
+  for (const key of occupiedKeys) costSoFar.delete(key);
   return costSoFar;
 }
 
@@ -149,8 +181,14 @@ function straightLineDirection(from: HexCoord, to: HexCoord): HexCoord | undefin
  * `destination` along a single straight hex-line (see `straightLineDirection`),
  * applying the exact same terrain/occupancy/ZOC-stop rules `reachableHexes`
  * does — or `undefined` if `destination` isn't reachable that way at all
- * (not collinear, off the map, blocked terrain, occupied, or would require
- * passing through — not just stopping on — an enemy ZOC hex).
+ * (not collinear, off the map, blocked terrain, occupied at the destination,
+ * an enemy/third-party unit anywhere on the line, or would require passing
+ * through — not just stopping on — an enemy ZOC hex).
+ *
+ * Mid-line hexes occupied by a FRIENDLY unit (same `owner` — see the design
+ * note on `reachableHexes` above) are traversable, matching that function;
+ * the destination hex itself must still be unoccupied by anyone, since a
+ * unit may never end its move on an occupied hex regardless of who's there.
  */
 function straightLineMoveCost(state: GameState, unit: Unit, destination: HexCoord): number | undefined {
   const direction = straightLineDirection(unit.position, destination);
@@ -169,7 +207,13 @@ function straightLineMoveCost(state: GameState, unit: Unit, destination: HexCoor
     const terrain = MAP_TERRAIN.get(mapHexKey(next.q, next.r));
     if (terrain === undefined) return undefined; // off the map
     if (!canEnterTerrain(terrain, category, isGalley)) return undefined;
-    if (unitAt(state, next)) return undefined; // hexes may hold at most one unit
+    const isFinalStep = step === distance;
+    const occupant = unitAt(state, next);
+    if (isFinalStep) {
+      if (occupant) return undefined; // may never END a move on any occupied hex
+    } else if (occupant && occupant.owner !== unit.owner) {
+      return undefined; // an enemy/third-party unit blocks the line outright
+    }
 
     let moveCost = TERRAIN_EFFECTS[terrain].moveCost;
     if (riverBetween(current, next)) moveCost += RIVER_CROSSING.extraMoveCost;
@@ -177,7 +221,6 @@ function straightLineMoveCost(state: GameState, unit: Unit, destination: HexCoor
 
     // A unit that enters an enemy ZOC hex must stop there — a straight walk
     // can only pass through one if it's the final (destination) hex.
-    const isFinalStep = step === distance;
     if (!isFinalStep && enemyZoc.has(hexKey(next))) return undefined;
 
     current = next;
