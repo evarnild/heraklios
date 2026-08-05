@@ -807,3 +807,95 @@ Current order of work, so parallel runs don't collide:
 | 3 | [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) advance terrain | `scenes/BoardScene.ts` | Parallel-safe with #2 (different files). |
 | 4 | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2b drift extraction | `BoardScene.ts:1208-1360`, `engine/` | **Not** parallel with #3 — same file. |
 | 5 | [§9.2](#92-endgamebytimelimit-is-never-called) turn-limit ending | design + scenes | Needs a decision first. |
+
+---
+
+## 11. Combat reporting detail
+
+**Status:** planned, not started. Mostly a *presentation* task — the numbers
+are already computed and, for ramming, the needed data is already exported.
+
+### 11.1 What already exists
+
+`BoardScene.logCombatOutcome` (`:1686`) already prints, for land combat:
+per-unit attack values with a total, per-unit defense values with a total,
+the ratio label, the die roll with its terrain modifier shown as
+`raw + modifier = modified` (and the clamped value when it falls outside
+1-6), and the full result label. **The land-combat ask is largely already
+implemented** — see §11.2 for the two genuine gaps.
+
+### 11.2 Land combat — remaining gaps
+
+1. **Which terrain caused the modifier.** The line reads `Die: 3 + 1 terrain
+   = 4` without naming the terrain or the defender hex it came from.
+2. **Which CRT column was used.** `ratioLabel` is shown, but not that it
+   resolved to a specific column of `data/combatTable.ts`, nor the row the
+   die landed on. Showing the column makes a surprising result auditable
+   against the printed table.
+3. Optional: the exchange-sacrifice threshold when `EX` occurs — the
+   required force is computed (`requiredSacrificeForce`) but only surfaces
+   in the prompt, not the log.
+
+### 11.3 Ramming — show the roll needed, which is already computable
+
+`BoardScene.promptRam`'s resolution (`:1005`) currently logs only:
+
+```
+Ramming attempt (bonus +1): die 4 -> missed
+```
+
+The player cannot tell whether 4 was close or hopeless. **`rammingSuccessRange(attackerType, defenderType, bonus)`
+in `data/navalRamming.ts:66` already returns the exact winning die values**,
+and `promptRam` already has all three arguments in hand. So this is a
+formatting change, not a rules change:
+
+```
+Ramming: trirème vs galère, bonus +1 (1 unused movement point)
+Succeeds on: 1-2   (full table for this matchup: 1-2-3-4 at max bonus)
+Die: 4 -> missed
+```
+
+Showing both the *effective* range and the *full* table range matters here,
+because the bonus-narrows-the-range behaviour is this repo's documented
+interpretation of a conflict in the source material
+(`navalRamming.ts:53-64`) — surfacing it in play makes that interpretation
+visible rather than buried in a comment.
+
+### 11.4 Boarding — the least informative log today
+
+`:1857` currently prints one line:
+
+```
+Boarding: die 5 -> attacker loses 2 equipment
+```
+
+Should show, for both ships: attack force and defense force entering the
+combat, **equipment points before and after** (each point lost is -5 atk/-5
+def per `state.ts:28`, so this is the ship's remaining fighting strength —
+the "how many attackers/defenders each ship has left" the request asks for),
+the die roll, and the resolved `BoardingResult`. Check `data/navalBoarding.ts`
+for whether a success threshold analogous to `rammingSuccessRange` can be
+surfaced too.
+
+### 11.5 Where the logic belongs
+
+Per `CLAUDE.md`'s hard boundary: any *derivation* (a success range, a CRT
+column, a force total) belongs in `src/engine/` or `src/data/` with tests;
+`BoardScene` should only format strings from values handed to it. Ramming
+already satisfies this. If land combat needs the CRT column exposed, add it
+to `LandAttackDetail` in `engine/combat.ts` rather than recomputing it in
+the scene.
+
+Worth extending `LandAttackDetail`/the naval result types rather than
+returning ad-hoc shapes, so the fuzz harness can assert on the same fields.
+
+### 11.6 Dependencies
+
+- **Touches `BoardScene.ts`** — `logCombatOutcome` (~:1686), `promptRam`
+  (~:1005), the boarding prompt (~:1857). All distinct from
+  [§9.1](#91-post-combat-advance-ignores-terrain-restrictions)'s `:1385` and
+  from the drift cascade, but *same file*, so expect merge conflicts if run
+  concurrently with either. **Not parallel-safe with §9.1 or Stage 2b.**
+- **Parallel-safe with [§8](#8-bug-units-cannot-move-through-friendly-units)**,
+  which is confined to `engine/movement.ts` / `engine/navalMovement.ts`.
+- No `GameState` shape change, so no `SAVE_VERSION` bump.
