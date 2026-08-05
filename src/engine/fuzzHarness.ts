@@ -291,12 +291,12 @@ function nextLivingSeatIndex(
  */
 function assertSeatAdvancedCorrectly(
   seatOrder: readonly PlayerId[],
-  eliminatedBefore: ReadonlyMap<PlayerId, boolean>,
+  eliminatedNow: ReadonlyMap<PlayerId, boolean>,
   previousIndex: number,
   newIndex: number,
   context: string,
 ): void {
-  const expected = nextLivingSeatIndex(seatOrder, eliminatedBefore, previousIndex);
+  const expected = nextLivingSeatIndex(seatOrder, eliminatedNow, previousIndex);
   if (newIndex !== expected) {
     throw new Error(
       `Invariant violated (${context}): activePlayerIndex went from ${previousIndex} to ${newIndex} after a combat phase ended, expected ${expected} (the next non-eliminated seat) — turn order advanced incorrectly`,
@@ -692,8 +692,17 @@ async function applyOneAction(
     case 'endPhase': {
       const wasCombatPhase = state.phase === 'combat';
       const previousIndex = state.activePlayerIndex;
-      const eliminatedBefore = new Map(state.players.map((p) => [p.id, p.eliminated] as const));
       applyAction(state, action, rng);
+      // Captured AFTER `applyAction`, deliberately. `advancePhase` marks any
+      // player who just lost their last unit as eliminated and *then* runs its
+      // skip loop against those updated flags — so a seat eliminated by this
+      // very `endPhase` is skipped by `advancePhase` but would still be
+      // *expected* by a pre-call snapshot, throwing a false positive. Since
+      // `advancePhase` only ever adds eliminations, the post-call map is
+      // exactly the input its own skip loop used. Latent at 2 seats (any
+      // elimination ends the game, and the assert is gameOver-guarded), but
+      // reachable as soon as the harness grows a third seat.
+      const eliminatedAfter = new Map(state.players.map((p) => [p.id, p.eliminated] as const));
       // Mirrors BoardScene.endPhase exactly (BoardScene.ts:1736-1765): the
       // scene-local attack/ram bookkeeping lives outside GameState (see
       // engine/actions.ts's `ActionContext` doc comment) and isn't
@@ -706,7 +715,7 @@ async function applyOneAction(
       if (wasCombatPhase && !state.gameOver) {
         assertSeatAdvancedCorrectly(
           state.seatOrder,
-          eliminatedBefore,
+          eliminatedAfter,
           previousIndex,
           state.activePlayerIndex,
           'after endPhase ended a combat phase',

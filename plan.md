@@ -203,15 +203,40 @@ silently produced a worktree with no toolchain and the agent had to
 ls node_modules | wc -l    # must be non-zero before junctioning
 ```
 
-If the main install is present, junction to it (no admin rights needed,
-transparent to Node's module resolution):
+**Default to `npm install` in the worktree (~11s).** It is the safe option
+and the cost is trivial. Only junction for a long-lived worktree you are
+certain you will not delete:
 
 ```bash
 powershell -Command "New-Item -ItemType Junction -Path node_modules -Target 'C:/Users/eric/src/heraklios/node_modules'"
 ```
 
-If it's empty or missing, just run `npm install` in the worktree (~11s) —
-the junction is an optimization, not a requirement.
+#### ☠️ Never junction into a worktree you intend to delete
+
+**This has already destroyed the main tree's install once.** A Windows
+directory junction is a *link*, but a recursive delete — `rm -rf`,
+`Remove-Item -Recurse`, `git worktree remove --force` — **follows it and
+wipes the target's contents**, i.e. the main tree's `node_modules`, breaking
+every other worktree at once. It fails silently: nothing reports an error,
+and the damage only surfaces at the next `tsc` run, which then fails with
+`./node_modules/.bin/tsc: No such file or directory` (or worse, falls back
+to `npx`'s impostor `tsc` and reports a false green — see below).
+
+It happened here when a reviewer was told to junction and then remove its
+worktree when finished. Both instructions were reasonable; together they are
+destructive.
+
+If a junctioned worktree must be removed, delete the **link** first:
+
+```bash
+cmd //c rmdir node_modules      # removes the link only, never the target
+```
+
+then remove the worktree, and verify the main install survived:
+
+```bash
+ls C:/Users/eric/src/heraklios/node_modules | wc -l   # must be non-zero
+```
 
 ### ⚠️ `npx tsc` can report a false green
 
