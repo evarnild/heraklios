@@ -794,6 +794,27 @@ Needs a decision, not just a fix: what sets the limit (a Menu option? a fixed
 count?) and how the player is told it's the final turn. Until then it belongs
 in the README's "Known simplifications".
 
+### 9.3 Occupancy checks that don't filter destroyed units (latent)
+
+Destroyed units are **tombstones** — they stay in `state.units` with
+`destroyed: true` rather than being spliced out, so every occupancy check
+must filter explicitly. The engine does this correctly (`unitAt`,
+`combat.ts:78`, and `hexesUnderZoc`, `combat.ts:530`, both skip destroyed
+units, so a dead unit neither blocks movement nor projects ZOC).
+
+Two sites do not:
+
+- `src/ui/testMode.ts:64` and `:72` —
+  `!state.units.some((u) => u.position.q === hex.q && u.position.r === hex.r)`
+  with no `!u.destroyed`.
+
+Both run at setup time when nothing is destroyed yet, so this is **latent,
+not live** — recorded because it is the exact shape of bug that bites once
+a caller moves. (`PlacementScene.ts:374` was also suspected but is correct:
+it does filter.) Cheapest durable fix is to route them through `unitAt`
+rather than hand-rolling the predicate a third time.
+
+
 ---
 
 ## 10. Sequenced queue
