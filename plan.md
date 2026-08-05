@@ -224,7 +224,22 @@ to `npx`'s impostor `tsc` and reports a false green — see below).
 
 It happened here when a reviewer was told to junction and then remove its
 worktree when finished. Both instructions were reasonable; together they are
-destructive.
+destructive. **It then happened a second time, minutes after this warning was
+first written**, during routine post-merge cleanup:
+
+```bash
+git worktree remove .claude/worktrees/agent-<id> --force   # ☠️ wiped it again
+```
+
+That is the real trigger in practice — not a hand-written `rm -rf`, but the
+ordinary cleanup command at the end of every successful run. **Agent
+worktrees are created by the harness and may contain a junction you did not
+make**, so the check below is mandatory before removing *any* worktree, not
+just ones you junctioned yourself:
+
+```bash
+cmd //c "dir /AL .claude\worktrees\agent-<id>"   # lists junctions, if any
+```
 
 If a junctioned worktree must be removed, delete the **link** first:
 
