@@ -851,7 +851,7 @@ formatting change, not a rules change:
 
 ```
 Ramming: trirème vs galère, bonus +1 (1 unused movement point)
-Succeeds on: 1-2   (full table for this matchup: 1-2-3-4 at max bonus)
+Succeeds on: 1-2   (printed table row: 1-2-3-4 — entries past the first 2 are unreachable at any bonus)
 Die: 4 -> missed
 ```
 
@@ -860,6 +860,16 @@ because the bonus-narrows-the-range behaviour is this repo's documented
 interpretation of a conflict in the source material
 (`navalRamming.ts:53-64`) — surfacing it in play makes that interpretation
 visible rather than buried in a comment.
+
+> **Correction.** An earlier version of the sketch above ended the
+> parenthetical with *"1-2-3-4 **at max bonus**"*. **That is false, and it was
+> this plan's error** — the implementer copied it verbatim despite having the
+> contradicting fact in hand, and review caught it. Bonus caps at 2, so the
+> effective range is at most the first 3 entries; a row's 4th and 5th entries
+> are unreachable at *any* bonus. Saying "at max bonus" tells a player who
+> rolls a 4 that the game mis-resolved a hit — defeating the exact
+> auditability this feature exists for. Word it as "printed table row —
+> entries past the first N are unreachable at any bonus".
 
 ### 11.4 Boarding — the least informative log today
 
