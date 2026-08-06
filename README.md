@@ -322,24 +322,35 @@ printed tables in `docs/research/`, not just a bottom-line result:
   the die roll with every contributor to its modifier named separately —
   which terrain (and which defender's hex, for a multi-defender combat) and
   whether the river-crossing bonus also applied — and the result. An **EX**
-  result additionally states the exchange-sacrifice threshold the attacking
-  player's chosen units must meet.
+  result additionally states the exchange-sacrifice threshold, but only when
+  a sacrifice choice is actually still pending — a lone attacking unit on an
+  EX result is destroyed outright with no choice ever offered (see
+  "Combining attacks" above), so the line is suppressed there rather than
+  stating a threshold nobody gets asked to meet.
 - **Ramming** shows the effective success range for the bonus actually
-  rolled with *and* the matchup's full printed-table range side by side
-  (e.g. "Succeeds on: 1-2 (full table for this matchup: 1-2-3-4 at max
-  bonus)"), making the bonus-narrows-the-range interpretation above visible
-  in play rather than only in `navalRamming.ts`'s comments, along with the
-  unused-movement-point count the bonus was computed from.
+  rolled next to the matchup's full printed-table range (e.g., for a
+  trirème with bonus +1 against a galère: "Succeeds on: 1-2 (printed table
+  row: 1-2-3-4 — entries past the first 3 are unreachable at any bonus; see
+  navalRamming.ts:53-64)"), making the bonus-narrows-the-range
+  interpretation above visible in play — and, for the rows narrow enough
+  that the *whole* printed row IS reachable at max bonus, saying so instead
+  ("full table for this matchup: 1-2-3 at max bonus") rather than always
+  implying a gap that isn't there — rather than only in `navalRamming.ts`'s
+  comments. Also shown: the unused-movement-point count the bonus was
+  computed from.
 - **Boarding** shows both ships' attack/defense force entering the combat,
   the resolved boarding-CRT column, the die roll and result, and each
   ship's equipment points (and the attack/defense derived from them) before
-  and after — equipment points are a ship's remaining fighting strength, so
-  this is "how many attackers/defenders each ship has left." Unlike
-  ramming, `src/data/navalBoarding.ts`'s table has no single win/lose die
-  threshold to surface the same way — a roll resolves to one of several
-  graduated, column-dependent outcomes on either side rather than a boolean
-  hit/miss — so the boarding CRT column is the closest equivalent audit
-  trail.
+  and after, explicitly saying so if a ship's equipment reaches 0 and it's
+  sunk — equipment points are a ship's remaining fighting strength, so this
+  is "how many attackers/defenders each ship has left." Unlike ramming,
+  `src/data/navalBoarding.ts`'s table has no single win/lose die threshold
+  to surface the same way — a roll resolves to one of several graduated,
+  column-dependent outcomes on either side rather than a boolean hit/miss —
+  so the boarding CRT column is the closest equivalent audit trail. Both the
+  attack/defense force and the CRT column are read off the resolved
+  `applyAction` result rather than recomputed in the UI, so the log can't
+  silently drift from whatever was actually resolved against.
 
 ## Map editor
 
