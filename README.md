@@ -172,6 +172,27 @@ movement already uses (via `engine/movement.ts`'s exported
 `unitCategory`), so the highlighted hexes always match what a unit could
 legally occupy.
 
+### Moving through your own units
+
+A unit may **pass through** a hex occupied by a unit of its own army, but may
+never **end** its move there — per the rulebook, *"Une unité ne peut en aucun
+cas se placer sur une case déjà occupée par une quelconque autre unité. Par
+contre, au cours d'un mouvement, une unité peut traverser une case où se
+trouve une unité de la même armée."* Enemy-occupied hexes stay impassable
+outright.
+
+"Same army" means the **same player**, not merely "not my current opponent":
+in a 3- or 4-player game a unit may not walk through a third party's units
+either. Note that in practice enemy zones of control usually stop a unit
+before it could try — every unit projects ZOC onto its six neighbours, and
+ZOC does not cross rivers, so the distinction is only visible where a river
+shields the approach.
+
+This also means a cavalry charge may run its straight line **through** a
+friendly unit standing in the way, provided the destination itself is empty
+and the line still costs exactly the charger's full movement allowance (see
+[Cavalry charges and phalanxes](#cavalry-charges-and-phalanxes)).
+
 ### Combining attacks
 
 Real *Héraklios* land combat lets several friendly units combine their
@@ -219,7 +240,8 @@ actual walked path for the engine to inspect, and reconstructing one out of
 `reachableHexes`'s BFS would only recover an arbitrary tied-shortest path,
 not necessarily a straight one. Instead, `evaluateCharge` independently
 walks the specific straight line from the unit's pre-move hex to the
-clicked destination and checks it's fully legal (on the map, unoccupied,
+clicked destination and checks it's fully legal (on the map; free of enemy
+units, though friendly ones may be passed through; ending on an empty hex;
 not passing through — merely stopping on — an enemy zone of control) and
 costs exactly the unit's full movement allowance — a unit that already spent
 part of its allowance earlier in the same Movement phase can never charge on
