@@ -13,6 +13,7 @@ import {
   commonValidTargets,
   completePush,
   defenderCanJoin,
+  describeLandAttack,
   eligibleAdvanceCandidates,
   exchangeSacrificeMeetsThreshold,
   legalRetreatHexes,
@@ -161,6 +162,78 @@ describe('resolveLandAttack', () => {
     expect(riverBetween(a, b)).toBe(true);
     expect(['AE', 'AR', 'DE', 'DR', 'EX']).toContain(withRiver);
     expect(['AE', 'AR', 'DE', 'DR', 'EX']).toContain(noRiver);
+  });
+});
+
+describe('describeLandAttack — audit fields', () => {
+  it('names the terrain and hex responsible for a triggered conditional bonus (plateau)', () => {
+    // (4,9) is 'plateau' (combatModifier 2, conditionalOnAttackingFromBelow) on
+    // the shipped map — see the retreat tests below for the same fixture.
+    const attacker = makeUnit({ typeId: 'fantassins', position: { q: 0, r: 0 } }); // 'plain'
+    const defender = makeUnit({ typeId: 'fantassins', position: { q: 4, r: 9 } }); // 'plateau'
+    const detail = describeLandAttack([attacker], [defender], 3);
+    expect(detail.terrainModifierSource).toBe('plateau');
+    expect(detail.terrainModifierSourceHex).toEqual({ q: 4, r: 9 });
+    expect(detail.terrainOnlyModifier).toBe(2);
+    expect(detail.riverCrossingApplied).toBe(false);
+    expect(detail.terrainModifier).toBe(2);
+    expect(detail.modifiedDieRoll).toBe(5);
+  });
+
+  it('reports no terrain source when the defender is on unmodified (plain) terrain', () => {
+    const attacker = makeUnit({ typeId: 'fantassins', position: { q: 0, r: 0 } });
+    const defender = makeUnit({ typeId: 'fantassins', position: { q: 1, r: 0 } }); // 'plain'
+    const detail = describeLandAttack([attacker], [defender], 3);
+    expect(detail.terrainModifierSource).toBeNull();
+    expect(detail.terrainModifierSourceHex).toBeNull();
+    expect(detail.terrainOnlyModifier).toBe(0);
+    expect(detail.terrainModifier).toBe(0);
+  });
+
+  it('names the HIGHEST-modifier defender\'s hex in a multi-defender combat, in either argument order', () => {
+    // Both (4,9) 'plateau' (modifier 2, conditional — triggers here since the
+    // attacker's own hex isn't plateau) and (7,15) 'marsh' (modifier 1,
+    // unconditional) contribute a NONZERO modifier, so a bug that names
+    // whichever defender was processed LAST (rather than tracking the true
+    // max) can't hide behind "the other one didn't contribute at all" the
+    // way a plain (modifier 0) second defender would — see the single- vs
+    // multi-defender split in this function's doc comment.
+    const attacker = makeUnit({ typeId: 'fantassins', position: { q: 0, r: 0 } }); // 'plain'
+    const plateauDefender = makeUnit({ id: 'p', typeId: 'fantassins', position: { q: 4, r: 9 } }); // 'plateau'
+    const marshDefender = makeUnit({ id: 'm', typeId: 'fantassins', position: { q: 7, r: 15 } }); // 'marsh'
+
+    const plateauFirst = describeLandAttack([attacker], [plateauDefender, marshDefender], 3);
+    expect(plateauFirst.terrainModifierSource).toBe('plateau');
+    expect(plateauFirst.terrainModifierSourceHex).toEqual({ q: 4, r: 9 });
+    expect(plateauFirst.terrainOnlyModifier).toBe(2);
+
+    const marshFirst = describeLandAttack([attacker], [marshDefender, plateauDefender], 3);
+    expect(marshFirst.terrainModifierSource).toBe('plateau');
+    expect(marshFirst.terrainModifierSourceHex).toEqual({ q: 4, r: 9 });
+    expect(marshFirst.terrainOnlyModifier).toBe(2);
+  });
+
+  it('flags the river-crossing bonus separately from any terrain modifier', () => {
+    const [a, b] = sampleRiverEdge(); // both 'plain' on the shipped map
+    const attacker = makeUnit({ typeId: 'fantassins', position: a });
+    const defender = makeUnit({ typeId: 'fantassins', position: b });
+    const detail = describeLandAttack([attacker], [defender], 2);
+    expect(detail.riverCrossingApplied).toBe(true);
+    expect(detail.terrainOnlyModifier).toBe(0);
+    expect(detail.terrainModifierSource).toBeNull();
+    expect(detail.terrainModifierSourceHex).toBeNull();
+    expect(detail.terrainModifier).toBe(1); // RIVER_CROSSING.combatModifier
+    expect(detail.modifiedDieRoll).toBe(3);
+  });
+
+  it('exposes the exact CRT column index behind ratioLabel', () => {
+    const a1 = makeUnit({ typeId: 'fantassins', position: { q: 9000, r: 9000 } }); // attack 2
+    const a2 = makeUnit({ typeId: 'fantassins', position: { q: 9000, r: 9001 } }); // attack 2
+    const defender = makeUnit({ typeId: 'fantassins', position: { q: 9001, r: 9000 }, owner: 1 }); // defense 1
+    const detail = describeLandAttack([a1, a2], [defender], 1);
+    // 4:1 ratio -> RATIO_COLUMNS index 7 ('4-1').
+    expect(detail.ratioLabel).toBe('4-1');
+    expect(detail.crtColumnIndex).toBe(7);
   });
 });
 

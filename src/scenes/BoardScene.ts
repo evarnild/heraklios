@@ -37,8 +37,19 @@ import {
 } from '../engine/combat';
 import { directionForDie, hexAdd } from '../engine/hex';
 import { History } from '../engine/history';
-import { unitType, currentAttack, currentDefense, type GameState, type Unit } from '../engine/state';
+import { unitType, currentAttack, currentDefense, maxEquipmentPoints, type GameState, type Unit } from '../engine/state';
 import type { HexCoord } from '../data/map';
+import { RATIO_COLUMNS } from '../data/combatTable';
+import { RIVER_CROSSING } from '../data/terrain';
+import {
+  rammingSuccessRange,
+  fullRammingSuccessRange,
+  maxReachableRammingEntries,
+  wholeRowReachableAtMaxBonus,
+  MAX_RAMMING_BONUS,
+  type ShipTypeId,
+} from '../data/navalRamming';
+import { BOARDING_RATIO_COLUMNS } from '../data/navalBoarding';
 
 /** Width of the left-hand HUD panel (buttons, phase status, combat log),
  * reserved outside the map's own viewport — see `MapView`'s `leftPanelWidth`. */
@@ -998,12 +1009,53 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     yesBtn.on('pointerdown', () => {
       cleanup();
       this.recordAction(`Ram ${unitType(defender).name}`);
+      const attackerType = attacker.typeId as ShipTypeId;
+      const defenderType = defender.typeId as ShipTypeId;
+      // `applyAction`'s 'ram' case zeroes `attacker.movementLeft` once the ram
+      // is committed, so this must be read BEFORE that call — at this point
+      // it's exactly the "unused movement points at the moment of contact"
+      // value `findRammingContacts` fed into `rammingBonusFromUnusedMovement`
+      // to produce `bonus` in the first place (the move that reached contact,
+      // if any, already deducted its cost — see `applyAction`'s 'navalMove'
+      // case — so what's left here IS that unused amount).
+      const unusedMovement = attacker.movementLeft;
       const action: Action = { kind: 'ram', unitId: attacker.id };
       const result = applyAction(this.state(), action, this.diceRng);
       this.reportAction(action);
       this.rammedThisTurn.add(attacker.id);
+      const effectiveRange = rammingSuccessRange(attackerType, defenderType, result.bonus);
+      const fullRange = fullRammingSuccessRange(attackerType, defenderType);
+      const maxReachable = maxReachableRammingEntries(attackerType, defenderType);
+      // Which sentence to show is decided entirely by `wholeRowReachableAtMaxBonus`
+      // (a tested predicate in navalRamming.ts), NOT re-derived here — this
+      // exact comparison used to live inline in this file and shipped a
+      // false "full table... at max bonus" claim for every wider row, since
+      // nothing exercised it (see that function's doc comment). Only claim
+      // the full printed row is reachable "at max bonus" when it actually
+      // is; for wider rows, the row has entries no bonus (capped at
+      // MAX_RAMMING_BONUS) can ever reach at all, and saying otherwise
+      // would tell a player who rolls into one of those entries that the
+      // game mis-resolved a hit.
+      let tableNote: string;
+      if (!wholeRowReachableAtMaxBonus(attackerType, defenderType)) {
+        tableNote = `printed table row: ${fullRange.join('-')} — entries past the first ${maxReachable} are unreachable at any bonus; see rammingSuccessRange's doc comment in navalRamming.ts`;
+      } else if (fullRange.length === 1 + MAX_RAMMING_BONUS) {
+        // Reproduces the rulebook's worked example ("1, then 1-2, then
+        // 1-2-3") exactly at every bonus level for this matchup.
+        tableNote = `full table for this matchup: ${fullRange.join('-')} at max bonus`;
+      } else {
+        // The whole (narrow) row IS reachable at max bonus, but it's
+        // narrower than the rulebook's own worked example — e.g. galère
+        // vs. quintirème, the exact pairing that example uses, has a
+        // printed row of just `[1]` here, not the book's "1, 2, or 3".
+        tableNote = `full table for this matchup: ${fullRange.join('-')} at max bonus (narrower than the rulebook's own worked example, which reaches 1-2-3 at max bonus)`;
+      }
+      const pointWord = unusedMovement === 1 ? 'point' : 'points';
       this.log(
-        `Ramming attempt (bonus +${result.bonus}): die ${result.dieRoll} -> ${result.hit ? 'SUNK!' : 'missed'}`,
+        `Ramming: ${unitType(attacker).name} vs ${unitType(defender).name}, bonus +${result.bonus} ` +
+          `(${unusedMovement} unused movement ${pointWord})\n` +
+          `Succeeds on: ${effectiveRange.join('-')}   (${tableNote})\n` +
+          `Die: ${result.dieRoll} -> ${result.hit ? 'SUNK!' : 'missed'}`,
       );
       this.renderAllUnits();
       this.deselectMovement();
@@ -1640,7 +1692,13 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       this.diceRng,
     );
     this.reportAction(action);
-    this.logCombatOutcome(attackersFromThisCombat, this.defenderGroup, detail);
+    this.logCombatOutcome(
+      attackersFromThisCombat,
+      this.defenderGroup,
+      detail,
+      outcome.requiredSacrificeForce,
+      outcome.requiresExchangeChoice,
+    );
 
     if (outcome.requiresExchangeChoice) {
       this.chooseExchangeSacrifice(state, attackersFromThisCombat, outcome.requiredSacrificeForce).then((chosen) => {
@@ -1683,14 +1741,32 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     EX: 'EX — Échange (exchange)',
   };
 
-  private logCombatOutcome(attackers: Unit[], defenders: Unit[], detail: LandAttackDetail): void {
+  private logCombatOutcome(
+    attackers: Unit[],
+    defenders: Unit[],
+    detail: LandAttackDetail,
+    requiredSacrificeForce: number,
+    requiresExchangeChoice: boolean,
+  ): void {
     const unitLines = (units: Unit[], statFn: (u: Unit) => number, label: string) =>
       units.map((u) => `  ${unitType(u).name} (${label} ${statFn(u)})`).join('\n');
 
+    // Name every contributor to the combined modifier, so a surprising die
+    // result can be traced back to the exact terrain (and defender hex) or
+    // river crossing that produced it, rather than just a bare number.
+    const modifierParts: string[] = [];
+    if (detail.terrainOnlyModifier !== 0 && detail.terrainModifierSource) {
+      const hex = detail.terrainModifierSourceHex;
+      const hexLabel = hex ? ` at (${hex.q}, ${hex.r})` : '';
+      modifierParts.push(`${detail.terrainOnlyModifier} ${detail.terrainModifierSource}${hexLabel}`);
+    }
+    if (detail.riverCrossingApplied) {
+      modifierParts.push(`${RIVER_CROSSING.combatModifier} river crossing`);
+    }
     const clampedDie = Math.min(6, Math.max(1, detail.modifiedDieRoll));
     const dieLine =
       detail.terrainModifier !== 0
-        ? `Die: ${detail.rawDieRoll} + ${detail.terrainModifier} terrain = ${detail.modifiedDieRoll}`
+        ? `Die: ${detail.rawDieRoll} + ${detail.terrainModifier} (${modifierParts.join(' + ')}) = ${detail.modifiedDieRoll}`
         : `Die: ${detail.rawDieRoll}`;
 
     const lines = [
@@ -1698,10 +1774,22 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       unitLines(attackers, currentAttack, 'atk'),
       `DEFENDERS (total ${detail.defenseForce}):`,
       unitLines(defenders, currentDefense, 'def'),
-      `Ratio: ${detail.ratioLabel.replace('-', ':')}`,
+      // The column/row pair a result can be checked against directly in
+      // data/combatTable.ts's LAND_CRT, not just the human-readable ratio.
+      `Ratio: ${detail.ratioLabel.replace('-', ':')} (CRT column "${detail.ratioLabel}", column ${detail.crtColumnIndex + 1} of ${RATIO_COLUMNS.length}, array index ${detail.crtColumnIndex})`,
       dieLine + (clampedDie !== detail.modifiedDieRoll ? ` (used ${clampedDie})` : ''),
       `Result: ${BoardScene.RESULT_LABELS[detail.result] ?? detail.result}`,
     ];
+    // Only shown when a sacrifice choice is actually still pending: a lone
+    // attacker on an EX result is destroyed outright, with no choice ever
+    // offered (`applyLandCombatResult`'s single-attacker branch) — stating
+    // a threshold nobody gets asked to meet would read as a contradiction
+    // right next to a unit the log just showed being wiped out unconditionally.
+    if (detail.result === 'EX' && requiresExchangeChoice) {
+      lines.push(
+        `Exchange threshold: attacker must sacrifice units totaling at least ${requiredSacrificeForce} attack (the defenders' total force).`,
+      );
+    }
 
     this.log(lines.join('\n'));
   }
@@ -1851,10 +1939,56 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       cleanup();
       this.recordAction(`Board ${unitType(defender).name}`);
       this.attackedThisPhase.add(attacker.id);
+      // Equipment points are read BEFORE `applyAction` mutates them — this
+      // is presentation-layer bookkeeping (a before/after snapshot around a
+      // single call), not a rules derivation: unlike the force/column
+      // values below, nothing here recomputes anything `applyAction` itself
+      // doesn't already compute.
+      const attackerMax = maxEquipmentPoints(attacker);
+      const defenderMax = maxEquipmentPoints(defender);
+      const attackerEquipBefore = attacker.equipmentPoints ?? attackerMax;
+      const defenderEquipBefore = defender.equipmentPoints ?? defenderMax;
       const action: Action = { kind: 'board', attackerId: attacker.id, defenderId: defender.id };
-      const { dieRoll, result } = applyAction(this.state(), action, this.diceRng);
+      // `attackForce`/`defenseForce`/`columnIndex` come from the result
+      // rather than being recomputed here — they're resolution inputs
+      // `applyAction`'s 'board' case already derived (via
+      // `currentAttack`/`currentDefense`/`boardingRatioToColumnIndex`)
+      // BEFORE mutating either ship's equipment, so re-deriving them in
+      // this scene would risk silently desyncing from whatever the engine
+      // actually resolved against (see plan.md §11.5's engine/presentation
+      // boundary).
+      const { dieRoll, result, attackForce, defenseForce, columnIndex } = applyAction(
+        this.state(),
+        action,
+        this.diceRng,
+      );
       this.reportAction(action);
-      this.log(`Boarding: die ${dieRoll} -> ${result.side ?? 'no effect'} loses ${result.equipmentLoss} equipment`);
+      const attackerEquipAfter = attacker.equipmentPoints ?? attackerMax;
+      const defenderEquipAfter = defender.equipmentPoints ?? defenderMax;
+      // `data/navalBoarding.ts` has no single win/lose die threshold to show
+      // the way `rammingSuccessRange` does for ramming — its table grades a
+      // roll into one of several outcomes (no effect, or either side losing
+      // 1-4 equipment) that vary by column, not a boolean success/fail split
+      // — so the closest audit trail is naming which column was used,
+      // mirroring the land CRT column line above.
+      const resultLine =
+        result.side !== null
+          ? `Die: ${dieRoll} -> ${result.side} loses ${result.equipmentLoss} equipment`
+          : `Die: ${dieRoll} -> no decisive effect`;
+      const sunkLines = [
+        ...(attackerEquipAfter <= 0 && attackerEquipBefore > 0 ? [`  ${unitType(attacker).name} is SUNK!`] : []),
+        ...(defenderEquipAfter <= 0 && defenderEquipBefore > 0 ? [`  ${unitType(defender).name} is SUNK!`] : []),
+      ];
+      this.log(
+        [
+          `Boarding: ${unitType(attacker).name} (attack ${attackForce}) vs ${unitType(defender).name} (defense ${defenseForce})`,
+          `CRT column: "${BOARDING_RATIO_COLUMNS[columnIndex]}" (column ${columnIndex + 1} of ${BOARDING_RATIO_COLUMNS.length}, array index ${columnIndex})`,
+          resultLine,
+          ...sunkLines,
+          `  ${unitType(attacker).name} (attacker): ${attackerEquipBefore}/${attackerMax} -> ${attackerEquipAfter}/${attackerMax} equipment (attack ${attackForce} -> ${currentAttack(attacker)})`,
+          `  ${unitType(defender).name} (defender): ${defenderEquipBefore}/${defenderMax} -> ${defenderEquipAfter}/${defenderMax} equipment (defense ${defenseForce} -> ${currentDefense(defender)})`,
+        ].join('\n'),
+      );
       this.renderAllUnits();
       this.clearCombatSelection();
     });

@@ -329,9 +329,59 @@ example describes success widening from "roll a 1" (no bonus) to "1, 2, or
 already varies in width (1 to 5 entries) and some rows exceed what a max
 bonus would reach under a literal reading of the example. This edition
 treats the printed table as the success range at *maximum* bonus, and a
-lower bonus exposes only the first `1 + bonus` entries of it — reproducing
-the worked example exactly for every matchup narrow enough to fit, and
-capping the benefit of movement alone at "1, 2, or 3" for the widest rows.
+lower bonus exposes only the first `1 + bonus` entries of it. This
+reproduces the worked example's exact numbers ("1, then 1-2, then 1-2-3")
+only for the matchups whose printed row has **exactly 3 entries** — for
+rows narrower than 3 (including galère vs. quintirème, the very matchup
+the rulebook's own worked example uses, whose printed row is just `[1]`)
+the effective range caps out below "1, 2, or 3" even at max bonus, and for
+the widest rows (4-5 entries) the benefit of movement alone caps at "1, 2,
+or 3" instead of the row's full printed width.
+
+### Combat log detail
+
+Every combat resolution's log entry is written to be auditable against the
+printed tables in `docs/research/`, not just a bottom-line result:
+
+- **Land combat** lists each attacker's/defender's individual and total
+  force, the ratio *and* the exact CRT column it resolved to (name and
+  index, so it can be checked directly against `src/data/combatTable.ts`),
+  the die roll with every contributor to its modifier named separately —
+  which terrain (and which defender's hex, for a multi-defender combat) and
+  whether the river-crossing bonus also applied — and the result. An **EX**
+  result additionally states the exchange-sacrifice threshold, but only when
+  a sacrifice choice is actually still pending — a lone attacking unit on an
+  EX result is destroyed outright with no choice ever offered (see
+  "Combining attacks" above), so the line is suppressed there rather than
+  stating a threshold nobody gets asked to meet.
+- **Ramming** shows the effective success range for the bonus actually
+  rolled next to the matchup's full printed-table range (e.g., for a
+  trirème with bonus +1 against a galère: "Succeeds on: 1-2 (printed table
+  row: 1-2-3-4 — entries past the first 3 are unreachable at any bonus; see
+  `rammingSuccessRange`'s doc comment in `navalRamming.ts`)"), making the
+  bonus-narrows-the-range interpretation above visible in play rather than
+  only in that comment. For a matchup whose whole printed row IS reachable
+  at max bonus, it says so instead ("full table for this matchup: 1-2-3 at
+  max bonus" for a row of exactly 3 entries) — and for a row narrower than
+  3 entries (e.g. galère vs. quintirème), it says so too, but adds that the
+  row is narrower than the rulebook's own worked example. Which of the
+  three sentences applies is decided by a single tested predicate
+  (`wholeRowReachableAtMaxBonus`, swept across all 16 matchups in
+  `navalRamming.test.ts`), not re-derived in the UI. Also shown: the
+  unused-movement-point count the bonus was computed from.
+- **Boarding** shows both ships' attack/defense force entering the combat,
+  the resolved boarding-CRT column, the die roll and result, and each
+  ship's equipment points (and the attack/defense derived from them) before
+  and after, explicitly saying so if a ship's equipment reaches 0 and it's
+  sunk — equipment points are a ship's remaining fighting strength, so this
+  is "how many attackers/defenders each ship has left." Unlike ramming,
+  `src/data/navalBoarding.ts`'s table has no single win/lose die threshold
+  to surface the same way — a roll resolves to one of several graduated,
+  column-dependent outcomes on either side rather than a boolean hit/miss —
+  so the boarding CRT column is the closest equivalent audit trail. Both the
+  attack/defense force and the CRT column are read off the resolved
+  `applyAction` result rather than recomputed in the UI, so the log can't
+  silently drift from whatever was actually resolved against.
 
 ## Map editor
 

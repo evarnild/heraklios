@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { History } from './history';
 import { createInitialState } from './turnManager';
-import type { Player, PlayerId, Unit } from './state';
+import { maxEquipmentPointsForType, type Player, type PlayerId, type Unit } from './state';
 import { getUnitType } from '../data/units';
 
 describe('History', () => {
@@ -127,7 +127,7 @@ describe('GameState snapshots', () => {
         position: { q, r },
         movementLeft: t.movement,
         facing: 2,
-        equipmentPoints: t.domain === 'naval' ? Math.ceil(t.defense / 5) : undefined,
+        equipmentPoints: t.domain === 'naval' ? maxEquipmentPointsForType(t) : undefined,
         defendedThisPhase: false,
         charged: false,
         destroyed: false,

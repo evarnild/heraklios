@@ -6,7 +6,7 @@ import { showConfirmDialog } from '../ui/confirmDialog';
 import { createInitialState } from '../engine/turnManager';
 import { History } from '../engine/history';
 import { unitCategory } from '../engine/movement';
-import type { GameState, Unit } from '../engine/state';
+import { maxEquipmentPointsForType, type GameState, type Unit } from '../engine/state';
 import { getUnitType } from '../data/units';
 import { canEnterTerrain } from '../data/terrain';
 import { MAP_TERRAIN, hexKey } from '../data/map';
@@ -450,7 +450,7 @@ export class PlacementScene extends Phaser.Scene {
       position: pending.hex,
       movementLeft: t.movement,
       facing: pending.facing,
-      equipmentPoints: Math.ceil(t.defense / 5),
+      equipmentPoints: maxEquipmentPointsForType(t),
       defendedThisPhase: false,
       charged: false,
       destroyed: false,
