@@ -930,3 +930,94 @@ returning ad-hoc shapes, so the fuzz harness can assert on the same fields.
 - **Parallel-safe with [§8](#8-bug-units-cannot-move-through-friendly-units)**,
   which is confined to `engine/movement.ts` / `engine/navalMovement.ts`.
 - No `GameState` shape change, so no `SAVE_VERSION` bump.
+
+---
+
+## 12. Cascading push when a unit cannot retreat
+
+**Status:** decided, not started. Reported by the user from real play: *"the
+unit died without being asked to push."*
+
+### 12.1 The bug
+
+`combat.ts:403` — `pushCandidates` returns `[]` the moment **any** of the six
+neighbours is not a friendly unit, including an *empty* hex that is unusable
+(enemy ZOC, or terrain the unit can't enter). With no legal retreat and no
+push offered, `applyLandCombatResult` eliminates the unit.
+
+### 12.2 The interpretation — decided
+
+> `05-rules-french-original.md:239-243`: *"Une unité qui se trouve dans
+> l'impossibilité de reculer... est tout simplement retirée du jeu. Le seul
+> cas fait exception à la règle, lorsque cette unité est **entourée d'unités
+> amies**. Dans ce cas, elle pousse une de ses pièces et prend sa place."*
+
+The code read *entourée* literally: all six neighbours friendly. **Decision:
+adopt the permissive reading** — a push is offered whenever retreat is
+impossible and at least one adjacent friendly unit can make room.
+
+Rationale, to be recorded in code per this repo's convention:
+
+- The strict reading makes the exception nearly unreachable — it demands six
+  units committed to surrounding one of your own. The fuzz harness measured
+  **`pushTarget: 0` across 100 games**. A rule that essentially never fires is
+  evidence of a misreading.
+- The general rule's stated causes (`en bordure de mer`, `entourée de zones
+  de contrôle ennemies`) are illustrative (`soit… soit…`), not exhaustive, so
+  a mixed blocker set does not obviously fall under them.
+- The exception's evident purpose is that a unit should not die merely
+  because its **own side** is in the way. That purpose applies whether one
+  neighbour or six are friendly.
+
+### 12.3 The cascade — the part that makes this non-trivial
+
+A pushed friendly may itself have nowhere legal to go, in which case **it
+must push in turn**. The chain continues until someone reaches a legal
+retreat hex. **The player chooses at every step** whenever more than one
+option exists — both which friendly to push and, for each pushed unit, which
+hex it retreats to.
+
+Consequences:
+
+1. **`pushCandidates` must widen.** Today it only accepts friendlies with
+   `legalRetreatHexes(...).length > 0`. A friendly with no direct retreat but
+   with its *own* viable push must now also qualify — which makes the
+   predicate mutually recursive with itself.
+2. **Cycles must terminate.** A pushes B, B pushes C, C pushes A — A has not
+   moved yet, so it still looks like a blocked friendly. Carry a visited set
+   down the chain; a unit already in the chain is not a candidate.
+3. **`completePush` changes meaning.** Today it moves the pushed unit to a
+   chosen hex and the pusher into the vacated one. With a cascade, the pushed
+   unit's own move is resolved by the recursive step; the pusher then takes
+   whatever hex was vacated.
+4. **Terrain still applies at every level** — the existing
+   `canEnterTerrain(terrainAt(f.position), category)` check (each pusher must
+   be able to occupy the hex it inherits) must hold for every link, not just
+   the first.
+
+### 12.4 Implementation shape
+
+`BoardScene` is already close: its push branch calls `chooseRetreat` for the
+pushed unit. Making that a recursive `beginUnitRetreatChoice(pushed, onDone)`
+yields retreat-or-push at every level for free, since that function already
+decides which question to ask.
+
+**But note the §6.7 lesson before copying that shape wholesale:** the elephant
+drift cascade is un-drivable headlessly precisely *because* its continuation
+lives in closures. This cascade has the same hazard. The engine half (which
+units are viable candidates, and cycle detection) must be pure and tested;
+`fuzzHarness.ts` mirrors `BoardScene`'s sequencing independently and will
+need the same recursion, so keep the decision points explicit enough that
+both callers can drive them.
+
+### 12.5 Testing
+
+The push path currently has **zero fuzz coverage** and only unit tests, which
+is why this survived. Required:
+
+- Engine tests for: single push; a 2-link and 3-link chain; a cycle that must
+  terminate; terrain-blocked links; and the case that regressed here —
+  neighbours that are a *mix* of friendlies and empty-but-unusable hexes.
+- **Mutation-test each**, per [§6.6](#66-stage-1-outcome).
+- Ideally give the harness a scenario that actually reaches a push, so
+  `pushTarget` stops reading 0.
