@@ -63,20 +63,31 @@ export function unitCategory(typeId: string): 'chariot' | 'cavalry' | 'elephant'
 }
 
 /**
- * Naval-only: the ship's equipment points when fully equipped — one point
- * per 5 points of printed defense, rounding up. This is the same formula
- * every unit-creation site (`PlacementScene`, `testMode.ts`,
- * `fuzzHarness.ts`, and the save/history test fixtures) uses to seed a
- * fresh ship's `equipmentPoints`, pulled out here as the single shared
- * source of truth so combat-log formatting (see `BoardScene`'s boarding
- * prompt) can show "N/max equipment" without re-deriving the formula.
- * Returns 0 for land units, whose `equipmentPoints` is always `undefined`
- * ("not applicable" rather than "zero").
+ * Naval-only: a ship TYPE's equipment points when fully equipped — one
+ * point per 5 points of printed defense, rounding up. Every unit-creation
+ * site (`PlacementScene`, `testMode.ts`, `fuzzHarness.ts`, and the
+ * save/history test fixtures) seeds a fresh ship's `equipmentPoints` with
+ * this exact formula, applied to the `UnitType` it's building from (before
+ * a `Unit` even exists yet) — this overload, and `maxEquipmentPoints`
+ * below for an already-built `Unit`, are both routed through it so there's
+ * one literal place the `/ 5` formula is written. Returns 0 for non-naval
+ * types, matching `maxEquipmentPoints`'s land-unit behavior below.
  */
-export function maxEquipmentPoints(unit: Unit): number {
-  const t = unitType(unit);
+export function maxEquipmentPointsForType(t: UnitType): number {
   if (t.domain !== 'naval') return 0;
   return Math.ceil(t.defense / 5);
+}
+
+/**
+ * Naval-only: the ship's equipment points when fully equipped (see
+ * `maxEquipmentPointsForType` above) — exposed for combat-log formatting
+ * (see `BoardScene`'s boarding prompt) to show "N/max equipment" from a
+ * live `Unit` without re-deriving the formula. Returns 0 for land units,
+ * whose `equipmentPoints` is always `undefined` ("not applicable" rather
+ * than "zero").
+ */
+export function maxEquipmentPoints(unit: Unit): number {
+  return maxEquipmentPointsForType(unitType(unit));
 }
 
 export function currentAttack(unit: Unit): number {

@@ -10,7 +10,7 @@ import {
 } from './saveGame';
 import { createInitialState } from './turnManager';
 import { emptySelection } from './army';
-import type { Player, PlayerId, Unit } from './state';
+import { maxEquipmentPointsForType, type Player, type PlayerId, type Unit } from './state';
 import { getUnitType } from '../data/units';
 
 function makeUnit(id: string, owner: PlayerId, typeId: string, q: number, r: number): Unit {
@@ -22,7 +22,7 @@ function makeUnit(id: string, owner: PlayerId, typeId: string, q: number, r: num
     position: { q, r },
     movementLeft: t.movement,
     facing: 1,
-    equipmentPoints: t.domain === 'naval' ? Math.ceil(t.defense / 5) : undefined,
+    equipmentPoints: t.domain === 'naval' ? maxEquipmentPointsForType(t) : undefined,
     defendedThisPhase: false,
     charged: false,
     destroyed: false,

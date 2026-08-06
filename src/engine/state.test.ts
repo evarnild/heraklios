@@ -1,6 +1,26 @@
 import { describe, it, expect } from 'vitest';
-import { currentAttack, currentDefense, maxEquipmentPoints, type Unit } from './state';
-import { getUnitType } from '../data/units';
+import { currentAttack, currentDefense, maxEquipmentPoints, maxEquipmentPointsForType, type Unit } from './state';
+import { getUnitType, type UnitType } from '../data/units';
+
+/** A synthetic naval `UnitType` with a defense NOT divisible by 5, so
+ * `Math.ceil` actually differs from `Math.floor`/plain division — every
+ * real shipped hull's defense (10/15/20/25) is a multiple of 5, so testing
+ * against them alone can't tell a ceiling from a floor. */
+function makeShipType(defense: number): UnitType {
+  return {
+    id: 'test-ship',
+    name: 'Test Ship',
+    domain: 'naval',
+    cost: 0,
+    maxCount: 1,
+    attack: 0,
+    rangedAttack: 0,
+    range: 0,
+    defense,
+    movement: 0,
+    meleeCapable: true,
+  };
+}
 
 function makeUnit(overrides: Partial<Unit> & { typeId: string }): Unit {
   return {
@@ -56,12 +76,24 @@ describe('maxEquipmentPoints', () => {
     expect(maxEquipmentPoints(infantry)).toBe(0);
   });
 
-  it('rounds a ship\'s printed defense up to the nearest 5-point equipment point, for every hull', () => {
+  it('matches every shipped hull\'s printed defense / 5, for every hull', () => {
     // galères: defense 10 -> 2; birèmes: 15 -> 3; trirèmes: 20 -> 4; quintirèmes: 25 -> 5.
+    // (All four are exact multiples of 5 — see the dedicated rounding test
+    // below for a defense value where ceiling vs. floor actually differs.)
     expect(maxEquipmentPoints(makeUnit({ typeId: 'galeres' }))).toBe(2);
     expect(maxEquipmentPoints(makeUnit({ typeId: 'biremes' }))).toBe(3);
     expect(maxEquipmentPoints(makeUnit({ typeId: 'triremes' }))).toBe(4);
     expect(maxEquipmentPoints(makeUnit({ typeId: 'quintiremes' }))).toBe(5);
+  });
+
+  it('rounds UP (not down or to nearest) for a defense not divisible by 5', () => {
+    expect(maxEquipmentPointsForType(makeShipType(11))).toBe(3); // ceil(11/5) = 3, not floor's 2
+    expect(maxEquipmentPointsForType(makeShipType(6))).toBe(2); // ceil(6/5) = 2, not floor's 1
+    expect(maxEquipmentPointsForType(makeShipType(10))).toBe(2); // exact multiple: no rounding needed
+  });
+
+  it('maxEquipmentPointsForType is 0 for a land UnitType, matching maxEquipmentPoints', () => {
+    expect(maxEquipmentPointsForType(getUnitType('fantassins'))).toBe(0);
   });
 
   it('matches the equipment loss the same ship actually takes in currentAttack/currentDefense', () => {
