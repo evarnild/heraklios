@@ -187,25 +187,53 @@ describe('reachableHexes — moving through friendly units (plan.md §8)', () =>
     expect(reachable.get('13,3')).toBe(3);
   });
 
+  // WHY THESE TWO TESTS USE RIVER GEOMETRY INSTEAD OF THE OPEN (10,3) ROW.
+  //
+  // The owner check is *normally unobservable* through `reachableHexes`, and
+  // an earlier version of these tests was silently vacuous because of it.
+  // Every unit with a different owner projects ZOC onto all six of its own
+  // neighbours (`hexesUnderZoc`, combat.ts). To traverse such a unit you must
+  // first enter one of those neighbours — which trips the ZOC-stop and ends
+  // expansion before traversal is ever attempted. So on open ground, a
+  // different-owner unit is already unreachable-through for reasons that have
+  // nothing to do with the owner check, and mutating that check to
+  // `if (false) continue;` (permitting traversal through literally anyone)
+  // left the entire suite green. Moving the blocker further from the mover
+  // does NOT fix this — it just relocates the same ZOC ring.
+  //
+  // The one place the check becomes observable is where ZOC is suppressed:
+  // "les zones de contrôle ne « franchissent » pas les rivières"
+  // (docs/research/05-rules-french-original.md:135), implemented by the
+  // `riverBetween` skip in `hexesUnderZoc`. (1,20) and (2,20) are plain hexes
+  // separated by a river hexside on the shipped map, so a unit standing on
+  // (1,20) casts no ZOC onto (2,20) — the mover can sit there un-frozen and
+  // actually attempt the traversal. (1,19) is reachable ONLY through (1,20).
+  // If either test starts passing regardless of the owner check, this
+  // geometry has been broken; re-derive it rather than deleting the test.
   it('does NOT traverse a hex occupied by a different owner, even in a 3+ player game where that owner isn\'t the active player\'s declared enemy — "meme armee" means same owner, not merely "not enemy"', () => {
-    const mover = makeCavalry({ typeId: 'fantassins', owner: 0, movementLeft: 3 }); // (10,3)
-    const thirdParty = makeCavalry({ typeId: 'fantassins', owner: 2, position: { q: 11, r: 3 } });
-    const state = makeState([mover, thirdParty]);
-    const reachable = reachableHexes(state, mover);
-    expect(reachable.has('11,3')).toBe(false); // occupied, not a destination
-    // Blocked outright (not merely excluded) — nothing beyond (11,3) is
-    // reachable at all, exactly like an enemy occupant would block it.
-    expect(reachable.has('12,3')).toBe(false);
-    expect(reachable.has('13,3')).toBe(false);
+    const mover = makeCavalry({ typeId: 'fantassins', owner: 0, movementLeft: 3, position: { q: 2, r: 20 } });
+    const thirdParty = makeCavalry({ typeId: 'fantassins', owner: 2, position: { q: 1, r: 20 } });
+    const reachable = reachableHexes(makeState([mover, thirdParty]), mover);
+    expect(reachable.has('1,20')).toBe(false); // occupied — never a destination
+    // Blocked outright, not traversed. Swap `owner: 2` for `owner: 0` below
+    // and (1,19) becomes reachable at cost 3 — that contrast IS the rule.
+    expect(reachable.has('1,19')).toBe(false);
+
+    // Control: the identical position with a SAME-OWNER unit traverses fine,
+    // proving the block above is the owner check and not the river, the
+    // terrain, or the movement budget.
+    const controlMover = makeCavalry({ typeId: 'fantassins', owner: 0, movementLeft: 3, position: { q: 2, r: 20 } });
+    const friendly = makeCavalry({ typeId: 'fantassins', owner: 0, position: { q: 1, r: 20 } });
+    const control = reachableHexes(makeState([controlMover, friendly]), controlMover);
+    expect(control.get('1,19')).toBe(3);
   });
 
   it('still blocks entry outright on an enemy-occupied hex (unchanged prior behavior)', () => {
-    const mover = makeCavalry({ typeId: 'fantassins', owner: 0, movementLeft: 3 }); // (10,3)
-    const enemy = makeCavalry({ typeId: 'fantassins', owner: 1, position: { q: 11, r: 3 } });
-    const state = makeState([mover, enemy]);
-    const reachable = reachableHexes(state, mover);
-    expect(reachable.has('11,3')).toBe(false);
-    expect(reachable.has('12,3')).toBe(false);
+    const mover = makeCavalry({ typeId: 'fantassins', owner: 0, movementLeft: 3, position: { q: 2, r: 20 } });
+    const enemy = makeCavalry({ typeId: 'fantassins', owner: 1, position: { q: 1, r: 20 } });
+    const reachable = reachableHexes(makeState([mover, enemy]), mover);
+    expect(reachable.has('1,20')).toBe(false);
+    expect(reachable.has('1,19')).toBe(false);
   });
 
   // Design question 3 (plan.md §8.3): passing THROUGH a friendly unit that
@@ -213,17 +241,29 @@ describe('reachableHexes — moving through friendly units (plan.md §8)', () =>
   // "must stop on entering an enemy ZOC" rule — traversal doesn't grant
   // immunity to the ZOC-stop rule for hexes further down the line.
   it('a friendly-occupied hex inside an enemy ZOC still cuts off further traversal beyond it', () => {
-    const mover = makeCavalry({ typeId: 'fantassins', owner: 0, movementLeft: 5 }); // (10,3)
-    // (12,3) sits under the enemy's ZOC (adjacent to the enemy at (13,3)).
+    // Deliberate geometry, and it took some care to make this test capable of
+    // failing. The enemy sits at (13,2), NOT (13,3): (13,2)'s ZOC covers the
+    // friendly's hex (12,3) but NOT the approach hex (11,3), so the mover can
+    // still walk up to the friendly. Movement is capped at 3 so the go-around
+    // route (via 12,4, cost 4) is out of budget — making (13,3) reachable ONLY
+    // by continuing through (12,3). If the ZOC-stop rule were skipped for
+    // occupied hexes, (12,3) would be entered at cost 2 and expansion would
+    // continue to (13,3) at cost 3. It must not.
+    const mover = makeCavalry({ typeId: 'fantassins', owner: 0, movementLeft: 3 }); // (10,3)
     const friendlyInZoc = makeCavalry({ typeId: 'fantassins', owner: 0, position: { q: 12, r: 3 } });
-    const enemy = makeCavalry({ typeId: 'fantassins', owner: 1, position: { q: 13, r: 3 } });
-    const state = makeState([mover, friendlyInZoc, enemy]);
-    const reachable = reachableHexes(state, mover);
+    const enemy = makeCavalry({ typeId: 'fantassins', owner: 1, position: { q: 13, r: 2 } });
+    const reachable = reachableHexes(makeState([mover, friendlyInZoc, enemy]), mover);
     expect(reachable.get('11,3')).toBe(1); // short of the friendly/ZOC hex: fine
-    expect(reachable.has('12,3')).toBe(false); // occupied by the friendly unit: not a destination
-    // Nothing past (12,3) is reachable: the ZOC-stop rule cuts off
-    // expansion the instant (12,3) is entered, exactly as it would for an
-    // empty ZOC hex — traversing a friendly unit doesn't bypass it.
-    expect(reachable.has('14,3')).toBe(false);
+    expect(reachable.has('12,3')).toBe(false); // occupied: never a destination
+    // The load-bearing assertion — traversal does NOT grant ZOC immunity.
+    expect(reachable.has('13,3')).toBe(false);
+
+    // Control: remove ONLY the enemy and the very same traversal succeeds at
+    // cost 3, proving the assertion above is the ZOC rule biting and not the
+    // mover simply running out of movement or the friendly blocking outright.
+    const controlMover = makeCavalry({ typeId: 'fantassins', owner: 0, movementLeft: 3 });
+    const controlFriendly = makeCavalry({ typeId: 'fantassins', owner: 0, position: { q: 12, r: 3 } });
+    const control = reachableHexes(makeState([controlMover, controlFriendly]), controlMover);
+    expect(control.get('13,3')).toBe(3);
   });
 });
