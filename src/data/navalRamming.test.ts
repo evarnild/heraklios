@@ -6,8 +6,20 @@ import {
   isRammingHitWithBonus,
   fullRammingSuccessRange,
   maxReachableRammingEntries,
+  wholeRowReachableAtMaxBonus,
   MAX_RAMMING_BONUS,
+  SHIP_ORDER,
+  type ShipTypeId,
 } from './navalRamming';
+
+/** Every (attacker, defender) ship-type pairing — all 16 rows of the
+ * printed ramming table, used below to sweep a claim across the whole
+ * table rather than spot-checking a few matchups (see the adversarial
+ * review finding that a manual, non-exhaustive check of this exact claim
+ * shipped a false statement once already). */
+const ALL_MATCHUPS: readonly [ShipTypeId, ShipTypeId][] = SHIP_ORDER.flatMap((attacker) =>
+  SHIP_ORDER.map((defender): [ShipTypeId, ShipTypeId] => [attacker, defender]),
+);
 
 describe('isRammingSuccessful', () => {
   it('matches the transcribed ramming table', () => {
@@ -96,5 +108,48 @@ describe('maxReachableRammingEntries', () => {
     expect(fullRammingSuccessRange('triremes', 'galeres').length).toBe(4);
     expect(maxReachableRammingEntries('quintiremes', 'galeres')).toBe(1 + MAX_RAMMING_BONUS);
     expect(fullRammingSuccessRange('quintiremes', 'galeres').length).toBe(5);
+  });
+});
+
+describe('wholeRowReachableAtMaxBonus — exhaustive 16-matchup sweep', () => {
+  it('has exactly 16 matchups to sweep (sanity check on the fixture itself)', () => {
+    expect(ALL_MATCHUPS).toHaveLength(16);
+  });
+
+  it('agrees with a direct length-vs-(1+MAX_RAMMING_BONUS) comparison for every matchup', () => {
+    for (const [attacker, defender] of ALL_MATCHUPS) {
+      const rowLength = fullRammingSuccessRange(attacker, defender).length;
+      expect(wholeRowReachableAtMaxBonus(attacker, defender)).toBe(rowLength <= 1 + MAX_RAMMING_BONUS);
+    }
+  });
+
+  it('is true, and rammingSuccessRange at max bonus reproduces the rulebook\'s "1-2-3" worked example exactly, for every matchup whose row has EXACTLY 3 entries', () => {
+    const exactMatchups = ALL_MATCHUPS.filter(([a, d]) => fullRammingSuccessRange(a, d).length === 3);
+    expect(exactMatchups.length).toBeGreaterThan(0); // fixture sanity: this bucket isn't empty
+    for (const [attacker, defender] of exactMatchups) {
+      expect(wholeRowReachableAtMaxBonus(attacker, defender)).toBe(true);
+      expect(rammingSuccessRange(attacker, defender, MAX_RAMMING_BONUS)).toEqual([1, 2, 3]);
+    }
+  });
+
+  it('is true but does NOT reproduce "1-2-3" for every matchup whose row has FEWER than 3 entries — including galère vs. quintirème, the exact pairing the rulebook\'s own worked example uses', () => {
+    const narrowerMatchups = ALL_MATCHUPS.filter(([a, d]) => fullRammingSuccessRange(a, d).length < 3);
+    expect(narrowerMatchups.length).toBeGreaterThan(0); // fixture sanity: this bucket isn't empty
+    expect(narrowerMatchups).toContainEqual(['galeres', 'quintiremes']);
+    for (const [attacker, defender] of narrowerMatchups) {
+      const row = fullRammingSuccessRange(attacker, defender);
+      expect(wholeRowReachableAtMaxBonus(attacker, defender)).toBe(true); // the whole (narrow) row IS reachable...
+      const atMaxBonus = rammingSuccessRange(attacker, defender, MAX_RAMMING_BONUS);
+      expect(atMaxBonus).toEqual(row); // ...but it's exactly the printed row, not padded up to it...
+      expect(atMaxBonus.length).toBeLessThan(3); // ...which is narrower than the book's "1, 2, or 3".
+    }
+  });
+
+  it('is false for every matchup whose row has MORE than 3 entries', () => {
+    const widerMatchups = ALL_MATCHUPS.filter(([a, d]) => fullRammingSuccessRange(a, d).length > 3);
+    expect(widerMatchups.length).toBeGreaterThan(0); // fixture sanity: this bucket isn't empty
+    for (const [attacker, defender] of widerMatchups) {
+      expect(wholeRowReachableAtMaxBonus(attacker, defender)).toBe(false);
+    }
   });
 });
