@@ -45,6 +45,8 @@ import {
   rammingSuccessRange,
   fullRammingSuccessRange,
   maxReachableRammingEntries,
+  wholeRowReachableAtMaxBonus,
+  MAX_RAMMING_BONUS,
   type ShipTypeId,
 } from '../data/navalRamming';
 import { BOARDING_RATIO_COLUMNS } from '../data/navalBoarding';
@@ -1024,16 +1026,30 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       const effectiveRange = rammingSuccessRange(attackerType, defenderType, result.bonus);
       const fullRange = fullRammingSuccessRange(attackerType, defenderType);
       const maxReachable = maxReachableRammingEntries(attackerType, defenderType);
-      // Only claim the full printed row is reachable "at max bonus" when it
-      // actually is (row length <= maxReachable) — for wider rows, the row
-      // has entries no bonus (capped at MAX_RAMMING_BONUS) can ever reach at
-      // all, per navalRamming.ts:53-64's interpretation, and saying
-      // otherwise would tell a player who rolls into one of those entries
-      // that the game mis-resolved a hit.
-      const tableNote =
-        fullRange.length <= maxReachable
-          ? `full table for this matchup: ${fullRange.join('-')} at max bonus`
-          : `printed table row: ${fullRange.join('-')} — entries past the first ${maxReachable} are unreachable at any bonus; see navalRamming.ts:53-64`;
+      // Which sentence to show is decided entirely by `wholeRowReachableAtMaxBonus`
+      // (a tested predicate in navalRamming.ts), NOT re-derived here — this
+      // exact comparison used to live inline in this file and shipped a
+      // false "full table... at max bonus" claim for every wider row, since
+      // nothing exercised it (see that function's doc comment). Only claim
+      // the full printed row is reachable "at max bonus" when it actually
+      // is; for wider rows, the row has entries no bonus (capped at
+      // MAX_RAMMING_BONUS) can ever reach at all, and saying otherwise
+      // would tell a player who rolls into one of those entries that the
+      // game mis-resolved a hit.
+      let tableNote: string;
+      if (!wholeRowReachableAtMaxBonus(attackerType, defenderType)) {
+        tableNote = `printed table row: ${fullRange.join('-')} — entries past the first ${maxReachable} are unreachable at any bonus; see rammingSuccessRange's doc comment in navalRamming.ts`;
+      } else if (fullRange.length === 1 + MAX_RAMMING_BONUS) {
+        // Reproduces the rulebook's worked example ("1, then 1-2, then
+        // 1-2-3") exactly at every bonus level for this matchup.
+        tableNote = `full table for this matchup: ${fullRange.join('-')} at max bonus`;
+      } else {
+        // The whole (narrow) row IS reachable at max bonus, but it's
+        // narrower than the rulebook's own worked example — e.g. galère
+        // vs. quintirème, the exact pairing that example uses, has a
+        // printed row of just `[1]` here, not the book's "1, 2, or 3".
+        tableNote = `full table for this matchup: ${fullRange.join('-')} at max bonus (narrower than the rulebook's own worked example, which reaches 1-2-3 at max bonus)`;
+      }
       const pointWord = unusedMovement === 1 ? 'point' : 'points';
       this.log(
         `Ramming: ${unitType(attacker).name} vs ${unitType(defender).name}, bonus +${result.bonus} ` +
