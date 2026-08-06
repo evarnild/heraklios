@@ -307,9 +307,14 @@ example describes success widening from "roll a 1" (no bonus) to "1, 2, or
 already varies in width (1 to 5 entries) and some rows exceed what a max
 bonus would reach under a literal reading of the example. This edition
 treats the printed table as the success range at *maximum* bonus, and a
-lower bonus exposes only the first `1 + bonus` entries of it — reproducing
-the worked example exactly for every matchup narrow enough to fit, and
-capping the benefit of movement alone at "1, 2, or 3" for the widest rows.
+lower bonus exposes only the first `1 + bonus` entries of it. This
+reproduces the worked example's exact numbers ("1, then 1-2, then 1-2-3")
+only for the matchups whose printed row has **exactly 3 entries** — for
+rows narrower than 3 (including galère vs. quintirème, the very matchup
+the rulebook's own worked example uses, whose printed row is just `[1]`)
+the effective range caps out below "1, 2, or 3" even at max bonus, and for
+the widest rows (4-5 entries) the benefit of movement alone caps at "1, 2,
+or 3" instead of the row's full printed width.
 
 ### Combat log detail
 
@@ -331,13 +336,17 @@ printed tables in `docs/research/`, not just a bottom-line result:
   rolled next to the matchup's full printed-table range (e.g., for a
   trirème with bonus +1 against a galère: "Succeeds on: 1-2 (printed table
   row: 1-2-3-4 — entries past the first 3 are unreachable at any bonus; see
-  navalRamming.ts:53-64)"), making the bonus-narrows-the-range
-  interpretation above visible in play — and, for the rows narrow enough
-  that the *whole* printed row IS reachable at max bonus, saying so instead
-  ("full table for this matchup: 1-2-3 at max bonus") rather than always
-  implying a gap that isn't there — rather than only in `navalRamming.ts`'s
-  comments. Also shown: the unused-movement-point count the bonus was
-  computed from.
+  `rammingSuccessRange`'s doc comment in `navalRamming.ts`)"), making the
+  bonus-narrows-the-range interpretation above visible in play rather than
+  only in that comment. For a matchup whose whole printed row IS reachable
+  at max bonus, it says so instead ("full table for this matchup: 1-2-3 at
+  max bonus" for a row of exactly 3 entries) — and for a row narrower than
+  3 entries (e.g. galère vs. quintirème), it says so too, but adds that the
+  row is narrower than the rulebook's own worked example. Which of the
+  three sentences applies is decided by a single tested predicate
+  (`wholeRowReachableAtMaxBonus`, swept across all 16 matchups in
+  `navalRamming.test.ts`), not re-derived in the UI. Also shown: the
+  unused-movement-point count the bonus was computed from.
 - **Boarding** shows both ships' attack/defense force entering the combat,
   the resolved boarding-CRT column, the die roll and result, and each
   ship's equipment points (and the attack/defense derived from them) before
