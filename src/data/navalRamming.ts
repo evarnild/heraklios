@@ -2,6 +2,13 @@ export type ShipTypeId = 'galeres' | 'biremes' | 'triremes' | 'quintiremes';
 
 const SHIP_ORDER: readonly ShipTypeId[] = ['galeres', 'biremes', 'triremes', 'quintiremes'];
 
+/** The ramming bonus's hard cap (see `rammingBonusFromUnusedMovement`) —
+ * pulled out as a named constant so every place that needs "the widest
+ * range any bonus can ever expose" (`rammingSuccessRange`'s own cap, and
+ * `BoardScene`'s log formatting) computes it the same way instead of each
+ * re-hardcoding the literal `2`. */
+export const MAX_RAMMING_BONUS = 2;
+
 // Die values (1-6) on which a ramming attempt SUCCEEDS, keyed by
 // [attacker ship type][defender ship type]. Transcribed from the
 // "Table des résultats pour l'éperonnage" (regles2.jpg, p.34).
@@ -47,7 +54,7 @@ export function isRammingSuccessful(
  * contact on its very last point of movement gets none.
  */
 export function rammingBonusFromUnusedMovement(unusedPoints: number): 0 | 1 | 2 {
-  return Math.max(0, Math.min(2, Math.floor(unusedPoints))) as 0 | 1 | 2;
+  return Math.max(0, Math.min(MAX_RAMMING_BONUS, Math.floor(unusedPoints))) as 0 | 1 | 2;
 }
 
 /**
@@ -95,7 +102,28 @@ export function fullRammingSuccessRange(
   attackerType: ShipTypeId,
   defenderType: ShipTypeId,
 ): readonly number[] {
-  return RAMMING_SUCCESS_DICE[attackerType][defenderType];
+  // Copy, not a reference into `RAMMING_SUCCESS_DICE` itself: `readonly` on
+  // the table's type is compile-time only, and `rammingSuccessRange` below
+  // already returns a fresh array via `.slice` — this should behave the
+  // same for a caller that might (say) sort or mutate what it gets back.
+  return [...RAMMING_SUCCESS_DICE[attackerType][defenderType]];
+}
+
+/**
+ * How many of `fullRammingSuccessRange`'s entries are actually reachable by
+ * ANY bonus (i.e. at `MAX_RAMMING_BONUS`) — `rammingSuccessRange(...,
+ * MAX_RAMMING_BONUS).length`, exposed directly so a caller doesn't need to
+ * compute a whole array just to compare lengths. For matchups whose row has
+ * `MAX_RAMMING_BONUS + 1` or fewer entries this equals the row's full
+ * length (every entry is reachable at max bonus); for wider rows (see
+ * `rammingSuccessRange`'s doc comment) it's smaller — the gap is
+ * `fullRammingSuccessRange(...).length - maxReachableRammingEntries(...)`.
+ */
+export function maxReachableRammingEntries(
+  attackerType: ShipTypeId,
+  defenderType: ShipTypeId,
+): number {
+  return rammingSuccessRange(attackerType, defenderType, MAX_RAMMING_BONUS).length;
 }
 
 export { SHIP_ORDER };

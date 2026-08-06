@@ -5,6 +5,8 @@ import {
   rammingSuccessRange,
   isRammingHitWithBonus,
   fullRammingSuccessRange,
+  maxReachableRammingEntries,
+  MAX_RAMMING_BONUS,
 } from './navalRamming';
 
 describe('isRammingSuccessful', () => {
@@ -72,5 +74,27 @@ describe('fullRammingSuccessRange', () => {
   it('is WIDER than rammingSuccessRange at max bonus for the widest row (quintirème vs galère)', () => {
     expect(fullRammingSuccessRange('quintiremes', 'galeres')).toEqual([1, 2, 3, 4, 5]);
     expect(rammingSuccessRange('quintiremes', 'galeres', 2)).toEqual([1, 2, 3]);
+  });
+
+  it('returns a fresh array each time, not a reference into the shared table', () => {
+    const a = fullRammingSuccessRange('galeres', 'galeres') as number[];
+    a.push(99);
+    expect(fullRammingSuccessRange('galeres', 'galeres')).toEqual([1, 2, 3]);
+  });
+});
+
+describe('maxReachableRammingEntries', () => {
+  it('equals the full row length when the row fits within MAX_RAMMING_BONUS + 1 entries', () => {
+    expect(maxReachableRammingEntries('galeres', 'galeres')).toBe(3);
+    expect(fullRammingSuccessRange('galeres', 'galeres').length).toBe(3);
+    expect(maxReachableRammingEntries('galeres', 'quintiremes')).toBe(1);
+    expect(fullRammingSuccessRange('galeres', 'quintiremes').length).toBe(1);
+  });
+
+  it('is smaller than the full row length for rows wider than MAX_RAMMING_BONUS + 1', () => {
+    expect(maxReachableRammingEntries('triremes', 'galeres')).toBe(1 + MAX_RAMMING_BONUS);
+    expect(fullRammingSuccessRange('triremes', 'galeres').length).toBe(4);
+    expect(maxReachableRammingEntries('quintiremes', 'galeres')).toBe(1 + MAX_RAMMING_BONUS);
+    expect(fullRammingSuccessRange('quintiremes', 'galeres').length).toBe(5);
   });
 });
