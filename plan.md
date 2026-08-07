@@ -1021,3 +1021,67 @@ is why this survived. Required:
 - **Mutation-test each**, per [§6.6](#66-stage-1-outcome).
 - Ideally give the harness a scenario that actually reaches a push, so
   `pushTarget` stops reading 0.
+
+---
+
+## 13. Hex coordinate tooltip
+
+**Status:** planned, not started.
+
+> **Assumption flagged.** The request arrived truncated — *"a tooltip display
+> that says the coordinates of the hex which…"*. Written up as **the hex
+> currently under the cursor, shown on hover**, which is the natural reading
+> for a tooltip. If what was meant was the *selected* hex, or the hex of a
+> selected unit, this is a small edit — the display logic is the same, only
+> the trigger changes.
+
+### 13.1 Why it earns its place
+
+Beyond player convenience, this is a **debugging and authoring aid**. Hex
+coordinates are currently invisible in-game, and several tasks in this plan
+have needed them: pinning map-specific regression tests (the (4,9)
+terrain-boxed hex in [§9](#9-live-defects-found-by-stage-2a), the
+(1,20)/(2,20) river pair in [§8](#8-bug-units-cannot-move-through-friendly-units)),
+and reporting a bug against a specific board position. During a scripted
+play-test of `main`, several minutes were lost guessing which screen pixel
+corresponded to which hex. A visible coordinate removes that entirely.
+
+Worth showing the **terrain type** alongside the coordinate for the same
+reason — most of the map-derived test constants in this repo are of the form
+"(q,r) is plain / plateau / marsh", and confirming that by eye is currently
+impossible.
+
+### 13.2 Implementation notes
+
+The hard part is already done. `MapView.ts:71-80` builds one interactive
+`Phaser.GameObjects.Polygon` per hex with the `HexCoord` captured in the
+closure, and already wires `poly.on('pointerdown', …)` to an `onHexClick`
+callback. A `pointerover` / `pointerout` pair alongside it, feeding a parallel
+`onHexHover: ((hex: HexCoord | null) => void) | null` callback, follows the
+existing pattern exactly.
+
+Three things to get right:
+
+1. **Pin it to the UI camera.** `MapView` adds a fixed HUD camera via
+   `pinUIObjects` (`:180-184`). A tooltip that isn't pinned will drift and
+   scale under pan/zoom — the same trap the Abandon button had to avoid
+   ([§7](#7-start-a-new-game-at-any-time)).
+2. **Pick a depth deliberately.** Current map: in-game prompts 20/21,
+   panel background 25, `logText` 29, HUD buttons/status 30, SaveLoadPanel
+   40/41, confirm dialog 50-52. A hover tooltip should sit above the HUD but
+   **below the modals**, or it will float over the abandon dialog.
+3. **Don't let it interfere with input.** The tooltip must not be
+   interactive, or it will steal `pointerover` from the hexes beneath it and
+   flicker. Offset it from the cursor, and clear it on `pointerout`.
+
+### 13.3 Scope and dependencies
+
+- Presentation only: `src/ui/MapView.ts` plus a small amount of
+  `src/scenes/BoardScene.ts` wiring. **No engine change**, no `GameState`
+  change, no `SAVE_VERSION` implication.
+- Worth offering on `PlacementScene` too, which has the same `MapView` and
+  where "which hex is this?" matters just as much during deployment.
+- **Not parallel-safe with anything else editing `BoardScene.ts`** — see the
+  queue in [§10](#10-sequenced-queue).
+- Little to unit-test by the repo's convention (it is scene/UI code); keep
+  any coordinate-formatting helper pure if one is needed.
