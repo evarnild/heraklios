@@ -3,6 +3,12 @@ dist/
 *.log
 *.tsbuildinfo
 
+# Agent worktrees created by the harness. These live inside the repo but are
+# backed by the shared .git — committing one lands a stray gitlink (mode
+# 160000) that resolves to nothing on clone, which is exactly what happened
+# in 3b15577.
+.claude/worktrees/
+
 # Copyrighted source scans of the original magazine — never commit these,
 # see docs/research/README.md.
 docs/*.jpg
