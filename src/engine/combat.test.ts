@@ -837,6 +837,33 @@ describe('applyLandCombatResult — AR/DR retreats', () => {
     expect(attacker.destroyed).toBe(false);
   });
 
+  // HIGH-2 finding from adversarial review: the pushCandidates-level
+  // regression tests above prove the PREDICATE widened correctly, but never
+  // exercised the actual bug report — "the unit died without being asked to
+  // push" — which is `forceRetreat`'s decision, inside
+  // `applyLandCombatResult`, not `pushCandidates` in isolation. Deleting
+  // `|| pushCandidates(state, unit).length > 0` from `forceRetreat` (i.e.
+  // restoring the reported bug verbatim, even against the ALREADY-widened
+  // predicate) passed every other test in this file before this one existed.
+  it('regression: a unit boxed by a mix of friendlies and one ZOC-blocked empty hex is QUEUED for a push, not eliminated, when forced to retreat (plan.md §12.1)', () => {
+    const unit = makeUnit({ typeId: 'fantassins', position: CENTER });
+    const friendlies = NEIGHBORS.slice(0, 5).map((pos, i) => makeUnit({ typeId: 'fantassins', position: pos, id: `f${i}` }));
+    // NEIGHBORS[5] = (10,6) stays empty, but ZOC'd by an enemy at (10,7) —
+    // see the identical `pushCandidates` regression test above for why this
+    // exact shape is the one the old strict "entourée" check mishandled.
+    const zocSource = makeUnit({ typeId: 'fantassins', position: { q: 10, r: 7 }, owner: 1 });
+    // The "combat" itself is unrelated to the boxing geometry — placed far
+    // away specifically to prove this is pure retreat-option bookkeeping,
+    // not anything to do with the attacker's own position (mirrors the
+    // (4,9)-cavalry test below).
+    const defender = makeUnit({ typeId: 'fantassins', position: { q: 9000, r: 9000 }, owner: 1 });
+    const state = makeState([unit, ...friendlies, zocSource, defender]);
+
+    const outcome = applyLandCombatResult(state, [unit], [defender], 'AR');
+    expect(outcome.pendingRetreats).toEqual([unit]);
+    expect(unit.destroyed).toBe(false);
+  });
+
   it('eliminates a retreating unit with no legal hex and no push option', () => {
     // Far outside any real map's range: every neighbor is off-map.
     const attacker = makeUnit({ typeId: 'fantassins', position: { q: 9000, r: 9000 } });
