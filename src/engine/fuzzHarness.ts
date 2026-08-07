@@ -439,8 +439,19 @@ function assertNoActionTargetsADeadUnit(state: GameState, legal: Action[]): void
  * a unit still mid-resolution higher up the call stack as if it were an
  * ordinary bystander — see `pushCandidates`'s own doc comment on
  * termination.
+ *
+ * Exported (not merely file-local) specifically so this exact glue — not
+ * just the `pushCandidates`/`completePush` primitives it calls — can be
+ * driven directly by a test with a scripted `PlayerAgent`. HIGH-3 finding
+ * from adversarial review: `combat.test.ts`'s own cascade tests exercised
+ * the primitives by hand-writing the `retreatUnitTo`/`completePush`
+ * sequence in the test body, never this function, so a bug in the
+ * SEQUENCING itself (e.g. capturing `pushed.position` too late, or passing
+ * `visited` instead of the grown `chainVisited` into the recursive call —
+ * both would silently corrupt a cascade) had no test that could catch it.
+ * See `fuzzHarness.test.ts`'s `resolveUnitRetreat` describe block.
  */
-async function resolveUnitRetreat(
+export async function resolveUnitRetreat(
   state: GameState,
   unit: Unit,
   agent: PlayerAgent,

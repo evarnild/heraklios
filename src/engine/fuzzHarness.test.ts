@@ -1,7 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { playRandomGame, buildFuzzGameState, type HarnessStats } from './fuzzHarness';
+import { playRandomGame, buildFuzzGameState, resolveUnitRetreat, type HarnessStats } from './fuzzHarness';
 import type { Action } from './actions';
 import type { CombatResult } from '../data/combatTable';
+import type { HexCoord } from '../data/map';
+import { legalRetreatHexes } from './combat';
+import { createInitialState } from './turnManager';
+import type { PlayerAgent } from './agent';
+import type { GameState, Unit } from './state';
+import { DIRECTIONS, hexAdd } from './hex';
 
 /**
  * Crank this up locally for a longer soak — just edit this constant (e.g. to
@@ -94,6 +100,130 @@ describe('playRandomGame', () => {
     // Once that lands: enable elephants in `buildFuzzGameState()`, answer
     // `needsRetreatChoice` drift events through the harness's `RandomAgent`,
     // delete this test and the `pendingDrifts` guard in `fuzzHarness.ts`.
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveUnitRetreat — HIGH-3 finding from adversarial review: combat.test.ts
+// exercises pushCandidates/completePush as isolated primitives, hand-writing
+// the retreat/push sequence in the test body; it never drives the actual
+// glue (this function, mirrored in BoardScene.beginUnitRetreatChoice) that
+// captures each vacated hex and threads `visited` through the recursion.
+// This exercises that glue directly, with a scripted (non-random)
+// PlayerAgent, against a real 3-link cascade.
+// ---------------------------------------------------------------------------
+
+function makeChainUnit(id: string, position: HexCoord, owner: 0 | 1 = 0): Unit {
+  return {
+    id,
+    owner,
+    typeId: 'fantassins',
+    position,
+    movementLeft: 0,
+    facing: 0,
+    defendedThisPhase: false,
+    charged: false,
+    destroyed: false,
+  };
+}
+
+/** Same straight-line-chain construction as combat.test.ts's `buildChain`
+ * (see that file for the geometry reasoning) — duplicated locally rather
+ * than imported, since test files aren't meant to be each other's modules. */
+function buildRetreatChain(length: number): { chain: Unit[]; state: GameState } {
+  const start = { q: 10, r: 5 };
+  const chain: Unit[] = [];
+  for (let i = 0; i < length; i++) {
+    chain.push(makeChainUnit(`chain${i}`, { q: start.q + i, r: start.r }));
+  }
+  const enemies: Unit[] = [];
+  for (let i = 0; i < length - 1; i++) {
+    const pos = chain[i]!.position;
+    DIRECTIONS.forEach((d, dirIndex) => {
+      if (dirIndex === 0) return;
+      const neighbor = hexAdd(pos, d);
+      if (chain.some((u) => u.position.q === neighbor.q && u.position.r === neighbor.r)) return;
+      enemies.push(makeChainUnit(`enemy${i}-${dirIndex}`, neighbor, 1));
+    });
+  }
+  const state = createInitialState(
+    [
+      { id: 0, name: 'P0', edge: 'W', purchasePoints: 0, eliminated: false },
+      { id: 1, name: 'P1', edge: 'E', purchasePoints: 0, eliminated: false },
+    ],
+    'multi-defender',
+  );
+  state.units = [...chain, ...enemies];
+  return { chain, state };
+}
+
+/** A deterministic `PlayerAgent` that always picks the FIRST option offered
+ * (retreat hex or push target) and records exactly what it was offered at
+ * each `choosePushTarget` call, in order — the observable this test needs to
+ * prove `visited` excludes exactly the right units at exactly the right
+ * point in the cascade. The other two `PlayerAgent` methods aren't expected
+ * to be called by a pure retreat/push cascade — throwing if they are turns a
+ * silent wrong-branch bug into a loud test failure. */
+class ScriptedFirstChoiceAgent implements PlayerAgent {
+  readonly pushOffers: string[][] = [];
+
+  async chooseRetreat(_state: GameState, _unit: Unit, options: HexCoord[]): Promise<HexCoord> {
+    return options[0]!;
+  }
+
+  async choosePushTarget(_state: GameState, _unit: Unit, candidates: Unit[]): Promise<Unit> {
+    this.pushOffers.push(candidates.map((u) => u.id).sort());
+    return candidates[0]!;
+  }
+
+  async chooseAdvance(): Promise<Unit | null> {
+    throw new Error('ScriptedFirstChoiceAgent: chooseAdvance should not be called by a pure retreat/push cascade');
+  }
+
+  async chooseExchangeSacrifice(): Promise<Unit[]> {
+    throw new Error('ScriptedFirstChoiceAgent: chooseExchangeSacrifice should not be called by a pure retreat/push cascade');
+  }
+}
+
+describe('resolveUnitRetreat', () => {
+  it('drives a real 3-link cascade end to end, moving every unit into the RIGHT final hex and never offering an in-chain unit as a push target', async () => {
+    const { chain, state } = buildRetreatChain(4);
+    const [a, b, c, d] = chain as [Unit, Unit, Unit, Unit];
+    const originalPositions = chain.map((u) => ({ ...u.position }));
+    // Computed BEFORE resolving anything — state is untouched at this point,
+    // so this is exactly what the agent's chooseRetreat(d, ...) call will be
+    // offered once the cascade reaches d, and exactly what `d` should end up
+    // standing on (the scripted agent always picks index 0).
+    const dExpectedDestination = legalRetreatHexes(state, d)[0]!;
+    expect(dExpectedDestination).toBeDefined();
+
+    const agent = new ScriptedFirstChoiceAgent();
+    await resolveUnitRetreat(state, a, agent);
+
+    // Positions: the deepest unit (d) actually retreats; each pusher up the
+    // chain takes over exactly the hex the next unit down vacated — NOT
+    // wherever that unit ultimately ended up (a naive "read pushed.position
+    // after recursing" bug would instead collapse every unit onto d's final
+    // hex, or throw on the ensuing multi-occupancy).
+    expect(d.position).toEqual(dExpectedDestination);
+    expect(c.position).toEqual(originalPositions[3]); // c takes over d's original hex
+    expect(b.position).toEqual(originalPositions[2]); // b takes over c's original hex
+    expect(a.position).toEqual(originalPositions[1]); // a takes over b's original hex
+
+    // Every hex ends up occupied by exactly one unit — no duplicate/lost
+    // occupancy anywhere in the chain.
+    const finalPositions = chain.map((u) => `${u.position.q},${u.position.r}`);
+    expect(new Set(finalPositions).size).toBe(finalPositions.length);
+
+    // Sequencing: exactly 3 push links (a->b, b->c, c->d), each offering
+    // ONLY the single friendly neighbor this geometry provides — in
+    // particular, never re-offering a unit already earlier in the chain
+    // (which `visited` exists to prevent — see `pushCandidates`'s doc
+    // comment). If `visited` weren't threaded correctly, b's own neighbor
+    // scan would find `a` (still sitting, unmoved, at its original hex at
+    // that point) as an extra "candidate" alongside c.
+    expect(agent.pushOffers).toEqual([[b.id], [c.id], [d.id]]);
+    for (const u of chain) expect(u.destroyed).toBe(false);
   });
 });
 
