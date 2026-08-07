@@ -1,16 +1,24 @@
 # Plan: agent-run features
 
-Sections 1–5 cover **Feature A** (cavalry charges + the phalanx restriction),
-now shipped. [§6](#6-next-ai-player) plans the **AI player** work, which is
-next up and not yet started. Sections 2 and 4 (orchestration and runbook) are
-feature-agnostic and apply to whatever runs next.
+> ### 👉 [§10](#10-sequenced-queue) is the single source of truth for status.
+> Per-section status headers are kept in sync with it, but **§10 is the one
+> table to read first** — and the one to update the moment anything merges.
+> It went stale once and the user caught it.
 
-**Feature A status:** shipped. Merged to `main` as `3b086d1` on 2026-08-04 and
-pushed to `origin/main`. The earlier batch (free deployment zones, ship facing
-at deployment, re-randomized turn order) shipped previously. See
-[§5](#5-outcome) for how the run actually went, including two rule-fidelity
+**Shipped:** Feature A (cavalry charges + phalanx), AI Stage 1 (headless
+action layer), AI Stage 2a (fuzz harness), start-a-new-game-anytime, move
+through friendly units, and combat reporting detail. **In flight:** cascading
+push ([§12](#12-cascading-push-when-a-unit-cannot-retreat)). **Live defects
+still open:** [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) and
+[§9.2](#92-endgamebytimelimit-is-never-called).
+
+Sections 1–5 cover **Feature A**, the first run through this pipeline;
+[§5](#5-outcome) records how it actually went, including two rule-fidelity
 defects the adversarial reviewer caught that a happy-path read of the diff
-would have missed.
+would have missed. Sections 2 and 4 (orchestration and runbook) are
+feature-agnostic and apply to whatever runs next — **read §4's `node_modules`
+and `npx tsc` warnings before launching anything**, both cost real time in
+this project.
 
 **Decided:**
 
@@ -362,7 +370,9 @@ pushed to `origin/main`. Branch and worktree cleaned up after merge.
 
 ## 6. Next: AI player
 
-**Status:** planned, not started. Scoped deliberately to **stages 1–2 only**
+**Status:** stages 1 and 2a **✅ shipped** (merged `9cb7ed7` and `469f84a`).
+Stage 2b (the elephant drift extraction, [§6.7](#67-the-elephant-problem-stage-2-split))
+and stages 3-4 remain open. Scoped deliberately to **stages 1–2 only**
 (the headless foundation + a self-play fuzz harness). Stages 3–4 (the actual
 strategy code and its UI) are deferred until the foundation is proven — see
 [§6.4](#64-deferred-stages-3-4).
@@ -632,7 +642,14 @@ strictly required to make drift fuzzable.
 
 ## 7. Start a new game at any time
 
-**Status:** planned, not started. **Parallelizable with Stage 2a** — see
+**Status: ✅ Shipped** — merged to `main` as `30c23e7`. Reviewed twice; the
+review's HIGH was that gating the control on `decisionPending` would disable
+the escape hatch in exactly the wedged-board case the feature exists for, so
+the guard was removed. Verified by hand in the running game: abandon → menu →
+new game yields a genuinely fresh board (Turn 1, Movement phase, history
+cleared, units back at start). Original plan follows.
+
+It was **parallelizable with Stage 2a** — see
 [§7.3](#73-running-this-in-parallel).
 
 ### 7.1 The gap
@@ -688,8 +705,18 @@ resolve but pointless to incur.
 
 ## 8. Bug: units cannot move through friendly units
 
-**Status:** confirmed, not started. Found by the user during play review, not
-by any test or agent.
+**Status: ✅ Shipped** — merged to `main` as `e87c55c`. Found by the user
+during play review, not by any test or agent.
+
+Review found all three new restrictive tests *vacuous*: any different-owner
+unit projects ZOC onto its own six neighbours, so traversal is never
+attempted and the owner check is unobservable on open ground. They were
+rewritten on river geometry — (1,20)/(2,20) are plain and river-separated,
+and ZOC does not cross rivers — which is the only place the check is
+observable. All three now fail under mutation.
+
+Naval deliberately kept its blanket occupancy block; see §8.3(2) and the
+recorded ruling in `navalMovement.ts`. Original plan follows.
 
 ### 8.1 The rule, and what the code does
 
@@ -819,22 +846,61 @@ rather than hand-rolling the predicate a third time.
 
 ## 10. Sequenced queue
 
-Current order of work, so parallel runs don't collide:
+Current order of work, so parallel runs don't collide. **Keep this table in
+sync when something merges** — it went stale once and the user caught it.
+
+### Shipped
+
+| Item | Merge |
+| --- | --- |
+| Feature A — cavalry charges + phalanx | `3b086d1` |
+| [§6.3](#63-committed-scope-stages-12) Stage 1 — headless action layer | `9cb7ed7` |
+| [§7](#7-start-a-new-game-at-any-time) start a new game at any time | `30c23e7` |
+| [§6.3](#63-committed-scope-stages-12) Stage 2a — fuzz harness (+2 engine bugs it found) | `469f84a` |
+| [§8](#8-bug-units-cannot-move-through-friendly-units) move through friendly units | `e87c55c` |
+| [§11](#11-combat-reporting-detail) combat reporting detail | `12e1bf6` |
+
+### In flight
+
+| Item | Touches | State |
+| --- | --- | --- |
+| [§12](#12-cascading-push-when-a-unit-cannot-retreat) cascading push | `engine/combat.ts`, `BoardScene.ts`, `fuzzHarness.ts` | Branch `feat/cascading-push`, first review FAILed (exponential hang + missing tests), fix round running. |
+
+### Queued
 
 | # | Item | Touches | Notes |
 | --- | --- | --- | --- |
-| 1 | Stage 2a review fixes | `src/engine/` | In flight. |
-| 2 | [§8](#8-bug-units-cannot-move-through-friendly-units) move-through-friendlies | `engine/movement.ts`, `navalMovement.ts` | Gated on 2a landing — the harness's no-stacking invariant is the safety net for it. |
-| 3 | [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) advance terrain | `scenes/BoardScene.ts` | Parallel-safe with #2 (different files). |
-| 4 | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2b drift extraction | `BoardScene.ts:1208-1360`, `engine/` | **Not** parallel with #3 — same file. |
-| 5 | [§9.2](#92-endgamebytimelimit-is-never-called) turn-limit ending | design + scenes | Needs a decision first. |
+| 1 | [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) advance terrain | `scenes/BoardScene.ts` | **Live bug.** One-line fix — `eligibleAdvanceCandidates` already exists and is tested. **Not** parallel-safe with §12 or §13. |
+| 2 | [§13](#13-hex-coordinate-tooltip) hex coordinate tooltip | `ui/MapView.ts`, `BoardScene.ts` | Presentation only. **Not** parallel-safe with §12 or #1. |
+| 3 | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2b drift extraction | `BoardScene.ts` drift cascade, `engine/` | Unblocks fuzzing elephants. **Not** parallel with anything else in `BoardScene`. |
+| 4 | [§9.2](#92-endgamebytimelimit-is-never-called) turn-limit ending | design + scenes | **Live gap.** Needs a design decision first (what sets the limit, how the player is told). |
+| 5 | [§6.4](#64-deferred-stages-3-4) Stage 3 — `HeuristicAgent` | `engine/` | Gated on 2b if elephants are to be handled. |
+| 6 | [§6.4](#64-deferred-stages-3-4) Stage 4 — AI seat UI + save format | scenes, `saveGame.ts` | `SAVE_VERSION` bump. |
+
+**Standing hazard:** almost everything queued touches `BoardScene.ts`, so
+these mostly cannot run in parallel with each other. §9.1 and §13 are both
+small — consider doing them together in one branch rather than serially.
 
 ---
 
 ## 11. Combat reporting detail
 
-**Status:** planned, not started. Mostly a *presentation* task — the numbers
-are already computed and, for ramming, the needed data is already exported.
+**Status: ✅ Shipped** — merged to `main` as `12e1bf6`. Three review rounds.
+Proven combat-neutral by trace hash: the full formatted action trace of all
+100 fuzz seeds is byte-identical to the merge base, and a trial merge hashes
+identical to `main` alone.
+
+Notable catches: the ramming log claimed a table row was reachable "at max
+bonus" when bonus caps at 2 — **this plan's own wrong example, copied
+verbatim** (corrected in §11.3); the boarding CRT column was derived in the
+scene rather than the engine; and the multi-defender terrain attribution was
+untested and survived mutation. The feature also surfaced a real fidelity
+divergence: the bonus interpretation reproduces the rulebook's worked example
+only for table rows of *exactly* 3 entries — galère vs quintirème, the book's
+own example, has a printed row of just `1`.
+
+Mostly a *presentation* task — the numbers
+were already computed and, for ramming, the needed data was already exported.
 
 ### 11.1 What already exists
 
@@ -935,8 +1001,16 @@ returning ad-hoc shapes, so the fuzz harness can assert on the same fields.
 
 ## 12. Cascading push when a unit cannot retreat
 
-**Status:** decided, not started. Reported by the user from real play: *"the
-unit died without being asked to push."*
+**Status:** in flight on `feat/cascading-push`, **not merged**. Reported by
+the user from real play: *"the unit died without being asked to push."*
+
+First review: **FAIL**. The implementation is correct but (a) `pushCandidates`
+was exponential — 3m 44s at 20 encircled units, synchronously on the browser
+main thread, i.e. a shipped hang in the very scenario the feature serves;
+(b) the reported bug has no test at the decision site (`forceRetreat`) —
+deleting the fix leaves all tests green; (c) the cascade *sequencing* is
+untested in both callers; (d) the fuzzer still records **0 pushes in 100
+seeds**, so the cascade has no fuzz coverage at all.
 
 ### 12.1 The bug
 
