@@ -418,25 +418,54 @@ function assertNoActionTargetsADeadUnit(state: GameState, legal: Action[]): void
 // `PlayerAgent` synchronously awaited instead of Phaser click callbacks.
 // ---------------------------------------------------------------------------
 
-async function resolveUnitRetreat(state: GameState, unit: Unit, agent: PlayerAgent): Promise<void> {
+/**
+ * Resolves one unit's forced retreat, cascading through pushes exactly like
+ * `BoardScene.beginUnitRetreatChoice` (see that function's doc comment for
+ * the shared design, and `combat.ts`'s `pushCandidates`/`completePush` for
+ * why the recursion needs `visited` threaded through it): a direct legal
+ * retreat if one exists; otherwise a friendly is chosen to push, ITS OWN
+ * retreat is resolved by recursing into this same function (which may
+ * itself cascade further), and only once that's fully settled does `unit`
+ * take over the hex the pushed unit vacated. `visited` accumulates the
+ * chain's ancestors (not including `unit`) so `pushCandidates` can't offer
+ * a unit still mid-resolution higher up the call stack as if it were an
+ * ordinary bystander — see `pushCandidates`'s own doc comment on
+ * termination.
+ */
+async function resolveUnitRetreat(
+  state: GameState,
+  unit: Unit,
+  agent: PlayerAgent,
+  stats?: HarnessStats,
+  visited: ReadonlySet<string> = new Set(),
+): Promise<void> {
   const legalHexes = legalRetreatHexes(state, unit);
   if (legalHexes.length > 0) {
     const hex = await agent.chooseRetreat(state, unit, legalHexes);
     retreatUnitTo(unit, hex);
     return;
   }
-  const pushTargets = pushCandidates(state, unit);
+  const pushTargets = pushCandidates(state, unit, visited);
   if (pushTargets.length > 0) {
+    if (stats) stats.pushesResolved++;
     const pushed = await agent.choosePushTarget(state, unit, pushTargets);
-    const legalHexesForPushed = legalRetreatHexes(state, pushed);
-    const pushedHex = await agent.chooseRetreat(state, pushed, legalHexesForPushed);
-    completePush(unit, pushed, pushedHex);
+    // Capture BEFORE recursing — `pushed.position` changes during its own
+    // resolution below, but `unit` is only entitled to the hex `pushed`
+    // started this step from (see `completePush`'s doc comment).
+    const vacatedHex = { ...pushed.position };
+    const chainVisited = new Set(visited);
+    chainVisited.add(unit.id);
+    await resolveUnitRetreat(state, pushed, agent, stats, chainVisited);
+    completePush(unit, vacatedHex);
     return;
   }
   // Mirrors BoardScene's own defensive fallback: applyLandCombatResult
   // already eliminates units with no options before queuing them, but an
   // earlier choice in the same batch can change the board out from under a
-  // later one.
+  // later one. `pushCandidates` already guarantees a CHOSEN push target is
+  // viable, so this should be unreachable for a `pushed` unit reached via
+  // the recursive call above too — kept as the same defensive net, not a
+  // normally-expected path.
   unit.destroyed = true;
 }
 
@@ -476,11 +505,12 @@ async function processRetreats(
   side: 'attacker' | 'defender',
   attackersForAdvance: Unit[],
   agent: PlayerAgent,
+  stats?: HarnessStats,
 ): Promise<void> {
   for (const unit of pendingRetreats) {
     if (unit.destroyed) continue;
     const originalHex = { ...unit.position };
-    await resolveUnitRetreat(state, unit, agent);
+    await resolveUnitRetreat(state, unit, agent, stats);
     // Per the rulebook (see BoardScene's finishQueueItem doc comment), only
     // a DEFENDER's retreat frees a hex the attacker may advance into.
     if (side === 'defender') {
@@ -510,6 +540,15 @@ export interface HarnessStats {
   ramsResolved: number;
   ramHits: number;
   boardingsResolved: number;
+  /** Number of times a retreating unit, unable to retreat directly, pushed
+   * a friendly neighbor aside instead (see `combat.ts`'s `pushCandidates`) —
+   * counted once per push LINK, so a 3-link cascade increments this 3 times.
+   * Added alongside plan.md §12's cascading-push fix specifically because
+   * this path had zero fuzz coverage before it: with the old, strict
+   * "entourée" reading this always read 0 across a 100-game soak (plan.md
+   * §12.2) — a rule that never fires is itself evidence something's wrong,
+   * which is exactly what motivated the fix. */
+  pushesResolved: number;
 }
 
 export interface PlayRandomGameOptions {
@@ -643,6 +682,7 @@ export async function playRandomGame(seed: number, options: PlayRandomGameOption
     ramsResolved: 0,
     ramHits: 0,
     boardingsResolved: 0,
+    pushesResolved: 0,
   };
 
   assertInvariants(state, 'initial state');
@@ -772,7 +812,7 @@ async function applyOneAction(
         }
       } else if (result.outcome.pendingRetreats.length > 0) {
         const side = result.detail.result === 'DR' ? 'defender' : 'attacker';
-        await processRetreats(state, result.outcome.pendingRetreats, side, result.attackers, agent);
+        await processRetreats(state, result.outcome.pendingRetreats, side, result.attackers, agent, stats);
       } else if (result.detail.result === 'DE' || result.detail.result === 'EX') {
         for (const hex of result.defenderOriginalHexes) {
           await processAdvanceOffer(state, hex, result.attackers, agent);

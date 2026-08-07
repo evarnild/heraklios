@@ -51,10 +51,14 @@ export interface PlayerAgent {
    * interface's doc comment. */
   chooseRetreat(state: GameState, unit: Unit, options: HexCoord[]): Promise<HexCoord>;
 
-  /** `unit` is retreating but every neighboring hex holds a friendly unit
-   * (see `pushCandidates`) — which of `candidates` gets pushed aside to make
-   * room. Every candidate is guaranteed to have somewhere legal of its own
-   * to retreat to (that's what makes it a candidate at all). */
+  /** `unit` cannot retreat and at least one neighboring hex holds a friendly
+   * unit that can make room (see `pushCandidates`) — which of `candidates`
+   * gets pushed aside. Every candidate is guaranteed to have somewhere to
+   * go, but NOT necessarily directly: per plan.md §12's cascading push, a
+   * candidate may itself have no direct retreat and have to push one of ITS
+   * OWN friendly neighbors in turn — resolved by calling right back into
+   * this same choice (and, if needed, `chooseRetreat`) for the pushed unit,
+   * recursively, until someone finds a direct retreat hex. */
   choosePushTarget(state: GameState, unit: Unit, candidates: Unit[]): Promise<Unit>;
 
   /** Whether — and which — of `candidates` (every still-living unit from the

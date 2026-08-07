@@ -373,39 +373,105 @@ export function legalRetreatHexes(state: GameState, unit: Unit): HexCoord[] {
 }
 
 /**
- * Friendly units occupying EVERY one of `unit`'s 6 neighboring hexes — the
- * rulebook's exception to elimination-on-no-retreat: "a unit forced to
- * retreat with nowhere legal to go is simply eliminated — unless it's
- * surrounded entirely by friendly units, in which case it pushes one
- * friendly unit aside and takes its hex instead." Returns `[]` (no push
- * option, ordinary elimination applies) if even one neighbor is off-map or
- * occupied by an enemy — the exception only covers being boxed in by one's
- * own side.
+ * Friendly neighbors of `unit` that could make room for it by retreating
+ * themselves (directly, or — see the cascade note below — by pushing
+ * further down the chain) — the rulebook's exception to
+ * elimination-on-no-retreat: "a unit forced to retreat with nowhere legal
+ * to go is simply eliminated — unless it's surrounded by friendly units, in
+ * which case it pushes one of them aside and takes its place."
  *
- * Only neighbors that themselves have somewhere legal to retreat to, AND
- * whose hex `unit` itself could actually enter, are offered: "pushed aside"
- * means that unit actually retreats to make room (see `completePush`), not
- * swapping places — a neighbor with no room of its own can't make room for
- * anyone else either, and `unit` taking that neighbor's hex is only a real
- * option if its own category can enter that terrain (found by the Stage 2
- * fuzz harness, plan.md §6: a cavalry/chariot/elephant unit boxed in by
- * friendlies standing on steep-flank/marsh terrain — legal for THEM, not
- * for the boxed-in unit's category — could otherwise be pushed onto terrain
- * `legalRetreatHexes` would never offer it directly).
+ * INTERPRETATION (plan.md §12.2) — the rulebook's exact wording
+ * (`docs/research/05-rules-french-original.md:239-243`) is "Une unité qui se
+ * trouve dans l'impossibilité de reculer... est tout simplement retirée du
+ * jeu. Le seul cas fait exception à la règle, lorsque cette unité est
+ * **entourée** d'unités amies." Read maximally literally, "entourée" (fully
+ * surrounded) would require all SIX neighbors to be friendly before any push
+ * is even considered — this function used to implement exactly that,
+ * returning `[]` (falling through to elimination) the moment even one
+ * neighbor was merely EMPTY-but-unusable (an enemy ZOC hex, or terrain the
+ * unit's own category can't enter), not friendly-occupied at all.
+ *
+ * That strict reading is rejected here in favor of the permissive one: a
+ * push is offered whenever retreat is impossible and AT LEAST ONE adjacent
+ * friendly unit can make room. Three reasons, per this repo's
+ * ambiguous-rulebook-gets-a-comment convention (see `data/navalRamming.ts`):
+ *   1. The strict reading makes the exception nearly unreachable — it
+ *      demands six units committed to surrounding one of your own. The
+ *      Stage 2 fuzz harness measured `pushTarget: 0` across 100 games of
+ *      real (if random) play before this change. A rule that essentially
+ *      never fires is evidence of a misreading, not evidence the rule is
+ *      rarely relevant.
+ *   2. The general elimination rule's stated causes ("soit parce qu'elle
+ *      est en bordure de mer, soit parce qu'elle est entourée de zones de
+ *      contrôle ennemies") are introduced with "soit... soit..." —
+ *      illustrative examples, not an exhaustive enumeration — so a MIXED
+ *      blocker set (some friendly, some ZOC/terrain-blocked-but-empty)
+ *      doesn't obviously fall outside the exception just because it isn't
+ *      one of the two named causes.
+ *   3. The exception's evident purpose is that a unit shouldn't die merely
+ *      because its OWN side is in the way. That purpose holds whether one
+ *      neighbor or six are friendly — a unit with five friendlies and one
+ *      ZOC-blocked empty hex is just as much "blocked by its own side" as
+ *      one with six friendlies.
+ * So: an off-map, enemy-occupied, or empty-but-unusable neighbor is simply
+ * not a candidate (skipped), but no longer voids every OTHER neighbor's
+ * candidacy the way it did under the strict reading.
+ *
+ * THE CASCADE (plan.md §12.3) — a friendly neighbor that itself has no
+ * direct retreat may still make room by pushing one of ITS OWN friendly
+ * neighbors in turn, and so on. This makes the predicate mutually recursive
+ * with itself: a candidate `f` qualifies if it has a direct legal retreat
+ * (`legalRetreatHexes`), OR if `pushCandidates(state, f, ...)` is itself
+ * non-empty. `visited` carries every unit already committed to the current
+ * chain (ancestors, NOT including `unit` itself — this function adds `unit`
+ * before recursing) so a cycle (A pushes B, B pushes C, C's only route is
+ * back to A, who hasn't moved yet) can't loop forever: a unit already in the
+ * chain is never offered as a candidate again, so each recursive call's
+ * candidate set strictly shrinks and the recursion is bounded by the number
+ * of units on the board — it always terminates (see combat.test.ts's cycle
+ * test, which proves this on a real 3-unit cycle, not just by inspection).
+ * Callers resolving an ACTUAL cascade (not just checking whether one
+ * exists) must thread the SAME growing `visited` set through their own
+ * recursion (see `completePush`'s doc comment, and `BoardScene.
+ * beginUnitRetreatChoice` / `fuzzHarness.resolveUnitRetreat`), otherwise a
+ * unit still mid-chain (not yet moved) could be independently re-offered as
+ * if it were an ordinary bystander.
+ *
+ * Only neighbors that themselves have somewhere to go (directly or via
+ * cascade) AND whose hex `unit` itself could actually enter are offered:
+ * "pushed aside" means that unit actually retreats to make room, not
+ * swapping places — a neighbor with no room of its own (anywhere down its
+ * own chain) can't make room for anyone else either, and `unit` taking that
+ * neighbor's hex is only a real option if its own category can enter that
+ * terrain (found by the Stage 2 fuzz harness, plan.md §6: a
+ * cavalry/chariot/elephant unit boxed in by friendlies standing on
+ * steep-flank/marsh terrain — legal for THEM, not for the boxed-in unit's
+ * category — could otherwise be pushed onto terrain `legalRetreatHexes`
+ * would never offer it directly). This terrain check applies at EVERY link
+ * of the chain, not just the first: each pusher must be able to occupy the
+ * hex it's about to inherit, checked fresh at whichever level of the
+ * recursion is doing the pushing.
  */
-export function pushCandidates(state: GameState, unit: Unit): Unit[] {
+export function pushCandidates(state: GameState, unit: Unit, visited: ReadonlySet<string> = new Set()): Unit[] {
   const neighbors = DIRECTIONS.map((d) => hexAdd(unit.position, d));
   const category = unitCategory(unit.typeId);
   const friendlyOccupants: Unit[] = [];
   for (const hex of neighbors) {
-    if (!MAP_TERRAIN.has(mapHexKey(hex.q, hex.r))) return [];
+    if (!MAP_TERRAIN.has(mapHexKey(hex.q, hex.r))) continue; // off-map: simply not a candidate, no longer voids the rest
     const occupant = unitAt(state, hex);
-    if (!occupant || occupant.owner !== unit.owner) return [];
-    friendlyOccupants.push(occupant);
+    if (occupant && occupant.owner === unit.owner) friendlyOccupants.push(occupant);
+    // else: empty (possibly ZOC/terrain-unusable) or enemy-occupied — not a
+    // candidate either, but (the widened reading) doesn't disqualify the
+    // OTHER neighbors the way the old strict "entourée" check did.
   }
-  return friendlyOccupants.filter(
-    (f) => canEnterTerrain(terrainAt(f.position), category) && legalRetreatHexes(state, f).length > 0,
-  );
+  const chainVisited = new Set(visited);
+  chainVisited.add(unit.id);
+  return friendlyOccupants.filter((f) => {
+    if (chainVisited.has(f.id)) return false; // already committed to this chain — see cycle note above
+    if (!canEnterTerrain(terrainAt(f.position), category)) return false;
+    if (legalRetreatHexes(state, f).length > 0) return true;
+    return pushCandidates(state, f, chainVisited).length > 0;
+  });
 }
 
 /** Moves a retreating unit to a player-chosen hex from `legalRetreatHexes`. */
@@ -414,15 +480,25 @@ export function retreatUnitTo(unit: Unit, hex: HexCoord): void {
 }
 
 /**
- * Resolves the "surrounded by friendly units" exception (see
- * `pushCandidates`): `pushed` actually retreats to `pushedDestination` (a
- * hex the player chose from ITS OWN `legalRetreatHexes`) to make room, and
- * `unit` then takes the hex `pushed` just vacated.
+ * Resolves one LINK of the "surrounded by friendly units" cascade (see
+ * `pushCandidates`): `unit` takes over `vacatedHex`, the hex `pushed`
+ * occupied immediately before ITS OWN retreat was resolved.
+ *
+ * CONTRACT CHANGE from the single-level version — `pushed`'s own move is no
+ * longer this function's job. With a cascade, `pushed` may itself have no
+ * direct retreat and have to push a THIRD unit in turn (`legalRetreatHexes`
+ * / `pushCandidates` again, recursively); resolving that is the caller's
+ * job (see `BoardScene.beginUnitRetreatChoice` / `fuzzHarness.
+ * resolveUnitRetreat`), driven by the SAME per-unit retreat-or-push decision
+ * `unit` itself just went through. By the time `completePush` is called,
+ * `pushed`'s resolution (however many further links it took) is already
+ * complete and `pushed.position` no longer reflects the hex `unit` is
+ * entitled to — so the caller must capture `vacatedHex = {...pushed.position}`
+ * BEFORE recursing into `pushed`'s own resolution, and pass that captured
+ * value here, not `pushed.position` read after the fact.
  */
-export function completePush(unit: Unit, pushed: Unit, pushedDestination: HexCoord): void {
-  const vacated = pushed.position;
-  pushed.position = pushedDestination;
-  unit.position = vacated;
+export function completePush(unit: Unit, vacatedHex: HexCoord): void {
+  unit.position = vacatedHex;
 }
 
 export interface LandCombatOutcome {
