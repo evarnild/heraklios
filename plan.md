@@ -7,11 +7,11 @@
 
 **Shipped:** Feature A (cavalry charges + phalanx), AI Stage 1 (headless
 action layer), AI Stage 2a (fuzz harness), start-a-new-game-anytime, move
-through friendly units, combat reporting detail, and cascading push
-([§12](#12-cascading-push-when-a-unit-cannot-retreat), merged `3c766d6`).
-**In flight:** [§9.1](#91-post-combat-advance-ignores-terrain-restrictions)
-advance terrain on `feat/advance-terrain` @ `4f639d1`, review PASSed and
-ready to merge. **Live defects still open:**
+through friendly units, combat reporting detail, cascading push
+([§12](#12-cascading-push-when-a-unit-cannot-retreat), merged `3c766d6`),
+and [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) advance
+terrain (merged `6172f2f`). **In flight:** nothing — [§10](#10-sequenced-queue)'s
+queue is next. **Live defects still open:**
 [§9.2](#92-endgamebytimelimit-is-never-called).
 
 > **Line citations were re-verified against `main` on 2026-08-07** (at
@@ -883,13 +883,13 @@ harness than a synthetic one.
 ## 9. Live defects found by Stage 2a
 
 Both confirmed by adversarial review against the shipped code. §9.1 is fixed
-on `feat/advance-terrain` @ `4f639d1`, review PASSed, and is ready to merge.
-§9.2 still affects hotseat play today.
+on `main` as `6172f2f`. §9.2 still affects hotseat play today.
 
 ### 9.1 Post-combat advance ignores terrain restrictions
 
-**Status:** on `feat/advance-terrain` @ `4f639d1`, review PASSed, not yet
-merged. `npm run build` clean; `npm test` clean (288 passed, 1 skipped).
+**Status: ✅ Shipped** — merged to `main` as `6172f2f` via
+`feat/advance-terrain`. Review PASSed. `npm run build` clean; `npm test`
+clean (288 passed, 1 skipped).
 
 `src/scenes/BoardScene.ts:1569`, in `promptAdvanceChoice`:
 
@@ -897,23 +897,24 @@ merged. `npm run build` clean; `npm test` clean (288 passed, 1 skipped).
 const candidates = this.advanceEligibleAttackers.filter((u) => !u.destroyed);
 ```
 
-No terrain check, and `:1573-1576` assigns `chosen.position = vacatedHex`
-unconditionally. So cavalry or a chariot that defeats an infantry or archer
-unit standing on marsh or a steep flank is *offered*, and permitted, to
-advance onto terrain it may never enter — violating
+Before the fix, there was no terrain check, and `:1573-1576` assigned
+`chosen.position = vacatedHex` unconditionally. So cavalry or a chariot that
+defeated an infantry or archer unit standing on marsh or a steep flank was
+*offered*, and permitted, to advance onto terrain it may never enter — violating
 `05-rules-french-original.md:186`. Elephants advancing onto marsh are
 affected too. Reachable in ordinary play: the only nearby restriction
 (cavalry-vs-phalanx) doesn't cover infantry or archers.
 
-**Sharper than when first written: the scene and the fuzz harness now
-disagree about this rule.** Stage 2a landed
+**Sharper than when first written: the scene and the fuzz harness disagreed
+about this rule.** Stage 2a landed
 `eligibleAdvanceCandidates(candidates, vacatedHex)` (`combat.ts:68`), which
 is `!u.destroyed && canUnitEnterHex(u, vacatedHex)` — and `fuzzHarness.ts:475`
-uses it. So the harness enforces the terrain restriction on advance and the
-scene does not, meaning **no amount of fuzzing can surface this defect**;
-the two callers must be reconciled, not just patched.
+uses it. So the harness enforced the terrain restriction on advance and the
+scene did not, meaning **no amount of fuzzing could surface this defect**.
+The fix reconciled both callers by routing `BoardScene.promptAdvanceChoice`
+through `eligibleAdvanceCandidates`.
 
-**Fix:** replace the filter at `BoardScene.ts:1569` with a call to
+**Fix shipped:** replace the filter at `BoardScene.ts:1569` with a call to
 `eligibleAdvanceCandidates` — one implementation, already tested, already
 used by the harness. Do **not** re-inline `canUnitEnterHex` (`combat.ts:43`)
 at the call site; that recreates the divergence in a subtler form.
@@ -969,27 +970,25 @@ sync when something merges** — it went stale once and the user caught it.
 | [§8](#8-bug-units-cannot-move-through-friendly-units) move through friendly units | `e87c55c` |
 | [§11](#11-combat-reporting-detail) combat reporting detail | `12e1bf6` |
 | [§12](#12-cascading-push-when-a-unit-cannot-retreat) cascading push | `3c766d6` |
+| [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) advance terrain | `6172f2f` |
 
 ### In flight
 
-| Item | Touches | State |
-| --- | --- | --- |
-| [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) advance terrain | `scenes/BoardScene.ts`, comments in `engine/combat.ts` / `engine/fuzzHarness.ts` | Branch `feat/advance-terrain` @ `4f639d1`. Review PASSed; `npm run build` clean; `npm test` clean (288 passed, 1 skipped). **Ready to merge.** |
+*Nothing.* Next up is #1 below.
 
 ### Queued
 
 | # | Item | Touches | Notes |
 | --- | --- | --- | --- |
 | 0 | [§12](#12-cascading-push-when-a-unit-cannot-retreat) follow-ups | `engine/fuzzHarness*.ts`, `BoardScene.ts` | The three non-blocking findings that shipped with `3c766d6`: the untested `chainVisited` cycle guard (+ two comments wrongly claiming coverage), the stale "surrounded by friendly units" string, the thin `pushesResolved` canary. Small; fold into whatever touches those files next. |
-| 1 | [§13](#13-hex-coordinate-tooltip) hex coordinate tooltip | `ui/MapView.ts`, `BoardScene.ts` | Presentation only. **Not** parallel-safe with §9.1 until `feat/advance-terrain` merges. |
+| 1 | [§13](#13-hex-coordinate-tooltip) hex coordinate tooltip | `ui/MapView.ts`, `BoardScene.ts` | Presentation only. |
 | 2 | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2b drift extraction | `BoardScene.ts` drift cascade, `engine/` | Unblocks fuzzing elephants. **Not** parallel with anything else in `BoardScene`. |
 | 3 | [§9.2](#92-endgamebytimelimit-is-never-called) turn-limit ending | design + scenes | **Live gap.** Needs a design decision first (what sets the limit, how the player is told). |
 | 4 | [§6.4](#64-deferred-stages-3-4) Stage 3 — `HeuristicAgent` | `engine/` | Gated on 2b if elephants are to be handled. |
 | 5 | [§6.4](#64-deferred-stages-3-4) Stage 4 — AI seat UI + save format | scenes, `saveGame.ts` | `SAVE_VERSION` bump. |
 
 **Standing hazard:** almost everything queued touches `BoardScene.ts`, so
-these mostly cannot run in parallel with each other. Do not start §13 until
-`feat/advance-terrain` merges.
+these mostly cannot run in parallel with each other.
 
 ---
 
@@ -1103,7 +1102,8 @@ returning ad-hoc shapes, so the fuzz harness can assert on the same fields.
   distinct from
   [§9.1](#91-post-combat-advance-ignores-terrain-restrictions)'s `:1569` and
   from the drift cascade, but *same file*, so expect merge conflicts if run
-  concurrently with either. **Not parallel-safe with §9.1 or Stage 2b.**
+  concurrently with either. §9.1 has now shipped; Stage 2b remains the active
+  collision risk.
 - **Parallel-safe with [§8](#8-bug-units-cannot-move-through-friendly-units)**,
   which is confined to `engine/movement.ts` / `engine/navalMovement.ts`.
 - No `GameState` shape change, so no `SAVE_VERSION` bump.
@@ -1373,15 +1373,17 @@ before relying on them, since any merge shifts everything below it.
 | Combat group building | 1078-1203 | `toggleAttacker`, `toggleDefender` | — |
 | **Retreat/push cascade** | 1204-1391 | `beginUnitRetreatChoice`, `choosePushTarget` | [§12](#12-cascading-push-when-a-unit-cannot-retreat) |
 | **Elephant drift cascade** | 1392-1541 | `beginDrift`, `stepDrift`, `resolveDriftHit` | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2b |
-| **Advance offers** | 1542-1661 | `beginAdvanceOffers`, `promptAdvanceChoice` | [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) |
+| **Advance offers** | 1542-1661 | `beginAdvanceOffers`, `promptAdvanceChoice` | §9.1 shipped; future extraction candidate |
 | Combat resolution + log | 1662-1892 | `resolveGroupAttack`, `logCombatOutcome` | — |
 | Naval attack prompt | 1893-2001 | `navalAttackPrompt` | — |
 | Phase transition | 2002-2040 | `endPhase` | — |
 
-The three bolded regions are the ones that keep colliding, and they share a
+The bolded regions are the ones that keep colliding, and they share a
 shape: **a prompt, a player decision, and a continuation** — the machinery
 that already implements `PlayerAgent`. Extracting those three into their own
-modules would let §12, §6.7 and §9.1 run genuinely concurrently.
+modules would have let §12, §6.7 and §9.1 run genuinely concurrently; after
+§12 and §9.1 shipped, this mainly matters for Stage 2b and future
+BoardScene work.
 
 Proposed shape — each takes a narrow context rather than the whole scene:
 
@@ -1418,9 +1420,9 @@ scene-side regression.
 
 Better order:
 
-1. **Land the queue first.** §12, §9.1 and §13 are all small and already
-   specified; extracting underneath them mid-flight invites exactly the
-   semantic conflicts §14.1 warns about.
+1. **Land the small queue first.** §12 and §9.1 have shipped; §13 is still
+   small and already specified. Extracting underneath active work invites
+   exactly the semantic conflicts §14.1 warns about.
 2. **Extract one cascade, alone, behavior-preserving**, and verify by hand in
    the running game (the `run` path used to verify [§7](#7-start-a-new-game-at-any-time)).
    The advance-offer region is the smallest and has the fewest interactions —
