@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { playRandomGame, buildFuzzGameState, resolveUnitRetreat, type HarnessStats } from './fuzzHarness';
+import {
+  playRandomGame,
+  buildFuzzGameState,
+  buildPushScenarioGameState,
+  resolveUnitRetreat,
+  type HarnessStats,
+} from './fuzzHarness';
 import type { Action } from './actions';
 import type { CombatResult } from '../data/combatTable';
 import type { HexCoord } from '../data/map';
@@ -249,6 +255,13 @@ describe('fuzz harness: seeded self-play soak', () => {
     const totalRams = allStats.reduce((sum, g) => sum + g.ramsResolved, 0);
     const totalRamHits = allStats.reduce((sum, g) => sum + g.ramHits, 0);
     const totalBoardings = allStats.reduce((sum, g) => sum + g.boardingsResolved, 0);
+    // HIGH-4 finding from adversarial review: `pushesResolved` was collected
+    // (plan.md §12) but never printed here, so the soak's own report line
+    // couldn't show whether the cascading-push path was ever actually
+    // exercised by this army/turnCap combination — it wasn't (see the
+    // dedicated `buildPushScenarioGameState` soak below, which exists
+    // specifically because this default army essentially never produces one).
+    const totalPushes = allStats.reduce((sum, g) => sum + g.pushesResolved, 0);
     const turns = allStats.map((g) => g.turnsReached);
     const wins = allStats.filter((g) => g.winnerId !== null).length;
     const draws = allStats.length - wins;
@@ -266,7 +279,7 @@ describe('fuzz harness: seeded self-play soak', () => {
         `[fuzz] ${GAME_COUNT} games, ${totalActions} total actions (avg ${(totalActions / GAME_COUNT).toFixed(1)}/game)`,
         `[fuzz] actionsByKind: ${JSON.stringify(actionsByKind)}`,
         `[fuzz] combatResultCounts: ${JSON.stringify(combatResultCounts)}`,
-        `[fuzz] landAttacksResolved=${totalLandAttacks} ramsResolved=${totalRams} (hits=${totalRamHits}) boardingsResolved=${totalBoardings}`,
+        `[fuzz] landAttacksResolved=${totalLandAttacks} ramsResolved=${totalRams} (hits=${totalRamHits}) boardingsResolved=${totalBoardings} pushesResolved=${totalPushes}`,
         `[fuzz] turnsReached: min=${Math.min(...turns)} max=${Math.max(...turns)} avg=${(turns.reduce((a, b) => a + b, 0) / turns.length).toFixed(1)}`,
         `[fuzz] outcomes: ${wins} decisive win(s), ${draws} draw(s) (mutual elimination or tied army value)`,
         `[fuzz] endings: ${endedByElimination} by mutual elimination, ${endedByTimeLimit} by the rulebook's turn-limit/army-value ending`,
@@ -300,5 +313,44 @@ describe('fuzz harness: seeded self-play soak', () => {
     for (const result of ['AE', 'AR', 'DE', 'DR', 'EX'] as CombatResult[]) {
       expect(combatResultCounts[result] ?? 0, `expected at least one '${result}' result across ${GAME_COUNT} games`).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('fuzz harness: push-scenario soak (plan.md §12, HIGH-4)', () => {
+  it('never includes an elephant, matching buildFuzzGameState()\'s own exclusion', () => {
+    const state = buildPushScenarioGameState();
+    expect(state.units.some((u) => u.typeId === 'elephants')).toBe(false);
+  });
+
+  it('places every unit on legal, non-overlapping starting hexes', () => {
+    const state = buildPushScenarioGameState();
+    const seen = new Set<string>();
+    for (const unit of state.units) {
+      const key = `${unit.position.q},${unit.position.r}`;
+      expect(seen.has(key)).toBe(false);
+      seen.add(key);
+    }
+    expect(state.units.length).toBe(10); // attacker + defender + 5 ring + 3 fillers
+  });
+
+  // HIGH-4 finding from adversarial review: `pushesResolved` was collected
+  // (plan.md §12) but the DEFAULT soak above never actually reaches one —
+  // `buildFuzzGameState()`'s small, spread-out army essentially never boxes
+  // a unit in tightly enough. This purpose-built scenario (see
+  // `buildPushScenarioGameState`'s doc comment for exactly why it reliably
+  // does) proves the cascading-push path is genuinely exercised, not just
+  // unit-tested in isolation.
+  const PUSH_GAME_COUNT = 30;
+  it(`reaches at least one push across ${PUSH_GAME_COUNT} seeded games of the push scenario`, async () => {
+    const allStats: HarnessStats[] = [];
+    for (let seed = 0; seed < PUSH_GAME_COUNT; seed++) {
+      allStats.push(await playRandomGame(seed, { buildInitialState: buildPushScenarioGameState }));
+    }
+    const totalPushes = allStats.reduce((sum, g) => sum + g.pushesResolved, 0);
+    // eslint-disable-next-line no-console
+    console.log(`[fuzz:push-scenario] ${PUSH_GAME_COUNT} games, pushesResolved=${totalPushes}`);
+
+    expect(allStats.every((g) => g.gameOver)).toBe(true);
+    expect(totalPushes).toBeGreaterThan(0);
   });
 });

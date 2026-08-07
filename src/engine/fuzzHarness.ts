@@ -1,6 +1,7 @@
 import type { HexCoord } from '../data/map';
 import { MAP_TERRAIN, hexKey as mapHexKey } from '../data/map';
 import { canEnterTerrain } from '../data/terrain';
+import { DIRECTIONS, hexAdd } from './hex';
 import { getUnitType } from '../data/units';
 import type { CombatResult } from '../data/combatTable';
 import { legalActions, applyAction, type Action } from './actions';
@@ -128,6 +129,73 @@ export function buildFuzzGameState(): GameState {
     // boarding is immediately legal in the first combat phase.
     makeUnit('p0-galley', 0, 'galeres', seaHex(0), 0),
     makeUnit('p1-galley', 1, 'galeres', seaHex(1), 0),
+  ];
+
+  return state;
+}
+
+/** (10,5) and every hex within radius 2 of it are all confirmed 'plain' on
+ * the shipped map (see combat.test.ts's `CENTER`/`NEIGHBORS` and its
+ * "cascading push" perf test, which probes the same neighborhood) — reused
+ * here for the same reason: a big open patch with no terrain surprises to
+ * build a tight formation on. */
+const PUSH_CENTER = { q: 10, r: 5 };
+
+/**
+ * HIGH-4 finding from adversarial review: `buildFuzzGameState()`'s small,
+ * spread-out army essentially never boxes a unit in tightly enough for a
+ * push to trigger — instrumented across all 100 default-soak seeds,
+ * `pushesResolved` reads 0, meaning the cascading-push path (plan.md §12)
+ * still had ZERO fuzz coverage even after the engine-level fix and unit
+ * tests landed. This is a SEPARATE, purpose-built scenario (not a change to
+ * `buildFuzzGameState()`, which stays as-is for its own existing
+ * cavalry/phalanx and boarding coverage) that reliably reaches at least one
+ * push within a handful of seeds:
+ *
+ * - `defender` (P1) sits at `PUSH_CENTER`, boxed on 5 of its 6 sides by its
+ *   OWN friendlies (`ring0`..`ring4`) — each of which has open space of its
+ *   own beyond the ring, so each genuinely CAN make room (a real push
+ *   target, not a dead end).
+ * - `attacker` (P0) occupies `defender`'s 6th neighbor, and is ITSELF fully
+ *   boxed by P1 units (the ring plus `defender` plus three more P1 filler
+ *   units) — enemy-occupied hexes are impassable to `reachableHexes` (see
+ *   `engine/movement.ts`'s doc comment), so `attacker` has no legal move at
+ *   all and can only ever `endPhase` during its own movement phase,
+ *   guaranteeing it's still adjacent to `defender` whenever its combat phase
+ *   comes around.
+ * - `attacker` (fantassins, attack 2) vs. `defender` (fantassins, defense 1)
+ *   is a 2:1 force ratio, and EVERY die face at that column in
+ *   `data/combatTable.ts`'s CRT is AR or DR (see `playRandomGame`'s own
+ *   "TERMINATION" doc comment on this same fact) — a die of 1-4 forces
+ *   `defender` to retreat (a 4-in-6 chance whenever the attack is actually
+ *   chosen), and `defender`'s only legal retreat hexes are all occupied
+ *   (5 friendlies + `attacker`), so it's forced into exactly the push this
+ *   scenario exists to reach.
+ *
+ * Not folded into `buildFuzzGameState()` itself: that army's existing
+ * coverage (cavalry/phalanx, boarding) is unrelated to this, and keeping
+ * this scenario separate means neither soak's odds/timing depend on the
+ * other's army composition.
+ */
+export function buildPushScenarioGameState(): GameState {
+  const players: Player[] = [
+    { id: 0, name: 'P0', edge: 'W', purchasePoints: 0, eliminated: false },
+    { id: 1, name: 'P1', edge: 'E', purchasePoints: 0, eliminated: false },
+  ];
+  const state = createInitialState(players, 'multi-defender');
+
+  const attackerPos = hexAdd(PUSH_CENTER, DIRECTIONS[5]!); // (10,6)
+  const ring = DIRECTIONS.slice(0, 5).map((d) => hexAdd(PUSH_CENTER, d)); // the other 5 neighbors
+  // Fully box the attacker: its 6 neighbors are `defender` (dir2 from it),
+  // ring[0] (dir1), ring[4] (dir3), and 3 more hexes no other unit already
+  // occupies — DIRECTIONS[0], [4], [5] from the attacker's own position.
+  const attackerFillers = [DIRECTIONS[0]!, DIRECTIONS[4]!, DIRECTIONS[5]!].map((d) => hexAdd(attackerPos, d));
+
+  state.units = [
+    makeUnit('attacker', 0, 'fantassins', attackerPos),
+    makeUnit('defender', 1, 'fantassins', PUSH_CENTER),
+    ...ring.map((pos, i) => makeUnit(`ring${i}`, 1, 'fantassins', pos)),
+    ...attackerFillers.map((pos, i) => makeUnit(`filler${i}`, 1, 'fantassins', pos)),
   ];
 
   return state;
@@ -600,6 +668,15 @@ export interface PlayRandomGameOptions {
    * replay without re-running the fuzzer.
    */
   trace?: string[];
+  /**
+   * Overrides the starting position — defaults to `buildFuzzGameState()`.
+   * Exists so a different, purpose-built scenario (e.g.
+   * `buildPushScenarioGameState()`, HIGH-4) can be soaked through the exact
+   * same seeded driver/invariant machinery as the default army, without
+   * duplicating `playRandomGame`'s ~150 lines of turn-loop/invariant-check
+   * plumbing just to swap the initial `GameState`.
+   */
+  buildInitialState?: () => GameState;
 }
 
 /** A compact, stable, one-line string for `action` — used only for
@@ -630,11 +707,13 @@ function emptyContext(): { attackedThisPhase: Set<string>; rammedThisTurn: Set<s
 
 /**
  * Plays one complete, seeded, fully headless game from `buildFuzzGameState()`
- * to `state.gameOver`, driven ENTIRELY through `legalActions`/`applyAction`
- * plus a `RandomAgent` answering every mid-resolution decision — no Phaser,
- * no `BoardScene`, no scene of any kind. Deterministic: the same `seed`
- * always produces the exact same sequence of actions, dice, and outcomes
- * (see `engine/rng.ts`'s doc comment), so a failing seed is a complete,
+ * (or `options.buildInitialState()`, if given — see `buildPushScenarioGameState`
+ * for why a caller would want a different starting position) to
+ * `state.gameOver`, driven ENTIRELY through `legalActions`/`applyAction` plus
+ * a `RandomAgent` answering every mid-resolution decision — no Phaser, no
+ * `BoardScene`, no scene of any kind. Deterministic: the same `seed` always
+ * produces the exact same sequence of actions, dice, and outcomes (see
+ * `engine/rng.ts`'s doc comment), so a failing seed is a complete,
  * reproducible repro on its own.
  *
  * Asserts invariants continuously (see `assertInvariants` et al. above),
@@ -677,7 +756,7 @@ export async function playRandomGame(seed: number, options: PlayRandomGameOption
 
   const rng = createSeededRng(seed);
   const agent = new RandomAgent(rng);
-  const state = buildFuzzGameState();
+  const state = (options.buildInitialState ?? buildFuzzGameState)();
   // The very first movement phase never goes through `applyAction`'s
   // `endPhase` case (nothing has ended yet to trigger a refill) — mirrors
   // how a fresh game reaches BoardScene with units already carrying their
