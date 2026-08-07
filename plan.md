@@ -8,9 +8,17 @@
 **Shipped:** Feature A (cavalry charges + phalanx), AI Stage 1 (headless
 action layer), AI Stage 2a (fuzz harness), start-a-new-game-anytime, move
 through friendly units, and combat reporting detail. **In flight:** cascading
-push ([§12](#12-cascading-push-when-a-unit-cannot-retreat)). **Live defects
-still open:** [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) and
+push ([§12](#12-cascading-push-when-a-unit-cannot-retreat)) — second review
+**PASSed**, ready to merge. **Live defects still open:**
+[§9.1](#91-post-combat-advance-ignores-terrain-restrictions) and
 [§9.2](#92-endgamebytimelimit-is-never-called).
+
+> **Line citations were re-verified against `main` on 2026-08-07** (at
+> `3b15577`), after ~440 lines of drift in `BoardScene.ts` had rotted most of
+> them. `tsc --noEmit` clean, `vitest run` 272 passed / 1 skipped (the
+> permanent Stage-2b elephant skip). Anything cited below is accurate as of
+> that commit and will rot again — see
+> [§14.1](#141-first-a-correction-the-constraint-is-partly-self-imposed) item 3.
 
 Sections 1–5 cover **Feature A**, the first run through this pipeline;
 [§5](#5-outcome) records how it actually went, including two rule-fidelity
@@ -164,12 +172,13 @@ fuzz harness running clean:
 
 ### Raised by the AI planning work
 
-- **Injectable RNG throughout** — `rollDie` (`BoardScene.ts:540`) calls
-  `Math.random()` directly, blocking deterministic replay and seeded tests.
-  Stage 1 fixes this for the die specifically; worth auditing for other
-  direct `Math.random()` uses at the same time, following
+- **Injectable RNG throughout** — ~~`rollDie` calls `Math.random()`
+  directly~~. **Done for the die**: Stage 1 landed `engine/dice.ts` and
+  `BoardScene.rollDie` (`:724`) now takes an injectable `rng` defaulting to
+  `Math.random`, with `applyAction` fed by `diceRng` (`:180-197`). Still
+  worth auditing for other direct `Math.random()` uses, following
   `shuffleSeatOrder`'s existing injection convention.
-- **`BoardScene` decomposition** — at ~1600 lines it is the repo's largest
+- **`BoardScene` decomposition** — at 2040 lines it is the repo's largest
   file and, by convention, its least tested. Stage 1 extracts the movement
   and combat orchestration; the retreat/drift/advance prompt machinery and
   the naval ram/board UI are the obvious follow-on candidates if the first
@@ -181,8 +190,11 @@ fuzz harness running clean:
 
 ## 4. Runbook: running this in a fresh session
 
-Everything needed to launch with no prior conversation context. No prior
-run exists for this feature — this is a first attempt, not a resume.
+Everything needed to launch with no prior conversation context. **This
+section is feature-agnostic** — it was written for Feature A (§1–§3, long
+since shipped) but every hazard below has since bitten on a later run.
+Substitute the slug of whatever is being launched for `<slug>`; the queue in
+[§10](#10-sequenced-queue) says what that is.
 
 ### Preconditions
 
@@ -194,8 +206,12 @@ run exists for this feature — this is a first attempt, not a resume.
    A `404` is success (the endpoint resolved and answered). A timeout or
    `ENOTFOUND` means do not launch.
 2. `main` clean and at the commit the agent should branch from.
-3. No stale `feat/cavalry-charges` worktree or branch left over from a
-   previous attempt (`git worktree list`, `git branch`).
+3. No stale `feat/<slug>` worktree or branch left over from a previous
+   attempt (`git worktree list`, `git branch`). **These accumulate** — as of
+   2026-08-07 three orphaned `worktree-agent-*` branches and one detached
+   review worktree (`C:/Users/eric/src/heraklios-review-push2`) were still
+   lying around from finished runs. Prune them *after* the junction check
+   below, never before.
 
 ### The `node_modules` problem
 
@@ -249,6 +265,17 @@ just ones you junctioned yourself:
 cmd //c "dir /AL .claude\worktrees\agent-<id>"   # lists junctions, if any
 ```
 
+**This is not hypothetical right now.** As of 2026-08-07 the live worktree
+`.claude/worktrees/agent-a0f2d0a8c70c82076` (the `feat/cascading-push`
+implementer's) **contains exactly such a junction**:
+
+```
+<JUNCTION>  node_modules [\??\C:\Users\eric\src\heraklios\node_modules]
+```
+
+Removing that worktree with `--force` and no `rmdir` first would destroy the
+main tree's install for the third time.
+
 If a junctioned worktree must be removed, delete the **link** first:
 
 ```bash
@@ -282,23 +309,22 @@ via `npx`), but prefer the local binary for both.
 ### Reviewer must check out DETACHED
 
 Git refuses to check out a branch that's already checked out in another
-worktree, which a plain `git checkout feat/cavalry-charges` would hit while
-the implementer's worktree still exists:
+worktree, which a plain `git checkout feat/<slug>` would hit while the
+implementer's worktree still exists:
 
 ```bash
-git checkout --detach feat/cavalry-charges
+git checkout --detach feat/<slug>
 ```
 
 ### The workflow script
 
-No script exists yet for this feature — author one following the shape
-already validated on the earlier batch: a single `agent()` call using the
-`heraklios-implementer` agent (`isolation: 'worktree'`), piped into a second
-`agent()` call using `heraklios-reviewer`, each with a structured output
-schema (see [§2](#2-how-the-orchestration-works)). The feature brief
-(slug/files/design question from [§3](#3-feature-cavalry-charges--the-phalanx-restriction))
-is the only per-run content the prompts need to carry — process rules live
-in the agent files.
+The shape validated across every run so far: a single `agent()` call using
+the `heraklios-implementer` agent (`isolation: 'worktree'`), piped into a
+second `agent()` call using `heraklios-reviewer`, each with a structured
+output schema (see [§2](#2-how-the-orchestration-works)). The feature brief
+(slug / files / design question — from whichever section
+[§10](#10-sequenced-queue) points at) is the only per-run content the prompts
+need to carry; process rules live in the agent files.
 
 ---
 
@@ -411,23 +437,33 @@ Two properties worth building around:
 
 ### 6.2 What actually blocks an AI
 
+> **Historical — this is the pre-Stage-1 analysis, and Stage 1 fixed the
+> first and third bullets.** Retained because it is *why* the stage exists
+> and because the second bullet is still substantially true. Do not chase the
+> line numbers; the code they described is gone. Current state noted per
+> bullet.
+
 The engine is pure *calculation*; the **orchestration lives entirely in
-`BoardScene`** (~1600 lines), which is exactly the layer this repo
+`BoardScene`** (2040 lines), which is exactly the layer this repo
 deliberately does not unit-test:
 
-- **Movement is not an engine operation.** `BoardScene.ts:628-630` performs
-  the `movementLeft -= cost; position = hex; charged = ...` sequence inline;
-  naval movement does the same at `:706` and `:734-746`. There is no
-  headless "apply a move" to call.
-- **A land attack is not atomic.** `resolveGroupAttack` (`BoardScene.ts:1327`)
-  rolls, applies the result, then branches into UI prompts for exchange
-  sacrifice, retreat, drift, and advance-after-combat. An AI must answer
-  those mid-resolution questions too — "pick a move" is not a sufficient
-  interface.
-- **The RNG is not injectable.** `rollDie` (`BoardScene.ts:540`) calls
-  `Math.random()` directly in the scene, so no AI or harness run can be made
-  deterministic. Note `shuffleSeatOrder` in `turnManager.ts` already
-  establishes the RNG-injection convention to follow.
+- ~~**Movement is not an engine operation.**~~ **Fixed by Stage 1.**
+  `BoardScene` no longer performs `movementLeft -= cost; position = hex;
+  charged = ...` inline — every click handler commits a whole `Action` via
+  `applyAction` (`BoardScene.ts:836`).
+- **A land attack is not atomic.** *Still true.* `resolveGroupAttack`
+  (`BoardScene.ts:1662`) rolls, applies the result, then branches into UI
+  prompts for exchange sacrifice, retreat, drift, and advance-after-combat.
+  An AI must answer those mid-resolution questions too — "pick a move" is not
+  a sufficient interface. Stage 1 gave those questions a typed home
+  (`PlayerAgent`), but the drift and advance branches still mutate
+  `GameState` inline in the scene — see
+  [§6.7](#67-the-elephant-problem-stage-2-split) and
+  [§9.1](#91-post-combat-advance-ignores-terrain-restrictions).
+- ~~**The RNG is not injectable.**~~ **Fixed by Stage 1.** `engine/dice.ts`
+  landed; `rollDie` (`BoardScene.ts:724`) takes an `rng` parameter and
+  `applyAction` is fed by `diceRng`, following `shuffleSeatOrder`'s
+  convention.
 
 So the work is not "write an AI" — it is *extracting a headless action
 layer*, after which the AI itself is comparatively small.
@@ -478,7 +514,7 @@ load before any strategy code depends on it.
 > harness "would very likely have caught the multi-defender phalanx bypass
 > from [§5](#5-outcome)". **That was wrong, and it was this plan's claim, not
 > the implementer's.** `legalActions` enumerates *singleton* attacks only
-> (`actions.ts:343-353`), so the harness structurally cannot assemble a
+> (`actions.ts:356-367`), so the harness structurally cannot assemble a
 > combined attack group — the bypass required exactly that. Measured over
 > 100 seeded games: `multiAttacker: 0`, `pushTarget: 0`, `exchangeChoice: 0`.
 > See [§6.8](#68-stage-2a-outcome) for what 2a does and does not cover.
@@ -555,7 +591,7 @@ the decided approach.
 
 ### 6.7 The elephant problem: Stage 2 split
 
-`pendingDrifts` is populated **only** for elephants (`combat.ts:385`), so
+`pendingDrifts` is populated **only** for elephants (`combat.ts:526`), so
 excluding them provably keeps it empty — the exclusion is verifiable, not
 approximate. But `defaultArmySelection()` puts **3 elephants** in a standard
 army (`army.ts:68`): they are not an exotic corner case, they are in the army
@@ -590,11 +626,11 @@ An earlier sketch of this plan proposed a simple
 **Reading the real cascade, that is too optimistic** — recording the
 correction here so 2b doesn't get under-scoped the way it nearly was.
 
-`stepDrift` (`BoardScene.ts:1231`) is the easy half: walk one hex, eliminate
+`stepDrift` (`BoardScene.ts:1415`) is the easy half: walk one hex, eliminate
 off-map (`canElephantEnterHex`), advance into empty hexes, else hand off to
 `resolveDriftHit`. That part genuinely is a pure step function.
 
-`resolveDriftHit` (`:1281`) is the hard half. It rolls a die, resolves a real
+`resolveDriftHit` (`:1465`) is the hard half. It rolls a die, resolves a real
 combat, and branches five ways:
 
 | Result | Behavior |
@@ -602,14 +638,14 @@ combat, and branches five ways:
 | `AE`/`EX` | Elephant destroyed; cascade ends. |
 | `AR` | Elephant repelled and **re-drifts in a newly rolled direction** (recurses into `beginDrift`). |
 | `DE` | Elephant advances into the hex and keeps drifting. |
-| `DR`, occupant is an elephant | Occupant **drifts recursively**, with a *forbidden direction* so it can't drift back into its trampler (`:1331`). |
-| `DR`, occupant is anything else | Occupant needs a **retreat choice — a live `PlayerAgent` decision** (`:1334`) — before the original elephant may continue. |
+| `DR`, occupant is an elephant | Occupant **drifts recursively**, with a *forbidden direction* so it can't drift back into its trampler (`:1516`). |
+| `DR`, occupant is anything else | Occupant needs a **retreat choice — a live `PlayerAgent` decision** (`:1518`) — before the original elephant may continue. |
 
 So a drift can contain a nested drift, a nested *player decision*, and an
 unbounded chain of both.
 
 **The real blocker is not the rules — it is that the continuation lives in
-closures.** `continueAfterVacated` (`:1320`) captures the drift and must
+closures.** `continueAfterVacated` (`:1504`) captures the drift and must
 re-assign `this.driftState` on resume "because a nested choice/drift may have
 taken over"; `finishDrift` fires a captured `onComplete`. A headless caller
 cannot enter a JS closure stack.
@@ -638,6 +674,62 @@ smaller than lifting the whole cascade into `applyAction`, and converting
 closure-continuations into an explicit stack is the *only* part that is
 strictly required to make drift fuzzable.
 
+### 6.8 Stage 2a outcome
+
+> **This section was referenced from [§6.3](#63-committed-scope-stages-12)
+> but never written** — caught in the 2026-08-07 integrity pass. Filled in
+> from the merge commit and a fresh soak run rather than from memory.
+
+Merged as `469f84a` on 2026-08-05. Landed `engine/rng.ts` (a seeded LCG),
+`engine/randomAgent.ts`, and `engine/fuzzHarness.ts` with continuously-checked
+invariants plus a 100-seed soak test.
+
+**It paid for itself immediately — two real engine bugs, both live in
+hotseat play:** `legalRetreatHexes` and `pushCandidates` never consulted
+`canEnterTerrain`, so a forced combat retreat could land cavalry, chariots or
+elephants on steep-flank or marsh terrain. The reading was confirmed against
+`05-rules-french-original.md:186-188` and `:239-241` (the N.B. puts "la mer
+n'est pas accessible" in the same sentence as the steep-flank and marsh
+prohibitions), and the pre-fix behavior — sea blocking retreat but steep
+flanks not — was the inconsistent one. Consequence pinned by test: cavalry on
+hex **(4,9)**, a plateau ringed by six steep-flank hexes and the shipped map's
+only terrain-boxed hex, is now eliminated by an AR/DR where it previously
+retreated.
+
+**What the soak actually exercises** (measured 2026-08-07, 100 seeds):
+
+```
+100 games, 9043 total actions (avg 90.4/game)
+actionsByKind: landMove 3029, endPhase 2800, navalMove 2115, navalRotate 537,
+               landAttack 551, board 6, ram 5
+combatResultCounts: DR 306, AR 178, AE 28, EX 21, DE 18
+landAttacksResolved=551  ramsResolved=5 (hits=1)  boardingsResolved=6
+turnsReached: min=8 max=8 avg=8.0
+outcomes: 100 decisive, 0 draws — all 100 by turn-limit/army-value ending
+```
+
+**What it does *not* cover** — the part that matters when reading a green
+run:
+
+- **Elephants** — excluded by design ([§6.7](#67-the-elephant-problem-stage-2-split)),
+  behind a throwing guard and a `[fuzz] GAP:` line printed on every run.
+- **Combined attacks** — `legalActions` enumerates singleton attacks only
+  (`actions.ts:356-367`), so `multiAttacker` is structurally 0. This is why
+  the harness could not have caught [§5](#5-outcome)'s multi-defender phalanx
+  bypass, corrected in §6.3.
+- **Pushes and exchange sacrifices** — `pushTarget: 0` and
+  `exchangeChoice: 0` across 100 games with the default armies. §12's branch
+  adds a dedicated scenario to reach a push at all.
+- **Naval combat is barely sampled** — 5 rams (1 hit) and 6 boardings in
+  9043 actions. Treat naval invariants as effectively unfuzzed.
+- **Anything scene-side.** The harness mirrors `BoardScene`'s sequencing
+  *independently*; it cannot see a scene-only regression. This is exactly how
+  [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) survives — the
+  harness enforces advance terrain via `eligibleAdvanceCandidates` while the
+  scene does not.
+- **Every game ends the same way** (turn limit at turn 8, 0 mutual
+  eliminations), so elimination endings and long games are untested paths.
+
 ---
 
 ## 7. Start a new game at any time
@@ -654,7 +746,7 @@ It was **parallelizable with Stage 2a** — see
 
 ### 7.1 The gap
 
-The only `scene.start('Menu')` in the codebase is `GameOverScene.ts:40`. From
+The only `scene.start('Menu')` in the codebase is `GameOverScene.ts:48`. From
 `ArmyBuilderScene`, `PlacementScene`, or `BoardScene` there is no way back:
 a player who misbuilds an army, misplaces a unit, or simply wants to restart
 must either play the game to completion or reload the page. Reloading is
@@ -691,7 +783,8 @@ This pairs well with **Stage 2a** and badly with **Stage 2b**:
 
 - **2a** is pure engine plus new test files (`engine/`, a harness module). It
   does not touch `src/scenes/`. Genuinely disjoint from this work.
-- **2b** edits `BoardScene.ts:1208-1360` — the same file this task adds
+- **2b** edits the drift cascade (`BoardScene.ts:1392-1541`, per
+  [§14.2](#142-the-structural-fix-extract-the-interaction-cascades)) — the same file this task adds
   chrome and teardown logic to. **Do not run these two concurrently.**
 
 **The one real contention point is `README.md`**, which both agents are
@@ -732,7 +825,10 @@ It *may* pass through a hex occupied by a friendly unit mid-move."
 
 The code conflates "may not stop here" with "may not enter here":
 
-| Site | Current behavior | Should be |
+(Line numbers below are **pre-fix**, from before `e87c55c` — they describe
+the code as it was, not as it is.)
+
+| Site | Behavior then | Fixed to |
 | --- | --- | --- |
 | `movement.ts:62` (`reachableHexes`) | any occupied hex is impassable | friendly-occupied hexes traversable, not selectable as a destination |
 | `movement.ts:172` (`straightLineMoveCost`) | a friendly unit anywhere on the line aborts the charge | friendlies traversable mid-line; destination still must be empty |
@@ -790,13 +886,13 @@ fixed on any branch; both affect hotseat play today.
 
 ### 9.1 Post-combat advance ignores terrain restrictions
 
-`src/scenes/BoardScene.ts:1385`:
+`src/scenes/BoardScene.ts:1569`, in `promptAdvanceChoice`:
 
 ```ts
 const candidates = this.advanceEligibleAttackers.filter((u) => !u.destroyed);
 ```
 
-No terrain check, and `:1391-1393` assigns `chosen.position = vacatedHex`
+No terrain check, and `:1573-1576` assigns `chosen.position = vacatedHex`
 unconditionally. So cavalry or a chariot that defeats an infantry or archer
 unit standing on marsh or a steep flank is *offered*, and permitted, to
 advance onto terrain it may never enter — violating
@@ -804,10 +900,18 @@ advance onto terrain it may never enter — violating
 affected too. Reachable in ordinary play: the only nearby restriction
 (cavalry-vs-phalanx) doesn't cover infantry or archers.
 
-**Fix:** add `&& canUnitEnterHex(u, vacatedHex)` at `BoardScene.ts:1385`.
-`canUnitEnterHex` already exists in `combat.ts:43` and is tested. Coordinate
-with Stage 2a's `eligibleAdvanceCandidates` helper if that lands first — they
-should share one implementation, not two.
+**Sharper than when first written: the scene and the fuzz harness now
+disagree about this rule.** Stage 2a landed
+`eligibleAdvanceCandidates(candidates, vacatedHex)` (`combat.ts:68`), which
+is `!u.destroyed && canUnitEnterHex(u, vacatedHex)` — and `fuzzHarness.ts:475`
+uses it. So the harness enforces the terrain restriction on advance and the
+scene does not, meaning **no amount of fuzzing can surface this defect**;
+the two callers must be reconciled, not just patched.
+
+**Fix:** replace the filter at `BoardScene.ts:1569` with a call to
+`eligibleAdvanceCandidates` — one implementation, already tested, already
+used by the harness. Do **not** re-inline `canUnitEnterHex` (`combat.ts:43`)
+at the call site; that recreates the divergence in a subtler form.
 
 ### 9.2 `endGameByTimeLimit` is never called
 
@@ -826,7 +930,7 @@ in the README's "Known simplifications".
 Destroyed units are **tombstones** — they stay in `state.units` with
 `destroyed: true` rather than being spliced out, so every occupancy check
 must filter explicitly. The engine does this correctly (`unitAt`,
-`combat.ts:78`, and `hexesUnderZoc`, `combat.ts:530`, both skip destroyed
+`combat.ts:77`, and `hexesUnderZoc`, `combat.ts:573`, both skip destroyed
 units, so a dead unit neither blocks movement nor projects ZOC).
 
 Two sites do not:
@@ -864,13 +968,13 @@ sync when something merges** — it went stale once and the user caught it.
 
 | Item | Touches | State |
 | --- | --- | --- |
-| [§12](#12-cascading-push-when-a-unit-cannot-retreat) cascading push | `engine/combat.ts`, `BoardScene.ts`, `fuzzHarness.ts` | Branch `feat/cascading-push`, first review FAILed (exponential hang + missing tests), fix round running. |
+| [§12](#12-cascading-push-when-a-unit-cannot-retreat) cascading push | `engine/combat.ts`, `BoardScene.ts`, `fuzzHarness.ts` | Branch `feat/cascading-push` @ `cd7b8fc`. First review FAILed (exponential hang + missing tests); fix round done; **second review PASSed 2026-08-07** — tsc clean, 288 tests, trace-hash identical to base across 100 seeds. **Ready to merge**, with three non-blocking findings in §12. |
 
 ### Queued
 
 | # | Item | Touches | Notes |
 | --- | --- | --- | --- |
-| 1 | [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) advance terrain | `scenes/BoardScene.ts` | **Live bug.** One-line fix — `eligibleAdvanceCandidates` already exists and is tested. **Not** parallel-safe with §12 or §13. |
+| 1 | [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) advance terrain | `scenes/BoardScene.ts` | **Live bug.** One-line fix at `:1569` — swap the filter for `eligibleAdvanceCandidates`, which already exists, is tested, and is what `fuzzHarness` uses (so scene and harness currently enforce *different* rules). **Not** parallel-safe with §12 or §13. |
 | 2 | [§13](#13-hex-coordinate-tooltip) hex coordinate tooltip | `ui/MapView.ts`, `BoardScene.ts` | Presentation only. **Not** parallel-safe with §12 or #1. |
 | 3 | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2b drift extraction | `BoardScene.ts` drift cascade, `engine/` | Unblocks fuzzing elephants. **Not** parallel with anything else in `BoardScene`. |
 | 4 | [§9.2](#92-endgamebytimelimit-is-never-called) turn-limit ending | design + scenes | **Live gap.** Needs a design decision first (what sets the limit, how the player is told). |
@@ -904,7 +1008,7 @@ were already computed and, for ramming, the needed data was already exported.
 
 ### 11.1 What already exists
 
-`BoardScene.logCombatOutcome` (`:1686`) already prints, for land combat:
+`BoardScene.logCombatOutcome` (`:1744`) already prints, for land combat:
 per-unit attack values with a total, per-unit defense values with a total,
 the ratio label, the die roll with its terrain modifier shown as
 `raw + modifier = modified` (and the clamped value when it falls outside
@@ -925,14 +1029,14 @@ implemented** — see §11.2 for the two genuine gaps.
 
 ### 11.3 Ramming — show the roll needed, which is already computable
 
-`BoardScene.promptRam`'s resolution (`:1005`) currently logs only:
+`BoardScene.promptRam`'s resolution (`:966`) currently logs only:
 
 ```
 Ramming attempt (bonus +1): die 4 -> missed
 ```
 
 The player cannot tell whether 4 was close or hopeless. **`rammingSuccessRange(attackerType, defenderType, bonus)`
-in `data/navalRamming.ts:66` already returns the exact winning die values**,
+in `data/navalRamming.ts:88` already returns the exact winning die values**,
 and `promptRam` already has all three arguments in hand. So this is a
 formatting change, not a rules change:
 
@@ -945,7 +1049,7 @@ Die: 4 -> missed
 Showing both the *effective* range and the *full* table range matters here,
 because the bonus-narrows-the-range behaviour is this repo's documented
 interpretation of a conflict in the source material
-(`navalRamming.ts:53-64`) — surfacing it in play makes that interpretation
+(`navalRamming.ts:60-87`) — surfacing it in play makes that interpretation
 visible rather than buried in a comment.
 
 > **Correction.** An earlier version of the sketch above ended the
@@ -960,7 +1064,7 @@ visible rather than buried in a comment.
 
 ### 11.4 Boarding — the least informative log today
 
-`:1857` currently prints one line:
+`:1984` currently prints one line:
 
 ```
 Boarding: die 5 -> attacker loses 2 equipment
@@ -968,7 +1072,7 @@ Boarding: die 5 -> attacker loses 2 equipment
 
 Should show, for both ships: attack force and defense force entering the
 combat, **equipment points before and after** (each point lost is -5 atk/-5
-def per `state.ts:28`, so this is the ship's remaining fighting strength —
+def per `state.ts:27`, so this is the ship's remaining fighting strength —
 the "how many attackers/defenders each ship has left" the request asks for),
 the die roll, and the resolved `BoardingResult`. Check `data/navalBoarding.ts`
 for whether a success threshold analogous to `rammingSuccessRange` can be
@@ -988,9 +1092,10 @@ returning ad-hoc shapes, so the fuzz harness can assert on the same fields.
 
 ### 11.6 Dependencies
 
-- **Touches `BoardScene.ts`** — `logCombatOutcome` (~:1686), `promptRam`
-  (~:1005), the boarding prompt (~:1857). All distinct from
-  [§9.1](#91-post-combat-advance-ignores-terrain-restrictions)'s `:1385` and
+- **Touches `BoardScene.ts`** — `logCombatOutcome` (~:1744), `promptRam`
+  (~:966), the boarding prompt (`navalAttackPrompt`, ~:1893-2002). All
+  distinct from
+  [§9.1](#91-post-combat-advance-ignores-terrain-restrictions)'s `:1569` and
   from the drift cascade, but *same file*, so expect merge conflicts if run
   concurrently with either. **Not parallel-safe with §9.1 or Stage 2b.**
 - **Parallel-safe with [§8](#8-bug-units-cannot-move-through-friendly-units)**,
@@ -1001,20 +1106,60 @@ returning ad-hoc shapes, so the fuzz harness can assert on the same fields.
 
 ## 12. Cascading push when a unit cannot retreat
 
-**Status:** in flight on `feat/cascading-push`, **not merged**. Reported by
-the user from real play: *"the unit died without being asked to push."*
+**Status:** on `feat/cascading-push` @ `cd7b8fc`, **second review PASSed, not
+yet merged**. Reported by the user from real play: *"the unit died without
+being asked to push."*
 
-First review: **FAIL**. The implementation is correct but (a) `pushCandidates`
+**First review: FAIL.** The implementation was correct but (a) `pushCandidates`
 was exponential — 3m 44s at 20 encircled units, synchronously on the browser
 main thread, i.e. a shipped hang in the very scenario the feature serves;
-(b) the reported bug has no test at the decision site (`forceRetreat`) —
-deleting the fix leaves all tests green; (c) the cascade *sequencing* is
-untested in both callers; (d) the fuzzer still records **0 pushes in 100
-seeds**, so the cascade has no fuzz coverage at all.
+(b) the reported bug had no test at the decision site (`forceRetreat`) —
+deleting the fix left all tests green; (c) the cascade *sequencing* was
+untested in both callers; (d) the fuzzer recorded **0 pushes in 100 seeds**,
+so the cascade had no fuzz coverage at all.
+
+**Fix round: complete** (8 commits). The exponential DFS was replaced with an
+O(V+E) fixpoint plus a perf regression test; tests were added at
+`applyLandCombatResult` itself, at `resolveUnitRetreat`'s cascade sequencing,
+and for mid-chain terrain; `pushesResolved` is now surfaced in the soak
+report with a scenario that actually reaches a push.
+
+**Second review (independent, 2026-08-07): PASS**, no blocking defects.
+`tsc` clean, 288 tests. Four of five claimed mutation guards reproduced as
+load-bearing. Trace-hash equivalence confirmed against the merge base:
+**byte-identical action traces across all 100 default seeds** (9043 actions),
+so the widening causes zero behavioral drift in the default scenario. The
+reviewer also tried to prove the strict *entourée* reading vacuous and
+**failed to** — archers (`range: 2, meleeCapable: false`) can legitimately be
+ringed by friendlies after an `AR`, so §12.2's "nearly unreachable" is
+accurate rather than overstated.
+
+Three non-blocking findings, to fix before or just after merge:
+
+1. **MEDIUM — the `chainVisited` cycle guard is untested, and two comments
+   claim it is.** In `buildRetreatChain`'s straight-line test geometry the
+   mid-chain unit's only friendly neighbour is the already-excluded one, so
+   it fails the `canMakeRoom` fixpoint regardless — passing stale `visited`
+   instead of the grown `chainVisited` leaves every test green. A *branching*
+   geometry does kill the mutant (confirmed). Fix by adding that case, or by
+   softening the claims in `fuzzHarness.ts` and `fuzzHarness.test.ts`. The
+   shipped code is correct; this is a coverage gap plus an inaccurate
+   coverage claim — which matters precisely because this branch's premise was
+   "the sequencing was untested".
+2. **LOW — stale user-facing string.** `BoardScene.ts:1353` still reads
+   *"X is surrounded by friendly units — click one to retreat and make
+   room."* Under the widened reading it fires for a unit with one friendly
+   neighbour and five enemies. The README was updated correctly ("at least
+   one neighboring hex holds a friendly unit that can make room"); the
+   in-game line now contradicts it.
+3. **LOW — thin canary.** The push scenario yields `pushesResolved=4` over 30
+   seeded games against a `> 0` assertion. Seeded, so not flaky, but any
+   change to RNG consumption could drop it to 0 and read as a false
+   regression.
 
 ### 12.1 The bug
 
-`combat.ts:403` — `pushCandidates` returns `[]` the moment **any** of the six
+`combat.ts:442` — `pushCandidates` returns `[]` the moment **any** of the six
 neighbours is not a friendly unit, including an *empty* hex that is unusable
 (enemy ZOC, or terrain the unit can't enter). With no legal retreat and no
 push offered, `applyLandCombatResult` eliminates the unit.
@@ -1114,7 +1259,7 @@ is why this survived. Required:
 Beyond player convenience, this is a **debugging and authoring aid**. Hex
 coordinates are currently invisible in-game, and several tasks in this plan
 have needed them: pinning map-specific regression tests (the (4,9)
-terrain-boxed hex in [§9](#9-live-defects-found-by-stage-2a), the
+terrain-boxed hex in [§6.8](#68-stage-2a-outcome), the
 (1,20)/(2,20) river pair in [§8](#8-bug-units-cannot-move-through-friendly-units)),
 and reporting a bug against a specific board position. During a scripted
 play-test of `main`, several minutes were lost guessing which screen pixel
@@ -1186,6 +1331,12 @@ Git merges disjoint hunks fine. The risks that *are* real:
    under it (this happened; see §4's concurrent-reviewer warning).
 3. **Line-number drift** — briefs and review findings cite `BoardScene.ts:1385`
    and similar; those rot fast when another branch inserts above them.
+   **This has now happened to this document.** By 2026-08-07 that exact
+   citation pointed 184 lines off (the advance filter had moved to `:1569`),
+   and roughly a dozen others in §6, §9 and §11 were similarly stale after
+   ~440 lines of growth. All were re-verified and corrected on that date.
+   Prefer citing a *method name* plus an approximate line, never a bare line
+   number.
 
 **Cheapest immediate win, available today:** assign *region ownership* rather
 than file ownership. Give each agent an explicit line range plus the method
@@ -1198,19 +1349,27 @@ ran successfully in parallel.
 The file has clean seams, and — usefully — **every currently queued item lives
 in a different one**:
 
-| Region | Lines | Queued work living there |
-| --- | --- | --- |
-| Scene shell, `create()` | 200-475 | — |
-| Save/load, undo/redo, dice | 475-770 | — |
-| HUD + logging | 440-800 | — |
-| Movement input | 797-875 | [§13](#13-hex-coordinate-tooltip) tooltip |
-| Naval movement + ram UI | 875-1071 | — |
-| Combat group building | 1078-1204 | — |
-| **Retreat/push cascade** | 1204-1392 | [§12](#12-cascading-push-when-a-unit-cannot-retreat) |
-| **Elephant drift cascade** | 1392-1542 | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2b |
-| **Advance offers** | 1542-1662 | [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) |
-| Combat resolution + log | 1662-1893 | — |
-| Naval attack prompt | 1893-2002 | — |
+Ranges are **non-overlapping and exhaustive** — that is the point, since the
+near-term use is handing an agent a line range it owns and forbidding edits
+outside it. Verified against `main` @ `3b15577`; re-derive with a method
+index (`grep -n '^  \(private \|public \|\)[a-zA-Z_]*(' src/scenes/BoardScene.ts`)
+before relying on them, since any merge shifts everything below it.
+
+| Region | Lines | Entry points | Queued work living there |
+| --- | --- | --- | --- |
+| Scene shell, `create()` | 200-430 | `create`, `resetSceneState` | — |
+| Small state/render helpers | 431-474 | `state`, `renderAllUnits` | — |
+| Save/load, undo/redo, dice | 475-744 | `captureSave`, `undo`, `rollDie` | — |
+| HUD + logging | 745-796 | `refreshStatus`, `log`, `appendLine` | — |
+| Movement input | 797-874 | `onHexClick`, `selectForMovement` | [§13](#13-hex-coordinate-tooltip) tooltip |
+| Naval movement + ram UI | 875-1077 | `promptRam`, `handleNavalMoveClick` | — |
+| Combat group building | 1078-1203 | `toggleAttacker`, `toggleDefender` | — |
+| **Retreat/push cascade** | 1204-1391 | `beginUnitRetreatChoice`, `choosePushTarget` | [§12](#12-cascading-push-when-a-unit-cannot-retreat) |
+| **Elephant drift cascade** | 1392-1541 | `beginDrift`, `stepDrift`, `resolveDriftHit` | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2b |
+| **Advance offers** | 1542-1661 | `beginAdvanceOffers`, `promptAdvanceChoice` | [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) |
+| Combat resolution + log | 1662-1892 | `resolveGroupAttack`, `logCombatOutcome` | — |
+| Naval attack prompt | 1893-2001 | `navalAttackPrompt` | — |
+| Phase transition | 2002-2040 | `endPhase` | — |
 
 The three bolded regions are the ones that keep colliding, and they share a
 shape: **a prompt, a player decision, and a continuation** — the machinery
