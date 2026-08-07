@@ -1,18 +1,110 @@
-# Plan: agent-run features
+# Heraklios Work Plan
 
-> ### 👉 [§10](#10-sequenced-queue) is the single source of truth for status.
-> Per-section status headers are kept in sync with it, but **§10 is the one
-> table to read first** — and the one to update the moment anything merges.
-> It went stale once and the user caught it.
+This file is three things:
+
+1. **Plan management rules** — how to keep the queue honest while agents and
+   humans work in parallel.
+2. **History** — what shipped, what reviews caught, and why earlier decisions
+   were made.
+3. **Backlog** — the current queue plus design notes for future work.
+
+## How To Manage This Plan
+
+- [Current Queue](#10-sequenced-queue) is the single source of truth for status. Read it
+  first, and update it the moment anything merges.
+- Keep per-section status headers in sync with the queue. If something moves from
+  queued to in-flight or shipped, update both the section and the queue in the same
+  commit.
+- Do not let completed work stay visually central. Once a branch merges, move
+  it into the shipped/history language and promote the next queued item.
+- Preserve useful postmortems. Review failures, wrong assumptions, and
+  rulebook interpretations belong in the history sections because they prevent
+  repeat mistakes.
+- Treat line references as unstable. If a task brief relies on line numbers,
+  re-verify them against current `main` before launching work.
+- Before launching implementation, read [§4](#4-runbook-detailed-launch-hazards-appendix)'s
+  `node_modules` and `npx tsc` warnings; both have cost real time in this
+  project.
+
+**Workflow defaults:**
+
+| Decision | Value |
+| --- | --- |
+| Implementer model | **Sonnet** for Claude Code; Codex implementers inherit the parent Codex model unless explicitly overridden. |
+| Reviewer model | **Opus** for Claude Code; Codex reviewers use the project `heraklios_reviewer` agent or a read-only review pass. |
+| Verification style | **Adversarial** — reviewer hunts for defects, does not trust the implementer's self-report. |
+| Integration | Agent commits to its own `feat/*` branch. No auto-merge. Review and merge by hand. |
+
+## Current Snapshot
 
 **Shipped:** Feature A (cavalry charges + phalanx), AI Stage 1 (headless
 action layer), AI Stage 2a (fuzz harness), start-a-new-game-anytime, move
 through friendly units, combat reporting detail, cascading push
 ([§12](#12-cascading-push-when-a-unit-cannot-retreat), merged `3c766d6`),
 and [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) advance
-terrain (merged `6172f2f`). **In flight:** nothing — [§10](#10-sequenced-queue)'s
-queue is next. **Live defects still open:**
+terrain (merged `6172f2f`). **In flight:** nothing — [Current Queue](#10-sequenced-queue)
+is next. **Live defects still open:**
 [§9.2](#92-endgamebytimelimit-is-never-called).
+
+<a id="10-sequenced-queue"></a>
+
+## Current Queue
+
+Current order of work, so parallel runs don't collide. **Keep this table in
+sync when something merges** — it went stale once and the user caught it.
+
+### Shipped
+
+| Item | Merge |
+| --- | --- |
+| Feature A — cavalry charges + phalanx | `3b086d1` |
+| [§6.3](#63-committed-scope-stages-12) Stage 1 — headless action layer | `9cb7ed7` |
+| [§7](#7-start-a-new-game-at-any-time) start a new game at any time | `30c23e7` |
+| [§6.3](#63-committed-scope-stages-12) Stage 2a — fuzz harness (+2 engine bugs it found) | `469f84a` |
+| [§8](#8-bug-units-cannot-move-through-friendly-units) move through friendly units | `e87c55c` |
+| [§11](#11-combat-reporting-detail) combat reporting detail | `12e1bf6` |
+| [§12](#12-cascading-push-when-a-unit-cannot-retreat) cascading push | `3c766d6` |
+| [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) advance terrain | `6172f2f` |
+
+### In flight
+
+*Nothing.* Next up is #1 below.
+
+### Queued
+
+| # | Item | Touches | Notes |
+| --- | --- | --- | --- |
+| 0 | [§12](#12-cascading-push-when-a-unit-cannot-retreat) follow-ups | `engine/fuzzHarness*.ts`, `BoardScene.ts` | The three non-blocking findings that shipped with `3c766d6`: the untested `chainVisited` cycle guard (+ two comments wrongly claiming coverage), the stale "surrounded by friendly units" string, the thin `pushesResolved` canary. Small; fold into whatever touches those files next. |
+| 1 | [§13](#13-hex-coordinate-tooltip) hex coordinate tooltip | `ui/MapView.ts`, `BoardScene.ts` | Presentation only. |
+| 2 | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2b drift extraction | `BoardScene.ts` drift cascade, `engine/` | Unblocks fuzzing elephants. **Not** parallel with anything else in `BoardScene`. |
+| 3 | [§9.2](#92-endgamebytimelimit-is-never-called) turn-limit ending | design + scenes | **Live gap.** Needs a design decision first (what sets the limit, how the player is told). |
+| 4 | [§6.4](#64-deferred-stages-3-4) Stage 3 — `HeuristicAgent` | `engine/` | Gated on 2b if elephants are to be handled. |
+| 5 | [§6.4](#64-deferred-stages-3-4) Stage 4 — AI seat UI + save format | scenes, `saveGame.ts` | `SAVE_VERSION` bump. |
+
+**Standing hazard:** almost everything queued touches `BoardScene.ts`, so
+these mostly cannot run in parallel with each other.
+
+## Backlog Map
+
+- **Start here:** [Current Queue](#10-sequenced-queue).
+- **Current next task:** [§13](#13-hex-coordinate-tooltip), unless §12
+  follow-ups are folded into a nearby branch first.
+- **Live defect needing design:** [§9.2](#92-endgamebytimelimit-is-never-called).
+- **Larger future work:** [§6.7](#67-the-elephant-problem-stage-2-split),
+  [§6.4](#64-deferred-stages-3-4), and
+  [§14](#14-decomposing-boardscenets-for-parallel-work).
+
+## History Map
+
+- **Feature A archive:** [§2.1](#21-feature-a-launch-goal), [§3](#3-feature-cavalry-charges--the-phalanx-restriction),
+  and [§5](#5-outcome). It remains here as the first full implement/review
+  run and as evidence for adversarial review.
+- **AI foundation history:** [§6.6](#66-stage-1-outcome) and
+  [§6.8](#68-stage-2a-outcome).
+- **Shipped feature notes:** [§7](#7-start-a-new-game-at-any-time),
+  [§8](#8-bug-units-cannot-move-through-friendly-units),
+  [§11](#11-combat-reporting-detail), [§12](#12-cascading-push-when-a-unit-cannot-retreat),
+  and [§9.1](#91-post-combat-advance-ignores-terrain-restrictions).
 
 > **Line citations were re-verified against `main` on 2026-08-07** (at
 > `3b15577`), after ~440 lines of drift in `BoardScene.ts` had rotted most of
@@ -21,41 +113,13 @@ queue is next. **Live defects still open:**
 > that commit and will rot again — see
 > [§14.1](#141-first-a-correction-the-constraint-is-partly-self-imposed) item 3.
 
-Sections 1–5 cover **Feature A**, the first run through this pipeline;
-[§5](#5-outcome) records how it actually went, including two rule-fidelity
-defects the adversarial reviewer caught that a happy-path read of the diff
-would have missed. Sections 2 and 4 (orchestration and runbook) are
-feature-agnostic and apply to whatever runs next — **read §4's `node_modules`
-and `npx tsc` warnings before launching anything**, both cost real time in
-this project.
-
-**Decided:**
-
-| Decision | Value |
-| --- | --- |
-| Implementer model | **Sonnet** |
-| Reviewer model | **Opus** |
-| Verification style | **Adversarial** — reviewer hunts for defects, does not trust the implementer's self-report |
-| Integration | Agent commits to its own `feat/*` branch. No auto-merge, no push, `main` untouched. Review and merge by hand. |
-
 ---
 
-## 1. Goal
-
-Implement Feature A in its own git worktree, so the agent's edits can't
-collide with anything else in flight, then review and merge it by hand.
-
-This reuses the same implement → verify pipeline the earlier batch ran
-successfully — just for a single feature this time instead of several in
-parallel.
-
----
-
-## 2. How the orchestration works
+## 1. Agent workflow
 
 | Stage | What happens |
 | --- | --- |
-| **Implement** | One agent, with `isolation: 'worktree'` — its own checkout of the repo. The agent creates a branch, implements the rule, adds engine tests, and runs `npx tsc --noEmit` + `npx vitest run` until green, then commits. |
+| **Implement** | One agent, with `isolation: 'worktree'` — its own checkout of the repo. The agent creates a branch, implements the rule, adds engine tests, and runs `npm run build` + `npm test` until green, then commits. |
 | **Verify** | A second, independent agent re-reads the diff with fresh eyes, re-runs the checks, and reports whether the rule matches the rulebook text and whether the tests actually prove it. It does *not* trust the implementer's own summary. |
 
 ### Agents
@@ -75,8 +139,14 @@ agent(verifyBrief, { agent: 'heraklios-reviewer', phase: 'Verify' })
 
 The model is fixed in each agent's frontmatter, so it no longer needs to be
 passed (or risk being silently dropped) on every call — the prompt only
-needs to carry the feature-specific brief (slug, files, design questions),
-not the process rules, which live in the agent files themselves.
+needs to carry the feature-specific brief (slug, files, design questions, and
+the relevant plan section), not the process rules, which live in the agent
+files themselves.
+
+Codex equivalents live in `.codex/agents/`:
+
+- `heraklios_implementer` — implements one scoped feature with tests.
+- `heraklios_reviewer` — read-only adversarial reviewer.
 
 ### Why a worktree
 
@@ -96,11 +166,11 @@ by the same `.git`. Two consequences worth knowing:
 
 Baked into `.claude/agents/heraklios-implementer.md` and
 `heraklios-reviewer.md` — branch naming, the engine/presentation split,
-tsc/vitest-clean-before-commit, README updates, the "never touch main /
+build/test-clean-before-commit, README updates, the "never touch main /
 never edit plan.md" boundary, and the ambiguous-rulebook-comment convention
 all live there now. This plan only needs to supply the feature-specific
-brief: slug (`cavalry-charges`), files, and the open design question
-([§3](#3-feature-cavalry-charges--the-phalanx-restriction)).
+brief: slug, files, design questions, and any relevant rulebook or queue
+references.
 
 ### Editing this plan while a run is in flight
 
@@ -112,9 +182,46 @@ brief: slug (`cavalry-charges`), files, and the open design question
   mid-run.** The agent branches from the commit `main` pointed at when it
   started, and may be resolving modules against the shared install.
 
+### Launch checklist
+
+Before launching a task:
+
+1. Read [Current Queue](#10-sequenced-queue) and the target task section.
+2. Verify `main` is clean and current.
+3. Check `git worktree list`, `git branch`, and any stale `feat/<slug>`
+   branch/worktree.
+4. Use a fresh `feat/<slug>` branch or worktree.
+5. Install dependencies in that worktree if needed; do not junction
+   `node_modules` into a worktree that will be deleted.
+6. Verify with `npm run build` and `npm test`.
+7. Run an adversarial review before merging.
+8. After merge, update the queue and the task section in the same status commit.
+
+---
+
+## 2. History archive
+
+Completed feature sections stay below for context and postmortems. They are
+not the active queue; use [Current Queue](#10-sequenced-queue) for that.
+
+### 2.1 Feature A launch goal
+
+Historical archive: this was the goal for Feature A, the first full
+implement → review run recorded in this plan.
+
+Implement Feature A in its own git worktree, so the agent's edits couldn't
+collide with anything else in flight, then review and merge it by hand.
+
+This reused the same implement → verify pipeline the earlier batch ran
+successfully — just for a single feature instead of several in parallel.
+
 ---
 
 ## 3. Feature: cavalry charges + the phalanx restriction
+
+Historical archive: this was the Feature A implementation brief. It stays in
+the plan because later reviews and bugs still refer back to the decisions
+made here.
 
 > README: *"Cavalry charges (doubling attack value when a cavalry unit uses
 > its full movement in a straight line into contact) and the restriction
@@ -140,7 +247,10 @@ brief: slug (`cavalry-charges`), files, and the open design question
 
 ---
 
-## 3b. Backlog / future work
+## 3b. Early backlog notes
+
+Historical archive: these were the first backlog notes captured during the
+Feature A run. The current ordered backlog lives in [Current Queue](#10-sequenced-queue).
 
 ### From the README's "Known simplifications"
 
@@ -189,13 +299,13 @@ fuzz harness running clean:
 
 ---
 
-## 4. Runbook: running this in a fresh session
+## 4. Runbook: detailed launch hazards appendix
 
 Everything needed to launch with no prior conversation context. **This
-section is feature-agnostic** — it was written for Feature A (§1–§3, long
-since shipped) but every hazard below has since bitten on a later run.
+section is feature-agnostic** — it was first written during Feature A, but
+every hazard below has since bitten on a later run.
 Substitute the slug of whatever is being launched for `<slug>`; the queue in
-[§10](#10-sequenced-queue) says what that is.
+[Current Queue](#10-sequenced-queue) says what that is.
 
 ### Preconditions
 
@@ -322,14 +432,16 @@ git checkout --detach feat/<slug>
 The shape validated across every run so far: a single `agent()` call using
 the `heraklios-implementer` agent (`isolation: 'worktree'`), piped into a
 second `agent()` call using `heraklios-reviewer`, each with a structured
-output schema (see [§2](#2-how-the-orchestration-works)). The feature brief
+output schema (see [§1](#1-agent-workflow)). The feature brief
 (slug / files / design question — from whichever section
-[§10](#10-sequenced-queue) points at) is the only per-run content the prompts
+[Current Queue](#10-sequenced-queue) points at) is the only per-run content the prompts
 need to carry; process rules live in the agent files.
 
 ---
 
 ## 5. Outcome
+
+Historical archive: this is the Feature A postmortem.
 
 The implement → verify loop ran twice before merge, not once — worth
 recording since it validates why the process calls for an *adversarial*
@@ -789,7 +901,7 @@ This pairs well with **Stage 2a** and badly with **Stage 2b**:
   chrome and teardown logic to. **Do not run these two concurrently.**
 
 **The one real contention point is `README.md`**, which both agents are
-instructed to update (see [§2](#2-how-the-orchestration-works)'s warning).
+instructed to update (see [§1](#1-agent-workflow)'s warning).
 Mitigate by telling one of the two agents explicitly not to touch it, and
 documenting that half by hand at merge time — a README conflict is cheap to
 resolve but pointless to incur.
@@ -952,46 +1064,6 @@ it does filter.) Cheapest durable fix is to route them through `unitAt`
 rather than hand-rolling the predicate a third time.
 
 
----
-
-## 10. Sequenced queue
-
-Current order of work, so parallel runs don't collide. **Keep this table in
-sync when something merges** — it went stale once and the user caught it.
-
-### Shipped
-
-| Item | Merge |
-| --- | --- |
-| Feature A — cavalry charges + phalanx | `3b086d1` |
-| [§6.3](#63-committed-scope-stages-12) Stage 1 — headless action layer | `9cb7ed7` |
-| [§7](#7-start-a-new-game-at-any-time) start a new game at any time | `30c23e7` |
-| [§6.3](#63-committed-scope-stages-12) Stage 2a — fuzz harness (+2 engine bugs it found) | `469f84a` |
-| [§8](#8-bug-units-cannot-move-through-friendly-units) move through friendly units | `e87c55c` |
-| [§11](#11-combat-reporting-detail) combat reporting detail | `12e1bf6` |
-| [§12](#12-cascading-push-when-a-unit-cannot-retreat) cascading push | `3c766d6` |
-| [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) advance terrain | `6172f2f` |
-
-### In flight
-
-*Nothing.* Next up is #1 below.
-
-### Queued
-
-| # | Item | Touches | Notes |
-| --- | --- | --- | --- |
-| 0 | [§12](#12-cascading-push-when-a-unit-cannot-retreat) follow-ups | `engine/fuzzHarness*.ts`, `BoardScene.ts` | The three non-blocking findings that shipped with `3c766d6`: the untested `chainVisited` cycle guard (+ two comments wrongly claiming coverage), the stale "surrounded by friendly units" string, the thin `pushesResolved` canary. Small; fold into whatever touches those files next. |
-| 1 | [§13](#13-hex-coordinate-tooltip) hex coordinate tooltip | `ui/MapView.ts`, `BoardScene.ts` | Presentation only. |
-| 2 | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2b drift extraction | `BoardScene.ts` drift cascade, `engine/` | Unblocks fuzzing elephants. **Not** parallel with anything else in `BoardScene`. |
-| 3 | [§9.2](#92-endgamebytimelimit-is-never-called) turn-limit ending | design + scenes | **Live gap.** Needs a design decision first (what sets the limit, how the player is told). |
-| 4 | [§6.4](#64-deferred-stages-3-4) Stage 3 — `HeuristicAgent` | `engine/` | Gated on 2b if elephants are to be handled. |
-| 5 | [§6.4](#64-deferred-stages-3-4) Stage 4 — AI seat UI + save format | scenes, `saveGame.ts` | `SAVE_VERSION` bump. |
-
-**Standing hazard:** almost everything queued touches `BoardScene.ts`, so
-these mostly cannot run in parallel with each other.
-
----
-
 ## 11. Combat reporting detail
 
 **Status: ✅ Shipped** — merged to `main` as `12e1bf6`. Three review rounds.
@@ -1141,7 +1213,7 @@ ringed by friendlies after an `AR`, so §12.2's "nearly unreachable" is
 accurate rather than overstated.
 
 Three non-blocking findings, **merged as-is and still open** — queued as #0
-in [§10](#10-sequenced-queue):
+in [Current Queue](#10-sequenced-queue):
 
 1. **MEDIUM — the `chainVisited` cycle guard is untested, and two comments
    claim it is.** In `buildRetreatChain`'s straight-line test geometry the
@@ -1308,7 +1380,7 @@ Three things to get right:
 - Worth offering on `PlacementScene` too, which has the same `MapView` and
   where "which hex is this?" matters just as much during deployment.
 - **Not parallel-safe with anything else editing `BoardScene.ts`** — see the
-  queue in [§10](#10-sequenced-queue).
+  queue in [Current Queue](#10-sequenced-queue).
 - Little to unit-test by the repo's convention (it is scene/UI code); keep
   any coordinate-formatting helper pure if one is needed.
 
@@ -1322,7 +1394,7 @@ code can be refactored so tasks stop serializing on one file.
 ### 14.1 First, a correction: the constraint is partly self-imposed
 
 `BoardScene.ts` is 2040 lines and most queued work touches it, so
-[§10](#10-sequenced-queue) has been marking items "not parallel-safe". **The
+[Current Queue](#10-sequenced-queue) has been marking items "not parallel-safe". **The
 evidence does not support that being a hard blocker.** Every merge in this
 project so far has auto-merged with **zero conflicts** — including
 `30c23e7` (+162 lines to `BoardScene`) and `12e1bf6` (+142 lines to
