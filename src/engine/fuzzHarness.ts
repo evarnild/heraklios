@@ -525,7 +525,9 @@ export async function resolveUnitRetreat(
   agent: PlayerAgent,
   stats?: HarnessStats,
   visited: ReadonlySet<string> = new Set(),
+  resolvedIds?: Set<string>,
 ): Promise<void> {
+  resolvedIds?.add(unit.id);
   const legalHexes = legalRetreatHexes(state, unit);
   if (legalHexes.length > 0) {
     const hex = await agent.chooseRetreat(state, unit, legalHexes);
@@ -542,7 +544,7 @@ export async function resolveUnitRetreat(
     const vacatedHex = { ...pushed.position };
     const chainVisited = new Set(visited);
     chainVisited.add(unit.id);
-    await resolveUnitRetreat(state, pushed, agent, stats, chainVisited);
+    await resolveUnitRetreat(state, pushed, agent, stats, chainVisited, resolvedIds);
     completePush(unit, vacatedHex);
     return;
   }
@@ -586,7 +588,24 @@ async function processAdvanceOffer(state: GameState, vacatedHex: HexCoord, candi
   if (chosen) chosen.position = vacatedHex;
 }
 
-async function processRetreats(
+/**
+ * MEDIUM finding from adversarial review (M11): on a result that forces the
+ * whole attacking (or defending) SIDE to retreat, every one of those units
+ * lands in `pendingRetreats` independently — but a push cascade resolving
+ * one of them can move ANOTHER unit that's also separately queued (e.g.
+ * unit A, boxed in, pushes its sibling attacker B aside; B is ALSO in
+ * `pendingRetreats` for the same combat result). Without tracking that, the
+ * loop below would later reach B's own queue entry and ask the player to
+ * retreat it A SECOND time for the same single result. `resolvedIds`
+ * (populated by every `resolveUnitRetreat` call, including nested pushed
+ * units — see that function) is checked before each queue entry so a
+ * chain-moved sibling is skipped rather than double-processed.
+ *
+ * Exported for the same reason as `resolveUnitRetreat` — so this exact
+ * batch-level skip logic can be driven directly by a test, not just
+ * inferred from `playRandomGame`'s aggregate stats.
+ */
+export async function processRetreats(
   state: GameState,
   pendingRetreats: Unit[],
   side: 'attacker' | 'defender',
@@ -594,10 +613,11 @@ async function processRetreats(
   agent: PlayerAgent,
   stats?: HarnessStats,
 ): Promise<void> {
+  const resolvedIds = new Set<string>();
   for (const unit of pendingRetreats) {
-    if (unit.destroyed) continue;
+    if (unit.destroyed || resolvedIds.has(unit.id)) continue;
     const originalHex = { ...unit.position };
-    await resolveUnitRetreat(state, unit, agent, stats);
+    await resolveUnitRetreat(state, unit, agent, stats, undefined, resolvedIds);
     // Per the rulebook (see BoardScene's finishQueueItem doc comment), only
     // a DEFENDER's retreat frees a hex the attacker may advance into.
     if (side === 'defender') {

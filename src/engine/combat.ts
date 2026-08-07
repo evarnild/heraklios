@@ -446,7 +446,15 @@ export function legalRetreatHexes(state: GameState, unit: Unit): HexCoord[] {
  *      Stage 2 fuzz harness measured `pushTarget: 0` across 100 games of
  *      real (if random) play before this change. A rule that essentially
  *      never fires is evidence of a misreading, not evidence the rule is
- *      rarely relevant.
+ *      rarely relevant. Caveat, found during review of this very fix: the
+ *      SAME 100-game default soak (`fuzzHarness.test.ts`'s
+ *      `pushesResolved` counter) still reads 0 even AFTER this widening —
+ *      that army is simply too small and spread out to ever box a unit in
+ *      tightly enough, not evidence the widening was unnecessary. A
+ *      separate, purpose-built `buildPushScenarioGameState` scenario
+ *      (same file) reliably reaches several pushes within 30 seeds,
+ *      confirming the widened path is real and reachable; it just isn't
+ *      the DEFAULT army's job to prove that on its own.
  *   2. The general elimination rule's stated causes ("soit parce qu'elle
  *      est en bordure de mer, soit parce qu'elle est entourée de zones de
  *      contrôle ennemies") are introduced with "soit... soit..." —
@@ -463,7 +471,23 @@ export function legalRetreatHexes(state: GameState, unit: Unit): HexCoord[] {
  * not a candidate (skipped), but no longer voids every OTHER neighbor's
  * candidacy the way it did under the strict reading.
  *
- * THE CASCADE (plan.md §12.3) — a friendly neighbor that itself has no
+ * INTERPRETATION, THE CASCADE (plan.md §12.3) — the rulebook's sentence
+ * granting the exception stops at "elle pousse une de ses pièces et prend
+ * sa place" (`:242-243`, "it pushes one of its pieces and takes its
+ * place") and says NOTHING about what happens if that pushed piece has
+ * nowhere to go either. Chaining the same exception down to that piece —
+ * rather than falling back to elimination the moment the SECOND unit in
+ * the line also can't retreat directly — is therefore its own invented
+ * extension, not a literal restatement, exactly as much an interpretive
+ * choice as the widening above (both read the text's silence as "the
+ * exception's purpose extends however far it needs to," not as "the
+ * exception is only ever one level deep"). Recorded here for the same
+ * reason as the widening: rejecting it (stopping the chain at depth 1 and
+ * eliminating the second-in-line unit instead) would be an equally
+ * defensible, and arguably more literal, alternative reading — this
+ * codebase chose to chain.
+ *
+ * Mechanically: a friendly neighbor that itself has no
  * direct retreat may still make room by pushing one of ITS OWN friendly
  * neighbors in turn, and so on. So a candidate `f` qualifies if it has a
  * direct legal retreat (`legalRetreatHexes`), OR if IT can reach (through a
@@ -495,6 +519,23 @@ export function legalRetreatHexes(state: GameState, unit: Unit): HexCoord[] {
  * hex it's about to inherit, checked against whichever unit is doing the
  * pushing at that link — see the fixpoint's terrain check below, applied
  * per-edge rather than just at the top level.
+ *
+ * NOT checked here, unlike `legalRetreatHexes`: whether the inherited hex
+ * sits under enemy ZOC. `legalRetreatHexes` refuses to send a normally
+ * retreating unit into an empty ZOC hex, but a hex a friendly unit is
+ * ALREADY standing on can perfectly well be under enemy ZOC too (ZOC
+ * doesn't prevent occupying a hex, only entering one uninvited) — the
+ * rulebook's own push sentence (`:242-243`) says nothing about ZOC at all,
+ * so applying `legalRetreatHexes`'s exclusion here would be ANOTHER
+ * invented extension, not obviously more or less licensed than leaving it
+ * out. Pre-existing before this change (the single-level version never
+ * checked it either) but worth flagging explicitly now that the widened,
+ * cascading version makes a mixed friendly/ZOC-blocked-empty neighbor set
+ * the headline scenario rather than an edge case: a unit could in principle
+ * be pushed into a hex under enemy ZOC that it could never have retreated
+ * into directly. Left as-is rather than silently "fixed" one way or the
+ * other — a real design decision for whoever picks this up next, not this
+ * comment's call to make unilaterally.
  *
  * PERFORMANCE — this used to be a plain recursive DFS re-deriving each
  * candidate's viability by enumerating simple paths through the friendly-

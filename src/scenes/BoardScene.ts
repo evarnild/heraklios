@@ -119,6 +119,16 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * time: `retreatQueue` first, then `driftQueue`. */
   private retreatQueue: RetreatQueueItem[] = [];
   private driftQueue: RetreatQueueItem[] = [];
+  /** MEDIUM finding from adversarial review (M11): every unit ID a push
+   * cascade has actually moved or destroyed during the CURRENT
+   * `beginRetreatChoices` batch — reset there, populated by
+   * `beginUnitRetreatChoice`. A single AR/DR result can queue several units
+   * from the same side independently; if resolving one of them pushes a
+   * SIBLING also sitting in `retreatQueue`, that sibling must not be asked
+   * to retreat a second time when the queue reaches its own entry — see
+   * `advanceRetreatQueue`'s skip check. Mirrors `fuzzHarness.ts`'s
+   * `processRetreats`'s locally-scoped `resolvedIds`. */
+  private retreatResolvedIds = new Set<string>();
   private retreatChoice: RetreatChoice | null = null;
   private driftState: DriftState | null = null;
   /**
@@ -222,6 +232,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.attackedThisPhase = new Set();
     this.retreatQueue = [];
     this.driftQueue = [];
+    this.retreatResolvedIds = new Set();
     this.retreatChoice = null;
     this.driftState = null;
     this.decisionPending = false;
@@ -647,6 +658,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // can never leave a reference to a unit from the discarded state.
     this.retreatQueue = [];
     this.driftQueue = [];
+    this.retreatResolvedIds = new Set();
     this.retreatChoice = null;
     this.driftState = null;
     this.decisionPending = false;
@@ -1210,13 +1222,17 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.advanceEligibleAttackers = attackersForAdvance;
     this.retreatQueue = pendingRetreats.map((unit) => ({ unit, side, originalHex: { ...unit.position } }));
     this.driftQueue = pendingDrifts.map((unit) => ({ unit, side, originalHex: { ...unit.position } }));
+    this.retreatResolvedIds = new Set(); // fresh batch — see its own doc comment (M11)
     this.advanceRetreatQueue();
   }
 
   private advanceRetreatQueue(): void {
     const item = this.retreatQueue.shift();
     if (item) {
-      if (item.unit.destroyed) {
+      // M11: a push cascade resolving an EARLIER queue item can already have
+      // moved this one (a sibling it pushed aside) — skip it rather than
+      // asking the player to retreat it a second time for the same result.
+      if (item.unit.destroyed || this.retreatResolvedIds.has(item.unit.id)) {
         this.advanceRetreatQueue();
         return;
       }
@@ -1276,10 +1292,30 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     onDone: () => void,
     visited: ReadonlySet<string> = new Set(),
   ): void {
+    // M11: record every unit this method is ever asked to resolve — whether
+    // as a top-level queue item or a pushed unit reached via the recursive
+    // branch below — so `advanceRetreatQueue` can skip a sibling this same
+    // resolution already moved. Harmless when called outside a retreat-queue
+    // batch entirely (e.g. `resolveDriftHit`'s trampled-unit case): nothing
+    // reads `retreatResolvedIds` there.
+    this.retreatResolvedIds.add(unit.id);
+    // L12/L13 (LOW findings from adversarial review): a non-empty `visited`
+    // means `unit` is itself a PUSHED unit mid-cascade, not the original
+    // top-level retreater — worth saying so in the prompt (rather than the
+    // generic "must retreat," which reads as if THIS unit lost the combat),
+    // and worth NOT separately logging "unit retreats." here too: the
+    // pusher's own `onDone` callback below already narrates this exact move
+    // as "X retreats, making room for Y" once it completes, so logging both
+    // would say the same thing twice.
+    const isPushedLink = visited.size > 0;
     const state = this.state();
     const legalHexes = legalRetreatHexes(state, unit);
     if (legalHexes.length > 0) {
-      this.appendLine(`${unitType(unit).name} must retreat — click a highlighted hex.`);
+      this.appendLine(
+        isPushedLink
+          ? `${unitType(unit).name} must retreat to make room — click a highlighted hex.`
+          : `${unitType(unit).name} must retreat — click a highlighted hex.`,
+      );
       this.chooseRetreat(state, unit, legalHexes).then((hex) => {
         // `decisionPending` must clear even if the mutation below throws —
         // otherwise every guard it gates (undo, autosave, onHexClick, ...)
@@ -1298,7 +1334,10 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         // whole chain), `finally` is the right place either way.
         try {
           retreatUnitTo(unit, hex);
-          this.appendLine(`${unitType(unit).name} retreats.`);
+          // Only the TOP-level retreater gets its own "X retreats." line —
+          // a pushed unit's move is narrated once, by the pusher's `onDone`
+          // below ("X retreats, making room for Y"), not twice.
+          if (!isPushedLink) this.appendLine(`${unitType(unit).name} retreats.`);
           this.renderAllUnits();
         } finally {
           this.decisionPending = false;

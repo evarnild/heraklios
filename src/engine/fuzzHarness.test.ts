@@ -4,6 +4,7 @@ import {
   buildFuzzGameState,
   buildPushScenarioGameState,
   resolveUnitRetreat,
+  processRetreats,
   type HarnessStats,
 } from './fuzzHarness';
 import type { Action } from './actions';
@@ -172,8 +173,13 @@ function buildRetreatChain(length: number): { chain: Unit[]; state: GameState } 
  * silent wrong-branch bug into a loud test failure. */
 class ScriptedFirstChoiceAgent implements PlayerAgent {
   readonly pushOffers: string[][] = [];
+  /** Every unit ID `chooseRetreat` was actually asked to resolve, in order —
+   * used by the M11 (double-processing) test to prove a chain-moved sibling
+   * is asked exactly once, not twice. */
+  readonly retreatCalls: string[] = [];
 
-  async chooseRetreat(_state: GameState, _unit: Unit, options: HexCoord[]): Promise<HexCoord> {
+  async chooseRetreat(_state: GameState, unit: Unit, options: HexCoord[]): Promise<HexCoord> {
+    this.retreatCalls.push(unit.id);
     return options[0]!;
   }
 
@@ -230,6 +236,34 @@ describe('resolveUnitRetreat', () => {
     // that point) as an extra "candidate" alongside c.
     expect(agent.pushOffers).toEqual([[b.id], [c.id], [d.id]]);
     for (const u of chain) expect(u.destroyed).toBe(false);
+  });
+});
+
+describe('processRetreats', () => {
+  // MEDIUM finding from adversarial review (M11): a single AR/DR result can
+  // queue several units from the same side independently (`pendingRetreats`
+  // has more than one entry) — if resolving the first one's push cascade
+  // moves a SIBLING that's also separately queued, the batch loop must not
+  // then reach that sibling's own queue entry and ask the player to retreat
+  // it a second time for the very same combat result.
+  it('does not double-process a sibling a push cascade already moved', async () => {
+    const { chain, state } = buildRetreatChain(2);
+    const [a, b] = chain as [Unit, Unit];
+    const bOriginalPosition = { ...b.position };
+    const agent = new ScriptedFirstChoiceAgent();
+
+    // Both `a` and `b` are queued, exactly as `applyLandCombatResult` would
+    // queue every attacker on an 'AR' result affecting a multi-unit group —
+    // `a` is boxed in (only escape: pushing `b`), `b` has real room of its
+    // own (see `buildRetreatChain`'s geometry).
+    await processRetreats(state, [a, b], 'attacker', [], agent);
+
+    // `b` is asked to retreat exactly ONCE — as part of `a`'s push cascade —
+    // never again when the batch loop reaches `b`'s own queue entry.
+    expect(agent.retreatCalls).toEqual([b.id]);
+    expect(agent.pushOffers).toEqual([[b.id]]);
+    expect(a.position).toEqual(bOriginalPosition); // a takes over b's original hex
+    expect(b.position).not.toEqual(bOriginalPosition); // b actually moved, exactly once
   });
 });
 
