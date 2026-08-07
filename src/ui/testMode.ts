@@ -2,7 +2,7 @@ import { session } from './session';
 import { deploymentBand, seaZoneNear } from './mapBounds';
 import { createInitialState } from '../engine/turnManager';
 import { emptySelection } from '../engine/army';
-import type { Unit, Player, PlayerId } from '../engine/state';
+import { maxEquipmentPointsForType, type Unit, type Player, type PlayerId } from '../engine/state';
 import { UNIT_TYPES, getUnitType } from '../data/units';
 import type { HexCoord } from '../data/map';
 
@@ -20,7 +20,7 @@ function makeUnit(owner: PlayerId, typeId: string, position: HexCoord, facing = 
     position,
     movementLeft: t.movement,
     facing,
-    equipmentPoints: t.domain === 'naval' ? Math.ceil(t.defense / 5) : undefined,
+    equipmentPoints: t.domain === 'naval' ? maxEquipmentPointsForType(t) : undefined,
     defendedThisPhase: false,
     charged: false,
     destroyed: false,

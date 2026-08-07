@@ -1,5 +1,5 @@
 import type { HexCoord } from '../data/map';
-import type { BoardingResult } from '../data/navalBoarding';
+import { boardingRatioToColumnIndex, type BoardingResult } from '../data/navalBoarding';
 import { isRammingHitWithBonus, type ShipTypeId } from '../data/navalRamming';
 import { rollDie } from './dice';
 import { hexKey } from './hex';
@@ -115,6 +115,17 @@ export interface BoardResult {
   defender: Unit;
   dieRoll: number;
   result: BoardingResult;
+  /** Attack/defense force that actually entered the combat — read BEFORE
+   * `applyBoardingResult` below applies any equipment loss, same moment
+   * `resolveNavalBoarding` itself used them. */
+  attackForce: number;
+  defenseForce: number;
+  /** `BOARDING_RATIO_COLUMNS` index `resolveNavalBoarding` resolved
+   * `attackForce`/`defenseForce` to. Computed here rather than left for a
+   * caller to re-derive from the forces above — see plan.md §11.5's
+   * engine/presentation boundary: a resolution input like this belongs
+   * next to the resolution itself, not recomputed in `BoardScene`. */
+  columnIndex: number;
 }
 
 export interface EndPhaseResult {
@@ -309,10 +320,13 @@ export function applyAction(
     case 'board': {
       const attacker = requireLivingUnit(state, action.attackerId);
       const defender = requireLivingUnit(state, action.defenderId);
+      const attackForce = currentAttack(attacker);
+      const defenseForce = currentDefense(defender);
+      const columnIndex = boardingRatioToColumnIndex(attackForce, defenseForce);
       const dieRoll = rollDie(rng);
-      const result = resolveNavalBoarding(currentAttack(attacker), currentDefense(defender), dieRoll);
+      const result = resolveNavalBoarding(attackForce, defenseForce, dieRoll);
       applyBoardingResult(attacker, defender, result);
-      return { kind: 'board', attacker, defender, dieRoll, result };
+      return { kind: 'board', attacker, defender, dieRoll, result, attackForce, defenseForce, columnIndex };
     }
   }
 }

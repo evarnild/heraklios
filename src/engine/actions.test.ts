@@ -3,7 +3,7 @@ import { legalActions, applyAction, type Action } from './actions';
 import { reachableHexes } from './movement';
 import { createInitialState } from './turnManager';
 import { DIRECTIONS } from './hex';
-import type { GameState, Player, Unit } from './state';
+import { currentAttack, type GameState, type Player, type Unit } from './state';
 
 // (10,3) through (19,3) are all confirmed 'plain' hexes on the shipped map
 // (see engine/movement.test.ts's comment, which relies on the same row).
@@ -321,6 +321,60 @@ describe('applyAction — board', () => {
     expect(result.result.side).toBe('defender');
     expect(defender.equipmentPoints).toBe(0); // full equipment (defense 10 -> ceil(10/5)=2) minus 2 lost
     expect(defender.destroyed).toBe(true);
+  });
+
+  it('reports the pre-mutation attack/defense force and the resolved BOARDING_RATIO_COLUMNS index', () => {
+    // galères (attack 10) vs birèmes (defense 15): 10:15 rounds down to a 1:2 ratio -> column index 1.
+    const attacker = makeUnit({ id: 'a', typeId: 'galeres', position: { q: 0, r: 0 }, facing: 0, owner: 0 });
+    const defender = makeUnit({ id: 'd', typeId: 'biremes', position: { q: 1, r: 0 }, facing: 0, owner: 1 });
+    const state = makeState([attacker, defender], 'combat');
+    const result = applyAction(state, { kind: 'board', attackerId: 'a', defenderId: 'd' }, fixedRng(0));
+    if (result.kind !== 'board') throw new Error('unreachable');
+    expect(result.attackForce).toBe(10);
+    expect(result.defenseForce).toBe(15);
+    expect(result.columnIndex).toBe(1); // BOARDING_RATIO_COLUMNS[1] === '1-2'
+  });
+
+  it('reports the force BEFORE this same boarding\'s equipment loss, not after', () => {
+    // trirèmes (attack 20) vs galères (defense 10): 20:10 = 2:1 -> column index 3, die 1 -> defender loses 2 equipment.
+    const attacker = makeUnit({ id: 'a', typeId: 'triremes', position: { q: 0, r: 0 }, facing: 0, owner: 0 });
+    const defender = makeUnit({ id: 'd', typeId: 'galeres', position: { q: 1, r: 0 }, facing: 0, owner: 1 });
+    const state = makeState([attacker, defender], 'combat');
+    const result = applyAction(state, { kind: 'board', attackerId: 'a', defenderId: 'd' }, fixedRng(0));
+    if (result.kind !== 'board') throw new Error('unreachable');
+    expect(result.result.side).toBe('defender');
+    expect(defender.equipmentPoints).toBe(0); // fully stripped, so currentDefense(defender) is now 0
+    expect(result.defenseForce).toBe(10); // NOT 0 — the force that actually entered the combat
+    expect(result.columnIndex).toBe(3); // BOARDING_RATIO_COLUMNS[3] === '2-1'
+  });
+
+  it('reports the ATTACKER\'s force before its own equipment loss, when the attacker is the losing side', () => {
+    // galères (attack 10) vs quintirèmes (defense 25): 10:25 = 1:3 -> column index 0.
+    // Die 4 at column 0 is r('attacker', 1) (see navalBoarding.ts's BOARDING_TABLE row 4).
+    // `equipmentPoints` set explicitly to full (2 = ceil(10/5)), matching every
+    // real unit-creation site — left `undefined` (as `makeUnit`'s default
+    // would), `applyBoardingResult` treats a naval unit's undefined
+    // equipment as literally 0 rather than "full" once it's the one losing
+    // a point, which would clamp to 0 either way and hide the mutation this
+    // test exists to catch.
+    const attacker = makeUnit({
+      id: 'a',
+      typeId: 'galeres',
+      position: { q: 0, r: 0 },
+      facing: 0,
+      owner: 0,
+      equipmentPoints: 2,
+    });
+    const defender = makeUnit({ id: 'd', typeId: 'quintiremes', position: { q: 1, r: 0 }, facing: 0, owner: 1 });
+    const state = makeState([attacker, defender], 'combat');
+    const result = applyAction(state, { kind: 'board', attackerId: 'a', defenderId: 'd' }, fixedRng(0.55)); // die 4
+    if (result.kind !== 'board') throw new Error('unreachable');
+    expect(result.dieRoll).toBe(4);
+    expect(result.result.side).toBe('attacker');
+    expect(attacker.equipmentPoints).toBe(1); // full equipment (ceil(10/5)=2) minus 1 lost
+    expect(result.attackForce).toBe(10); // NOT the post-loss currentAttack(attacker), which is now 5
+    expect(currentAttack(attacker)).toBe(5); // confirms the force actually did change, so this is a real assertion
+    expect(result.columnIndex).toBe(0); // BOARDING_RATIO_COLUMNS[0] === '1-3'
   });
 });
 

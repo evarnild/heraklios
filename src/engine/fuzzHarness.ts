@@ -17,7 +17,15 @@ import {
   unitAt,
 } from './combat';
 import { resetMovementForActivePlayer, createInitialState, endGameByTimeLimit } from './turnManager';
-import { unitCategory, unitType, type GameState, type Player, type PlayerId, type Unit } from './state';
+import {
+  unitCategory,
+  unitType,
+  maxEquipmentPointsForType,
+  type GameState,
+  type Player,
+  type PlayerId,
+  type Unit,
+} from './state';
 
 // ---------------------------------------------------------------------------
 // Army construction — deliberately explicit, NOT `defaultArmySelection()`
@@ -57,7 +65,7 @@ function makeUnit(id: string, owner: PlayerId, typeId: string, position: HexCoor
     position,
     movementLeft: 0, // refilled by resetMovementForActivePlayer before that player's first movement phase
     facing,
-    equipmentPoints: t.domain === 'naval' ? Math.ceil(t.defense / 5) : undefined,
+    equipmentPoints: t.domain === 'naval' ? maxEquipmentPointsForType(t) : undefined,
     defendedThisPhase: false,
     charged: false,
     destroyed: false,
