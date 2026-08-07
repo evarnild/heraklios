@@ -1159,3 +1159,120 @@ Three things to get right:
   queue in [§10](#10-sequenced-queue).
 - Little to unit-test by the repo's convention (it is scene/UI code); keep
   any coordinate-formatting helper pure if one is needed.
+
+---
+
+## 14. Decomposing `BoardScene.ts` for parallel work
+
+**Status:** proposed, not started. Prompted by the user asking whether the
+code can be refactored so tasks stop serializing on one file.
+
+### 14.1 First, a correction: the constraint is partly self-imposed
+
+`BoardScene.ts` is 2040 lines and most queued work touches it, so
+[§10](#10-sequenced-queue) has been marking items "not parallel-safe". **The
+evidence does not support that being a hard blocker.** Every merge in this
+project so far has auto-merged with **zero conflicts** — including
+`30c23e7` (+162 lines to `BoardScene`) and `12e1bf6` (+142 lines to
+`BoardScene`), which landed in different regions of the same file.
+
+Git merges disjoint hunks fine. The risks that *are* real:
+
+1. **Semantic conflict** — two agents independently changing logic that
+   interacts, each correct alone. Textual merge succeeds and the result is
+   wrong. This is the one that matters and no amount of file-splitting fully
+   removes it.
+2. **Review confusion** — a reviewer diffing against a `main` that moved
+   under it (this happened; see §4's concurrent-reviewer warning).
+3. **Line-number drift** — briefs and review findings cite `BoardScene.ts:1385`
+   and similar; those rot fast when another branch inserts above them.
+
+**Cheapest immediate win, available today:** assign *region ownership* rather
+than file ownership. Give each agent an explicit line range plus the method
+names it owns, and forbid edits elsewhere in the file. That is already how
+[§11](#11-combat-reporting-detail) and [§8](#8-bug-units-cannot-move-through-friendly-units)
+ran successfully in parallel.
+
+### 14.2 The structural fix: extract the interaction cascades
+
+The file has clean seams, and — usefully — **every currently queued item lives
+in a different one**:
+
+| Region | Lines | Queued work living there |
+| --- | --- | --- |
+| Scene shell, `create()` | 200-475 | — |
+| Save/load, undo/redo, dice | 475-770 | — |
+| HUD + logging | 440-800 | — |
+| Movement input | 797-875 | [§13](#13-hex-coordinate-tooltip) tooltip |
+| Naval movement + ram UI | 875-1071 | — |
+| Combat group building | 1078-1204 | — |
+| **Retreat/push cascade** | 1204-1392 | [§12](#12-cascading-push-when-a-unit-cannot-retreat) |
+| **Elephant drift cascade** | 1392-1542 | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2b |
+| **Advance offers** | 1542-1662 | [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) |
+| Combat resolution + log | 1662-1893 | — |
+| Naval attack prompt | 1893-2002 | — |
+
+The three bolded regions are the ones that keep colliding, and they share a
+shape: **a prompt, a player decision, and a continuation** — the machinery
+that already implements `PlayerAgent`. Extracting those three into their own
+modules would let §12, §6.7 and §9.1 run genuinely concurrently.
+
+Proposed shape — each takes a narrow context rather than the whole scene:
+
+```ts
+// ui/boardContext.ts — the only surface a cascade controller may touch
+interface BoardContext {
+  state(): GameState;
+  mapView: MapView;
+  log(msg: string): void;
+  appendLine(msg: string): void;
+  renderAllUnits(): void;
+  rollDie(): number;
+  recordAction(label: string): void;
+  setDecisionPending(pending: boolean): void;
+}
+```
+
+- `ui/retreatCascade.ts` — retreat/push, owns `retreatChoice` and the queue
+- `ui/driftCascade.ts` — elephant drift/trample
+- `ui/advanceOffers.ts` — post-combat advance
+
+`BoardScene` keeps input routing, rendering and lifecycle, and delegates.
+A narrow `BoardContext` is the point: it makes each controller's dependencies
+explicit and reviewable, where today any method can reach any field.
+
+### 14.3 Sequencing, and the honest risk
+
+**Do NOT do this as one big-bang refactor.** `BoardScene` is the repo's
+least-tested file by convention, and the last comparable refactor — Stage 1
+([§6.6](#66-stage-1-outcome)) — needed two review rounds and shipped two HIGH
+defects that a green suite did not catch. The fuzz harness is *not* a safety
+net here: it mirrors the scene's sequencing independently and would not see a
+scene-side regression.
+
+Better order:
+
+1. **Land the queue first.** §12, §9.1 and §13 are all small and already
+   specified; extracting underneath them mid-flight invites exactly the
+   semantic conflicts §14.1 warns about.
+2. **Extract one cascade, alone, behavior-preserving**, and verify by hand in
+   the running game (the `run` path used to verify [§7](#7-start-a-new-game-at-any-time)).
+   The advance-offer region is the smallest and has the fewest interactions —
+   start there, not with drift.
+3. **Then Stage 2b** ([§6.7](#67-the-elephant-problem-stage-2-split)), which
+   already requires touching drift, and do the extraction as part of it rather
+   than as a separate pass. That converts a refactor with no test coverage
+   into one the fuzz harness *can* cover, because Stage 2b's whole purpose is
+   making the cascade headlessly drivable.
+
+### 14.4 The deeper point
+
+Some of this file is large because orchestration that belongs in the engine
+still lives in the scene — the drift cascade and post-combat advance
+bookkeeping both still mutate `GameState` inline
+([§6.6](#66-stage-1-outcome)'s carried-forward gap). **Every line moved into
+`src/engine/` is both a line out of `BoardScene` and a line the fuzz harness
+starts covering.** Splitting the scene into more scene files buys
+parallelism; moving logic into the engine buys parallelism *and* test
+coverage. Prefer the latter wherever a piece is genuinely rules logic rather
+than presentation.
