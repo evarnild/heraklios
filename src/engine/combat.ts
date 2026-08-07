@@ -35,10 +35,7 @@ export function terrainAt(hex: HexCoord): TerrainType {
  * That offer itself is applied by the CALLER (`BoardScene`'s
  * `promptAdvanceChoice`, mirrored headlessly in `engine/fuzzHarness.ts`),
  * not by any function in this file, so this predicate is exported for both
- * to filter candidates through before ever asking `chooseAdvance` — see
- * `fuzzHarness.ts`'s own doc comment on where this fix was actually wired
- * in, since it is NOT retrofitted into `BoardScene` here (out of this
- * change's scope; see plan.md §6 boundaries).
+ * to filter candidates through before ever asking `chooseAdvance`.
  */
 export function canUnitEnterHex(unit: Unit, hex: HexCoord): boolean {
   const terrain = MAP_TERRAIN.get(mapHexKey(hex.q, hex.r));
@@ -60,10 +57,9 @@ export function canUnitEnterHex(unit: Unit, hex: HexCoord): boolean {
  * earlier version of that function only filtered by `!u.destroyed`, with no
  * terrain check, silently offering a cavalry/chariot attacker a marsh or
  * steep-flank hex it could never otherwise stand on). `BoardScene.ts`'s
- * `promptAdvanceChoice` has the IDENTICAL gap today (confirmed live, not
- * fixed here — out of this task's scope, which excludes `src/scenes/`) and
- * should call this same function once that's addressed, rather than getting
- * its own separate, divergent terrain check.
+ * `promptAdvanceChoice` had the IDENTICAL gap until plan.md §9.1; it now
+ * calls this same function rather than carrying a separate, divergent
+ * terrain check.
  */
 export function eligibleAdvanceCandidates(candidates: readonly Unit[], vacatedHex: HexCoord): Unit[] {
   return candidates.filter((u) => !u.destroyed && canUnitEnterHex(u, vacatedHex));

@@ -9,9 +9,9 @@
 action layer), AI Stage 2a (fuzz harness), start-a-new-game-anytime, move
 through friendly units, combat reporting detail, and cascading push
 ([§12](#12-cascading-push-when-a-unit-cannot-retreat), merged `3c766d6`).
-**In flight:** nothing — [§10](#10-sequenced-queue)'s queue is next.
-**Live defects still open:**
-[§9.1](#91-post-combat-advance-ignores-terrain-restrictions) and
+**In flight:** [§9.1](#91-post-combat-advance-ignores-terrain-restrictions)
+advance terrain on `feat/advance-terrain` @ `4f639d1`, review PASSed and
+ready to merge. **Live defects still open:**
 [§9.2](#92-endgamebytimelimit-is-never-called).
 
 > **Line citations were re-verified against `main` on 2026-08-07** (at
@@ -725,9 +725,9 @@ run:
   9043 actions. Treat naval invariants as effectively unfuzzed.
 - **Anything scene-side.** The harness mirrors `BoardScene`'s sequencing
   *independently*; it cannot see a scene-only regression. This is exactly how
-  [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) survives — the
-  harness enforces advance terrain via `eligibleAdvanceCandidates` while the
-  scene does not.
+  [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) survived on
+  `main` before `feat/advance-terrain`: the harness enforced advance terrain
+  via `eligibleAdvanceCandidates` while the scene did not.
 - **Every game ends the same way** (turn limit at turn 8, 0 mutual
   eliminations), so elimination endings and long games are untested paths.
 
@@ -880,12 +880,16 @@ harness than a synthetic one.
 
 ---
 
-## 9. Live defects found by Stage 2a (not yet fixed)
+## 9. Live defects found by Stage 2a
 
-Both confirmed by adversarial review against the shipped code. Neither is
-fixed on any branch; both affect hotseat play today.
+Both confirmed by adversarial review against the shipped code. §9.1 is fixed
+on `feat/advance-terrain` @ `4f639d1`, review PASSed, and is ready to merge.
+§9.2 still affects hotseat play today.
 
 ### 9.1 Post-combat advance ignores terrain restrictions
+
+**Status:** on `feat/advance-terrain` @ `4f639d1`, review PASSed, not yet
+merged. `npm run build` clean; `npm test` clean (288 passed, 1 skipped).
 
 `src/scenes/BoardScene.ts:1569`, in `promptAdvanceChoice`:
 
@@ -968,23 +972,24 @@ sync when something merges** — it went stale once and the user caught it.
 
 ### In flight
 
-*Nothing.* Next up is #1 below.
+| Item | Touches | State |
+| --- | --- | --- |
+| [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) advance terrain | `scenes/BoardScene.ts`, comments in `engine/combat.ts` / `engine/fuzzHarness.ts` | Branch `feat/advance-terrain` @ `4f639d1`. Review PASSed; `npm run build` clean; `npm test` clean (288 passed, 1 skipped). **Ready to merge.** |
 
 ### Queued
 
 | # | Item | Touches | Notes |
 | --- | --- | --- | --- |
 | 0 | [§12](#12-cascading-push-when-a-unit-cannot-retreat) follow-ups | `engine/fuzzHarness*.ts`, `BoardScene.ts` | The three non-blocking findings that shipped with `3c766d6`: the untested `chainVisited` cycle guard (+ two comments wrongly claiming coverage), the stale "surrounded by friendly units" string, the thin `pushesResolved` canary. Small; fold into whatever touches those files next. |
-| 1 | [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) advance terrain | `scenes/BoardScene.ts` | **Live bug.** One-line fix at `:1569` — swap the filter for `eligibleAdvanceCandidates`, which already exists, is tested, and is what `fuzzHarness` uses (so scene and harness currently enforce *different* rules). **Not** parallel-safe with §13. |
-| 2 | [§13](#13-hex-coordinate-tooltip) hex coordinate tooltip | `ui/MapView.ts`, `BoardScene.ts` | Presentation only. **Not** parallel-safe with #1. |
-| 3 | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2b drift extraction | `BoardScene.ts` drift cascade, `engine/` | Unblocks fuzzing elephants. **Not** parallel with anything else in `BoardScene`. |
-| 4 | [§9.2](#92-endgamebytimelimit-is-never-called) turn-limit ending | design + scenes | **Live gap.** Needs a design decision first (what sets the limit, how the player is told). |
-| 5 | [§6.4](#64-deferred-stages-3-4) Stage 3 — `HeuristicAgent` | `engine/` | Gated on 2b if elephants are to be handled. |
-| 6 | [§6.4](#64-deferred-stages-3-4) Stage 4 — AI seat UI + save format | scenes, `saveGame.ts` | `SAVE_VERSION` bump. |
+| 1 | [§13](#13-hex-coordinate-tooltip) hex coordinate tooltip | `ui/MapView.ts`, `BoardScene.ts` | Presentation only. **Not** parallel-safe with §9.1 until `feat/advance-terrain` merges. |
+| 2 | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2b drift extraction | `BoardScene.ts` drift cascade, `engine/` | Unblocks fuzzing elephants. **Not** parallel with anything else in `BoardScene`. |
+| 3 | [§9.2](#92-endgamebytimelimit-is-never-called) turn-limit ending | design + scenes | **Live gap.** Needs a design decision first (what sets the limit, how the player is told). |
+| 4 | [§6.4](#64-deferred-stages-3-4) Stage 3 — `HeuristicAgent` | `engine/` | Gated on 2b if elephants are to be handled. |
+| 5 | [§6.4](#64-deferred-stages-3-4) Stage 4 — AI seat UI + save format | scenes, `saveGame.ts` | `SAVE_VERSION` bump. |
 
 **Standing hazard:** almost everything queued touches `BoardScene.ts`, so
-these mostly cannot run in parallel with each other. §9.1 and §13 are both
-small — consider doing them together in one branch rather than serially.
+these mostly cannot run in parallel with each other. Do not start §13 until
+`feat/advance-terrain` merges.
 
 ---
 

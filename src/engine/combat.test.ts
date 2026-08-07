@@ -81,9 +81,9 @@ describe('eligibleAdvanceCandidates', () => {
   // harness's own advance-offer plumbing filtered by `!destroyed` alone,
   // with no terrain check — since that filter existed only in the harness
   // (not as a shared, tested engine function), it silently prevented the
-  // harness's OWN terrain invariant from ever seeing the identical bug that
-  // is confirmed live in `BoardScene.ts`'s `promptAdvanceChoice`. Extracted
-  // here so both callers share one tested implementation.
+  // harness's OWN terrain invariant from ever seeing the same bug in
+  // `BoardScene.ts`'s `promptAdvanceChoice`. Extracted here so both callers
+  // share one tested implementation.
   it('excludes a destroyed candidate', () => {
     const alive = makeUnit({ id: 'a', typeId: 'fantassins', position: { q: 0, r: 0 } });
     const dead = makeUnit({ id: 'd', typeId: 'fantassins', position: { q: 1, r: 0 }, destroyed: true });

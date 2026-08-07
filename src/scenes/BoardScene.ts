@@ -31,6 +31,7 @@ import {
   attackerCanJoin,
   defenderCanJoin,
   cavalryMayAttack,
+  eligibleAdvanceCandidates,
   unitAt,
   type LandAttackDetail,
   type LandCombatOutcome,
@@ -1638,7 +1639,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       onDone();
       return;
     }
-    const candidates = this.advanceEligibleAttackers.filter((u) => !u.destroyed);
+    const candidates = eligibleAdvanceCandidates(this.advanceEligibleAttackers, vacatedHex);
     if (candidates.length === 0) {
       onDone();
       return;
