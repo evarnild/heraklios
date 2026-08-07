@@ -465,23 +465,20 @@ export function legalRetreatHexes(state: GameState, unit: Unit): HexCoord[] {
  *
  * THE CASCADE (plan.md §12.3) — a friendly neighbor that itself has no
  * direct retreat may still make room by pushing one of ITS OWN friendly
- * neighbors in turn, and so on. This makes the predicate mutually recursive
- * with itself: a candidate `f` qualifies if it has a direct legal retreat
- * (`legalRetreatHexes`), OR if `pushCandidates(state, f, ...)` is itself
- * non-empty. `visited` carries every unit already committed to the current
- * chain (ancestors, NOT including `unit` itself — this function adds `unit`
- * before recursing) so a cycle (A pushes B, B pushes C, C's only route is
- * back to A, who hasn't moved yet) can't loop forever: a unit already in the
- * chain is never offered as a candidate again, so each recursive call's
- * candidate set strictly shrinks and the recursion is bounded by the number
- * of units on the board — it always terminates (see combat.test.ts's cycle
- * test, which proves this on a real 3-unit cycle, not just by inspection).
- * Callers resolving an ACTUAL cascade (not just checking whether one
- * exists) must thread the SAME growing `visited` set through their own
- * recursion (see `completePush`'s doc comment, and `BoardScene.
- * beginUnitRetreatChoice` / `fuzzHarness.resolveUnitRetreat`), otherwise a
- * unit still mid-chain (not yet moved) could be independently re-offered as
- * if it were an ordinary bystander.
+ * neighbors in turn, and so on. So a candidate `f` qualifies if it has a
+ * direct legal retreat (`legalRetreatHexes`), OR if IT can reach (through a
+ * chain of further friendly pushes) some other unit that does. `visited`
+ * carries every unit already committed to the current chain (ancestors, NOT
+ * including `unit` itself — this function adds `unit` before computing)
+ * because a cycle (A pushes B, B pushes C, C's only route is back to A, who
+ * hasn't moved yet) must not be offered as an exit: a unit already in the
+ * chain is excluded from the whole computation below, not just from being
+ * re-offered as an immediate candidate. Callers resolving an ACTUAL cascade
+ * (not just checking whether one exists) must thread the SAME growing
+ * `visited` set through their own recursion (see `completePush`'s doc
+ * comment, and `BoardScene.beginUnitRetreatChoice` / `fuzzHarness.
+ * resolveUnitRetreat`), otherwise a unit still mid-chain (not yet moved)
+ * could be independently re-offered as if it were an ordinary bystander.
  *
  * Only neighbors that themselves have somewhere to go (directly or via
  * cascade) AND whose hex `unit` itself could actually enter are offered:
@@ -495,29 +492,82 @@ export function legalRetreatHexes(state: GameState, unit: Unit): HexCoord[] {
  * category — could otherwise be pushed onto terrain `legalRetreatHexes`
  * would never offer it directly). This terrain check applies at EVERY link
  * of the chain, not just the first: each pusher must be able to occupy the
- * hex it's about to inherit, checked fresh at whichever level of the
- * recursion is doing the pushing.
+ * hex it's about to inherit, checked against whichever unit is doing the
+ * pushing at that link — see the fixpoint's terrain check below, applied
+ * per-edge rather than just at the top level.
+ *
+ * PERFORMANCE — this used to be a plain recursive DFS re-deriving each
+ * candidate's viability by enumerating simple paths through the friendly-
+ * unit graph, with no memoization. That's exponential in the size of a
+ * densely packed formation (a single query against a ~20-unit encircled
+ * pocket measured minutes of wall-clock time, on the browser's main
+ * thread), which is exactly the scenario this feature exists to serve — a
+ * unit surrounded by its own side. Since the DFS's cycle guard only ever
+ * excludes the FIXED set `visited ∪ {unit}` (identically at every level, not
+ * a per-branch-growing set — a candidate's own recursive exploration adds to
+ * that set only along its own path, never affecting sibling candidates), "a
+ * simple path to some direct-retreat unit exists, avoiding `visited ∪
+ * {unit}`" is exactly equivalent to plain graph reachability in the
+ * friendly-unit graph with `visited ∪ {unit}` removed (any walk that reaches
+ * a target can be reduced to a simple path reaching the same target by
+ * cutting out its cycles, without ever touching an excluded vertex — a
+ * standard fact, not particular to this graph). That reachability is
+ * computable by a single fixpoint below in O(units × 6) work total, in place
+ * of the DFS's unbounded path enumeration — a genuine algorithmic
+ * replacement, not a cache bolted onto the same exponential search.
  */
 export function pushCandidates(state: GameState, unit: Unit, visited: ReadonlySet<string> = new Set()): Unit[] {
-  const neighbors = DIRECTIONS.map((d) => hexAdd(unit.position, d));
-  const category = unitCategory(unit.typeId);
-  const friendlyOccupants: Unit[] = [];
-  for (const hex of neighbors) {
-    if (!MAP_TERRAIN.has(mapHexKey(hex.q, hex.r))) continue; // off-map: simply not a candidate, no longer voids the rest
-    const occupant = unitAt(state, hex);
-    if (occupant && occupant.owner === unit.owner) friendlyOccupants.push(occupant);
-    // else: empty (possibly ZOC/terrain-unusable) or enemy-occupied — not a
-    // candidate either, but (the widened reading) doesn't disqualify the
-    // OTHER neighbors the way the old strict "entourée" check did.
+  const excluded = new Set(visited);
+  excluded.add(unit.id);
+
+  // Every OTHER friendly unit still eligible to be part of this chain.
+  const pool = state.units.filter((u) => !u.destroyed && u.owner === unit.owner && !excluded.has(u.id));
+
+  // Fixpoint: start from units with a direct legal retreat, then repeatedly
+  // absorb any pool unit adjacent to an already-"can make room" friendly
+  // whose hex it could itself enter — exactly the recursive filter's own
+  // termination condition, computed as a flood-fill instead of a per-call
+  // DFS.
+  const canMakeRoom = new Set<string>(pool.filter((u) => legalRetreatHexes(state, u).length > 0).map((u) => u.id));
+  for (let changed = true; changed; ) {
+    changed = false;
+    for (const u of pool) {
+      if (canMakeRoom.has(u.id)) continue;
+      const uCategory = unitCategory(u.typeId);
+      for (const d of DIRECTIONS) {
+        const neighbor = unitAt(state, hexAdd(u.position, d));
+        if (
+          neighbor &&
+          neighbor.owner === u.owner &&
+          !excluded.has(neighbor.id) &&
+          canMakeRoom.has(neighbor.id) &&
+          canEnterTerrain(terrainAt(neighbor.position), uCategory)
+        ) {
+          canMakeRoom.add(u.id);
+          changed = true;
+          break;
+        }
+      }
+    }
   }
-  const chainVisited = new Set(visited);
-  chainVisited.add(unit.id);
-  return friendlyOccupants.filter((f) => {
-    if (chainVisited.has(f.id)) return false; // already committed to this chain — see cycle note above
-    if (!canEnterTerrain(terrainAt(f.position), category)) return false;
-    if (legalRetreatHexes(state, f).length > 0) return true;
-    return pushCandidates(state, f, chainVisited).length > 0;
-  });
+
+  // `unit`'s own direct neighbors, filtered down to the friendly ones that
+  // both qualify (per the fixpoint above) and whose hex `unit` itself could
+  // enter. An off-map neighbor never has a unit on it in a valid game state
+  // (see `assertInvariants` in engine/fuzzHarness.ts), so `unitAt` returning
+  // `undefined` there already excludes it without a separate map-bounds
+  // check — the same widened reading as before: a neighbor that isn't
+  // friendly-occupied (off-map, enemy-occupied, or empty) is simply not a
+  // candidate, but no longer voids every OTHER neighbor's candidacy.
+  const category = unitCategory(unit.typeId);
+  const candidates: Unit[] = [];
+  for (const d of DIRECTIONS) {
+    const f = unitAt(state, hexAdd(unit.position, d));
+    if (!f || f.owner !== unit.owner || excluded.has(f.id)) continue;
+    if (!canEnterTerrain(terrainAt(f.position), category)) continue;
+    if (canMakeRoom.has(f.id)) candidates.push(f);
+  }
+  return candidates;
 }
 
 /** Moves a retreating unit to a player-chosen hex from `legalRetreatHexes`. */
