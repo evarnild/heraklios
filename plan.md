@@ -7,9 +7,10 @@
 
 **Shipped:** Feature A (cavalry charges + phalanx), AI Stage 1 (headless
 action layer), AI Stage 2a (fuzz harness), start-a-new-game-anytime, move
-through friendly units, and combat reporting detail. **In flight:** cascading
-push ([§12](#12-cascading-push-when-a-unit-cannot-retreat)) — second review
-**PASSed**, ready to merge. **Live defects still open:**
+through friendly units, combat reporting detail, and cascading push
+([§12](#12-cascading-push-when-a-unit-cannot-retreat), merged `3c766d6`).
+**In flight:** nothing — [§10](#10-sequenced-queue)'s queue is next.
+**Live defects still open:**
 [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) and
 [§9.2](#92-endgamebytimelimit-is-never-called).
 
@@ -963,19 +964,19 @@ sync when something merges** — it went stale once and the user caught it.
 | [§6.3](#63-committed-scope-stages-12) Stage 2a — fuzz harness (+2 engine bugs it found) | `469f84a` |
 | [§8](#8-bug-units-cannot-move-through-friendly-units) move through friendly units | `e87c55c` |
 | [§11](#11-combat-reporting-detail) combat reporting detail | `12e1bf6` |
+| [§12](#12-cascading-push-when-a-unit-cannot-retreat) cascading push | `3c766d6` |
 
 ### In flight
 
-| Item | Touches | State |
-| --- | --- | --- |
-| [§12](#12-cascading-push-when-a-unit-cannot-retreat) cascading push | `engine/combat.ts`, `BoardScene.ts`, `fuzzHarness.ts` | Branch `feat/cascading-push` @ `cd7b8fc`. First review FAILed (exponential hang + missing tests); fix round done; **second review PASSed 2026-08-07** — tsc clean, 288 tests, trace-hash identical to base across 100 seeds. **Ready to merge**, with three non-blocking findings in §12. |
+*Nothing.* Next up is #1 below.
 
 ### Queued
 
 | # | Item | Touches | Notes |
 | --- | --- | --- | --- |
-| 1 | [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) advance terrain | `scenes/BoardScene.ts` | **Live bug.** One-line fix at `:1569` — swap the filter for `eligibleAdvanceCandidates`, which already exists, is tested, and is what `fuzzHarness` uses (so scene and harness currently enforce *different* rules). **Not** parallel-safe with §12 or §13. |
-| 2 | [§13](#13-hex-coordinate-tooltip) hex coordinate tooltip | `ui/MapView.ts`, `BoardScene.ts` | Presentation only. **Not** parallel-safe with §12 or #1. |
+| 0 | [§12](#12-cascading-push-when-a-unit-cannot-retreat) follow-ups | `engine/fuzzHarness*.ts`, `BoardScene.ts` | The three non-blocking findings that shipped with `3c766d6`: the untested `chainVisited` cycle guard (+ two comments wrongly claiming coverage), the stale "surrounded by friendly units" string, the thin `pushesResolved` canary. Small; fold into whatever touches those files next. |
+| 1 | [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) advance terrain | `scenes/BoardScene.ts` | **Live bug.** One-line fix at `:1569` — swap the filter for `eligibleAdvanceCandidates`, which already exists, is tested, and is what `fuzzHarness` uses (so scene and harness currently enforce *different* rules). **Not** parallel-safe with §13. |
+| 2 | [§13](#13-hex-coordinate-tooltip) hex coordinate tooltip | `ui/MapView.ts`, `BoardScene.ts` | Presentation only. **Not** parallel-safe with #1. |
 | 3 | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2b drift extraction | `BoardScene.ts` drift cascade, `engine/` | Unblocks fuzzing elephants. **Not** parallel with anything else in `BoardScene`. |
 | 4 | [§9.2](#92-endgamebytimelimit-is-never-called) turn-limit ending | design + scenes | **Live gap.** Needs a design decision first (what sets the limit, how the player is told). |
 | 5 | [§6.4](#64-deferred-stages-3-4) Stage 3 — `HeuristicAgent` | `engine/` | Gated on 2b if elephants are to be handled. |
@@ -1106,8 +1107,8 @@ returning ad-hoc shapes, so the fuzz harness can assert on the same fields.
 
 ## 12. Cascading push when a unit cannot retreat
 
-**Status:** on `feat/cascading-push` @ `cd7b8fc`, **second review PASSed, not
-yet merged**. Reported by the user from real play: *"the unit died without
+**Status: ✅ Shipped** — merged to `main` as `3c766d6`, tsc clean and 288
+tests green post-merge. Reported by the user from real play: *"the unit died without
 being asked to push."*
 
 **First review: FAIL.** The implementation was correct but (a) `pushCandidates`
@@ -1134,7 +1135,8 @@ reviewer also tried to prove the strict *entourée* reading vacuous and
 ringed by friendlies after an `AR`, so §12.2's "nearly unreachable" is
 accurate rather than overstated.
 
-Three non-blocking findings, to fix before or just after merge:
+Three non-blocking findings, **merged as-is and still open** — queued as #0
+in [§10](#10-sequenced-queue):
 
 1. **MEDIUM — the `chainVisited` cycle guard is untested, and two comments
    claim it is.** In `buildRetreatChain`'s straight-line test geometry the
