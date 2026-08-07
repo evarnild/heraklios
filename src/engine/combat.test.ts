@@ -24,7 +24,7 @@ import {
   unionValidTargets,
   validTargets,
 } from './combat';
-import { DIRECTIONS, hexAdd } from './hex';
+import { DIRECTIONS, hexAdd, hexDistance } from './hex';
 import { createInitialState } from './turnManager';
 import { RIVER_HEXSIDES, riverEdgeKey } from '../data/map';
 import type { GameState, Unit } from './state';
@@ -715,8 +715,10 @@ describe('cascading push', () => {
     expect(legalRetreatHexes(state, b)).toHaveLength(0);
     expect(legalRetreatHexes(state, c)).toHaveLength(0);
 
-    // The call itself must return (not hang/stack-overflow) — that's the
-    // termination proof; the empty result confirms the cycle has no exit.
+    // The call itself must return (not hang/stack-overflow, and — now that
+    // `pushCandidates` is a bounded fixpoint rather than a DFS — not throw
+    // on an unbounded expansion either) — that's the termination proof; the
+    // empty result confirms the cycle genuinely has no exit.
     expect(pushCandidates(state, a)).toHaveLength(0);
     expect(pushCandidates(state, b)).toHaveLength(0);
     expect(pushCandidates(state, c)).toHaveLength(0);
@@ -724,9 +726,10 @@ describe('cascading push', () => {
 
   // Terrain must be checked at whatever link of the chain is currently doing
   // the pushing, not just at the very first (top-level) unit — the same
-  // `canEnterTerrain` check inside `pushCandidates`' recursive filter runs
-  // identically regardless of recursion depth, but this proves it actually
-  // fires when the BLOCKED unit (not the original caller) is a chariot.
+  // `canEnterTerrain` check inside `pushCandidates`'s fixpoint growth step
+  // runs identically regardless of how deep in the chain it's evaluating,
+  // but this proves it actually fires when the BLOCKED unit (not the
+  // original caller) is a chariot.
   it('terrain blocks a link even when the terrain-forbidden neighbor is otherwise perfectly viable', () => {
     // B (chariot) is boxed on 5 sides by enemies; its only friendly neighbor
     // C stands on (8,14), which is marsh — forbidden to chariots but not to
@@ -742,6 +745,82 @@ describe('cascading push', () => {
     expect(legalRetreatHexes(state, b)).toHaveLength(0);
     expect(legalRetreatHexes(state, c).length).toBeGreaterThan(0); // c itself has real room...
     expect(pushCandidates(state, b)).toHaveLength(0); // ...but b (chariot) still can't be offered c's marsh hex
+  });
+
+  // MEDIUM finding from adversarial review: the terrain test above only
+  // exercises the check at depth 0 (`pushCandidates(state, b)` where `b` IS
+  // the blocked chariot). This extends it to a genuine mid-chain link: A
+  // (chariot) pushes B (chariot, one level down) whose ONLY route out is C,
+  // standing on marsh — B itself is a chariot too, so B can't inherit C's
+  // marsh hex any more than A could. A must therefore see no viable push at
+  // all, even though B is otherwise a perfectly ordinary intermediate link.
+  it('terrain blocks a MID-chain link, not just the top-level query — A cannot push through B if B cannot enter C\'s marsh hex', () => {
+    // A(6,14) -dir0-> B(7,14) -dir0-> C(8,14, marsh). A's other 5 neighbors
+    // (dir1..dir5): (7,13),(6,13),(5,14),(5,15),(6,15). B's other 4
+    // neighbors besides A and C (dir1,dir2,dir4,dir5): (8,13),(7,13),(6,15),
+    // (7,15) — (7,13) and (6,15) are shared with A's own boxing.
+    const a = makeUnit({ id: 'a', typeId: 'chars-lourds', position: { q: 6, r: 14 } });
+    const b = makeUnit({ id: 'b', typeId: 'chars-lourds', position: { q: 7, r: 14 } });
+    const c = makeUnit({ id: 'c', typeId: 'fantassins', position: { q: 8, r: 14 } }); // marsh
+    const enemyPositions = [
+      { q: 7, r: 13 }, { q: 6, r: 13 }, { q: 5, r: 14 }, { q: 5, r: 15 }, { q: 6, r: 15 }, // A's boxing
+      { q: 8, r: 13 }, { q: 7, r: 15 }, // B's remaining boxing
+    ];
+    const enemies = enemyPositions.map((pos, i) => makeUnit({ id: `e${i}`, typeId: 'fantassins', position: pos, owner: 1 }));
+    const state = makeState([a, b, c, ...enemies]);
+
+    expect(legalRetreatHexes(state, a)).toHaveLength(0);
+    expect(legalRetreatHexes(state, b)).toHaveLength(0);
+    expect(legalRetreatHexes(state, c).length).toBeGreaterThan(0); // c itself has real room...
+    expect(pushCandidates(state, b)).toHaveLength(0); // ...but b (chariot) can't inherit c's marsh hex...
+    expect(pushCandidates(state, a)).toHaveLength(0); // ...so a's only route (through b) is a dead end too
+  });
+
+  // CRITICAL finding from adversarial review: the original implementation
+  // was a plain recursive DFS enumerating simple paths through the
+  // friendly-unit graph with no memoization — exponential in a densely
+  // packed formation. Measured against the mutant (the DFS reintroduced),
+  // a ~20-unit encircled blob took minutes; this proves the CURRENT
+  // (fixpoint) implementation resolves the same shape in well under a
+  // second, so a future regression back to unbounded path enumeration would
+  // be caught here rather than only in a slow, silent production freeze.
+  it('perf: resolves a large fully-encircled formation quickly (regression for the exponential DFS this replaced)', () => {
+    const center = { q: 10, r: 5 };
+    const friendlies: Unit[] = [];
+    for (let q = center.q - 2; q <= center.q + 2; q++) {
+      for (let r = center.r - 2; r <= center.r + 2; r++) {
+        if (hexDistance(center, { q, r }) <= 2) {
+          friendlies.push(makeUnit({ id: `blob-${q}-${r}`, typeId: 'fantassins', position: { q, r } }));
+        }
+      }
+    }
+    // A full ring at distance 3 seals every outward-facing neighbor of the
+    // distance-2 boundary (any neighbor of a distance-2 hex not itself in
+    // the disk is necessarily at distance exactly 3).
+    const enemies: Unit[] = [];
+    for (let q = center.q - 3; q <= center.q + 3; q++) {
+      for (let r = center.r - 3; r <= center.r + 3; r++) {
+        if (hexDistance(center, { q, r }) === 3) {
+          enemies.push(makeUnit({ id: `ring-${q}-${r}`, typeId: 'fantassins', position: { q, r }, owner: 1 }));
+        }
+      }
+    }
+    expect(friendlies.length).toBeGreaterThanOrEqual(19); // radius-2 disk = 19 hexes
+    const state = makeState([...friendlies, ...enemies]);
+    // A boundary unit — the worst case for the old DFS, since it has the
+    // most friendly neighbors to branch through.
+    const corner = friendlies.find((u) => hexDistance(center, u.position) === 2)!;
+
+    const start = Date.now();
+    const result = pushCandidates(state, corner);
+    const elapsedMs = Date.now() - start;
+
+    expect(elapsedMs).toBeLessThan(2000); // the old DFS took minutes at this size
+    // Fully sealed: nobody in the blob has ANY unoccupied neighbor (every
+    // neighbor is either another blob friendly or an enemy on the ring), so
+    // nobody has a direct legal retreat and the fixpoint never grows —
+    // correctly empty, not just fast.
+    expect(result).toHaveLength(0);
   });
 });
 
