@@ -119,6 +119,16 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * time: `retreatQueue` first, then `driftQueue`. */
   private retreatQueue: RetreatQueueItem[] = [];
   private driftQueue: RetreatQueueItem[] = [];
+  /** MEDIUM finding from adversarial review (M11): every unit ID a push
+   * cascade has actually moved or destroyed during the CURRENT
+   * `beginRetreatChoices` batch — reset there, populated by
+   * `beginUnitRetreatChoice`. A single AR/DR result can queue several units
+   * from the same side independently; if resolving one of them pushes a
+   * SIBLING also sitting in `retreatQueue`, that sibling must not be asked
+   * to retreat a second time when the queue reaches its own entry — see
+   * `advanceRetreatQueue`'s skip check. Mirrors `fuzzHarness.ts`'s
+   * `processRetreats`'s locally-scoped `resolvedIds`. */
+  private retreatResolvedIds = new Set<string>();
   private retreatChoice: RetreatChoice | null = null;
   private driftState: DriftState | null = null;
   /**
@@ -222,6 +232,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.attackedThisPhase = new Set();
     this.retreatQueue = [];
     this.driftQueue = [];
+    this.retreatResolvedIds = new Set();
     this.retreatChoice = null;
     this.driftState = null;
     this.decisionPending = false;
@@ -647,6 +658,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // can never leave a reference to a unit from the discarded state.
     this.retreatQueue = [];
     this.driftQueue = [];
+    this.retreatResolvedIds = new Set();
     this.retreatChoice = null;
     this.driftState = null;
     this.decisionPending = false;
@@ -1210,13 +1222,17 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.advanceEligibleAttackers = attackersForAdvance;
     this.retreatQueue = pendingRetreats.map((unit) => ({ unit, side, originalHex: { ...unit.position } }));
     this.driftQueue = pendingDrifts.map((unit) => ({ unit, side, originalHex: { ...unit.position } }));
+    this.retreatResolvedIds = new Set(); // fresh batch — see its own doc comment (M11)
     this.advanceRetreatQueue();
   }
 
   private advanceRetreatQueue(): void {
     const item = this.retreatQueue.shift();
     if (item) {
-      if (item.unit.destroyed) {
+      // M11: a push cascade resolving an EARLIER queue item can already have
+      // moved this one (a sibling it pushed aside) — skip it rather than
+      // asking the player to retreat it a second time for the same result.
+      if (item.unit.destroyed || this.retreatResolvedIds.has(item.unit.id)) {
         this.advanceRetreatQueue();
         return;
       }
@@ -1249,19 +1265,57 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.advanceRetreatQueue();
   }
 
-  /** Resolves a single unit's retreat: a legal hex to move to, or (if boxed
+  /**
+   * Resolves a single unit's retreat: a legal hex to move to, or (if boxed
    * in by friendlies) a push, or elimination if neither is available. Calls
    * `onDone` once fully resolved. Shared by the normal post-combat retreat
    * queue and, mid-drift, a unit the elephant tramples into. Rehomed onto
    * the `PlayerAgent` methods below (`chooseRetreat`/`choosePushTarget`) —
    * this is now just the sequencing glue that decides WHICH question to ask
    * and applies the engine mutation once it's answered, not the prompt UI
-   * itself. */
-  private beginUnitRetreatChoice(unit: Unit, onDone: () => void): void {
+   * itself.
+   *
+   * CASCADE (plan.md §12.3): the push branch calls itself recursively for
+   * the pushed unit — that unit may ALSO have no direct retreat and need to
+   * push a friendly of its own, and so on. `visited` carries every unit
+   * already committed to the current chain (see `combat.ts`'s
+   * `pushCandidates` for the matching engine-side recursion and its
+   * termination argument) so `pushCandidates` here can't re-offer a unit
+   * still mid-resolution higher up this same call stack. Each level's own
+   * `pushed.position` is captured into `vacatedHex` BEFORE recursing —
+   * `completePush` only ever needs that captured hex, never `pushed`'s
+   * position read afterward (which has since changed, however many further
+   * links the recursion took) — see `completePush`'s doc comment.
+   */
+  private beginUnitRetreatChoice(
+    unit: Unit,
+    onDone: () => void,
+    visited: ReadonlySet<string> = new Set(),
+  ): void {
+    // M11: record every unit this method is ever asked to resolve — whether
+    // as a top-level queue item or a pushed unit reached via the recursive
+    // branch below — so `advanceRetreatQueue` can skip a sibling this same
+    // resolution already moved. Harmless when called outside a retreat-queue
+    // batch entirely (e.g. `resolveDriftHit`'s trampled-unit case): nothing
+    // reads `retreatResolvedIds` there.
+    this.retreatResolvedIds.add(unit.id);
+    // L12/L13 (LOW findings from adversarial review): a non-empty `visited`
+    // means `unit` is itself a PUSHED unit mid-cascade, not the original
+    // top-level retreater — worth saying so in the prompt (rather than the
+    // generic "must retreat," which reads as if THIS unit lost the combat),
+    // and worth NOT separately logging "unit retreats." here too: the
+    // pusher's own `onDone` callback below already narrates this exact move
+    // as "X retreats, making room for Y" once it completes, so logging both
+    // would say the same thing twice.
+    const isPushedLink = visited.size > 0;
     const state = this.state();
     const legalHexes = legalRetreatHexes(state, unit);
     if (legalHexes.length > 0) {
-      this.appendLine(`${unitType(unit).name} must retreat — click a highlighted hex.`);
+      this.appendLine(
+        isPushedLink
+          ? `${unitType(unit).name} must retreat to make room — click a highlighted hex.`
+          : `${unitType(unit).name} must retreat — click a highlighted hex.`,
+      );
       this.chooseRetreat(state, unit, legalHexes).then((hex) => {
         // `decisionPending` must clear even if the mutation below throws —
         // otherwise every guard it gates (undo, autosave, onHexClick, ...)
@@ -1271,9 +1325,19 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         // `finally`: it's the next step in the queue, which may itself await
         // another choice and re-set `decisionPending` — clearing it again
         // once `onDone()` returns would wipe out that new choice's flag.
+        //
+        // Reaching this leaf always fully settles decisionPending: whether
+        // this is the TOP-level call for a queued unit (decisionPending
+        // wasn't set true by this chain at all, so clearing it is a no-op)
+        // or the bottom of a push cascade (decisionPending IS true, from an
+        // ancestor's `choosePushTarget`, and this is the last prompt in the
+        // whole chain), `finally` is the right place either way.
         try {
           retreatUnitTo(unit, hex);
-          this.appendLine(`${unitType(unit).name} retreats.`);
+          // Only the TOP-level retreater gets its own "X retreats." line —
+          // a pushed unit's move is narrated once, by the pusher's `onDone`
+          // below ("X retreats, making room for Y"), not twice.
+          if (!isPushedLink) this.appendLine(`${unitType(unit).name} retreats.`);
           this.renderAllUnits();
         } finally {
           this.decisionPending = false;
@@ -1283,38 +1347,38 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       return;
     }
 
-    const pushTargets = pushCandidates(state, unit);
+    const pushTargets = pushCandidates(state, unit, visited);
     if (pushTargets.length > 0) {
       this.appendLine(
         `${unitType(unit).name} is surrounded by friendly units — click one to retreat and make room.`,
       );
       this.choosePushTarget(state, unit, pushTargets).then((pushed) => {
-        // Unlike every other `.then()` in this file, this one can't just
-        // clear `decisionPending` in a `finally`: `decisionPending` is
-        // already `true` from `choosePushTarget` above, and the happy path
-        // here hands it straight to a SECOND choice (the pushed unit's own
-        // retreat) that still needs it `true`. A `finally` would clear it
-        // out from under that still-pending prompt. So: catch instead,
-        // clear only on the throwing path, and rethrow so the failure stays
-        // visible (an uncaught rejection in the console) rather than
-        // silently swallowed — a throw from any of the three statements
-        // below, with no `try`, used to leave `decisionPending` latched
-        // `true` forever with no prompt left on screen to ever answer it
-        // (the pushed unit's own retreat choice never got asked to begin
-        // with).
+        // Unlike the direct-retreat leaf above, this one can't just clear
+        // `decisionPending` in a `finally`: it's already `true` from
+        // `choosePushTarget` above, and the happy path here hands off to
+        // the RECURSIVE call below, which itself may ask one or more
+        // further questions before the whole chain settles. A `finally`
+        // here would clear it out from under that still-pending prompt. So:
+        // catch instead, clear only on the throwing (synchronous) path, and
+        // rethrow so the failure stays visible (an uncaught rejection in
+        // the console) rather than silently swallowed. The recursive call's
+        // OWN eventual leaf (whichever kind it turns out to be) is
+        // responsible for clearing `decisionPending` once the chain
+        // actually finishes.
         try {
-          const legalHexesForPushed = legalRetreatHexes(this.state(), pushed);
-          this.appendLine(`${unitType(pushed).name} must retreat to make room — click a highlighted hex.`);
-          this.chooseRetreat(this.state(), pushed, legalHexesForPushed).then((pushedHex) => {
-            try {
-              completePush(unit, pushed, pushedHex);
+          const vacatedHex = { ...pushed.position };
+          const chainVisited = new Set(visited);
+          chainVisited.add(unit.id);
+          this.beginUnitRetreatChoice(
+            pushed,
+            () => {
+              completePush(unit, vacatedHex);
               this.appendLine(`${unitType(pushed).name} retreats, making room for ${unitType(unit).name}.`);
               this.renderAllUnits();
-            } finally {
-              this.decisionPending = false;
-            }
-            onDone();
-          });
+              onDone();
+            },
+            chainVisited,
+          );
         } catch (err) {
           this.decisionPending = false;
           throw err;
@@ -1323,10 +1387,18 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       return;
     }
 
-    // applyLandCombatResult already eliminates units with no options before
-    // queuing them; this only guards against an earlier choice in the same
-    // batch changing the board in a way that removes this unit's options too.
+    // `pushCandidates` already guarantees a CHOSEN push target is viable
+    // (directly or via its own cascade), so this leaf should be unreachable
+    // for a `pushed` unit reached via the recursive branch above too — kept
+    // as the same defensive net `applyLandCombatResult` already relies on
+    // for the top-level case: an earlier choice in the same batch/chain can
+    // in principle change the board out from under a later one.
+    // `decisionPending` is cleared unconditionally: at the very top of the
+    // queue it was never set true by this chain (a no-op), but mid-cascade
+    // it IS true (from an ancestor's `choosePushTarget`) and this is a
+    // terminal state with no further prompt left to clear it otherwise.
     unit.destroyed = true;
+    this.decisionPending = false;
     this.appendLine(`${unitType(unit).name} had nowhere to retreat and was eliminated.`);
     this.renderAllUnits();
     onDone();

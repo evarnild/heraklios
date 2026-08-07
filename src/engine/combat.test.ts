@@ -24,6 +24,7 @@ import {
   unionValidTargets,
   validTargets,
 } from './combat';
+import { DIRECTIONS, hexAdd, hexDistance } from './hex';
 import { createInitialState } from './turnManager';
 import { RIVER_HEXSIDES, riverEdgeKey } from '../data/map';
 import type { GameState, Unit } from './state';
@@ -457,31 +458,85 @@ describe('pushCandidates', () => {
     expect(candidates.map((u) => u.id).sort()).toEqual(friendlies.map((u) => u.id).sort());
   });
 
-  it('returns none if even one neighbor is occupied by an enemy instead of a friendly unit', () => {
+  // Plan.md §12.2 — the widened, permissive reading: a neighbor that ISN'T
+  // friendly-occupied (enemy-held, here) simply isn't itself a push
+  // candidate, but no longer voids every OTHER neighbor's candidacy the way
+  // the old strict "entourée" (all six must be friendly) reading did.
+  it('a neighbor occupied by an enemy is simply not a candidate — the other 5 friendlies still are', () => {
     const unit = makeUnit({ typeId: 'fantassins', position: CENTER });
     const friendlies = NEIGHBORS.slice(0, 5).map((pos, i) => makeUnit({ typeId: 'fantassins', position: pos, id: `f${i}` }));
     const enemy = makeUnit({ typeId: 'fantassins', position: NEIGHBORS[5]!, owner: 1 });
     const state = makeState([unit, ...friendlies, enemy]);
 
+    const candidates = pushCandidates(state, unit);
+    expect(candidates.map((u) => u.id).sort()).toEqual(friendlies.map((u) => u.id).sort());
+  });
+
+  it('excludes a friendly neighbor that has no room anywhere, even after considering ITS OWN cascade — pushing must make real room, not just swap', () => {
+    // `unit` has exactly one friendly neighbor, `f0` — and `f0` is itself
+    // fully boxed in (5 enemies plus `unit`, which is excluded from f0's own
+    // candidate search since it's still mid-resolution — see
+    // `pushCandidates`'s cycle-prevention note). f0 has no direct retreat
+    // AND no viable push of its own, so it must not be offered here either.
+    const unit = makeUnit({ typeId: 'fantassins', position: CENTER });
+    const f0 = makeUnit({ id: 'f0', typeId: 'fantassins', position: NEIGHBORS[0]! });
+    // f0's neighbors besides CENTER (dir3): (12,5) dir0, (12,4) dir1,
+    // (11,4) dir2, (11,6) dir4, (10,6) dir5 — all enemy-occupied.
+    const f0Blockers = [
+      makeUnit({ typeId: 'fantassins', position: { q: 12, r: 5 }, owner: 1 }),
+      makeUnit({ typeId: 'fantassins', position: { q: 12, r: 4 }, owner: 1 }),
+      makeUnit({ typeId: 'fantassins', position: { q: 11, r: 4 }, owner: 1 }),
+      makeUnit({ typeId: 'fantassins', position: { q: 11, r: 6 }, owner: 1 }),
+      makeUnit({ typeId: 'fantassins', position: { q: 10, r: 6 }, owner: 1 }),
+    ];
+    const state = makeState([unit, f0, ...f0Blockers]);
+
+    expect(legalRetreatHexes(state, f0)).toHaveLength(0);
     expect(pushCandidates(state, unit)).toHaveLength(0);
   });
 
-  it('excludes a friendly neighbor that has no legal retreat hex of its own — pushing must make real room, not just swap', () => {
+  // Regression for the exact bug reported from real play (plan.md §12.1):
+  // `unit` is boxed by a MIX of friendlies and an EMPTY hex that's unusable
+  // for a direct retreat because of enemy zone of control — not because
+  // it's enemy-occupied. The old code's `!occupant || ...` check treated
+  // this identically to an enemy-occupied neighbor (bailed out entirely,
+  // returning []); the fix must still offer the 5 genuinely-friendly
+  // neighbors.
+  it('regression: a mix of friendlies and one EMPTY, ZOC-blocked hex still offers the friendlies', () => {
     const unit = makeUnit({ typeId: 'fantassins', position: CENTER });
-    const friendlies = NEIGHBORS.map((pos, i) => makeUnit({ typeId: 'fantassins', position: pos, id: `f${i}` }));
-    // Box in friendlies[0] (at (11,5)) completely: its other 5 neighbors
-    // besides CENTER (already occupied by `unit`) are (11,4) and (10,6)
-    // (already friendlies), plus (12,5), (12,4), (11,6) — occupy those too.
-    const blockers = [
-      makeUnit({ typeId: 'fantassins', position: { q: 12, r: 5 } }),
-      makeUnit({ typeId: 'fantassins', position: { q: 12, r: 4 } }),
-      makeUnit({ typeId: 'fantassins', position: { q: 11, r: 6 } }),
-    ];
-    const state = makeState([unit, ...friendlies, ...blockers]);
+    const friendlies = NEIGHBORS.slice(0, 5).map((pos, i) => makeUnit({ typeId: 'fantassins', position: pos, id: `f${i}` }));
+    // NEIGHBORS[5] = (10,6) stays EMPTY. An enemy at (10,7) — itself NOT
+    // adjacent to `unit` — projects ZOC onto (10,6), making it illegal for
+    // `unit` to retreat into directly, without being a push candidate itself.
+    const zocSource = makeUnit({ typeId: 'fantassins', position: { q: 10, r: 7 }, owner: 1 });
+    const state = makeState([unit, ...friendlies, zocSource]);
 
+    expect(legalRetreatHexes(state, unit)).toHaveLength(0); // 5 occupied + 1 ZOC'd
     const candidates = pushCandidates(state, unit);
-    expect(candidates.map((u) => u.id)).not.toContain('f0');
-    expect(candidates).toHaveLength(5);
+    expect(candidates.map((u) => u.id).sort()).toEqual(friendlies.map((u) => u.id).sort());
+  });
+
+  // Same regression, the OTHER named cause from the bug report: the empty
+  // 6th hex is unusable because of TERRAIN (the boxed-in unit's own
+  // category can't enter it), not ZOC.
+  it('regression: a mix of friendlies and empty marsh hexes still offers the friendlies — a chariot boxed by 4 friendlies plus 2 empty marsh hexes', () => {
+    // Reuses the (7,14) ring from the terrain-exclusion test below, but
+    // leaves the two marsh hexes EMPTY instead of friendly-occupied.
+    const center = { q: 7, r: 14 };
+    const friendlyRing = [
+      { q: 8, r: 13 }, // plain
+      { q: 7, r: 13 }, // plain
+      { q: 6, r: 14 }, // plain
+      { q: 6, r: 15 }, // plain
+    ];
+    const chariot = makeUnit({ typeId: 'chars-lourds', position: center });
+    const friendlies = friendlyRing.map((pos, i) => makeUnit({ typeId: 'fantassins', position: pos, id: `f${i}` }));
+    const state = makeState([chariot, ...friendlies]);
+    // (8,14) and (7,15) are marsh and left unoccupied.
+
+    expect(legalRetreatHexes(state, chariot)).toHaveLength(0); // 4 occupied + 2 marsh-forbidden
+    const candidates = pushCandidates(state, chariot);
+    expect(candidates.map((u) => u.id).sort()).toEqual(friendlies.map((u) => u.id).sort());
   });
 
   // Regression for a real defect the Stage 2 fuzz harness caught (plan.md
@@ -523,13 +578,249 @@ describe('retreatUnitTo / completePush', () => {
     expect(unit.position).toEqual(NEIGHBORS[0]);
   });
 
-  it('moves the pushed unit to its own chosen retreat hex, and the original unit takes the hex it vacated', () => {
+  // New contract (plan.md §12.3): `completePush` no longer moves the pushed
+  // unit itself — that's the caller's job (directly via `retreatUnitTo`, or
+  // recursively for a further cascade) — it only moves `unit` into the hex
+  // captured BEFORE that resolution ran.
+  it('moves `unit` into the captured vacated hex — the pushed unit\'s own move is the caller\'s responsibility', () => {
     const unit = makeUnit({ typeId: 'fantassins', position: CENTER });
     const pushed = makeUnit({ typeId: 'fantassins', position: NEIGHBORS[0]! });
-    const pushedDestination = { q: 12, r: 5 }; // some other free hex — not a swap back to CENTER
-    completePush(unit, pushed, pushedDestination);
-    expect(pushed.position).toEqual(pushedDestination);
-    expect(unit.position).toEqual(NEIGHBORS[0]); // takes the hex `pushed` vacated
+    const vacatedHex = { ...pushed.position };
+    // Caller resolves `pushed`'s own retreat first (mirroring
+    // `BoardScene`/`fuzzHarness`'s sequencing) — completePush doesn't do this.
+    retreatUnitTo(pushed, { q: 12, r: 5 });
+    completePush(unit, vacatedHex);
+    expect(pushed.position).toEqual({ q: 12, r: 5 });
+    expect(unit.position).toEqual(NEIGHBORS[0]); // takes the hex `pushed` vacated, not wherever it ended up
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cascading push (plan.md §12) — a unit forced to retreat with no direct
+// legal hex, boxed in (at least partly) by friendlies, pushes one aside; if
+// THAT unit also has no direct retreat, it must push in turn, and so on
+// until someone finds a real hex. `pushCandidates` (the viability check) and
+// `completePush` (applying one resolved link) are exercised together with
+// `legalRetreatHexes`/`retreatUnitTo` here to prove the whole chain, not
+// just isolated candidate lists.
+// ---------------------------------------------------------------------------
+
+/**
+ * Builds a straight-line chain of `length` friendly (owner 0) units starting
+ * at (10,5) — the same verified-plain patch `CENTER`/`NEIGHBORS` above sit
+ * in — walking `DIRECTIONS[0]` ((+1,0)) one hex per link. Every unit except
+ * the LAST is boxed on its other 5 sides by owner-1 "enemy" placeholder
+ * units (their exact map terrain is irrelevant — an enemy-occupied hex
+ * blocks a direct retreat and is never itself a push candidate regardless of
+ * what's under it, and a genuinely off-map neighbor would be excluded on its
+ * own without needing a placeholder at all — see `pushCandidates`'s "off-map:
+ * simply not a candidate" branch). The LAST unit in the chain is left with
+ * its other 5 neighbors open, so it has a real, direct legal retreat — the
+ * base case every cascade must eventually reach.
+ */
+function buildChain(length: number): { chain: Unit[]; state: GameState } {
+  const start = { q: 10, r: 5 };
+  const chain: Unit[] = [];
+  for (let i = 0; i < length; i++) {
+    chain.push(makeUnit({ id: `chain${i}`, typeId: 'fantassins', position: { q: start.q + i, r: start.r } }));
+  }
+  const enemies: Unit[] = [];
+  for (let i = 0; i < length - 1; i++) {
+    const pos = chain[i]!.position;
+    DIRECTIONS.forEach((d, dirIndex) => {
+      if (dirIndex === 0) return; // forward, toward chain[i+1] — leave open for the friendly link
+      const neighbor = hexAdd(pos, d);
+      if (chain.some((u) => u.position.q === neighbor.q && u.position.r === neighbor.r)) return; // already a chain unit (e.g. chain[i-1] behind it)
+      enemies.push(makeUnit({ id: `enemy${i}-${dirIndex}`, typeId: 'fantassins', position: neighbor, owner: 1 }));
+    });
+  }
+  return { chain, state: makeState([...chain, ...enemies]) };
+}
+
+describe('cascading push', () => {
+  it('single push: a boxed unit pushes its one friendly neighbor, which has a direct retreat of its own', () => {
+    const { chain, state } = buildChain(2);
+    const [a, b] = chain as [Unit, Unit];
+
+    expect(legalRetreatHexes(state, a)).toHaveLength(0);
+    expect(pushCandidates(state, a).map((u) => u.id)).toEqual([b.id]);
+    expect(legalRetreatHexes(state, b).length).toBeGreaterThan(0);
+  });
+
+  it('2-link chain: A pushes B, B has no direct retreat either and must push C, which does', () => {
+    const { chain, state } = buildChain(3);
+    const [a, b, c] = chain as [Unit, Unit, Unit];
+
+    expect(legalRetreatHexes(state, a)).toHaveLength(0);
+    expect(legalRetreatHexes(state, b)).toHaveLength(0);
+    expect(pushCandidates(state, a).map((u) => u.id)).toEqual([b.id]);
+    expect(pushCandidates(state, b).map((u) => u.id)).toEqual([c.id]);
+    expect(legalRetreatHexes(state, c).length).toBeGreaterThan(0);
+  });
+
+  it('3-link chain: A pushes B pushes C pushes D, which finally has a direct retreat', () => {
+    const { chain, state } = buildChain(4);
+    const [a, b, c, d] = chain as [Unit, Unit, Unit, Unit];
+
+    expect(legalRetreatHexes(state, a)).toHaveLength(0);
+    expect(legalRetreatHexes(state, b)).toHaveLength(0);
+    expect(legalRetreatHexes(state, c)).toHaveLength(0);
+    expect(pushCandidates(state, a).map((u) => u.id)).toEqual([b.id]);
+    expect(pushCandidates(state, b).map((u) => u.id)).toEqual([c.id]);
+    expect(pushCandidates(state, c).map((u) => u.id)).toEqual([d.id]);
+    expect(legalRetreatHexes(state, d).length).toBeGreaterThan(0);
+  });
+
+  it('resolves a full 3-link cascade end to end via completePush: each pusher takes over the hex the NEXT unit vacated, not the final destination', () => {
+    const { chain, state } = buildChain(4);
+    const [a, b, c, d] = chain as [Unit, Unit, Unit, Unit];
+    const originalPositions = chain.map((u) => ({ ...u.position }));
+
+    // Mirrors exactly what BoardScene/fuzzHarness do: resolve from the
+    // DEEPEST link outward, capturing each hex before the unit that occupies
+    // it moves.
+    const dRetreat = legalRetreatHexes(state, d)[0]!;
+    retreatUnitTo(d, dRetreat);
+    completePush(c, originalPositions[3]!); // c takes over d's original hex
+    completePush(b, originalPositions[2]!); // b takes over c's original hex
+    completePush(a, originalPositions[1]!); // a takes over b's original hex
+
+    expect(d.position).toEqual(dRetreat);
+    expect(c.position).toEqual(originalPositions[3]);
+    expect(b.position).toEqual(originalPositions[2]);
+    expect(a.position).toEqual(originalPositions[1]);
+  });
+
+  // Cycle: A pushes B, B pushes C, and C's only OTHER friendly neighbor is
+  // A — who hasn't moved yet. Must terminate (not loop forever) and, since
+  // there's no external exit anywhere in the triangle, find no viable push
+  // at all.
+  it('a cycle of mutually-blocked friendlies terminates with no viable push, rather than looping forever', () => {
+    // A(13,5), B(14,5), C(13,6) are mutually adjacent (a real 3-hex "triangle"
+    // on the hex grid — see DIRECTIONS: A->B is dir0, A->C is dir5, B->C is
+    // dir4). Every hex besides the triangle itself is enemy-occupied, so no
+    // unit has anywhere to go except around the cycle.
+    const a = makeUnit({ id: 'a', typeId: 'fantassins', position: { q: 13, r: 5 } });
+    const b = makeUnit({ id: 'b', typeId: 'fantassins', position: { q: 14, r: 5 } });
+    const c = makeUnit({ id: 'c', typeId: 'fantassins', position: { q: 13, r: 6 } });
+    const enemyPositions = [
+      { q: 14, r: 4 }, { q: 13, r: 4 }, { q: 12, r: 5 }, { q: 12, r: 6 }, // A's other neighbors
+      { q: 15, r: 5 }, { q: 15, r: 4 }, { q: 14, r: 6 }, // B's other neighbors (14,4 already listed)
+      { q: 12, r: 7 }, { q: 13, r: 7 }, // C's other neighbors (14,6 and 12,6 already listed)
+    ];
+    const enemies = enemyPositions.map((pos, i) => makeUnit({ id: `e${i}`, typeId: 'fantassins', position: pos, owner: 1 }));
+    const state = makeState([a, b, c, ...enemies]);
+
+    expect(legalRetreatHexes(state, a)).toHaveLength(0);
+    expect(legalRetreatHexes(state, b)).toHaveLength(0);
+    expect(legalRetreatHexes(state, c)).toHaveLength(0);
+
+    // The call itself must return (not hang/stack-overflow, and — now that
+    // `pushCandidates` is a bounded fixpoint rather than a DFS — not throw
+    // on an unbounded expansion either) — that's the termination proof; the
+    // empty result confirms the cycle genuinely has no exit.
+    expect(pushCandidates(state, a)).toHaveLength(0);
+    expect(pushCandidates(state, b)).toHaveLength(0);
+    expect(pushCandidates(state, c)).toHaveLength(0);
+  });
+
+  // Terrain must be checked at whatever link of the chain is currently doing
+  // the pushing, not just at the very first (top-level) unit — the same
+  // `canEnterTerrain` check inside `pushCandidates`'s fixpoint growth step
+  // runs identically regardless of how deep in the chain it's evaluating,
+  // but this proves it actually fires when the BLOCKED unit (not the
+  // original caller) is a chariot.
+  it('terrain blocks a link even when the terrain-forbidden neighbor is otherwise perfectly viable', () => {
+    // B (chariot) is boxed on 5 sides by enemies; its only friendly neighbor
+    // C stands on (8,14), which is marsh — forbidden to chariots but not to
+    // C itself (infantry). C's OWN surroundings are left open, so C would be
+    // a perfectly good push target if terrain weren't checked at this level.
+    const b = makeUnit({ id: 'b', typeId: 'chars-lourds', position: { q: 7, r: 14 } });
+    const c = makeUnit({ id: 'c', typeId: 'fantassins', position: { q: 8, r: 14 } }); // marsh
+    const enemies = [
+      { q: 8, r: 13 }, { q: 7, r: 13 }, { q: 6, r: 14 }, { q: 6, r: 15 }, { q: 7, r: 15 },
+    ].map((pos, i) => makeUnit({ id: `e${i}`, typeId: 'fantassins', position: pos, owner: 1 }));
+    const state = makeState([b, c, ...enemies]);
+
+    expect(legalRetreatHexes(state, b)).toHaveLength(0);
+    expect(legalRetreatHexes(state, c).length).toBeGreaterThan(0); // c itself has real room...
+    expect(pushCandidates(state, b)).toHaveLength(0); // ...but b (chariot) still can't be offered c's marsh hex
+  });
+
+  // MEDIUM finding from adversarial review: the terrain test above only
+  // exercises the check at depth 0 (`pushCandidates(state, b)` where `b` IS
+  // the blocked chariot). This extends it to a genuine mid-chain link: A
+  // (chariot) pushes B (chariot, one level down) whose ONLY route out is C,
+  // standing on marsh — B itself is a chariot too, so B can't inherit C's
+  // marsh hex any more than A could. A must therefore see no viable push at
+  // all, even though B is otherwise a perfectly ordinary intermediate link.
+  it('terrain blocks a MID-chain link, not just the top-level query — A cannot push through B if B cannot enter C\'s marsh hex', () => {
+    // A(6,14) -dir0-> B(7,14) -dir0-> C(8,14, marsh). A's other 5 neighbors
+    // (dir1..dir5): (7,13),(6,13),(5,14),(5,15),(6,15). B's other 4
+    // neighbors besides A and C (dir1,dir2,dir4,dir5): (8,13),(7,13),(6,15),
+    // (7,15) — (7,13) and (6,15) are shared with A's own boxing.
+    const a = makeUnit({ id: 'a', typeId: 'chars-lourds', position: { q: 6, r: 14 } });
+    const b = makeUnit({ id: 'b', typeId: 'chars-lourds', position: { q: 7, r: 14 } });
+    const c = makeUnit({ id: 'c', typeId: 'fantassins', position: { q: 8, r: 14 } }); // marsh
+    const enemyPositions = [
+      { q: 7, r: 13 }, { q: 6, r: 13 }, { q: 5, r: 14 }, { q: 5, r: 15 }, { q: 6, r: 15 }, // A's boxing
+      { q: 8, r: 13 }, { q: 7, r: 15 }, // B's remaining boxing
+    ];
+    const enemies = enemyPositions.map((pos, i) => makeUnit({ id: `e${i}`, typeId: 'fantassins', position: pos, owner: 1 }));
+    const state = makeState([a, b, c, ...enemies]);
+
+    expect(legalRetreatHexes(state, a)).toHaveLength(0);
+    expect(legalRetreatHexes(state, b)).toHaveLength(0);
+    expect(legalRetreatHexes(state, c).length).toBeGreaterThan(0); // c itself has real room...
+    expect(pushCandidates(state, b)).toHaveLength(0); // ...but b (chariot) can't inherit c's marsh hex...
+    expect(pushCandidates(state, a)).toHaveLength(0); // ...so a's only route (through b) is a dead end too
+  });
+
+  // CRITICAL finding from adversarial review: the original implementation
+  // was a plain recursive DFS enumerating simple paths through the
+  // friendly-unit graph with no memoization — exponential in a densely
+  // packed formation. Measured against the mutant (the DFS reintroduced),
+  // a ~20-unit encircled blob took minutes; this proves the CURRENT
+  // (fixpoint) implementation resolves the same shape in well under a
+  // second, so a future regression back to unbounded path enumeration would
+  // be caught here rather than only in a slow, silent production freeze.
+  it('perf: resolves a large fully-encircled formation quickly (regression for the exponential DFS this replaced)', () => {
+    const center = { q: 10, r: 5 };
+    const friendlies: Unit[] = [];
+    for (let q = center.q - 2; q <= center.q + 2; q++) {
+      for (let r = center.r - 2; r <= center.r + 2; r++) {
+        if (hexDistance(center, { q, r }) <= 2) {
+          friendlies.push(makeUnit({ id: `blob-${q}-${r}`, typeId: 'fantassins', position: { q, r } }));
+        }
+      }
+    }
+    // A full ring at distance 3 seals every outward-facing neighbor of the
+    // distance-2 boundary (any neighbor of a distance-2 hex not itself in
+    // the disk is necessarily at distance exactly 3).
+    const enemies: Unit[] = [];
+    for (let q = center.q - 3; q <= center.q + 3; q++) {
+      for (let r = center.r - 3; r <= center.r + 3; r++) {
+        if (hexDistance(center, { q, r }) === 3) {
+          enemies.push(makeUnit({ id: `ring-${q}-${r}`, typeId: 'fantassins', position: { q, r }, owner: 1 }));
+        }
+      }
+    }
+    expect(friendlies.length).toBeGreaterThanOrEqual(19); // radius-2 disk = 19 hexes
+    const state = makeState([...friendlies, ...enemies]);
+    // A boundary unit — the worst case for the old DFS, since it has the
+    // most friendly neighbors to branch through.
+    const corner = friendlies.find((u) => hexDistance(center, u.position) === 2)!;
+
+    const start = Date.now();
+    const result = pushCandidates(state, corner);
+    const elapsedMs = Date.now() - start;
+
+    expect(elapsedMs).toBeLessThan(2000); // the old DFS took minutes at this size
+    // Fully sealed: nobody in the blob has ANY unoccupied neighbor (every
+    // neighbor is either another blob friendly or an enemy on the ring), so
+    // nobody has a direct legal retreat and the fixpoint never grows —
+    // correctly empty, not just fast.
+    expect(result).toHaveLength(0);
   });
 });
 
@@ -544,6 +835,33 @@ describe('applyLandCombatResult — AR/DR retreats', () => {
     expect(outcome.pendingDrifts).toHaveLength(0);
     expect(attacker.position).toEqual(CENTER); // untouched — awaiting the player's choice
     expect(attacker.destroyed).toBe(false);
+  });
+
+  // HIGH-2 finding from adversarial review: the pushCandidates-level
+  // regression tests above prove the PREDICATE widened correctly, but never
+  // exercised the actual bug report — "the unit died without being asked to
+  // push" — which is `forceRetreat`'s decision, inside
+  // `applyLandCombatResult`, not `pushCandidates` in isolation. Deleting
+  // `|| pushCandidates(state, unit).length > 0` from `forceRetreat` (i.e.
+  // restoring the reported bug verbatim, even against the ALREADY-widened
+  // predicate) passed every other test in this file before this one existed.
+  it('regression: a unit boxed by a mix of friendlies and one ZOC-blocked empty hex is QUEUED for a push, not eliminated, when forced to retreat (plan.md §12.1)', () => {
+    const unit = makeUnit({ typeId: 'fantassins', position: CENTER });
+    const friendlies = NEIGHBORS.slice(0, 5).map((pos, i) => makeUnit({ typeId: 'fantassins', position: pos, id: `f${i}` }));
+    // NEIGHBORS[5] = (10,6) stays empty, but ZOC'd by an enemy at (10,7) —
+    // see the identical `pushCandidates` regression test above for why this
+    // exact shape is the one the old strict "entourée" check mishandled.
+    const zocSource = makeUnit({ typeId: 'fantassins', position: { q: 10, r: 7 }, owner: 1 });
+    // The "combat" itself is unrelated to the boxing geometry — placed far
+    // away specifically to prove this is pure retreat-option bookkeeping,
+    // not anything to do with the attacker's own position (mirrors the
+    // (4,9)-cavalry test below).
+    const defender = makeUnit({ typeId: 'fantassins', position: { q: 9000, r: 9000 }, owner: 1 });
+    const state = makeState([unit, ...friendlies, zocSource, defender]);
+
+    const outcome = applyLandCombatResult(state, [unit], [defender], 'AR');
+    expect(outcome.pendingRetreats).toEqual([unit]);
+    expect(unit.destroyed).toBe(false);
   });
 
   it('eliminates a retreating unit with no legal hex and no push option', () => {

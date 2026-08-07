@@ -46,10 +46,16 @@ npm run build   # production build
    attacking group (blue highlight), click eligible enemy units to add them
    as targets (amber = eligible but not yet chosen, red = chosen), then
    click **"Resolve attack"** to roll the combined combat. When a result forces a retreat, the owning player picks the
-   destination: legal hexes are highlighted blue — click one. If every
-   neighboring hex is occupied by a friendly unit, those are highlighted
-   amber instead — click one to have it retreat and make room, then pick
-   *its* destination the same way. **Elephants** are the exception: instead
+   destination: legal hexes are highlighted blue — click one. If there's no
+   legal hex to retreat to but at least one neighboring hex holds a friendly
+   unit that can make room (either directly, or by pushing one of *its own*
+   friendly neighbors in turn), those are highlighted amber instead — click
+   one to have it retreat and make room. If *that* unit also has no direct
+   retreat, the same choice repeats for it, cascading through as many links
+   as needed until someone reaches a real hex; only once the whole chain is
+   resolved does the original unit take the first hex vacated. A unit with
+   no legal retreat and no friendly anywhere nearby able to make room is
+   eliminated instead. **Elephants** are the exception: instead
    of a chosen retreat, a die roll picks a random direction and the elephant
    drifts that way, hex by hex, for its full movement allowance — the panel
    narrates each step, and every hex it enters that's occupied triggers a

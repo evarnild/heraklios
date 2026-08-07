@@ -1,6 +1,7 @@
 import type { HexCoord } from '../data/map';
 import { MAP_TERRAIN, hexKey as mapHexKey } from '../data/map';
 import { canEnterTerrain } from '../data/terrain';
+import { DIRECTIONS, hexAdd } from './hex';
 import { getUnitType } from '../data/units';
 import type { CombatResult } from '../data/combatTable';
 import { legalActions, applyAction, type Action } from './actions';
@@ -128,6 +129,73 @@ export function buildFuzzGameState(): GameState {
     // boarding is immediately legal in the first combat phase.
     makeUnit('p0-galley', 0, 'galeres', seaHex(0), 0),
     makeUnit('p1-galley', 1, 'galeres', seaHex(1), 0),
+  ];
+
+  return state;
+}
+
+/** (10,5) and every hex within radius 2 of it are all confirmed 'plain' on
+ * the shipped map (see combat.test.ts's `CENTER`/`NEIGHBORS` and its
+ * "cascading push" perf test, which probes the same neighborhood) — reused
+ * here for the same reason: a big open patch with no terrain surprises to
+ * build a tight formation on. */
+const PUSH_CENTER = { q: 10, r: 5 };
+
+/**
+ * HIGH-4 finding from adversarial review: `buildFuzzGameState()`'s small,
+ * spread-out army essentially never boxes a unit in tightly enough for a
+ * push to trigger — instrumented across all 100 default-soak seeds,
+ * `pushesResolved` reads 0, meaning the cascading-push path (plan.md §12)
+ * still had ZERO fuzz coverage even after the engine-level fix and unit
+ * tests landed. This is a SEPARATE, purpose-built scenario (not a change to
+ * `buildFuzzGameState()`, which stays as-is for its own existing
+ * cavalry/phalanx and boarding coverage) that reliably reaches at least one
+ * push within a handful of seeds:
+ *
+ * - `defender` (P1) sits at `PUSH_CENTER`, boxed on 5 of its 6 sides by its
+ *   OWN friendlies (`ring0`..`ring4`) — each of which has open space of its
+ *   own beyond the ring, so each genuinely CAN make room (a real push
+ *   target, not a dead end).
+ * - `attacker` (P0) occupies `defender`'s 6th neighbor, and is ITSELF fully
+ *   boxed by P1 units (the ring plus `defender` plus three more P1 filler
+ *   units) — enemy-occupied hexes are impassable to `reachableHexes` (see
+ *   `engine/movement.ts`'s doc comment), so `attacker` has no legal move at
+ *   all and can only ever `endPhase` during its own movement phase,
+ *   guaranteeing it's still adjacent to `defender` whenever its combat phase
+ *   comes around.
+ * - `attacker` (fantassins, attack 2) vs. `defender` (fantassins, defense 1)
+ *   is a 2:1 force ratio, and EVERY die face at that column in
+ *   `data/combatTable.ts`'s CRT is AR or DR (see `playRandomGame`'s own
+ *   "TERMINATION" doc comment on this same fact) — a die of 1-4 forces
+ *   `defender` to retreat (a 4-in-6 chance whenever the attack is actually
+ *   chosen), and `defender`'s only legal retreat hexes are all occupied
+ *   (5 friendlies + `attacker`), so it's forced into exactly the push this
+ *   scenario exists to reach.
+ *
+ * Not folded into `buildFuzzGameState()` itself: that army's existing
+ * coverage (cavalry/phalanx, boarding) is unrelated to this, and keeping
+ * this scenario separate means neither soak's odds/timing depend on the
+ * other's army composition.
+ */
+export function buildPushScenarioGameState(): GameState {
+  const players: Player[] = [
+    { id: 0, name: 'P0', edge: 'W', purchasePoints: 0, eliminated: false },
+    { id: 1, name: 'P1', edge: 'E', purchasePoints: 0, eliminated: false },
+  ];
+  const state = createInitialState(players, 'multi-defender');
+
+  const attackerPos = hexAdd(PUSH_CENTER, DIRECTIONS[5]!); // (10,6)
+  const ring = DIRECTIONS.slice(0, 5).map((d) => hexAdd(PUSH_CENTER, d)); // the other 5 neighbors
+  // Fully box the attacker: its 6 neighbors are `defender` (dir2 from it),
+  // ring[0] (dir1), ring[4] (dir3), and 3 more hexes no other unit already
+  // occupies — DIRECTIONS[0], [4], [5] from the attacker's own position.
+  const attackerFillers = [DIRECTIONS[0]!, DIRECTIONS[4]!, DIRECTIONS[5]!].map((d) => hexAdd(attackerPos, d));
+
+  state.units = [
+    makeUnit('attacker', 0, 'fantassins', attackerPos),
+    makeUnit('defender', 1, 'fantassins', PUSH_CENTER),
+    ...ring.map((pos, i) => makeUnit(`ring${i}`, 1, 'fantassins', pos)),
+    ...attackerFillers.map((pos, i) => makeUnit(`filler${i}`, 1, 'fantassins', pos)),
   ];
 
   return state;
@@ -426,25 +494,67 @@ function assertNoActionTargetsADeadUnit(state: GameState, legal: Action[]): void
 // `PlayerAgent` synchronously awaited instead of Phaser click callbacks.
 // ---------------------------------------------------------------------------
 
-async function resolveUnitRetreat(state: GameState, unit: Unit, agent: PlayerAgent): Promise<void> {
+/**
+ * Resolves one unit's forced retreat, cascading through pushes exactly like
+ * `BoardScene.beginUnitRetreatChoice` (see that function's doc comment for
+ * the shared design, and `combat.ts`'s `pushCandidates`/`completePush` for
+ * why the recursion needs `visited` threaded through it): a direct legal
+ * retreat if one exists; otherwise a friendly is chosen to push, ITS OWN
+ * retreat is resolved by recursing into this same function (which may
+ * itself cascade further), and only once that's fully settled does `unit`
+ * take over the hex the pushed unit vacated. `visited` accumulates the
+ * chain's ancestors (not including `unit`) so `pushCandidates` can't offer
+ * a unit still mid-resolution higher up the call stack as if it were an
+ * ordinary bystander — see `pushCandidates`'s own doc comment on
+ * termination.
+ *
+ * Exported (not merely file-local) specifically so this exact glue — not
+ * just the `pushCandidates`/`completePush` primitives it calls — can be
+ * driven directly by a test with a scripted `PlayerAgent`. HIGH-3 finding
+ * from adversarial review: `combat.test.ts`'s own cascade tests exercised
+ * the primitives by hand-writing the `retreatUnitTo`/`completePush`
+ * sequence in the test body, never this function, so a bug in the
+ * SEQUENCING itself (e.g. capturing `pushed.position` too late, or passing
+ * `visited` instead of the grown `chainVisited` into the recursive call —
+ * both would silently corrupt a cascade) had no test that could catch it.
+ * See `fuzzHarness.test.ts`'s `resolveUnitRetreat` describe block.
+ */
+export async function resolveUnitRetreat(
+  state: GameState,
+  unit: Unit,
+  agent: PlayerAgent,
+  stats?: HarnessStats,
+  visited: ReadonlySet<string> = new Set(),
+  resolvedIds?: Set<string>,
+): Promise<void> {
+  resolvedIds?.add(unit.id);
   const legalHexes = legalRetreatHexes(state, unit);
   if (legalHexes.length > 0) {
     const hex = await agent.chooseRetreat(state, unit, legalHexes);
     retreatUnitTo(unit, hex);
     return;
   }
-  const pushTargets = pushCandidates(state, unit);
+  const pushTargets = pushCandidates(state, unit, visited);
   if (pushTargets.length > 0) {
+    if (stats) stats.pushesResolved++;
     const pushed = await agent.choosePushTarget(state, unit, pushTargets);
-    const legalHexesForPushed = legalRetreatHexes(state, pushed);
-    const pushedHex = await agent.chooseRetreat(state, pushed, legalHexesForPushed);
-    completePush(unit, pushed, pushedHex);
+    // Capture BEFORE recursing — `pushed.position` changes during its own
+    // resolution below, but `unit` is only entitled to the hex `pushed`
+    // started this step from (see `completePush`'s doc comment).
+    const vacatedHex = { ...pushed.position };
+    const chainVisited = new Set(visited);
+    chainVisited.add(unit.id);
+    await resolveUnitRetreat(state, pushed, agent, stats, chainVisited, resolvedIds);
+    completePush(unit, vacatedHex);
     return;
   }
   // Mirrors BoardScene's own defensive fallback: applyLandCombatResult
   // already eliminates units with no options before queuing them, but an
   // earlier choice in the same batch can change the board out from under a
-  // later one.
+  // later one. `pushCandidates` already guarantees a CHOSEN push target is
+  // viable, so this should be unreachable for a `pushed` unit reached via
+  // the recursive call above too — kept as the same defensive net, not a
+  // normally-expected path.
   unit.destroyed = true;
 }
 
@@ -478,17 +588,36 @@ async function processAdvanceOffer(state: GameState, vacatedHex: HexCoord, candi
   if (chosen) chosen.position = vacatedHex;
 }
 
-async function processRetreats(
+/**
+ * MEDIUM finding from adversarial review (M11): on a result that forces the
+ * whole attacking (or defending) SIDE to retreat, every one of those units
+ * lands in `pendingRetreats` independently — but a push cascade resolving
+ * one of them can move ANOTHER unit that's also separately queued (e.g.
+ * unit A, boxed in, pushes its sibling attacker B aside; B is ALSO in
+ * `pendingRetreats` for the same combat result). Without tracking that, the
+ * loop below would later reach B's own queue entry and ask the player to
+ * retreat it A SECOND time for the same single result. `resolvedIds`
+ * (populated by every `resolveUnitRetreat` call, including nested pushed
+ * units — see that function) is checked before each queue entry so a
+ * chain-moved sibling is skipped rather than double-processed.
+ *
+ * Exported for the same reason as `resolveUnitRetreat` — so this exact
+ * batch-level skip logic can be driven directly by a test, not just
+ * inferred from `playRandomGame`'s aggregate stats.
+ */
+export async function processRetreats(
   state: GameState,
   pendingRetreats: Unit[],
   side: 'attacker' | 'defender',
   attackersForAdvance: Unit[],
   agent: PlayerAgent,
+  stats?: HarnessStats,
 ): Promise<void> {
+  const resolvedIds = new Set<string>();
   for (const unit of pendingRetreats) {
-    if (unit.destroyed) continue;
+    if (unit.destroyed || resolvedIds.has(unit.id)) continue;
     const originalHex = { ...unit.position };
-    await resolveUnitRetreat(state, unit, agent);
+    await resolveUnitRetreat(state, unit, agent, stats, undefined, resolvedIds);
     // Per the rulebook (see BoardScene's finishQueueItem doc comment), only
     // a DEFENDER's retreat frees a hex the attacker may advance into.
     if (side === 'defender') {
@@ -518,6 +647,15 @@ export interface HarnessStats {
   ramsResolved: number;
   ramHits: number;
   boardingsResolved: number;
+  /** Number of times a retreating unit, unable to retreat directly, pushed
+   * a friendly neighbor aside instead (see `combat.ts`'s `pushCandidates`) —
+   * counted once per push LINK, so a 3-link cascade increments this 3 times.
+   * Added alongside plan.md §12's cascading-push fix specifically because
+   * this path had zero fuzz coverage before it: with the old, strict
+   * "entourée" reading this always read 0 across a 100-game soak (plan.md
+   * §12.2) — a rule that never fires is itself evidence something's wrong,
+   * which is exactly what motivated the fix. */
+  pushesResolved: number;
 }
 
 export interface PlayRandomGameOptions {
@@ -550,6 +688,15 @@ export interface PlayRandomGameOptions {
    * replay without re-running the fuzzer.
    */
   trace?: string[];
+  /**
+   * Overrides the starting position — defaults to `buildFuzzGameState()`.
+   * Exists so a different, purpose-built scenario (e.g.
+   * `buildPushScenarioGameState()`, HIGH-4) can be soaked through the exact
+   * same seeded driver/invariant machinery as the default army, without
+   * duplicating `playRandomGame`'s ~150 lines of turn-loop/invariant-check
+   * plumbing just to swap the initial `GameState`.
+   */
+  buildInitialState?: () => GameState;
 }
 
 /** A compact, stable, one-line string for `action` — used only for
@@ -580,11 +727,13 @@ function emptyContext(): { attackedThisPhase: Set<string>; rammedThisTurn: Set<s
 
 /**
  * Plays one complete, seeded, fully headless game from `buildFuzzGameState()`
- * to `state.gameOver`, driven ENTIRELY through `legalActions`/`applyAction`
- * plus a `RandomAgent` answering every mid-resolution decision — no Phaser,
- * no `BoardScene`, no scene of any kind. Deterministic: the same `seed`
- * always produces the exact same sequence of actions, dice, and outcomes
- * (see `engine/rng.ts`'s doc comment), so a failing seed is a complete,
+ * (or `options.buildInitialState()`, if given — see `buildPushScenarioGameState`
+ * for why a caller would want a different starting position) to
+ * `state.gameOver`, driven ENTIRELY through `legalActions`/`applyAction` plus
+ * a `RandomAgent` answering every mid-resolution decision — no Phaser, no
+ * `BoardScene`, no scene of any kind. Deterministic: the same `seed` always
+ * produces the exact same sequence of actions, dice, and outcomes (see
+ * `engine/rng.ts`'s doc comment), so a failing seed is a complete,
  * reproducible repro on its own.
  *
  * Asserts invariants continuously (see `assertInvariants` et al. above),
@@ -627,7 +776,7 @@ export async function playRandomGame(seed: number, options: PlayRandomGameOption
 
   const rng = createSeededRng(seed);
   const agent = new RandomAgent(rng);
-  const state = buildFuzzGameState();
+  const state = (options.buildInitialState ?? buildFuzzGameState)();
   // The very first movement phase never goes through `applyAction`'s
   // `endPhase` case (nothing has ended yet to trigger a refill) — mirrors
   // how a fresh game reaches BoardScene with units already carrying their
@@ -651,6 +800,7 @@ export async function playRandomGame(seed: number, options: PlayRandomGameOption
     ramsResolved: 0,
     ramHits: 0,
     boardingsResolved: 0,
+    pushesResolved: 0,
   };
 
   assertInvariants(state, 'initial state');
@@ -780,7 +930,7 @@ async function applyOneAction(
         }
       } else if (result.outcome.pendingRetreats.length > 0) {
         const side = result.detail.result === 'DR' ? 'defender' : 'attacker';
-        await processRetreats(state, result.outcome.pendingRetreats, side, result.attackers, agent);
+        await processRetreats(state, result.outcome.pendingRetreats, side, result.attackers, agent, stats);
       } else if (result.detail.result === 'DE' || result.detail.result === 'EX') {
         for (const hex of result.defenderOriginalHexes) {
           await processAdvanceOffer(state, hex, result.attackers, agent);

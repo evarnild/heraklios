@@ -19,13 +19,18 @@ import type { GameState, Unit } from './state';
  *   pick-one-of-N choice, not N independent booleans) — matching that
  *   shape here means the prompt itself needed no redesign, only rehoming.
  * - `choosePushTarget` is a genuinely extra decision point the plan's sketch
- *   didn't list: "a unit forced to retreat but boxed in entirely by
- *   friendlies pushes one of them aside" (see `pushCandidates` in
- *   engine/combat.ts) is its own player choice, distinct from — but
- *   resolved the same way as — an ordinary retreat-hex choice. It's
- *   followed by an ordinary `chooseRetreat` call for the *pushed* unit's own
- *   destination, so the interface doesn't need a third, push-specific
- *   "where does the pushed unit go" method.
+ *   didn't list: "a unit forced to retreat with at least one adjacent
+ *   friendly able to make room pushes one of them aside" (see
+ *   `pushCandidates` in engine/combat.ts — plan.md §12 widened this from an
+ *   earlier, stricter "boxed in on all six sides" reading) is its own player
+ *   choice, distinct from — but resolved the same way as — an ordinary
+ *   retreat-hex choice. It's followed by EITHER an ordinary `chooseRetreat`
+ *   call for the *pushed* unit's own destination (if it has one directly),
+ *   OR — per plan.md §12.3's cascade — another `choosePushTarget` call for
+ *   THAT unit if it doesn't, recursing until some unit in the chain finds a
+ *   real hex. The interface still doesn't need a third, push-specific
+ *   "where does the pushed unit go" method: the cascade is just repeated
+ *   calls to these same two methods.
  * - `chooseAction` — "the next top-level action to take" — is DELIBERATELY
  *   NOT part of this interface, unlike the plan's original sketch. See
  *   `ActionObserver` below for why, and for what `BoardScene` actually
@@ -47,14 +52,20 @@ import type { GameState, Unit } from './state';
 export interface PlayerAgent {
   /** Where `unit` retreats to, from `options` (see `legalRetreatHexes`).
    * Also used, unmodified, for a *pushed* unit's own retreat destination
-   * once `choosePushTarget` has picked who gets pushed — see this
-   * interface's doc comment. */
+   * once `choosePushTarget` has picked who gets pushed — but ONLY if that
+   * pushed unit has a direct legal retreat; if it doesn't, `choosePushTarget`
+   * is called again for IT instead (see this interface's doc comment on the
+   * cascade). */
   chooseRetreat(state: GameState, unit: Unit, options: HexCoord[]): Promise<HexCoord>;
 
-  /** `unit` is retreating but every neighboring hex holds a friendly unit
-   * (see `pushCandidates`) — which of `candidates` gets pushed aside to make
-   * room. Every candidate is guaranteed to have somewhere legal of its own
-   * to retreat to (that's what makes it a candidate at all). */
+  /** `unit` cannot retreat and at least one neighboring hex holds a friendly
+   * unit that can make room (see `pushCandidates`) — which of `candidates`
+   * gets pushed aside. Every candidate is guaranteed to have somewhere to
+   * go, but NOT necessarily directly: per plan.md §12's cascading push, a
+   * candidate may itself have no direct retreat and have to push one of ITS
+   * OWN friendly neighbors in turn — resolved by calling right back into
+   * this same choice (and, if needed, `chooseRetreat`) for the pushed unit,
+   * recursively, until someone finds a direct retreat hex. */
   choosePushTarget(state: GameState, unit: Unit, candidates: Unit[]): Promise<Unit>;
 
   /** Whether — and which — of `candidates` (every still-living unit from the
