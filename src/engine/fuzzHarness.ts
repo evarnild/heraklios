@@ -559,26 +559,19 @@ export async function resolveUnitRetreat(
 }
 
 /**
- * DEVIATION FROM `BoardScene.promptAdvanceChoice` — found by the fuzz
- * harness, plan.md §6, and NOT fixed at the source: `BoardScene`'s own
- * advance-offer candidate list is only filtered by `!u.destroyed`, with no
- * terrain check — so a vacated hex illegal for the advancing unit's
- * category (e.g. a defeated defender's marsh/steep-flank hex, legal for
- * THAT unit but not for a cavalry/chariot attacker in the same combat
- * group) can be, and today in real hotseat play IS, offered and accepted
- * through the actual UI.
+ * Shared with `BoardScene.promptAdvanceChoice` after plan.md §9.1. The bug
+ * this protects against: filtering advance candidates only by `!u.destroyed`
+ * offers a vacated hex illegal for the advancing unit's category (e.g. a
+ * defeated defender's marsh/steep-flank hex, legal for THAT unit but not for
+ * a cavalry/chariot attacker in the same combat group).
  *
  * `eligibleAdvanceCandidates` (engine/combat.ts) is the extracted, tested,
  * shared fix for this — used here rather than reimplementing the filter
  * inline specifically so it ISN'T only the harness's own private correction
  * (a prior version filtered inline here, which meant this harness's own
- * terrain invariant could never see the identical bug that's confirmed live
- * in `BoardScene.ts`: the harness silently corrected the exact defect it
- * would otherwise have caught). `BoardScene.ts`'s `promptAdvanceChoice`
- * (around its `candidates = this.advanceEligibleAttackers.filter((u) =>
- * !u.destroyed)` line) should call the same exported function — not fixed
- * there directly because this task's boundaries exclude touching
- * `src/scenes/`.
+ * terrain invariant could never see the identical bug in `BoardScene.ts`:
+ * the harness silently corrected the exact defect it would otherwise have
+ * caught). The scene now calls the same exported function.
  */
 async function processAdvanceOffer(state: GameState, vacatedHex: HexCoord, candidates: Unit[], agent: PlayerAgent): Promise<void> {
   if (unitAt(state, vacatedHex)) return; // already re-occupied by an earlier choice in this batch
