@@ -78,6 +78,17 @@ describe('HeuristicAgent: headless self-play', () => {
 
     const heuristic = await playSeries('ev', 'ev');
     expect(heuristic.multiAttackerAttacks).toBeGreaterThan(0);
+
+    // Printed unconditionally, following `fuzzHarness.test.ts`'s report
+    // convention (plan.md §6.6: a harness that runs green while exercising
+    // nothing is the failure mode that matters most) — so a reader can see
+    // how much combat this soak actually reached, not just that it passed.
+    const attacks = heuristic.games.reduce((sum, g) => sum + g.landAttacksResolved, 0);
+    // eslint-disable-next-line no-console
+    console.log(
+      `[heuristic] ${SEEDS} EV-vs-EV games: ${attacks} land attacks, ${heuristic.multiAttackerAttacks} of them combined ` +
+        `(RandomAgent control over the same seeds: ${random.multiAttackerAttacks})`,
+    );
   });
 
   it('replays identically from the same seed', async () => {

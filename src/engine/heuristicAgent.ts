@@ -185,10 +185,12 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
    * attackers before pressing Resolve.
    *
    * It matters for play strength as much as for coverage: the CRT is a ratio
-   * table, so two units attacking together are worth far more than two units
-   * attacking separately — 4 attack against 5 defense is the 1-2 column
-   * (three faces of AE), while the same two units combined at 8 against 5 is
-   * 1-1 and then 2-1 territory.
+   * table, so units attacking together are worth far more than the same
+   * units attacking one at a time. Two light infantry (2 attack each)
+   * against one heavy infantry (3 defense) is the worked example in
+   * `heuristicAgent.test.ts` — alone each is the 1-2 column, four of whose
+   * six faces repel the attacker; together they reach 1-1, and a third joins
+   * them at 2-1, where four faces push the defender back instead.
    */
   private chooseCombatAction(state: GameState, legal: Action[]): Action {
     const endPhase = legal.find((a) => a.kind === 'endPhase');
