@@ -136,19 +136,30 @@ export function probabilityOf(distribution: AttackOutcomeDistribution, result: C
 }
 
 /**
- * Non-material worth of forcing one enemy unit back a hex (and, negated, the
- * cost of being forced back yourself) when that retreat does NOT eliminate
+ * Non-material worth of driving the enemy back a hex (and, negated, the cost
+ * of being driven back yourself) when the retreat does NOT eliminate
  * anything.
  *
  * A POLICY CONSTANT, not a rule: the rulebook attaches no value to a retreat
  * at all. It exists because a pure "material only" valuation scores every
  * AR and DR as exactly 0, which makes the overwhelming majority of this
- * game's combats look worthless — `plan.md` §6.8's soak measured 306 DR and
+ * game's combats look worthless — plan.md §6.8's soak measured 306 DR and
  * 178 AR against just 28 AE / 21 EX / 18 DE, i.e. the CRT's near-even
  * columns produce nothing BUT retreats. An agent indifferent to those would
  * decline almost every attack it could make. Deliberately small (a fifth of
  * the cheapest unit on the roster) so it can tip a coin-flip but can never
  * outweigh a real loss.
+ *
+ * Charged ONCE PER SIDE, not once per unit — see `retreatCost`. Getting this
+ * wrong is not a matter of taste: a per-unit tempo cost makes an attack
+ * scale WORSE with the number of attackers (five units repelled would cost
+ * five times as much tempo as one, while the single defender they pushed
+ * back still only pays once), so an agent using it declines every combined
+ * attack and, at ratios of 2:1 and up where attackers necessarily outnumber
+ * defenders, declines almost every attack at all. That is the opposite of
+ * the rule the CRT actually encodes, which rewards concentration; it was
+ * caught by working the numbers on a three-unit group before the tier was
+ * ever soaked.
  */
 export const RETREAT_TEMPO_VALUE = 1;
 
@@ -188,14 +199,24 @@ export function wouldBeEliminatedByRetreat(state: GameState, unit: Unit): boolea
   return legalRetreatHexes(state, unit).length === 0 && pushCandidates(state, unit).length === 0;
 }
 
-/** Value lost by a side forced to retreat: the full worth of any unit that
- * has nowhere to go (it dies), plus a small tempo cost for the rest. */
+/**
+ * Value lost by a side forced to retreat: the full worth of every unit that
+ * has nowhere to go — those are real, per-unit kills — plus, once for the
+ * whole side, `RETREAT_TEMPO_VALUE` if anyone actually gave ground.
+ *
+ * The material half is per unit and the positional half is per side. See
+ * `RETREAT_TEMPO_VALUE` for why that asymmetry is deliberate rather than an
+ * oversight: "our attack was repulsed" is one setback however many units
+ * took part in it, whereas "three of our units died" is three losses.
+ */
 function retreatCost(state: GameState, units: readonly Unit[]): number {
   let cost = 0;
+  let anyoneGaveGround = false;
   for (const unit of units) {
-    cost += wouldBeEliminatedByRetreat(state, unit) ? unitValue(unit) : RETREAT_TEMPO_VALUE;
+    if (wouldBeEliminatedByRetreat(state, unit)) cost += unitValue(unit);
+    else anyoneGaveGround = true;
   }
-  return cost;
+  return cost + (anyoneGaveGround ? RETREAT_TEMPO_VALUE : 0);
 }
 
 /**
