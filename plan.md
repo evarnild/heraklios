@@ -42,9 +42,9 @@ action layer), AI Stage 2a (fuzz harness), start-a-new-game-anytime, move
 through friendly units, combat reporting detail, cascading push
 ([§12](#12-cascading-push-when-a-unit-cannot-retreat), merged `3c766d6`),
 and [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) advance
-terrain (merged `6172f2f`). **In flight:** Stage 2b drift extraction is
-implemented and ready for merge on `feat/stage-2b-drift-extraction`.
-**Live defects still open:**
+terrain (merged `6172f2f`), and Stage 2b drift extraction
+([§6.7](#67-the-elephant-problem-stage-2-split), merged `7544a96`).
+**In flight:** nothing. **Live defects still open:**
 [§9.2](#92-endgamebytimelimit-is-never-called).
 
 <a id="10-sequenced-queue"></a>
@@ -66,13 +66,11 @@ sync when something merges** — it went stale once and the user caught it.
 | [§11](#11-combat-reporting-detail) combat reporting detail | `12e1bf6` |
 | [§12](#12-cascading-push-when-a-unit-cannot-retreat) cascading push | `3c766d6` |
 | [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) advance terrain | `6172f2f` |
+| [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2b - drift extraction | `7544a96` |
 
 ### In flight
 
-- [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2b drift extraction on
-  `feat/stage-2b-drift-extraction` — implemented, adversarially reviewed, and
-  ready for merge. After merge, move this row to Shipped with the merge hash
-  and promote the next queued item.
+- *Nothing.* Next up is #0 below.
 
 ### Queued
 
@@ -90,8 +88,9 @@ these mostly cannot run in parallel with each other.
 ## Backlog Map
 
 - **Start here:** [Current Queue](#10-sequenced-queue).
-- **Current active task:** merge [§6.7](#67-the-elephant-problem-stage-2-split)
-  Stage 2b drift extraction, then promote the next queue item.
+- **Current next task:** [§12](#12-cascading-push-when-a-unit-cannot-retreat)
+  follow-ups, unless you choose to skip straight to
+  [§13](#13-hex-coordinate-tooltip).
 - **Live defect needing design:** [§9.2](#92-endgamebytimelimit-is-never-called).
 - **Larger future work:** [§6.4](#64-deferred-stages-3-4), and
   [§14](#14-decomposing-boardscenets-for-parallel-work).
@@ -511,9 +510,9 @@ pushed to `origin/main`. Branch and worktree cleaned up after merge.
 
 ## 6. Next: AI player
 
-**Status:** stages 1 and 2a **✅ shipped** (merged `9cb7ed7` and `469f84a`).
-Stage 2b (the elephant drift extraction, [§6.7](#67-the-elephant-problem-stage-2-split))
-and stages 3-4 remain open. Scoped deliberately to **stages 1–2 only**
+**Status:** stages 1, 2a, and 2b **✅ shipped** (merged `9cb7ed7`,
+`469f84a`, and `7544a96`). Stage 2c and stages 3-4 remain open.
+Scoped deliberately to **stages 1–2 only**
 (the headless foundation + a self-play fuzz harness). Stages 3–4 (the actual
 strategy code and its UI) are deferred until the foundation is proven — see
 [§6.4](#64-deferred-stages-3-4).
@@ -700,15 +699,14 @@ bar for this project, not an extra.
 
 **Known gap carried into Stage 2:** the elephant drift/trample cascade was
 not extracted in Stage 2a, so a headless caller could not resolve
-`outcome.pendingDrifts`. Stage 2b now replaces the scene-owned closure cascade
-with `engine/drift.ts`'s explicit drift state machine on
-`feat/stage-2b-drift-extraction`; Stage 2c remains the point where ordinary
-seeded self-play starts including elephants.
+`outcome.pendingDrifts`. Stage 2b replaced the scene-owned closure cascade
+with `engine/drift.ts`'s explicit drift state machine; Stage 2c remains the
+point where ordinary seeded self-play starts including elephants.
+
 ### 6.7 The elephant problem: Stage 2 split
 
-**Status:** implemented on `feat/stage-2b-drift-extraction`, reviewed in
-multiple adversarial passes, and ready for merge. Verification on the branch:
-`npm.cmd test -- src/engine/fuzzHarness.test.ts src/engine/drift.test.ts`,
+**Status: ✅ Shipped** — merged to `main` as `7544a96`. Verification on the
+branch: `npm.cmd test -- src/engine/fuzzHarness.test.ts src/engine/drift.test.ts`,
 `npm.cmd run build`, `git diff --check`, and `npm.cmd test` (302 passed,
 1 planned Stage 2c skip).
 
@@ -735,10 +733,11 @@ refactors safe.
 
 **Stage 2a exclusion status.** In Stage 2a the exclusion had to fail loudly:
 the harness threw if `outcome.pendingDrifts` appeared and carried a skipped
-test so the elephant gap printed on every run. During Stage 2b that guard is
-replaced by `processDrifts`; the default self-play army can still exclude
-elephants until Stage 2c requires ordinary soak coverage to show non-zero
+test so the elephant gap printed on every run. Stage 2b replaced that guard
+with `processDrifts`; the default self-play army can still exclude elephants
+until Stage 2c requires ordinary soak coverage to show non-zero
 `driftsResolved` / `driftCombatsResolved`.
+
 #### What 2b actually has to solve
 
 An earlier sketch of this plan proposed a simple
@@ -1181,8 +1180,8 @@ returning ad-hoc shapes, so the fuzz harness can assert on the same fields.
   distinct from
   [§9.1](#91-post-combat-advance-ignores-terrain-restrictions)'s `:1569` and
   from the drift cascade, but *same file*, so expect merge conflicts if run
-  concurrently with either. §9.1 has now shipped; Stage 2b remains the active
-  collision risk.
+  concurrently with either. §9.1 and Stage 2b have now shipped; future
+  `BoardScene.ts` work remains the active collision risk.
 - **Parallel-safe with [§8](#8-bug-units-cannot-move-through-friendly-units)**,
   which is confined to `engine/movement.ts` / `engine/navalMovement.ts`.
 - No `GameState` shape change, so no `SAVE_VERSION` bump.
@@ -1451,7 +1450,7 @@ before relying on them, since any merge shifts everything below it.
 | Naval movement + ram UI | 875-1077 | `promptRam`, `handleNavalMoveClick` | — |
 | Combat group building | 1078-1203 | `toggleAttacker`, `toggleDefender` | — |
 | **Retreat/push cascade** | 1204-1391 | `beginUnitRetreatChoice`, `choosePushTarget` | [§12](#12-cascading-push-when-a-unit-cannot-retreat) |
-| **Elephant drift pump** | re-derive | `beginDrift` delegating to `engine/drift.ts` | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2b in flight |
+| **Elephant drift pump** | re-derive | `beginDrift` delegating to `engine/drift.ts` | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2b shipped |
 | **Advance offers** | 1542-1661 | `beginAdvanceOffers`, `promptAdvanceChoice` | §9.1 shipped; future extraction candidate |
 | Combat resolution + log | 1662-1892 | `resolveGroupAttack`, `logCombatOutcome` | — |
 | Naval attack prompt | 1893-2001 | `navalAttackPrompt` | — |
@@ -1461,8 +1460,8 @@ The bolded regions are the ones that keep colliding, and they share a
 shape: **a prompt, a player decision, and a continuation** — the machinery
 that already implements `PlayerAgent`. Extracting those three into their own
 modules would have let §12, §6.7 and §9.1 run genuinely concurrently; after
-§12 and §9.1 shipped, this mainly matters for Stage 2b and future
-BoardScene work.
+§12, §9.1, and Stage 2b shipped, this mainly matters for future BoardScene
+work.
 
 Proposed shape — each takes a narrow context rather than the whole scene:
 
@@ -1506,11 +1505,9 @@ Better order:
    the running game (the `run` path used to verify [§7](#7-start-a-new-game-at-any-time)).
    The advance-offer region is the smallest and has the fewest interactions —
    start there, not with drift.
-3. **Then Stage 2b** ([§6.7](#67-the-elephant-problem-stage-2-split)), which
-   already requires touching drift, and do the extraction as part of it rather
-   than as a separate pass. That converts a refactor with no test coverage
-   into one the fuzz harness *can* cover, because Stage 2b's whole purpose is
-   making the cascade headlessly drivable.
+3. **Stage 2b shipped this drift extraction** ([§6.7](#67-the-elephant-problem-stage-2-split)),
+   converting a refactor with no test coverage into one the fuzz harness can
+   cover because the cascade is now headlessly drivable.
 
 ### 14.4 The deeper point
 
