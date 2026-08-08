@@ -495,10 +495,14 @@ here rather than silently:
   menu has no Human/Computer choice per player, there is no pacing or
   animation to make its moves legible, and the save format does not record
   which seats were AI.
-- **The computer opponent never uses elephants.** Its self-play harness
-  excludes them, because an elephant forced to retreat "drifts" through a
-  cascade that only the board scene can currently resolve — so nothing
-  headless, the AI included, can play a game containing one.
+- **The computer opponent never uses elephants.** Not because it can't —
+  the drift cascade an elephant goes through instead of retreating is now
+  resolvable outside the board scene — but because the armies its self-play
+  tests are built from still leave elephants out, so the AI has never been
+  exercised with one. It also makes no attempt to predict where a drifting
+  elephant ends up when weighing an attack; it assumes the elephant
+  survives, which understates rather than overstates the value of hitting
+  one.
 - **Naval movement is destination-click, not path-drawn.** Clicking a
   highlighted hex moves the selected ship there by the cheapest combination
   of rotation + forward moves (or, for an orange-highlighted contact hex,

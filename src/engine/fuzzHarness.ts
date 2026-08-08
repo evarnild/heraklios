@@ -6,15 +6,14 @@ import { getUnitType } from '../data/units';
 import type { CombatResult } from '../data/combatTable';
 import { legalActions, applyAction, type Action } from './actions';
 import type { DrivingAgent, PlayerAgent } from './agent';
+import { rollDie } from './dice';
+import { resolveElephantDrift } from './drift';
 import { RandomAgent } from './randomAgent';
+import { resolveUnitRetreat as resolveEngineUnitRetreat, type RetreatHooks } from './retreat';
 import { createSeededRng } from './rng';
 import {
   attackerCanJoin,
   eligibleAdvanceCandidates,
-  legalRetreatHexes,
-  pushCandidates,
-  retreatUnitTo,
-  completePush,
   applyExchangeSacrifice,
   unitAt,
 } from './combat';
@@ -30,15 +29,27 @@ import {
   type Unit,
 } from './state';
 
+export interface PendingResolutionItem {
+  unit: Unit;
+  originalHex: HexCoord;
+}
+
+type PendingResolutionInput = Unit | PendingResolutionItem;
+
+export function capturePendingResolutionItems(units: readonly Unit[]): PendingResolutionItem[] {
+  return units.map((unit) => ({ unit, originalHex: { ...unit.position } }));
+}
+
+function normalizePendingResolutionItems(pending: readonly PendingResolutionInput[]): PendingResolutionItem[] {
+  return pending.map((item) => ('unit' in item ? item : { unit: item, originalHex: { ...item.position } }));
+}
+
 // ---------------------------------------------------------------------------
-// Army construction — deliberately explicit, NOT `defaultArmySelection()`
-// (engine/army.ts), which includes 3 elephants (`army.ts:68`). Elephants
-// cannot be fuzzed yet: their drift/trample cascade still mutates GameState
-// from inside BoardScene closures a headless caller can't drive (see
-// plan.md §6.7). Building the harness's armies unit-by-unit here — rather
-// than filtering an ArmySelection after the fact — means there is no
-// elephant-shaped value anywhere in this file to accidentally forget to
-// filter.
+// Army construction - deliberately explicit, NOT `defaultArmySelection()`
+// (engine/army.ts), which includes 3 elephants (`army.ts:68`). The default
+// soak still keeps elephants out so its historical cavalry/phalanx/boarding
+// action mix stays stable; Stage 2b gives pendingDrifts an engine driver,
+// and Stage 2c can broaden this army mix to require live drift coverage.
 // ---------------------------------------------------------------------------
 
 /** (10,3) through (19,3) are all confirmed 'plain' hexes on the shipped map
@@ -529,35 +540,12 @@ export async function resolveUnitRetreat(
   visited: ReadonlySet<string> = new Set(),
   resolvedIds?: Set<string>,
 ): Promise<void> {
-  resolvedIds?.add(unit.id);
-  const legalHexes = legalRetreatHexes(state, unit);
-  if (legalHexes.length > 0) {
-    const hex = await agent.chooseRetreat(state, unit, legalHexes);
-    retreatUnitTo(unit, hex);
-    return;
-  }
-  const pushTargets = pushCandidates(state, unit, visited);
-  if (pushTargets.length > 0) {
-    if (stats) stats.pushesResolved++;
-    const pushed = await agent.choosePushTarget(state, unit, pushTargets);
-    // Capture BEFORE recursing — `pushed.position` changes during its own
-    // resolution below, but `unit` is only entitled to the hex `pushed`
-    // started this step from (see `completePush`'s doc comment).
-    const vacatedHex = { ...pushed.position };
-    const chainVisited = new Set(visited);
-    chainVisited.add(unit.id);
-    await resolveUnitRetreat(state, pushed, agent, stats, chainVisited, resolvedIds);
-    completePush(unit, vacatedHex);
-    return;
-  }
-  // Mirrors BoardScene's own defensive fallback: applyLandCombatResult
-  // already eliminates units with no options before queuing them, but an
-  // earlier choice in the same batch can change the board out from under a
-  // later one. `pushCandidates` already guarantees a CHOSEN push target is
-  // viable, so this should be unreachable for a `pushed` unit reached via
-  // the recursive call above too — kept as the same defensive net, not a
-  // normally-expected path.
-  unit.destroyed = true;
+  const hooks: RetreatHooks = {
+    onPush: () => {
+      if (stats) stats.pushesResolved++;
+    },
+  };
+  await resolveEngineUnitRetreat(state, unit, agent, hooks, visited, resolvedIds);
 }
 
 /**
@@ -602,19 +590,64 @@ async function processAdvanceOffer(state: GameState, vacatedHex: HexCoord, candi
  */
 export async function processRetreats(
   state: GameState,
-  pendingRetreats: Unit[],
+  pendingRetreats: readonly PendingResolutionInput[],
   side: 'attacker' | 'defender',
   attackersForAdvance: Unit[],
   agent: PlayerAgent,
   stats?: HarnessStats,
+  resolvedIds: Set<string> = new Set(),
 ): Promise<void> {
-  const resolvedIds = new Set<string>();
-  for (const unit of pendingRetreats) {
-    if (unit.destroyed || resolvedIds.has(unit.id)) continue;
-    const originalHex = { ...unit.position };
+  for (const { unit, originalHex } of normalizePendingResolutionItems(pendingRetreats)) {
+    if (unit.destroyed || resolvedIds.has(unit.id)) {
+      if (side === 'defender') {
+        await processAdvanceOffer(state, originalHex, attackersForAdvance, agent);
+      }
+      continue;
+    }
     await resolveUnitRetreat(state, unit, agent, stats, undefined, resolvedIds);
     // Per the rulebook (see BoardScene's finishQueueItem doc comment), only
     // a DEFENDER's retreat frees a hex the attacker may advance into.
+    if (side === 'defender') {
+      await processAdvanceOffer(state, originalHex, attackersForAdvance, agent);
+    }
+  }
+}
+
+export async function processDrifts(
+  state: GameState,
+  pendingDrifts: readonly PendingResolutionInput[],
+  side: 'attacker' | 'defender',
+  attackersForAdvance: Unit[],
+  agent: PlayerAgent,
+  rng: () => number,
+  stats?: HarnessStats,
+  resolvedIds: Set<string> = new Set(),
+): Promise<void> {
+  for (const { unit, originalHex } of normalizePendingResolutionItems(pendingDrifts)) {
+    if (unit.destroyed || resolvedIds.has(unit.id)) {
+      if (side === 'defender') {
+        await processAdvanceOffer(state, originalHex, attackersForAdvance, agent);
+      }
+      continue;
+    }
+    await resolveElephantDrift(
+      state,
+      unit,
+      unitType(unit).movement,
+      agent,
+      () => rollDie(rng),
+      {
+        onDriftStart: (drifting) => {
+          resolvedIds.add(drifting.id);
+        },
+        onPush: () => {
+          if (stats) stats.pushesResolved++;
+        },
+      },
+      undefined,
+      stats,
+      resolvedIds,
+    );
     if (side === 'defender') {
       await processAdvanceOffer(state, originalHex, attackersForAdvance, agent);
     }
@@ -642,6 +675,8 @@ export interface HarnessStats {
   ramsResolved: number;
   ramHits: number;
   boardingsResolved: number;
+  driftsResolved: number;
+  driftCombatsResolved: number;
   /** Number of times a retreating unit, unable to retreat directly, pushed
    * a friendly neighbor aside instead (see `combat.ts`'s `pushCandidates`) —
    * counted once per push LINK, so a 3-link cascade increments this 3 times.
@@ -945,6 +980,8 @@ export async function playRandomGame(seed: number, options: PlayRandomGameOption
     ramsResolved: 0,
     ramHits: 0,
     boardingsResolved: 0,
+    driftsResolved: 0,
+    driftCombatsResolved: 0,
     pushesResolved: 0,
     multiAttackerAttacks: 0,
     finalArmyValues: {},
@@ -1082,16 +1119,14 @@ async function applyOneAction(
       stats.landAttacksResolved++;
       if (action.attackerIds.length > 1) stats.multiAttackerAttacks++;
       stats.combatResultCounts[result.detail.result] = (stats.combatResultCounts[result.detail.result] ?? 0) + 1;
-
-      // THE loud guard plan.md §6.7 requires: elephants are excluded from
-      // `buildFuzzGameState()` specifically so this can never fire — a
-      // failure here means that exclusion itself has been broken (e.g. by
-      // someone adding an elephant to the harness's army without reading
-      // this comment), not that a drift needs resolving.
-      if (result.outcome.pendingDrifts.length > 0) {
-        throw new Error(
-          `playRandomGame: outcome.pendingDrifts was non-empty (${result.outcome.pendingDrifts.map((u) => u.id).join(', ')}) — elephants must stay excluded from the fuzz harness's armies until Stage 2b extracts the drift cascade (plan.md §6.7). This is not a real drift to resolve; it's the exclusion itself having broken.`,
-        );
+      if (!result.outcome.requiresExchangeChoice && result.outcome.pendingDrifts.length > 0) {
+        const side = result.detail.result === 'DR' ? 'defender' : 'attacker';
+        const resolvedIds = new Set<string>();
+        const pendingRetreats = capturePendingResolutionItems(result.outcome.pendingRetreats);
+        const pendingDrifts = capturePendingResolutionItems(result.outcome.pendingDrifts);
+        await processRetreats(state, pendingRetreats, side, result.attackers, agent, stats, resolvedIds);
+        await processDrifts(state, pendingDrifts, side, result.attackers, agent, rng, stats, resolvedIds);
+        return;
       }
 
       if (result.outcome.requiresExchangeChoice) {

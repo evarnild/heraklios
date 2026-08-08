@@ -193,11 +193,21 @@ export interface AttackEvaluation {
  * that the real resolution will ask a moment later.
  *
  * Elephants are the one exception: they never retreat, they drift (see
- * `LandCombatOutcome.pendingDrifts`), which can end anywhere from unharmed
- * to dead depending on a second die and whatever it tramples. Treated as
- * "not an outright loss" here — the drift cascade is unresolvable headlessly
- * until plan.md §6.7's Stage 2b lands, so modelling its odds would be
- * inventing numbers no caller can currently even play out.
+ * `LandCombatOutcome.pendingDrifts` and `engine/drift.ts`), which can end
+ * anywhere from unharmed to dead depending on a second die, whatever it
+ * tramples, and how far the cascade runs. Treated as "not an outright loss"
+ * here — a deliberate under-estimate rather than a gap.
+ *
+ * Stage 2b (plan.md §6.7) made that cascade resolvable headlessly, so the
+ * odds COULD now in principle be computed by pumping `resolveElephantDrift`
+ * over every direction die. They are not, and this is the reason: a drift
+ * can contain a nested drift and a live `PlayerAgent` decision, so "the
+ * odds" are not a distribution over six faces the way a land attack's are —
+ * they depend on choices not yet made. Pricing that properly is lookahead
+ * (plan.md §6.4's stage 3b), not arithmetic. Until then, scoring a drifting
+ * elephant as surviving keeps the error in the direction of caution: the
+ * agent never talks itself into an attack by assuming the enemy elephant
+ * it repelled will conveniently trample itself.
  */
 export function wouldBeEliminatedByRetreat(state: GameState, unit: Unit): boolean {
   if (unitType(unit).id === 'elephants') return false;

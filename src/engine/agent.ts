@@ -42,12 +42,10 @@ import type { GameState, Unit } from './state';
  * chooser picks (or doesn't) like any other move (see `engine/actions.ts`'s
  * doc comment on `Action`) — not this interface's concern.
  *
- * Nor does anything here answer an elephant's drift *direction* — that's an
- * unavoidable die roll (see `directionForDie` in engine/hex.ts), not a
- * choice, so it stays entirely inside the drift orchestration (currently
- * still `BoardScene`'s, per plan.md §6.3's scope: the drift/retreat/advance
- * prompt machinery is a follow-on decomposition candidate, extracted here
- * only as far as this interface actually requires).
+ * Nor does anything here answer an elephant's drift *direction* - that's an
+ * unavoidable die roll (see directionForDie in engine/hex.ts), not a
+ * choice, so it stays inside engine/drift.ts's drift orchestration rather
+ * than becoming a player decision.
  */
 export interface PlayerAgent {
   /** Where `unit` retreats to, from `options` (see `legalRetreatHexes`).
