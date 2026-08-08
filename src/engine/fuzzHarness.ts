@@ -9,6 +9,7 @@ import type { DrivingAgent, PlayerAgent } from './agent';
 import { RandomAgent } from './randomAgent';
 import { createSeededRng } from './rng';
 import {
+  attackerCanJoin,
   eligibleAdvanceCandidates,
   legalRetreatHexes,
   pushCandidates,
@@ -767,40 +768,53 @@ function formatAction(action: Action): string {
  * The one sanctioned exception is a COMBINED land attack. `legalActions`
  * enumerates singleton attacks only, deliberately (see its doc comment), and
  * explicitly invites a scored agent to assemble a bigger group and hand it
- * to `applyAction` itself — which `HeuristicAgent` does. Such a group is
- * accepted here exactly when every one of its attackers had a legal
- * singleton attack against that same single defender, which is precisely the
- * condition `attackerCanJoin` enforces for a group (reachability per
- * attacker, plus the cavalry/phalanx rule, which `validTargets` already
- * applied to each singleton). Anything else — an unlisted move, a
- * multi-DEFENDER group, an attacker that never had a legal attack — is a bug
- * in the agent and throws.
+ * to `applyAction` itself — which `HeuristicAgent` does. Anything else — an
+ * unlisted move, a multi-DEFENDER group, an attacker that never had a legal
+ * attack — is a bug in the agent and throws.
+ *
+ * A combined group is checked in TWO independent ways, and that split is the
+ * point of this function. Adversarial review's finding against the first
+ * version: asking only "did every attacker have a legal singleton against
+ * this defender in `legal`?" is a tautology, because `legal` is exactly the
+ * set `HeuristicAgent.chooseCombatAction` drew the group from — the check
+ * could not fail for the agent it exists to police. So instead:
+ *
+ * 1. **Membership**, which only `legal` can answer: each attacker must
+ *    appear in some offered attack. "Has this unit already attacked this
+ *    phase?" and "is it the active player's?" live in `ActionContext`, not
+ *    in `GameState`, so there is nothing on the board to re-derive them from.
+ * 2. **The pairing rule**, re-derived from `state` through `attackerCanJoin`:
+ *    may this attacker legally join a group targeting THIS defender? That is
+ *    what enforces reachability and, critically, the cavalry/phalanx group
+ *    restriction (plan.md §5's HIGH). Being computed from the board rather
+ *    than from the agent's own input, it can genuinely fail.
  *
  * Worth having rather than relying on `applyAction`'s own throws: those
  * catch a dead or unknown unit, but would happily resolve a combat between
  * two units on opposite ends of the map.
  */
-function assertChosenActionIsLegal(action: Action, legal: Action[]): void {
+function assertChosenActionIsLegal(state: GameState, action: Action, legal: Action[]): void {
   const key = formatAction(action);
   if (legal.some((candidate) => formatAction(candidate) === key)) return;
 
   if (action.kind === 'landAttack' && action.attackerIds.length > 1 && action.defenderIds.length === 1) {
-    const defenderId = action.defenderIds[0]!;
-    const everyAttackerCouldAttackAlone = action.attackerIds.every((attackerId) =>
+    const defender = requireUnit(state, action.defenderIds[0]!);
+    const everyAttackerWasOffered = action.attackerIds.every((attackerId) =>
       legal.some(
         (candidate) =>
           candidate.kind === 'landAttack' &&
           candidate.attackerIds.length === 1 &&
-          candidate.attackerIds[0] === attackerId &&
-          candidate.defenderIds.length === 1 &&
-          candidate.defenderIds[0] === defenderId,
+          candidate.attackerIds[0] === attackerId,
       ),
     );
-    if (everyAttackerCouldAttackAlone) return;
+    const everyAttackerMayJoin = action.attackerIds.every((attackerId) =>
+      attackerCanJoin(state, requireUnit(state, attackerId), [defender], state.combatMode),
+    );
+    if (everyAttackerWasOffered && everyAttackerMayJoin) return;
   }
 
   throw new Error(
-    `Invariant violated: the agent chose "${key}", which legalActions did not offer and which is not a valid combination of offered singleton attacks`,
+    `Invariant violated: the agent chose "${key}", which legalActions did not offer and which is not a legal combination of offered attackers against a single defender`,
   );
 }
 
@@ -955,7 +969,7 @@ export async function playRandomGame(seed: number, options: PlayRandomGameOption
     const legal = legalActions(state, context);
     assertNoActionTargetsADeadUnit(state, legal);
     const action = agent.chooseNextAction(state, legal);
-    assertChosenActionIsLegal(action, legal);
+    assertChosenActionIsLegal(state, action, legal);
     options.trace?.push(formatAction(action));
     await applyOneAction(state, action, agent, rng, context, stats);
 

@@ -14,7 +14,7 @@ import {
 import { cheapestSacrifice, evaluateAttack, evaluateBoarding, evaluateRam, unitValue } from './combatOdds';
 import { hexDistance, neighbors } from './hex';
 import { evaluateCharge } from './movement';
-import { findRammingContacts } from './navalMovement';
+import { findRammingContacts, type RammingContact } from './navalMovement';
 import { RandomAgent } from './randomAgent';
 import { currentDefense, livingUnits, unitType, type GameState, type Unit } from './state';
 
@@ -58,13 +58,15 @@ import { currentDefense, livingUnits, unitType, type GameState, type Unit } from
  * variant of this file. The three tiers here are what "difficulty tiers fall
  * out nearly free" actually bought.
  *
- * DETERMINISM. Every choice is a pure function of `state` and the options
- * offered, with ties broken by the order `legalActions` produced them in, so
- * the same position always yields the same move and a seeded self-play game
- * replays identically (see `fuzzHarness.test.ts`'s determinism tests). An
- * optional `rng` breaks ties randomly instead, for callers that want
- * variety; it is threaded from the same seeded source as everything else, so
- * that stays reproducible too.
+ * DETERMINISM. In the two SCORED tiers every choice is a pure function of
+ * `state` and the options offered, with ties broken by the order
+ * `legalActions` produced them in, so the same position always yields the
+ * same move and a seeded self-play game replays identically (see
+ * `heuristicSoak.test.ts`'s replay test). An optional `rng` breaks ties
+ * randomly instead, for callers that want variety; threaded from the same
+ * seeded source as everything else, so that stays reproducible too. The
+ * `'random'` tier is only as reproducible as the `rng` it is given — see
+ * `HeuristicAgentOptions.rng`.
  */
 
 /** Which of the three tiers described above an agent plays at. */
@@ -91,20 +93,15 @@ export interface HeuristicWeights {
   terrainDefense: number;
   /** Flat penalty for ending a move on a hex under enemy zone of control,
    * which costs the unit its freedom to move out next turn (see
-   * `reachableHexes`'s ZOC stop rule). Not applied when the move buys an
-   * attack worth more, since the `strike` term is scored separately and
-   * simply outweighs it. */
+   * `reachableHexes`'s ZOC stop rule). Always applied — a move that buys a
+   * worthwhile attack is not exempted, it simply outweighs this through the
+   * separately-scored `strike` term. */
   zocPenalty: number;
   /** Multiplier on the best attack this move would make available. At 1.0 an
    * attack's expected value is taken at face value, which is the honest
    * reading: a unit that can strike next phase is worth exactly what that
    * strike is worth. */
   strike: number;
-  /** Penalty for ending a move somewhere a forced retreat would eliminate
-   * the unit outright (`wouldBeEliminatedByRetreat`) — the trap that
-   * plan.md §6.8 pinned on hex (4,9), a plateau ringed by six steep-flank
-   * hexes cavalry may not enter. */
-  retreatTrapPenalty: number;
   /** Expected value below which an attack is not worth declaring; the agent
    * would rather end its phase. Zero means "take any attack that doesn't
    * lose material in expectation." */
@@ -120,16 +117,24 @@ export const DEFAULT_WEIGHTS: HeuristicWeights = {
   terrainDefense: 0.5,
   zocPenalty: 1,
   strike: 1,
-  retreatTrapPenalty: 4,
   minAttackValue: 0,
   minMoveScore: 0.05,
 };
 
 export interface HeuristicAgentOptions {
   difficulty?: Difficulty;
-  /** Used for the `'random'` tier and, if supplied, to break scoring ties
+  /**
+   * Used for the `'random'` tier and, if supplied, to break scoring ties
    * randomly instead of by `legalActions` order. Same injection convention
-   * as `RandomAgent`/`shuffleSeatOrder`: never `Math.random()` internally. */
+   * as `RandomAgent`/`shuffleSeatOrder`.
+   *
+   * Omitting it does NOT make every tier deterministic: the scored tiers are
+   * deterministic either way (they fall back to `legalActions` order for
+   * ties), but the `'random'` tier delegates to a `RandomAgent` built on
+   * `Math.random` when nothing is supplied, exactly as constructing that
+   * agent directly would. A caller that needs a reproducible `'random'`
+   * agent must pass a seeded `rng`.
+   */
   rng?: () => number;
   weights?: Partial<HeuristicWeights>;
 }
@@ -212,10 +217,28 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
 
     for (const [defenderId, attackerIds] of attackersByDefender) {
       const defender = this.requireUnit(state, defenderId);
-      const group =
-        this.difficulty === 'ev'
-          ? this.buildAttackGroup(state, defender, attackerIds)
-          : [this.bestSoloAttacker(state, defender, attackerIds)];
+      // ONE eligibility gate, covering the seed as well as every later
+      // addition. It was originally applied only inside `buildAttackGroup`'s
+      // growth loop, which left the seed ungated and — worse — put the check
+      // somewhere `chooseNextAction` can never reach it, since every id here
+      // came from a legal singleton attack and is therefore always eligible.
+      // Adversarial review caught both: deleting the gate left the whole
+      // suite green.
+      //
+      // Kept despite being redundant against a well-formed `legal`, because
+      // what it enforces beyond reachability is the cavalry/phalanx group
+      // rule (plan.md §5's HIGH: a cavalry unit joining a group that targets
+      // a phalanx) — this repo's one known-real bug class, which should not
+      // rest on an argument about what `legalActions` happens to filter. See
+      // `heuristicAgent.test.ts`'s "refuses to build a group the engine
+      // would reject", which reaches it by handing the agent a deliberately
+      // malformed `legal` list.
+      const eligible = attackerIds
+        .map((id) => this.requireUnit(state, id))
+        .filter((attacker) => attackerCanJoin(state, attacker, [defender], state.combatMode));
+      if (eligible.length === 0) continue;
+
+      const group = this.difficulty === 'ev' ? this.buildAttackGroup(state, defender, eligible) : [this.bestSoloAttacker(state, defender, eligible)];
       const evaluation = evaluateAttack(state, group, [defender]);
       const score = this.difficulty === 'greedy' ? evaluation.expectedDefenderLoss : evaluation.expectedValue;
       candidates.push({
@@ -244,12 +267,12 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
 
   /** The single attacker with the best solo expected value against
    * `defender` — the whole answer for the `'greedy'` tier, and the seed the
-   * `'ev'` tier grows a group from. */
-  private bestSoloAttacker(state: GameState, defender: Unit, attackerIds: string[]): Unit {
+   * `'ev'` tier grows a group from. `attackers` must already be filtered by
+   * `attackerCanJoin` (see `chooseCombatAction`). */
+  private bestSoloAttacker(state: GameState, defender: Unit, attackers: Unit[]): Unit {
     let best: Unit | undefined;
     let bestScore = -Infinity;
-    for (const id of attackerIds) {
-      const attacker = this.requireUnit(state, id);
+    for (const attacker of attackers) {
       const evaluation = evaluateAttack(state, [attacker], [defender]);
       const score = this.difficulty === 'greedy' ? evaluation.expectedDefenderLoss : evaluation.expectedValue;
       if (score > bestScore) {
@@ -274,27 +297,21 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
    * would buy little and cost the clarity of "each unit added is a decision
    * that had to justify itself."
    *
-   * `attackerCanJoin` gates every addition even though every id in
-   * `attackerIds` already came from a legal singleton attack against this
-   * same defender — that makes the joins redundant by construction TODAY,
-   * and the check is kept anyway because the one thing it enforces beyond
-   * reachability is the cavalry/phalanx group rule (plan.md §5's HIGH: a
-   * cavalry unit joining a group that targets a phalanx), which is this
-   * repo's known-real bug class and not something to leave resting on an
-   * argument about what `legalActions` happens to filter.
+   * `attackers` is already filtered by `attackerCanJoin` — see the gate in
+   * `chooseCombatAction`, which covers the seed picked here as well as every
+   * unit added below.
    */
-  private buildAttackGroup(state: GameState, defender: Unit, attackerIds: string[]): Unit[] {
-    const seed = this.bestSoloAttacker(state, defender, attackerIds);
+  private buildAttackGroup(state: GameState, defender: Unit, attackers: Unit[]): Unit[] {
+    const seed = this.bestSoloAttacker(state, defender, attackers);
     const group = [seed];
     let bestValue = evaluateAttack(state, group, [defender]).expectedValue;
-    const remaining = attackerIds.filter((id) => id !== seed.id).map((id) => this.requireUnit(state, id));
+    const remaining = attackers.filter((attacker) => attacker.id !== seed.id);
 
     for (;;) {
       let bestAddition: Unit | undefined;
       let bestAdditionValue = bestValue;
       for (const candidate of remaining) {
         if (group.includes(candidate)) continue;
-        if (!attackerCanJoin(state, candidate, [defender], state.combatMode)) continue;
         const value = evaluateAttack(state, [...group, candidate], [defender]).expectedValue;
         if (value > bestAdditionValue + TIE_EPSILON) {
           bestAdditionValue = value;
@@ -412,8 +429,20 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
    *   actually threatens — which is the difference between a charge into a
    *   phalanx (worth nothing; cavalry may not attack one at all) and a
    *   charge into an archer.
-   * - **terrain / ZOC / retreat trap** — `'ev'` only: the positional terms a
-   *   risk-blind greedy agent skips.
+   * - **terrain / ZOC** — `'ev'` only: the positional terms a risk-blind
+   *   greedy agent skips.
+   *
+   * There is deliberately NO "don't move somewhere a forced retreat would
+   * kill you" term, though an earlier version of this file had one and
+   * `combatOdds.ts` still prices exactly that hazard when valuing an attack
+   * (`wouldBeEliminatedByRetreat`, which is live and tested there). The
+   * difference is reachability: a destination is only a death-trap if its
+   * neighbours are all occupied, ZOC-covered or impassable — and those are
+   * the same neighbours a unit would have to move THROUGH to arrive, so the
+   * ZOC stop rule prevents ever entering one. Adversarial review found the
+   * term survived deletion with the suite green; probing the shipped map for
+   * a reachable counter-example (peninsula tips, the (4,9) steep-flank box)
+   * found none, so it was removed rather than kept as an untestable knob.
    *
    * The strike term is only computed when the destination is within two
    * hexes of an enemy (the longest range on the roster), because it is the
@@ -430,8 +459,7 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
     const riskAware = this.difficulty === 'ev';
     let score = this.weights.approach * (nearestDistance(unit.position, enemies) - nearestDistance(to, enemies));
 
-    const nearEnemies = withinStrikeRange(to, enemies);
-    if (nearEnemies) {
+    if (withinStrikeRange(to, enemies)) {
       const charge = evaluateCharge(state, unit, to) !== null;
       score += this.weights.strike * this.bestAttackValueFrom(state, unit, to, charge);
     }
@@ -439,10 +467,6 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
     if (riskAware) {
       score += this.weights.terrainDefense * defensiveModifier(to);
       if (enemyZoc.has(mapHexKey(to.q, to.r))) score -= this.weights.zocPenalty;
-      // Only worth asking near the enemy: a retreat trap can only cost
-      // anything where a combat could actually force a retreat, and the
-      // check itself is a `legalRetreatHexes` call (another ZOC sweep).
-      if (nearEnemies && this.wouldBeTrappedAt(state, unit, to)) score -= this.weights.retreatTrapPenalty;
     }
     return score;
   }
@@ -460,15 +484,18 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
     unit: Unit,
     to: HexCoord,
     enemies: Unit[],
-    contacts: readonly { hex: HexCoord; bonus: 0 | 1 | 2; target: Unit }[],
+    contacts: readonly RammingContact[],
   ): number {
     const ships = enemies.filter((u) => unitType(u).domain === 'naval');
     let score = this.weights.approach * (nearestDistance(unit.position, ships) - nearestDistance(to, ships));
-    for (const contact of contacts) {
-      if (contact.hex.q !== to.q || contact.hex.r !== to.r) continue;
-      score += this.weights.strike * evaluateRam(unit, contact.target, contact.bonus).expectedValue;
-      break;
-    }
+    // The CHEAPEST contact on that hex, not the first one found: `applyAction`
+    // resolves a redirected `navalMove` against `.sort((a, b) => a.cost -
+    // b.cost)[0]` (see its `navalMove` case), so taking any other one would
+    // price a different target or bonus than the move will actually produce.
+    const contact = contacts
+      .filter((c) => c.hex.q === to.q && c.hex.r === to.r)
+      .sort((a, b) => a.cost - b.cost)[0];
+    if (contact) score += this.weights.strike * evaluateRam(unit, contact.target, contact.bonus).expectedValue;
     return score;
   }
 
@@ -494,19 +521,6 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
     }
   }
 
-  /** Whether a forced retreat would eliminate `unit` outright if it were
-   * standing on `to` — the same question `wouldBeEliminatedByRetreat` asks,
-   * evaluated at a hypothetical position. */
-  private wouldBeTrappedAt(state: GameState, unit: Unit, to: HexCoord): boolean {
-    const originalPosition = unit.position;
-    unit.position = to;
-    try {
-      return legalRetreatHexes(state, unit).length === 0;
-    } finally {
-      unit.position = originalPosition;
-    }
-  }
-
   // -------------------------------------------------------------------------
   // Mid-resolution decisions (`PlayerAgent`)
   //
@@ -529,7 +543,6 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
     for (const hex of options) {
       let score = -RETREAT_ADJACENT_ENEMY_PENALTY * countAdjacentEnemies(state, hex, unit.owner);
       score += this.weights.terrainDefense * defensiveModifier(hex);
-      if (this.wouldBeTrappedAt(state, unit, hex)) score -= this.weights.retreatTrapPenalty;
       // Deterministic tie-break: strictly-greater keeps the earliest option
       // in `legalRetreatHexes` order, matching how action ties are broken.
       if (score > bestScore + TIE_EPSILON) {

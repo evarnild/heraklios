@@ -49,12 +49,17 @@ function zeroCounts(): Record<CombatResult, number> {
 }
 
 /**
- * Material worth of a unit, in the same purchase points `armyValue` sums —
- * deliberately the same currency the game's own turn-limit ending is decided
- * in ("le joueur dont l'armée a la plus grande valeur", see
+ * Material worth of a unit, in purchase points — the currency the game's own
+ * turn-limit ending is decided in ("le joueur dont l'armée a la plus grande
+ * valeur", `docs/research/05-rules-french-original.md:39-40`, implemented by
  * `turnManager.ts`'s `endGameByTimeLimit`), so an agent maximizing this is
- * maximizing the thing that actually wins a timed game rather than a proxy
- * for it.
+ * maximizing close to the thing that actually wins a timed game rather than
+ * a proxy for it.
+ *
+ * "Close to", not "exactly": `armyValue` — what that ending really counts —
+ * sums each surviving unit's FULL printed cost, while this pro-rates a
+ * damaged ship (see below). The divergence is deliberate and is confined to
+ * ships; for a land army the two agree unit for unit.
  *
  * Ships are pro-rated by remaining equipment: a trirème (30 points) at 2 of
  * its 4 equipment points has already lost half its attack and defense (see

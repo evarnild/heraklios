@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { MAP_TERRAIN, hexKey as mapHexKey } from '../data/map';
 import { canEnterTerrain } from '../data/terrain';
+import { checkRangedEligibility } from './combat';
 import type { HexCoord } from '../data/map';
 import { maxEquipmentPointsForType } from './state';
 import { getUnitType } from '../data/units';
@@ -136,12 +137,45 @@ describe('evaluateAttack', () => {
     const good = evaluateAttack(makeState([heavy, archers]), [heavy], [archers]);
     expect(good.expectedValue).toBeGreaterThan(0);
 
+    // Roles reversed, with the archers at their actual firing range of 2
+    // (they are not `meleeCapable`, so adjacency is not a legal attack for
+    // them at all). Their attack force is 0, not 2 — see the dedicated test
+    // below — so this lands on the 1-5 column, five of whose six faces
+    // eliminate the attacker outright.
     const phalanx = makeUnit({ id: 'p', typeId: 'phalanges', position: CENTER, owner: 0 });
-    // Roles reversed: 2 ranged attack into a phalanx's 5 defense is the 1-3
-    // column, three faces of which eliminate the attacker outright.
-    const bad = evaluateAttack(makeState([phalanx, archers]), [archers], [phalanx]);
+    const distantArchers = makeUnit({ id: 'x2', typeId: 'archers', position: hexAdd(CENTER, { q: 2, r: 0 }), owner: 1 });
+    const bad = evaluateAttack(makeState([phalanx, distantArchers]), [distantArchers], [phalanx]);
+    expect(bad.distribution.ratioLabel).toBe('1-5');
     expect(bad.expectedValue).toBeLessThan(0);
-    expect(bad.distribution.faceCounts.AE).toBeGreaterThan(0);
+    expect(bad.distribution.faceCounts.AE).toBe(5);
+  });
+
+  it('inherits the engine scoring a ranged attack at zero force (pre-existing defect)', () => {
+    // NOT a property of this module, and NOT introduced by this branch —
+    // recorded here because the exact-odds layer is what finally makes the
+    // consequence measurable.
+    //
+    // `describeLandAttack` sums `currentAttack`, which returns
+    // `UnitType.attack`; plain `archers` are `attack: 0, rangedAttack: 2`
+    // (data/units.ts), and `rangedAttack` is consulted ONLY for eligibility
+    // (`checkRangedEligibility`), never for force. So an archer volley always
+    // resolves at attack force 0 — the 1-5 column — and kills the archer on
+    // five faces out of six, whatever it shoots at. `fantassins-archers`
+    // (`attack: 2`) are unaffected, which is why this has gone unnoticed.
+    //
+    // The practical upshot for the agent: no EV tier will ever fire a plain
+    // archer, correctly, because doing so is suicide under the current
+    // resolution. Fixing it changes live hotseat combat, so it belongs on
+    // its own reviewed branch rather than riding along with the AI.
+    const archers = makeUnit({ id: 'x', typeId: 'archers', position: CENTER, owner: 0 });
+    const target = makeUnit({ id: 't', typeId: 'fantassins', position: hexAdd(CENTER, { q: 2, r: 0 }), owner: 1 });
+
+    expect(checkRangedEligibility(archers, 2).canAttack).toBe(true); // the shot is legal
+    const evaluation = evaluateAttack(makeState([archers, target]), [archers], [target]);
+    expect(evaluation.distribution.attackForce).toBe(0); // ...and worth nothing
+    expect(evaluation.distribution.ratioLabel).toBe('1-5');
+    expect(evaluation.distribution.faceCounts.AE).toBe(5);
+    expect(evaluation.expectedValue).toBeLessThan(0);
   });
 
   it('does not treat an overwhelming ratio as automatically worth taking', () => {

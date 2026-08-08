@@ -112,12 +112,20 @@ describe('HeuristicAgent: difficulty tiers are ordered by strength', () => {
    * thing twice over: `endGameByTimeLimit` breaks a tie in favour of the
    * lower seat (see `HarnessStats.finalArmyValues`), and — measured on this
    * scenario — moving first is worth a great deal once a side plays well at
-   * all. Two `HeuristicAgent`s facing each other finish 34.8 to 7.2 on
-   * average material, where two `RandomAgent`s finish 33.0 to 29.4: the
-   * first-move advantage is created by good play, not baked into the
-   * position. So a one-sided comparison would credit the seat, not the
-   * agent, and the tests below compare each tier against the other in the
-   * SAME seat.
+   * all.
+   *
+   * Measured over these exact 12 seeds, as average surviving army value:
+   *
+   * ```
+   * ev-vs-ev          [35.83,  6.67]   wins [12, 0]
+   * random-vs-random  [30.42, 32.08]   wins [ 6, 6]
+   * ```
+   *
+   * Two `RandomAgent`s finish level — if anything a shade in seat 1's favour
+   * — while two `HeuristicAgent`s finish five to one apart. The first-move
+   * advantage is therefore created by good play, not baked into the starting
+   * position. A one-sided comparison would credit the seat rather than the
+   * agent, so the tests below hold the seat constant on each side.
    */
   it('the EV tier ends with far more material than a RandomAgent, from either seat', async () => {
     const asSeat0 = await playSeries('ev', 'pure-random');

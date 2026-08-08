@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { MAP_TERRAIN } from '../data/map';
+import { MAP_TERRAIN, hexKey as mapHexKey } from '../data/map';
+import { TERRAIN_EFFECTS, canEnterTerrain } from '../data/terrain';
 import type { HexCoord } from '../data/map';
 import { getUnitType } from '../data/units';
 import { legalActions, type Action } from './actions';
+import { hexesUnderZoc } from './combat';
 import { DIRECTIONS, hexAdd, hexDistance } from './hex';
 import { HeuristicAgent } from './heuristicAgent';
 import { evaluateCharge } from './movement';
@@ -51,6 +53,31 @@ function makeGame(units: Unit[], phase: Phase): GameState {
  * `legalActions` never would. */
 function choose(agent: HeuristicAgent, state: GameState): Action {
   return agent.chooseNextAction(state, legalActions(state, {}));
+}
+
+function defensiveModifierAt(hex: HexCoord): number {
+  const terrain = MAP_TERRAIN.get(mapHexKey(hex.q, hex.r));
+  return terrain === undefined ? 0 : TERRAIN_EFFECTS[terrain].combatModifier;
+}
+
+/** A plateau hex with a land-accessible neighbour to start from — the same
+ * search `combatOdds.test.ts` uses, and for the same reason: every plateau on
+ * the shipped map is ringed by steep flanks, so "plateau next to plain" finds
+ * nothing. */
+function samplePlateauWithLowerNeighbor(): { plateau: HexCoord; below: HexCoord } {
+  for (const [key, terrain] of MAP_TERRAIN) {
+    if (terrain !== 'plateau') continue;
+    const [q, r] = key.split(',').map(Number);
+    const plateau = { q: q!, r: r! };
+    for (const dir of DIRECTIONS) {
+      const below = hexAdd(plateau, dir);
+      const neighborTerrain = MAP_TERRAIN.get(mapHexKey(below.q, below.r));
+      if (neighborTerrain === undefined || neighborTerrain === 'plateau') continue;
+      if (!canEnterTerrain(neighborTerrain, 'land')) continue;
+      return { plateau, below };
+    }
+  }
+  throw new Error('no plateau hex with a land-accessible lower neighbor on the loaded map');
 }
 
 function firstPlateauHex(): HexCoord | undefined {
@@ -118,21 +145,81 @@ describe('HeuristicAgent: combat phase', () => {
     expect(action.defenderIds).toEqual(['target']);
   });
 
-  it('leaves cavalry out of a group attacking a phalanx', () => {
-    // The plan.md §5 HIGH, in group form: the infantry can legally attack
-    // the phalanx, and adding the cavalry would raise the force ratio — but
-    // cavalry may never attack a phalanx at all, by charge or otherwise.
-    const infantry = makeUnit({ id: 'inf', typeId: 'fantassins', position: hexAdd(CENTER, DIRECTIONS[0]!), owner: 0 });
-    const cavalry = makeUnit({ id: 'cav', typeId: 'cavalerie-lourde', position: hexAdd(CENTER, DIRECTIONS[1]!), owner: 0 });
+  it('refuses to build a group the engine would reject, even when handed one', () => {
+    // plan.md §5's HIGH in group form: a cavalry unit joining an attack on a
+    // phalanx, which the rulebook forbids outright.
+    //
+    // The `legal` list here is DELIBERATELY MALFORMED — it contains a
+    // cavalry-vs-phalanx singleton that `legalActions` would never produce.
+    // That is the only way to reach the `attackerCanJoin` gate at all, and
+    // the reason this test exists in this shape: adversarial review found
+    // the previous version (which just called `choose`) was vacuous. Because
+    // `legalActions` filters the cavalry out itself, the agent's group
+    // builder never saw a cavalry candidate, the gate's loop never ran, and
+    // DELETING THE GATE ENTIRELY left all 17 tests in this file green.
+    //
+    // Feeding the agent a bad list is exactly the scenario the gate is
+    // defence against: it must not trust its input to have been filtered.
+    //
+    // The forces are chosen so the attack is one the agent WANTS to make and
+    // the cavalry is one it would want to add: three heavy infantry (4
+    // attack each) against a phalanx's 5 defense is 12-vs-5, the 2-1 column
+    // and a positive expected value; adding the heavy cavalry's 6 would make
+    // it 18-vs-5 and better still. So an ungated agent doesn't merely have
+    // the option of including the cavalry, it is actively rewarded for it —
+    // without that, the attack scores negative, the agent ends its phase,
+    // and the assertion never runs. (That is precisely how the first two
+    // attempts at this test came out vacuous; the second one was caught by
+    // re-running the deleted-gate mutation.)
+    const infantry = [0, 1, 2].map((i) =>
+      makeUnit({ id: `inf${i}`, typeId: 'fantassins-lourds', position: hexAdd(CENTER, DIRECTIONS[i]!), owner: 0 }),
+    );
+    const cavalry = makeUnit({ id: 'cav', typeId: 'cavalerie-lourde', position: hexAdd(CENTER, DIRECTIONS[3]!), owner: 0 });
     const phalanx = makeUnit({ id: 'phalanx', typeId: 'phalanges', position: CENTER, owner: 1 });
-    const state = makeGame([infantry, cavalry, phalanx], 'combat');
+    const state = makeGame([...infantry, cavalry, phalanx], 'combat');
 
-    const action = choose(new HeuristicAgent({ difficulty: 'ev' }), state);
-    if (action.kind === 'landAttack') {
-      expect(action.attackerIds).not.toContain('cav');
-    } else {
-      expect(action.kind).toBe('endPhase');
-    }
+    // Confirm the engine really does exclude the cavalry on its own, so the
+    // list below is a fabrication and not just a copy of reality.
+    const genuine = legalActions(state, {});
+    expect(genuine.some((a) => a.kind === 'landAttack' && a.attackerIds[0] === 'cav')).toBe(false);
+    expect(genuine.some((a) => a.kind === 'landAttack' && a.attackerIds[0] === 'inf0')).toBe(true);
+
+    const malformed: Action[] = [
+      { kind: 'endPhase' },
+      ...infantry.map((u): Action => ({ kind: 'landAttack', attackerIds: [u.id], defenderIds: ['phalanx'] })),
+      { kind: 'landAttack', attackerIds: ['cav'], defenderIds: ['phalanx'] },
+    ];
+    const action = new HeuristicAgent({ difficulty: 'ev' }).chooseNextAction(state, malformed);
+
+    expect(action.kind).toBe('landAttack');
+    if (action.kind !== 'landAttack') throw new Error('unreachable');
+    expect(action.attackerIds).not.toContain('cav');
+    expect(action.attackerIds.sort()).toEqual(['inf0', 'inf1', 'inf2']);
+  });
+
+  it('breaks a tie by legalActions order, not arbitrarily', () => {
+    // Two identical archers, equidistant on identical terrain, so both
+    // attacks score exactly the same. The file header names earliest-`order`
+    // as the tie-break that makes a seeded game replay identically; without
+    // a test, reversing it would be invisible.
+    const attacker = makeUnit({ id: 'heavy', typeId: 'fantassins-lourds', position: CENTER, owner: 0 });
+    const first = makeUnit({ id: 'first', typeId: 'archers', position: hexAdd(CENTER, DIRECTIONS[0]!), owner: 1 });
+    const second = makeUnit({ id: 'second', typeId: 'archers', position: hexAdd(CENTER, DIRECTIONS[3]!), owner: 1 });
+    const state = makeGame([attacker, first, second], 'combat');
+
+    const legal = legalActions(state, {});
+    const firstOffered = legal.find((a) => a.kind === 'landAttack');
+    expect(firstOffered).toBeDefined();
+
+    const action = new HeuristicAgent().chooseNextAction(state, legal);
+    expect(action).toEqual(firstOffered);
+
+    // And with the offer order reversed, the other one wins — proving the
+    // choice follows the list rather than the units' own ordering.
+    const reversed = [...legal].reverse();
+    const reversedFirstOffered = reversed.find((a) => a.kind === 'landAttack');
+    expect(new HeuristicAgent().chooseNextAction(state, reversed)).toEqual(reversedFirstOffered);
+    expect(reversedFirstOffered).not.toEqual(firstOffered);
   });
 
   it('is the greedy tier that ignores its own risk, and it does not combine', () => {
@@ -229,6 +316,54 @@ describe('HeuristicAgent: movement phase', () => {
 
     expect(legalActions(state, {}).some((action) => action.kind === 'landMove')).toBe(true);
     expect(choose(new HeuristicAgent(), state).kind).toBe('endPhase');
+  });
+
+  it('takes the high ground when nothing else is going on', () => {
+    // No enemies at all, so approach and strike are both zero for every
+    // destination and the ONLY thing that can distinguish one hex from
+    // another is its defensive terrain. An agent that ignores terrain scores
+    // every move at 0, falls under `minMoveScore`, and ends its phase —
+    // which is what makes this test kill the mutant rather than merely pass.
+    const { plateau, below } = samplePlateauWithLowerNeighbor();
+    const unit = makeUnit({ id: 'inf', typeId: 'fantassins', position: below, owner: 0, movementLeft: 3 });
+    const state = makeGame([unit], 'movement');
+
+    const action = choose(new HeuristicAgent({ weights: { approach: 0 } }), state);
+
+    expect(action.kind).toBe('landMove');
+    if (action.kind !== 'landMove') throw new Error('unreachable');
+    expect(defensiveModifierAt(action.to)).toBeGreaterThan(0);
+    expect(MAP_TERRAIN.get(mapHexKey(action.to.q, action.to.r))).toBe('plateau');
+
+    // The control: the same position, scored without the terrain term.
+    expect(choose(new HeuristicAgent({ weights: { approach: 0, terrainDefense: 0 } }), state).kind).toBe('endPhase');
+  });
+
+  it('will not walk into an enemy zone of control for nothing', () => {
+    // Light cavalry two hexes from a phalanx, with one movement point. It
+    // may never attack a phalanx (`cavalryMayAttack`), so closing the
+    // distance buys it no attack at all — just the loss of its freedom to
+    // move next turn. Approach alone (+0.6) would take the step; the ZOC
+    // penalty (-1) correctly outweighs it.
+    const phalanx = makeUnit({ id: 'phalanx', typeId: 'phalanges', position: CENTER, owner: 1 });
+    const cavalry = makeUnit({
+      id: 'cav',
+      typeId: 'cavalerie-legere',
+      position: hexAdd(CENTER, { q: 2, r: 0 }),
+      owner: 0,
+      movementLeft: 1,
+    });
+    const state = makeGame([cavalry, phalanx], 'movement');
+    const enemyZoc = hexesUnderZoc(state, 0);
+
+    expect(choose(new HeuristicAgent(), state).kind).toBe('endPhase');
+
+    // The control: without the penalty it steps straight into the ZOC, so
+    // the hex really was on offer and really is ZOC-covered.
+    const unguarded = choose(new HeuristicAgent({ weights: { zocPenalty: 0 } }), state);
+    expect(unguarded.kind).toBe('landMove');
+    if (unguarded.kind !== 'landMove') throw new Error('unreachable');
+    expect(enemyZoc.has(mapHexKey(unguarded.to.q, unguarded.to.r))).toBe(true);
   });
 
   it('never spends an action on a bare naval rotation', () => {

@@ -499,7 +499,6 @@ here rather than silently:
   excludes them, because an elephant forced to retreat "drifts" through a
   cascade that only the board scene can currently resolve — so nothing
   headless, the AI included, can play a game containing one.
-
 - **Naval movement is destination-click, not path-drawn.** Clicking a
   highlighted hex moves the selected ship there by the cheapest combination
   of rotation + forward moves (or, for an orange-highlighted contact hex,
