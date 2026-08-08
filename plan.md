@@ -42,8 +42,9 @@ action layer), AI Stage 2a (fuzz harness), start-a-new-game-anytime, move
 through friendly units, combat reporting detail, cascading push
 ([§12](#12-cascading-push-when-a-unit-cannot-retreat), merged `3c766d6`),
 and [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) advance
-terrain (merged `6172f2f`). **In flight:** nothing — [Current Queue](#10-sequenced-queue)
-is next. **Live defects still open:**
+terrain (merged `6172f2f`). **In flight:** Stage 2b drift extraction is
+implemented and ready for merge on `feat/stage-2b-drift-extraction`.
+**Live defects still open:**
 [§9.2](#92-endgamebytimelimit-is-never-called).
 
 <a id="10-sequenced-queue"></a>
@@ -68,7 +69,10 @@ sync when something merges** — it went stale once and the user caught it.
 
 ### In flight
 
-*Nothing.* Next up is #1 below.
+- [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2b drift extraction on
+  `feat/stage-2b-drift-extraction` — implemented, adversarially reviewed, and
+  ready for merge. After merge, move this row to Shipped with the merge hash
+  and promote the next queued item.
 
 ### Queued
 
@@ -76,10 +80,9 @@ sync when something merges** — it went stale once and the user caught it.
 | --- | --- | --- | --- |
 | 0 | [§12](#12-cascading-push-when-a-unit-cannot-retreat) follow-ups | `engine/fuzzHarness*.ts`, `BoardScene.ts` | The three non-blocking findings that shipped with `3c766d6`: the untested `chainVisited` cycle guard (+ two comments wrongly claiming coverage), the stale "surrounded by friendly units" string, the thin `pushesResolved` canary. Small; fold into whatever touches those files next. |
 | 1 | [§13](#13-hex-coordinate-tooltip) hex coordinate tooltip | `ui/MapView.ts`, `BoardScene.ts` | Presentation only. |
-| 2 | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2b drift extraction | `BoardScene.ts` drift cascade, `engine/` | Unblocks fuzzing elephants. **Not** parallel with anything else in `BoardScene`. |
-| 3 | [§9.2](#92-endgamebytimelimit-is-never-called) turn-limit ending | design + scenes | **Live gap.** Needs a design decision first (what sets the limit, how the player is told). |
-| 4 | [§6.4](#64-deferred-stages-3-4) Stage 3 — `HeuristicAgent` | `engine/` | Gated on 2b if elephants are to be handled. |
-| 5 | [§6.4](#64-deferred-stages-3-4) Stage 4 — AI seat UI + save format | scenes, `saveGame.ts` | `SAVE_VERSION` bump. |
+| 2 | [§9.2](#92-endgamebytimelimit-is-never-called) turn-limit ending | design + scenes | **Live gap.** Needs a design decision first (what sets the limit, how the player is told). |
+| 3 | [§6.4](#64-deferred-stages-3-4) Stage 3 — `HeuristicAgent` | `engine/` | Gated on 2b if elephants are to be handled. |
+| 4 | [§6.4](#64-deferred-stages-3-4) Stage 4 — AI seat UI + save format | scenes, `saveGame.ts` | `SAVE_VERSION` bump. |
 
 **Standing hazard:** almost everything queued touches `BoardScene.ts`, so
 these mostly cannot run in parallel with each other.
@@ -87,11 +90,10 @@ these mostly cannot run in parallel with each other.
 ## Backlog Map
 
 - **Start here:** [Current Queue](#10-sequenced-queue).
-- **Current next task:** [§13](#13-hex-coordinate-tooltip), unless §12
-  follow-ups are folded into a nearby branch first.
+- **Current active task:** merge [§6.7](#67-the-elephant-problem-stage-2-split)
+  Stage 2b drift extraction, then promote the next queue item.
 - **Live defect needing design:** [§9.2](#92-endgamebytimelimit-is-never-called).
-- **Larger future work:** [§6.7](#67-the-elephant-problem-stage-2-split),
-  [§6.4](#64-deferred-stages-3-4), and
+- **Larger future work:** [§6.4](#64-deferred-stages-3-4), and
   [§14](#14-decomposing-boardscenets-for-parallel-work).
 
 ## History Map
@@ -697,12 +699,18 @@ passed in both cases. Mutation-testing a regression guard is now the expected
 bar for this project, not an extra.
 
 **Known gap carried into Stage 2:** the elephant drift/trample cascade was
-not extracted and still mutates `GameState` inline, so a headless caller
-cannot resolve `outcome.pendingDrifts`. **Elephants cannot be fuzzed until
-that is addressed** — see [§6.7](#67-the-elephant-problem-stage-2-split) for
-the decided approach.
-
+not extracted in Stage 2a, so a headless caller could not resolve
+`outcome.pendingDrifts`. Stage 2b now replaces the scene-owned closure cascade
+with `engine/drift.ts`'s explicit drift state machine on
+`feat/stage-2b-drift-extraction`; Stage 2c remains the point where ordinary
+seeded self-play starts including elephants.
 ### 6.7 The elephant problem: Stage 2 split
+
+**Status:** implemented on `feat/stage-2b-drift-extraction`, reviewed in
+multiple adversarial passes, and ready for merge. Verification on the branch:
+`npm.cmd test -- src/engine/fuzzHarness.test.ts src/engine/drift.test.ts`,
+`npm.cmd run build`, `git diff --check`, and `npm.cmd test` (302 passed,
+1 planned Stage 2c skip).
 
 `pendingDrifts` is populated **only** for elephants (`combat.ts:526`), so
 excluding them provably keeps it empty — the exclusion is verifiable, not
@@ -725,13 +733,12 @@ things until someone actually wrote a driver ([§6.6](#66-stage-1-outcome)).
 Doing the hardest refactor first discards the very tool built to make hard
 refactors safe.
 
-**The exclusion must fail loudly.** This is the real risk: a green fuzzer
-creates false confidence and the incentive to return evaporates. So 2a must
-assert `outcome.pendingDrifts.length === 0` and **throw** if it ever sees
-one, and carry a permanently-skipped test (e.g. `"elephants: drift cascade
-not yet fuzzable (Stage 2b)"`) so the gap prints on every run. An exclusion
-that cannot be forgotten is a different thing from one that can.
-
+**Stage 2a exclusion status.** In Stage 2a the exclusion had to fail loudly:
+the harness threw if `outcome.pendingDrifts` appeared and carried a skipped
+test so the elephant gap printed on every run. During Stage 2b that guard is
+replaced by `processDrifts`; the default self-play army can still exclude
+elephants until Stage 2c requires ordinary soak coverage to show non-zero
+`driftsResolved` / `driftCombatsResolved`.
 #### What 2b actually has to solve
 
 An earlier sketch of this plan proposed a simple
@@ -739,11 +746,11 @@ An earlier sketch of this plan proposed a simple
 **Reading the real cascade, that is too optimistic** — recording the
 correction here so 2b doesn't get under-scoped the way it nearly was.
 
-`stepDrift` (`BoardScene.ts:1415`) is the easy half: walk one hex, eliminate
+The original scene `stepDrift` was the easy half: walk one hex, eliminate
 off-map (`canElephantEnterHex`), advance into empty hexes, else hand off to
 `resolveDriftHit`. That part genuinely is a pure step function.
 
-`resolveDriftHit` (`:1465`) is the hard half. It rolls a die, resolves a real
+The original scene `resolveDriftHit` was the hard half. It rolled a die, resolved a real
 combat, and branches five ways:
 
 | Result | Behavior |
@@ -751,16 +758,16 @@ combat, and branches five ways:
 | `AE`/`EX` | Elephant destroyed; cascade ends. |
 | `AR` | Elephant repelled and **re-drifts in a newly rolled direction** (recurses into `beginDrift`). |
 | `DE` | Elephant advances into the hex and keeps drifting. |
-| `DR`, occupant is an elephant | Occupant **drifts recursively**, with a *forbidden direction* so it can't drift back into its trampler (`:1516`). |
-| `DR`, occupant is anything else | Occupant needs a **retreat choice — a live `PlayerAgent` decision** (`:1518`) — before the original elephant may continue. |
+| DR, occupant is an elephant | Occupant **drifts recursively**, with a *forbidden direction* so it can't drift back into its trampler. |
+| `DR`, occupant is anything else | Occupant needs a **retreat choice - a live `PlayerAgent` decision** before the original elephant may continue. |
 
 So a drift can contain a nested drift, a nested *player decision*, and an
 unbounded chain of both.
 
 **The real blocker is not the rules — it is that the continuation lives in
-closures.** `continueAfterVacated` (`:1504`) captures the drift and must
+closures.** `continueAfterVacated` captured the drift and had to
 re-assign `this.driftState` on resume "because a nested choice/drift may have
-taken over"; `finishDrift` fires a captured `onComplete`. A headless caller
+taken over"; `finishDrift` fired a captured `onComplete`. A headless caller
 cannot enter a JS closure stack.
 
 The correct shape is therefore the **same pending-decision pattern
@@ -1444,7 +1451,7 @@ before relying on them, since any merge shifts everything below it.
 | Naval movement + ram UI | 875-1077 | `promptRam`, `handleNavalMoveClick` | — |
 | Combat group building | 1078-1203 | `toggleAttacker`, `toggleDefender` | — |
 | **Retreat/push cascade** | 1204-1391 | `beginUnitRetreatChoice`, `choosePushTarget` | [§12](#12-cascading-push-when-a-unit-cannot-retreat) |
-| **Elephant drift cascade** | 1392-1541 | `beginDrift`, `stepDrift`, `resolveDriftHit` | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2b |
+| **Elephant drift pump** | re-derive | `beginDrift` delegating to `engine/drift.ts` | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2b in flight |
 | **Advance offers** | 1542-1661 | `beginAdvanceOffers`, `promptAdvanceChoice` | §9.1 shipped; future extraction candidate |
 | Combat resolution + log | 1662-1892 | `resolveGroupAttack`, `logCombatOutcome` | — |
 | Naval attack prompt | 1893-2001 | `navalAttackPrompt` | — |
