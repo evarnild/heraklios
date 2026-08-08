@@ -41,10 +41,14 @@ This file is three things:
 action layer), AI Stage 2a (fuzz harness), start-a-new-game-anytime, move
 through friendly units, combat reporting detail, cascading push
 ([§12](#12-cascading-push-when-a-unit-cannot-retreat), merged `3c766d6`),
-and [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) advance
-terrain (merged `6172f2f`). **In flight:** nothing — [Current Queue](#10-sequenced-queue)
-is next. **Live defects still open:**
-[§9.2](#92-endgamebytimelimit-is-never-called).
+[§9.1](#91-post-combat-advance-ignores-terrain-restrictions) advance
+terrain (merged `6172f2f`), and AI Stage 3 — the `HeuristicAgent`
+([§6.4](#64-stage-3-shipped-stage-4-deferred), merged `a2a1329`).
+**In flight:** nothing — [Current Queue](#10-sequenced-queue) is next.
+**Live defects still open:**
+[§9.2](#92-endgamebytimelimit-is-never-called) and
+[§15](#15-live-defect-ranged-attacks-resolve-at-zero-attack-force) (new, and
+the more serious of the two).
 
 <a id="10-sequenced-queue"></a>
 
@@ -65,6 +69,7 @@ sync when something merges** — it went stale once and the user caught it.
 | [§11](#11-combat-reporting-detail) combat reporting detail | `12e1bf6` |
 | [§12](#12-cascading-push-when-a-unit-cannot-retreat) cascading push | `3c766d6` |
 | [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) advance terrain | `6172f2f` |
+| [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 3 — `HeuristicAgent` (+1 engine defect it found) | `a2a1329` |
 
 ### In flight
 
@@ -75,11 +80,12 @@ sync when something merges** — it went stale once and the user caught it.
 | # | Item | Touches | Notes |
 | --- | --- | --- | --- |
 | 0 | [§12](#12-cascading-push-when-a-unit-cannot-retreat) follow-ups | `engine/fuzzHarness*.ts`, `BoardScene.ts` | The three non-blocking findings that shipped with `3c766d6`: the untested `chainVisited` cycle guard (+ two comments wrongly claiming coverage), the stale "surrounded by friendly units" string, the thin `pushesResolved` canary. Small; fold into whatever touches those files next. |
-| 1 | [§13](#13-hex-coordinate-tooltip) hex coordinate tooltip | `ui/MapView.ts`, `BoardScene.ts` | Presentation only. |
-| 2 | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2b drift extraction | `BoardScene.ts` drift cascade, `engine/` | Unblocks fuzzing elephants. **Not** parallel with anything else in `BoardScene`. |
-| 3 | [§9.2](#92-endgamebytimelimit-is-never-called) turn-limit ending | design + scenes | **Live gap.** Needs a design decision first (what sets the limit, how the player is told). |
-| 4 | [§6.4](#64-deferred-stages-3-4) Stage 3 — `HeuristicAgent` | `engine/` | Gated on 2b if elephants are to be handled. |
-| 5 | [§6.4](#64-deferred-stages-3-4) Stage 4 — AI seat UI + save format | scenes, `saveGame.ts` | `SAVE_VERSION` bump. |
+| 1 | [§15](#15-live-defect-ranged-attacks-resolve-at-zero-attack-force) ranged attack force | `engine/combat.ts` or `state.ts` | **Live defect, and the most consequential open item.** Plain archers resolve every volley at attack force 0 — the 1-5 column — so firing one is suicide. Pure engine, no scene change. Needs a rulebook reading, not just a code change. |
+| 2 | [§13](#13-hex-coordinate-tooltip) hex coordinate tooltip | `ui/MapView.ts`, `BoardScene.ts` | Presentation only. |
+| 3 | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2b drift extraction | `BoardScene.ts` drift cascade, `engine/` | Unblocks fuzzing elephants — and is now also what unblocks the AI using them at all (§6.9). **Not** parallel with anything else in `BoardScene`. |
+| 4 | [§9.2](#92-endgamebytimelimit-is-never-called) turn-limit ending | design + scenes | **Live gap.** Needs a design decision first (what sets the limit, how the player is told). Stage 3 added a second reason to care: `endGameByTimeLimit` breaks a tied army value in favour of the lower seat, silently (§6.9). |
+| 5 | [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 4 — AI seat UI + save format | scenes, `saveGame.ts` | `SAVE_VERSION` bump. The engine half is done and idle: nothing can reach the AI from the UI. |
+| 6 | [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 3b — shallow lookahead tier | `engine/` | The fourth difficulty tier, deliberately not shipped with the other three. Needs state cloning + an opponent model + a performance budget; see `heuristicAgent.ts`'s header. |
 
 **Standing hazard:** almost everything queued touches `BoardScene.ts`, so
 these mostly cannot run in parallel with each other.
@@ -87,11 +93,13 @@ these mostly cannot run in parallel with each other.
 ## Backlog Map
 
 - **Start here:** [Current Queue](#10-sequenced-queue).
-- **Current next task:** [§13](#13-hex-coordinate-tooltip), unless §12
-  follow-ups are folded into a nearby branch first.
-- **Live defect needing design:** [§9.2](#92-endgamebytimelimit-is-never-called).
+- **Current next task:** [§15](#15-live-defect-ranged-attacks-resolve-at-zero-attack-force),
+  unless §12 follow-ups are folded into a nearby branch first.
+- **Live defects:** [§15](#15-live-defect-ranged-attacks-resolve-at-zero-attack-force)
+  (needs a rulebook reading) and
+  [§9.2](#92-endgamebytimelimit-is-never-called) (needs a design decision).
 - **Larger future work:** [§6.7](#67-the-elephant-problem-stage-2-split),
-  [§6.4](#64-deferred-stages-3-4), and
+  [§6.4](#64-stage-3-shipped-stage-4-deferred), and
   [§14](#14-decomposing-boardscenets-for-parallel-work).
 
 ## History Map
@@ -99,8 +107,8 @@ these mostly cannot run in parallel with each other.
 - **Feature A archive:** [§2.1](#21-feature-a-launch-goal), [§3](#3-feature-cavalry-charges--the-phalanx-restriction),
   and [§5](#5-outcome). It remains here as the first full implement/review
   run and as evidence for adversarial review.
-- **AI foundation history:** [§6.6](#66-stage-1-outcome) and
-  [§6.8](#68-stage-2a-outcome).
+- **AI foundation history:** [§6.6](#66-stage-1-outcome),
+  [§6.8](#68-stage-2a-outcome), and [§6.9](#69-stage-3-outcome).
 - **Shipped feature notes:** [§7](#7-start-a-new-game-at-any-time),
   [§8](#8-bug-units-cannot-move-through-friendly-units),
   [§11](#11-combat-reporting-detail), [§12](#12-cascading-push-when-a-unit-cannot-retreat),
@@ -268,9 +276,12 @@ today:
 
 ### AI player, later stages
 
-Deferred out of the committed AI scope; full detail in
-[§6.4](#64-deferred-stages-3-4). Both are gated on stages 1–2 landing and the
-fuzz harness running clean:
+Historical archive — this was the original sketch of both stages, written
+before either existed. **Stage 3 has since shipped** (`a2a1329`; see
+[§6.4](#64-stage-3-shipped-stage-4-deferred) and
+[§6.9](#69-stage-3-outcome), which records where the sketch below held up
+and where it didn't). Stage 4 is still open. Both were gated at the time on
+stages 1–2 landing and the fuzz harness running clean:
 
 - **Stage 3 — `HeuristicAgent`** — exact-EV combat selection over the CRT
   plus scored movement (charge geometry, defensive terrain, ZOC avoidance).
@@ -509,12 +520,14 @@ pushed to `origin/main`. Branch and worktree cleaned up after merge.
 
 ## 6. Next: AI player
 
-**Status:** stages 1 and 2a **✅ shipped** (merged `9cb7ed7` and `469f84a`).
-Stage 2b (the elephant drift extraction, [§6.7](#67-the-elephant-problem-stage-2-split))
-and stages 3-4 remain open. Scoped deliberately to **stages 1–2 only**
-(the headless foundation + a self-play fuzz harness). Stages 3–4 (the actual
-strategy code and its UI) are deferred until the foundation is proven — see
-[§6.4](#64-deferred-stages-3-4).
+**Status:** stages 1, 2a and 3 **✅ shipped** (merged `9cb7ed7`, `469f84a`
+and `a2a1329`). Stage 2b (the elephant drift extraction,
+[§6.7](#67-the-elephant-problem-stage-2-split)) and stage 4 (the
+player-facing half) remain open. The original scope note below said stages
+3–4 were deferred "until the foundation is proven"; the foundation was
+proven, stage 3 came in on it, and **the AI now exists but is unreachable
+from the UI** — see [§6.4](#64-stage-3-shipped-stage-4-deferred) and
+[§6.9](#69-stage-3-outcome).
 
 ### 6.1 What the codebase already provides
 
@@ -632,19 +645,35 @@ load before any strategy code depends on it.
 > 100 seeded games: `multiAttacker: 0`, `pushTarget: 0`, `exchangeChoice: 0`.
 > See [§6.8](#68-stage-2a-outcome) for what 2a does and does not cover.
 
-### 6.4 Deferred: stages 3-4
+<a id="64-stage-3-shipped-stage-4-deferred"></a>
 
-Not scheduled; revisit once stages 1–2 are merged and the harness has run
-clean.
+### 6.4 Stage 3 shipped; stage 4 deferred
 
-- **Stage 3 — `HeuristicAgent`**: exact-EV combat selection over the CRT
-  (see [§6.1](#61-what-the-codebase-already-provides)) plus scored movement
+- **Stage 3 — `HeuristicAgent`. ✅ Shipped** as `a2a1329`. Landed
+  `engine/combatOdds.ts` (exact CRT distributions + an expected-value model)
+  and `engine/heuristicAgent.ts`, plus per-seat agents in the fuzz harness.
+  Outcome and postmortem: [§6.9](#69-stage-3-outcome). Original spec:
+  "exact-EV combat selection over the CRT (see
+  [§6.1](#61-what-the-codebase-already-provides)) plus scored movement
   (advance on weak high-value targets, seek charge geometry, prefer
-  defensive terrain, avoid ZOC traps). Difficulty tiers fall out nearly free:
-  random → greedy → EV-weighted → shallow lookahead.
+  defensive terrain, avoid ZOC traps). Difficulty tiers fall out nearly
+  free: random → greedy → EV-weighted → shallow lookahead."
+
+  Three of those four tiers shipped. **"Nearly free" was right for three and
+  wrong for the fourth** — see §6.9. "Avoid ZOC traps" split in two: ZOC
+  avoidance shipped and is tested; *retreat* traps were implemented, found
+  unreachable, and removed.
+
 - **Stage 4 — player-facing**: per-seat Human/AI + difficulty config on the
   Menu screen (`ui/session.ts`), turn pacing/animation so AI moves are
-  legible rather than instant, and save-format support.
+  legible rather than instant, and save-format support. **Still deferred**,
+  and now the only thing between this project and a playable computer
+  opponent — the strategy code is done, tested, and reachable by nothing but
+  the test suite.
+
+- **Stage 3b — shallow lookahead**: the fourth tier, queued separately (#6)
+  rather than folded back into stage 3. Reasoning in
+  `heuristicAgent.ts`'s header, summarized in §6.9.
 
 ### 6.5 Decisions to make before starting
 
@@ -829,7 +858,13 @@ run:
 - **Combined attacks** — `legalActions` enumerates singleton attacks only
   (`actions.ts:356-367`), so `multiAttacker` is structurally 0. This is why
   the harness could not have caught [§5](#5-outcome)'s multi-defender phalanx
-  bypass, corrected in §6.3.
+  bypass, corrected in §6.3. **Closed by Stage 3**, which is the only way it
+  could have been: the *enumeration* is still singleton-only, but
+  `HeuristicAgent` assembles groups itself and hands them to `applyAction`
+  (the escape hatch `legalActions`' own doc comment sanctions), so
+  `heuristicSoak.test.ts` now reaches 12 combined attacks in 12 games where
+  a `RandomAgent` control over the same seeds reaches 0. This soak's own
+  number stays 0 forever and is now printed with a pointer, per §6.9.
 - **Pushes and exchange sacrifices** — `pushTarget: 0` and
   `exchangeChoice: 0` across 100 games with the default armies. §12's branch
   adds a dedicated scenario to reach a push at all.
@@ -842,6 +877,95 @@ run:
   via `eligibleAdvanceCandidates` while the scene did not.
 - **Every game ends the same way** (turn limit at turn 8, 0 mutual
   eliminations), so elimination endings and long games are untested paths.
+
+### 6.9 Stage 3 outcome
+
+Merged as `a2a1329`. Landed `engine/combatOdds.ts`,
+`engine/heuristicAgent.ts`, `ActionChooser`/`DrivingAgent` in `agent.ts`,
+per-seat agents (`createAgent` + `SeatAgentRouter`) in the fuzz harness, and
+three new test files. 333 tests (was 288), `tsc` and `npm run build` clean.
+
+**Behavior-neutrality was proven, not asserted.** The harness gained a
+per-seat indirection that every existing `RandomAgent` run now passes
+through, so the 100-seed action trace was hashed before and after and in a
+separate worktree at the merge base: **byte-identical**. Worth reusing —
+this is the second branch (after [§11](#11-combat-reporting-detail)) where a
+trace hash turned "I don't think I changed anything" into evidence.
+
+**What "difficulty tiers fall out nearly free" actually bought.** Three
+tiers, yes: `'random'` is a real delegation to `RandomAgent` (so the easiest
+AI and the fuzz driver are provably the same code), `'greedy'` scores an
+attack by expected *enemy* loss alone, `'ev'` by expected net swing. The
+fourth — shallow lookahead — is **not** nearly free, and this is the
+plan's own estimate being wrong rather than the implementer under-delivering:
+a ply needs a cloned `GameState` (`history.ts` deliberately doesn't provide
+one), an answer for every mid-resolution decision the clone provokes, an
+opponent model, and a performance budget against a `legalActions` that
+re-runs a `reachableHexes` BFS per unit per call. Queued as #6 with that
+reasoning recorded in code rather than stubbed.
+
+**Strength, measured seat-controlled.** ~3x a `RandomAgent`'s surviving army
+value from either seat; ahead of `'greedy'` in both seats compared like for
+like. Measuring this correctly took two attempts and the correction is the
+useful part: `winnerId` is a bad metric here because
+`endGameByTimeLimit` awards a tied army value to the lower seat, *and*
+because moving first is worth a great deal once a side plays well at all
+(two EV agents finish 35.8 to 6.7 where two random agents finish 30.4 to
+32.1 — the first-move advantage is created by good play, not baked into the
+position). The tests compare surviving army value with the seat held
+constant.
+
+**A modelling bug caught before it reached the soak:** charging the
+retreat "tempo" penalty per *unit* makes an attack score worse the more
+attackers join it, so an EV agent using it declines every combined attack
+and, at ratios of 2:1 and up, nearly every attack at all. It is charged once
+per *side* now, with the reasoning at `RETREAT_TEMPO_VALUE`. Found by
+working the arithmetic on a three-unit group by hand, not by testing.
+
+**Review: FAIL, then fixed.** The implementation was sound — the reviewer
+re-derived the trace hash, the combined-attack legality argument, the ship
+pro-rating, the cache-staleness question and the strength margins, and all
+held. What failed was the *test* half, in the way this project keeps
+finding:
+
+1. **HIGH — two guards that guarded nothing.** The `attackerCanJoin` gate
+   could be deleted outright with the whole suite green: `legalActions`
+   filters cavalry-vs-phalanx itself, so the gate's loop never ran, and the
+   test named for it landed in a branch that only re-asserted `endPhase`.
+   Worse, the *seed* attacker was never gated at all. There is now one gate
+   covering seed and additions, reached by a test that hands the agent a
+   deliberately malformed `legal` list. **The first rewrite of that test was
+   vacuous too** (the attack scored negative and was declined either way) —
+   caught only by re-running the deleted-gate mutation, which is the whole
+   argument for [§6.6](#66-stage-1-outcome)'s bar.
+2. **MEDIUM — the entire risk-aware movement half survived deletion.**
+   `terrainDefense` and `zocPenalty` now have discriminating tests with
+   controls. `retreatTrapPenalty` was **removed instead**: a destination is
+   only a death-trap if its neighbours are occupied, ZOC-covered or
+   impassable — the same neighbours a unit must move *through* to arrive —
+   so the ZOC stop rule makes it unreachable. Probing the shipped map for a
+   counter-example (peninsula tips, the (4,9) steep-flank box) found none.
+   An untestable scoring knob is worse than no knob.
+3. **MEDIUM — three worked examples wrong**, one of them the exact
+   [§11.3](#113-ramming--show-the-roll-needed-which-is-already-computable)
+   failure mode (a CRT citation of "1-3 column, three faces of AE" for what
+   is really 1-5 with five), and two stale soak measurements.
+4. **The legality oracle was a tautology.** `assertChosenActionIsLegal`
+   asked whether every attacker had a legal singleton in `legal` — the very
+   set the agent drew the group from, so it could not fail for the agent it
+   polices. It now re-derives the pairing rule from `state` via
+   `attackerCanJoin`, keeping the `legal` lookup only for the one question
+   the board can't answer ("has this unit already attacked this phase?").
+
+Final mutation sweep: 9 of 9 killed.
+
+**Found on the way, not fixed here:**
+[§15](#15-live-defect-ranged-attacks-resolve-at-zero-attack-force).
+
+**Carried forward:** the AI still cannot use elephants, for the same reason
+nothing headless can — [§6.7](#67-the-elephant-problem-stage-2-split)'s
+Stage 2b. That gap now blocks a *player-facing* feature, not just a test
+tool, since `defaultArmySelection()` puts three elephants in a standard army.
 
 ---
 
@@ -1516,3 +1640,71 @@ starts covering.** Splitting the scene into more scene files buys
 parallelism; moving logic into the engine buys parallelism *and* test
 coverage. Prefer the latter wherever a piece is genuinely rules logic rather
 than presentation.
+
+---
+
+<a id="15-live-defect-ranged-attacks-resolve-at-zero-attack-force"></a>
+
+## 15. Live defect: ranged attacks resolve at zero attack force
+
+**Status: open, queued #1.** Found while correcting a wrong CRT worked
+example during [§6.9](#69-stage-3-outcome)'s review. Pinned by a regression
+test (`combatOdds.test.ts`, "inherits the engine scoring a ranged attack at
+zero force") but deliberately **not fixed on that branch** — it changes live
+hotseat combat resolution and deserves its own review.
+
+### 15.1 The defect
+
+`computeLandAttackDetail` sums `currentAttack(u)`, which returns
+`UnitType.attack`. Plain `archers` are `attack: 0, rangedAttack: 2`
+(`data/units.ts`). `rangedAttack` is read in exactly one place —
+`checkRangedEligibility`, which only decides *whether* a shot is legal — and
+never contributes force to anything.
+
+So every volley from a plain archer unit resolves at **attack force 0**,
+which `ratioToColumnIndex` short-circuits to column 0 (`1-5`). Five of that
+column's six faces are `AE`. Measured:
+
+```
+archers @ range 2 vs fantassins:  attackForce=0  ratio=1-5  faces={AE:5, AR:1}
+fantassins-archers @ range 2:     attackForce=2  ratio=2-1  faces={DR:4, AR:2}
+```
+
+**Firing an archer is a 5-in-6 chance of losing it and can never inflict
+anything.** `fantassins-archers` (`attack: 2`) are unaffected, which is
+presumably why this has gone unnoticed since the roster was transcribed —
+the unit that exposes it is the one nobody has a reason to fire twice.
+
+### 15.2 Why it needs a reading, not just a patch
+
+The counter format is `attack (rangedAttack) range / defense movement`, so
+`0 (2) 2 / 1 3` plainly means "no melee attack, ranged attack 2 at range 2."
+The obvious fix — use `rangedAttack` as the force when the attack is being
+made at range — is almost certainly right, but it is an *interpretation* and
+needs the usual code comment, because the rulebook has to be checked on at
+least these points:
+
+1. **Which force applies at distance 1** for a unit that is both melee- and
+   ranged-capable (`fantassins-archers`, `triremes`, `quintiremes` all have
+   both). Adjacent, is it the melee value, the ranged value, or the
+   attacker's choice?
+2. **Whether a ranged attacker joins a combined attack at all**, and with
+   which value, when the group also contains melee units at distance 1.
+3. **Whether the defender may retreat into contact**, i.e. whether a ranged
+   `DR` behaves like a melee one — currently it does, which may be right.
+
+### 15.3 Scope
+
+- `engine/combat.ts` (`computeLandAttackDetail`) or `engine/state.ts`
+  (`currentAttack` gaining a distance/mode argument). Pure engine; no scene
+  change, no `GameState` shape change, no `SAVE_VERSION` bump.
+- **Expect the fuzz harness's numbers to move**, and check the trace hash
+  deliberately rather than being surprised: `buildFuzzGameState` fields
+  `p1-archers` (plain archers) and `p0-archers` (`fantassins-archers`), so
+  the default soak's `combatResultCounts` will shift and every seeded trace
+  will change. That is the fix working, not a regression — but it means the
+  byte-identical-trace technique is unavailable for this branch, and the
+  soak's own assertions should be re-derived instead.
+- Worth re-running `heuristicSoak.test.ts`'s strength margins afterward: an
+  EV agent currently never fires a plain archer, correctly, and will start
+  to once a volley is worth something.
