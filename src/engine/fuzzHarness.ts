@@ -5,10 +5,11 @@ import { DIRECTIONS, hexAdd } from './hex';
 import { getUnitType } from '../data/units';
 import type { CombatResult } from '../data/combatTable';
 import { legalActions, applyAction, type Action } from './actions';
-import type { PlayerAgent } from './agent';
+import type { DrivingAgent, PlayerAgent } from './agent';
 import { RandomAgent } from './randomAgent';
 import { createSeededRng } from './rng';
 import {
+  attackerCanJoin,
   eligibleAdvanceCandidates,
   legalRetreatHexes,
   pushCandidates,
@@ -19,6 +20,7 @@ import {
 } from './combat';
 import { resetMovementForActivePlayer, createInitialState, endGameByTimeLimit } from './turnManager';
 import {
+  armyValue,
   unitCategory,
   unitType,
   maxEquipmentPointsForType,
@@ -649,6 +651,29 @@ export interface HarnessStats {
    * §12.2) — a rule that never fires is itself evidence something's wrong,
    * which is exactly what motivated the fix. */
   pushesResolved: number;
+  /** Land attacks resolved with more than one attacking unit. Structurally
+   * always 0 for a `RandomAgent` game — `legalActions` enumerates singleton
+   * attacks only (see its doc comment), which plan.md §6.8 records as the
+   * reason the harness could never have caught §5's multi-defender phalanx
+   * bypass. A `HeuristicAgent` at the `'ev'` tier assembles groups itself
+   * (see `buildAttackGroup`), so this counter is how a soak reports whether
+   * combined-attack coverage actually happened rather than being assumed. */
+  multiAttackerAttacks: number;
+  /**
+   * Each player's surviving army value when the game ended (see
+   * `state.armyValue`) — the quantity `endGameByTimeLimit` actually decides a
+   * timed game on.
+   *
+   * Reported alongside `winnerId` rather than left to be inferred from it,
+   * because `winnerId` alone is a misleading measure of how well an agent
+   * played: `endGameByTimeLimit` awards a tie to whichever tied player comes
+   * first in `state.players`, so two agents that finish dead level are
+   * recorded as a clean win for the lower seat. That is not hypothetical —
+   * it is what a mirror match between two `HeuristicAgent`s mostly produces
+   * (they decline the same bad attacks), and reading only `winnerId` there
+   * would suggest a seat advantage that is really a tiebreak artefact.
+   */
+  finalArmyValues: Partial<Record<PlayerId, number>>;
 }
 
 export interface PlayRandomGameOptions {
@@ -690,6 +715,27 @@ export interface PlayRandomGameOptions {
    * plumbing just to swap the initial `GameState`.
    */
   buildInitialState?: () => GameState;
+  /**
+   * Which agent plays each seat. Defaults to one `RandomAgent` shared by
+   * every seat, which is exactly what this harness did before plan.md §6.4's
+   * Stage 3 needed anything else.
+   *
+   * Called once per seat, all with the SAME seeded `rng` the dice draw from,
+   * so a whole multi-agent game still replays identically from its seed. Two
+   * consequences worth knowing before writing a `createAgent`:
+   *
+   * - Returning the same instance for every seat (the default) is fine and
+   *   is not the same thing as the agents sharing knowledge — these agents
+   *   are stateless between calls; everything they know comes from the
+   *   `GameState` handed to them.
+   * - Returning DIFFERENT agents per seat is how a strength comparison is
+   *   run (see `heuristicAgent.test.ts`'s head-to-head). Mid-resolution
+   *   decisions are routed to the agent of the seat that OWNS the unit being
+   *   asked about, not to whoever's turn it is — a defender choosing where
+   *   to retreat is the defender's decision even though the attacker is the
+   *   active player.
+   */
+  createAgent?: (rng: () => number, seat: PlayerId) => DrivingAgent;
 }
 
 /** A compact, stable, one-line string for `action` — used only for
@@ -714,8 +760,114 @@ function formatAction(action: Action): string {
   }
 }
 
+/**
+ * An agent may only play something the engine actually offered — checked on
+ * the action it CHOSE, not just on the set it was offered
+ * (`assertNoActionTargetsADeadUnit` covers that side).
+ *
+ * The one sanctioned exception is a COMBINED land attack. `legalActions`
+ * enumerates singleton attacks only, deliberately (see its doc comment), and
+ * explicitly invites a scored agent to assemble a bigger group and hand it
+ * to `applyAction` itself — which `HeuristicAgent` does. Anything else — an
+ * unlisted move, a multi-DEFENDER group, an attacker that never had a legal
+ * attack — is a bug in the agent and throws.
+ *
+ * A combined group is checked in TWO independent ways, and that split is the
+ * point of this function. Adversarial review's finding against the first
+ * version: asking only "did every attacker have a legal singleton against
+ * this defender in `legal`?" is a tautology, because `legal` is exactly the
+ * set `HeuristicAgent.chooseCombatAction` drew the group from — the check
+ * could not fail for the agent it exists to police. So instead:
+ *
+ * 1. **Membership**, which only `legal` can answer: each attacker must
+ *    appear in some offered attack. "Has this unit already attacked this
+ *    phase?" and "is it the active player's?" live in `ActionContext`, not
+ *    in `GameState`, so there is nothing on the board to re-derive them from.
+ * 2. **The pairing rule**, re-derived from `state` through `attackerCanJoin`:
+ *    may this attacker legally join a group targeting THIS defender? That is
+ *    what enforces reachability and, critically, the cavalry/phalanx group
+ *    restriction (plan.md §5's HIGH). Being computed from the board rather
+ *    than from the agent's own input, it can genuinely fail.
+ *
+ * Worth having rather than relying on `applyAction`'s own throws: those
+ * catch a dead or unknown unit, but would happily resolve a combat between
+ * two units on opposite ends of the map.
+ */
+function assertChosenActionIsLegal(state: GameState, action: Action, legal: Action[]): void {
+  const key = formatAction(action);
+  if (legal.some((candidate) => formatAction(candidate) === key)) return;
+
+  if (action.kind === 'landAttack' && action.attackerIds.length > 1 && action.defenderIds.length === 1) {
+    const defender = requireUnit(state, action.defenderIds[0]!);
+    const everyAttackerWasOffered = action.attackerIds.every((attackerId) =>
+      legal.some(
+        (candidate) =>
+          candidate.kind === 'landAttack' &&
+          candidate.attackerIds.length === 1 &&
+          candidate.attackerIds[0] === attackerId,
+      ),
+    );
+    const everyAttackerMayJoin = action.attackerIds.every((attackerId) =>
+      attackerCanJoin(state, requireUnit(state, attackerId), [defender], state.combatMode),
+    );
+    if (everyAttackerWasOffered && everyAttackerMayJoin) return;
+  }
+
+  throw new Error(
+    `Invariant violated: the agent chose "${key}", which legalActions did not offer and which is not a legal combination of offered attackers against a single defender`,
+  );
+}
+
 function emptyContext(): { attackedThisPhase: Set<string>; rammedThisTurn: Set<string> } {
   return { attackedThisPhase: new Set<string>(), rammedThisTurn: new Set<string>() };
+}
+
+/**
+ * Dispatches each decision to the agent of the seat it actually belongs to.
+ *
+ * Necessary the moment two seats play differently (`PlayRandomGameOptions.createAgent`):
+ * every mid-resolution question the engine asks is directed at a specific
+ * player, and it is NOT always the active one — `applyLandCombatResult`
+ * hands the DEFENDER a retreat to choose while the attacker is the player
+ * whose turn it is. Answering that with the attacker's agent would be a
+ * strength comparison measuring the wrong thing (each agent playing half of
+ * both sides), which is subtle enough to be worth its own class rather than
+ * an inline lambda.
+ *
+ * Exported so a test can drive `resolveUnitRetreat`/`processRetreats`
+ * directly with per-seat agents, the same way those functions are already
+ * exported for scripted single agents.
+ */
+export class SeatAgentRouter implements DrivingAgent {
+  constructor(private readonly agents: ReadonlyMap<PlayerId, DrivingAgent>) {}
+
+  private forSeat(owner: PlayerId): DrivingAgent {
+    const agent = this.agents.get(owner);
+    if (!agent) throw new Error(`SeatAgentRouter: no agent configured for seat ${owner}`);
+    return agent;
+  }
+
+  chooseNextAction(state: GameState, legal: Action[]): Action {
+    return this.forSeat(state.seatOrder[state.activePlayerIndex]!).chooseNextAction(state, legal);
+  }
+
+  chooseRetreat(state: GameState, unit: Unit, options: HexCoord[]): Promise<HexCoord> {
+    return this.forSeat(unit.owner).chooseRetreat(state, unit, options);
+  }
+
+  choosePushTarget(state: GameState, unit: Unit, candidates: Unit[]): Promise<Unit> {
+    return this.forSeat(unit.owner).choosePushTarget(state, unit, candidates);
+  }
+
+  chooseAdvance(state: GameState, candidates: Unit[], vacated: HexCoord): Promise<Unit | null> {
+    // Every candidate comes from one attack group, so they share an owner;
+    // `processAdvanceOffer` never calls this with an empty list.
+    return this.forSeat(candidates[0]!.owner).chooseAdvance(state, candidates, vacated);
+  }
+
+  chooseExchangeSacrifice(state: GameState, attackers: Unit[], requiredForce: number): Promise<Unit[]> {
+    return this.forSeat(attackers[0]!.owner).chooseExchangeSacrifice(state, attackers, requiredForce);
+  }
 }
 
 /**
@@ -768,8 +920,8 @@ export async function playRandomGame(seed: number, options: PlayRandomGameOption
   const actionCap = options.actionCap ?? 20_000;
 
   const rng = createSeededRng(seed);
-  const agent = new RandomAgent(rng);
   const state = (options.buildInitialState ?? buildFuzzGameState)();
+  const agent = buildSeatAgents(state, rng, options.createAgent);
   // The very first movement phase never goes through `applyAction`'s
   // `endPhase` case (nothing has ended yet to trigger a refill) — mirrors
   // how a fresh game reaches BoardScene with units already carrying their
@@ -794,6 +946,8 @@ export async function playRandomGame(seed: number, options: PlayRandomGameOption
     ramHits: 0,
     boardingsResolved: 0,
     pushesResolved: 0,
+    multiAttackerAttacks: 0,
+    finalArmyValues: {},
   };
 
   assertInvariants(state, 'initial state');
@@ -815,6 +969,7 @@ export async function playRandomGame(seed: number, options: PlayRandomGameOption
     const legal = legalActions(state, context);
     assertNoActionTargetsADeadUnit(state, legal);
     const action = agent.chooseNextAction(state, legal);
+    assertChosenActionIsLegal(state, action, legal);
     options.trace?.push(formatAction(action));
     await applyOneAction(state, action, agent, rng, context, stats);
 
@@ -828,7 +983,30 @@ export async function playRandomGame(seed: number, options: PlayRandomGameOption
 
   stats.gameOver = true;
   stats.winnerId = state.winnerId;
+  for (const player of state.players) stats.finalArmyValues[player.id] = armyValue(state, player.id);
   return stats;
+}
+
+/**
+ * One agent per seat, all sharing the game's single seeded `rng` (see
+ * `PlayRandomGameOptions.createAgent`). With no factory this is the historical
+ * behaviour exactly: one `RandomAgent`, used for every seat and every
+ * mid-resolution question. Wrapped in a `SeatAgentRouter` either way so
+ * there is one code path, not two.
+ */
+function buildSeatAgents(
+  state: GameState,
+  rng: () => number,
+  createAgent?: (rng: () => number, seat: PlayerId) => DrivingAgent,
+): DrivingAgent {
+  const agents = new Map<PlayerId, DrivingAgent>();
+  if (createAgent) {
+    for (const seat of state.seatOrder) agents.set(seat, createAgent(rng, seat));
+  } else {
+    const shared = new RandomAgent(rng);
+    for (const seat of state.seatOrder) agents.set(seat, shared);
+  }
+  return new SeatAgentRouter(agents);
 }
 
 async function applyOneAction(
@@ -902,6 +1080,7 @@ async function applyOneAction(
       for (const id of action.attackerIds) context.attackedThisPhase.add(id);
       const result = applyAction(state, action, rng);
       stats.landAttacksResolved++;
+      if (action.attackerIds.length > 1) stats.multiAttackerAttacks++;
       stats.combatResultCounts[result.detail.result] = (stats.combatResultCounts[result.detail.result] ?? 0) + 1;
 
       // THE loud guard plan.md §6.7 requires: elephants are excluded from

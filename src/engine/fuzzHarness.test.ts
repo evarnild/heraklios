@@ -296,6 +296,8 @@ describe('fuzz harness: seeded self-play soak', () => {
     // dedicated `buildPushScenarioGameState` soak below, which exists
     // specifically because this default army essentially never produces one).
     const totalPushes = allStats.reduce((sum, g) => sum + g.pushesResolved, 0);
+    // Always 0 for THIS soak, and printed anyway — see the report line below.
+    const totalMultiAttacker = allStats.reduce((sum, g) => sum + g.multiAttackerAttacks, 0);
     const turns = allStats.map((g) => g.turnsReached);
     const wins = allStats.filter((g) => g.winnerId !== null).length;
     const draws = allStats.length - wins;
@@ -325,6 +327,13 @@ describe('fuzz harness: seeded self-play soak', () => {
         // actually satisfies that (searchable, unconditional, not dependent
         // on vitest's own skip-reporting format).
         `[fuzz] GAP: elephants excluded — drift cascade not yet fuzzable (Stage 2b, plan.md §6.7)`,
+        // The other coverage gap plan.md §6.8 names, reported the same way
+        // and for the same reason: a number that reads 0 forever is only
+        // honest if it is visible. It is 0 here BY CONSTRUCTION —
+        // `legalActions` enumerates one-attacker attacks only — so this line
+        // is not a defect report, it is a pointer to where the coverage
+        // actually comes from now that Stage 3 exists.
+        `[fuzz] multiAttackerAttacks=${totalMultiAttacker} (structurally 0: legalActions is singleton-only — combined attacks are covered by heuristicSoak.test.ts)`,
       ].join('\n'),
     );
 

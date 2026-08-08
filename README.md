@@ -426,7 +426,10 @@ what the game will use — see `src/map-editor/`.
   `legalActions`/`applyAction`, enumerating and applying every
   move/attack/end-phase a player can take, plus the `PlayerAgent` interface
   in `agent.ts` for the retreat/push/advance/exchange decisions a human or a
-  future bot answers), and the save-file format and its validation. Fully
+  bot answers), the computer opponent described below (`combatOdds.ts`'s
+  exact CRT odds, `heuristicAgent.ts`, `randomAgent.ts`) and the headless
+  self-play harness that soaks it (`fuzzHarness.ts`), and the save-file
+  format and its validation. Fully
   unit-tested and independent of Phaser (the browser-side half of saving —
   `localStorage` and file download/upload — lives in `src/ui/saveStorage.ts`).
 - `src/scenes/` — the Phaser UI: menu, army builder, placement, board,
@@ -447,11 +450,55 @@ what the game will use — see `src/map-editor/`.
   every table, and a list of sources. Start at
   [`docs/research/README.md`](docs/research/README.md).
 
+## Computer opponent (engine only, not yet playable)
+
+There is a working AI in `src/engine/`, but **no way to give it a seat from
+the UI yet** — every seat in a real game is still a human at the shared
+screen. It exists today to play thousands of headless self-play games in the
+test suite, and as the strategy layer a future "this seat is the computer"
+menu option will use.
+
+It plays through the same `legalActions`/`applyAction` layer the board scene
+does, so it is bound by exactly the same rules as a player — it cannot make
+a move the UI wouldn't allow.
+
+**How it decides.** The combat-results table is small and fully known: one
+die, six faces, and a pure resolution function. So the agent doesn't
+simulate or sample a candidate attack, it solves it — `combatOdds.ts`
+evaluates all six faces and gets the exact outcome distribution, then prices
+each outcome in purchase points (the same currency that decides a game on
+time). Movement is scored on what it buys: distance closed toward the enemy,
+the defensive value of the ground, staying out of enemy zones of control,
+and above all the value of the attack the destination makes possible — which
+is how it finds cavalry charges, since a charge is simply a move whose
+attack is worth twice as much.
+
+**Three difficulty levels**, in increasing strength:
+
+| Level | How it plays |
+| --- | --- |
+| Random | Picks uniformly among the legal options. |
+| Greedy | Goes for the biggest expected damage to you, and ignores what the attempt might cost it. |
+| Expected value | Weighs damage against its own risk, declines attacks that aren't worth making, and concentrates several units into one attack when that pushes the force ratio into a better column. |
+
+A fourth level — looking a move ahead — is not implemented; see
+`heuristicAgent.ts` for why that turned out to be a much larger job than the
+other three.
+
 ## Known simplifications
 
 A few places trade a little rules fidelity for a shippable scope — flagged
 here rather than silently:
 
+- **The computer opponent cannot be given a seat.** See above: the AI is
+  fully implemented in the engine and exercised by the test suite, but the
+  menu has no Human/Computer choice per player, there is no pacing or
+  animation to make its moves legible, and the save format does not record
+  which seats were AI.
+- **The computer opponent never uses elephants.** Its self-play harness
+  excludes them, because an elephant forced to retreat "drifts" through a
+  cascade that only the board scene can currently resolve — so nothing
+  headless, the AI included, can play a game containing one.
 - **Naval movement is destination-click, not path-drawn.** Clicking a
   highlighted hex moves the selected ship there by the cheapest combination
   of rotation + forward moves (or, for an orange-highlighted contact hex,

@@ -1,7 +1,7 @@
 import type { HexCoord } from '../data/map';
 import { exchangeSacrificeMeetsThreshold } from './combat';
 import type { Action } from './actions';
-import type { PlayerAgent } from './agent';
+import type { ActionChooser, PlayerAgent } from './agent';
 import type { GameState, Unit } from './state';
 
 /**
@@ -19,7 +19,7 @@ import type { GameState, Unit } from './state';
  * decision below — is reproducible from a single seed shared with
  * `applyAction`'s own die rolls (see `engine/fuzzHarness.ts`).
  */
-export class RandomAgent implements PlayerAgent {
+export class RandomAgent implements PlayerAgent, ActionChooser {
   constructor(private readonly rng: () => number = Math.random) {}
 
   private pick<T>(options: readonly T[]): T {
@@ -43,6 +43,10 @@ export class RandomAgent implements PlayerAgent {
    * itself, synchronously and in that order, has no double-apply hazard: it
    * owns the whole loop, not a click handler that already committed the
    * action before this method was ever called.
+   *
+   * Stage 3 (plan.md §6.4) gave that shape a name — `ActionChooser`, in
+   * `agent.ts` — once `HeuristicAgent` needed the identical method; this
+   * class now declares it rather than merely happening to have it.
    */
   chooseNextAction(_state: GameState, legal: Action[]): Action {
     return this.pick(legal);
