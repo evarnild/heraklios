@@ -16,11 +16,8 @@ import type { PlayerAgent, ActionObserver } from '../engine/agent';
 import { rollDie as engineRollDie } from '../engine/dice';
 import { reachableHexes, reachableNavalHexes, findRammingContacts, type RammingContact } from '../engine/movement';
 import {
-  describeLandAttack,
-  applyLandCombatResult,
   exchangeSacrificeMeetsThreshold,
   applyExchangeSacrifice,
-  canElephantEnterHex,
   legalRetreatHexes,
   pushCandidates,
   retreatUnitTo,
@@ -36,7 +33,7 @@ import {
   type LandAttackDetail,
   type LandCombatOutcome,
 } from '../engine/combat';
-import { directionForDie, hexAdd } from '../engine/hex';
+import { resolveElephantDrift } from '../engine/drift';
 import { History } from '../engine/history';
 import { unitType, currentAttack, currentDefense, maxEquipmentPoints, type GameState, type Unit } from '../engine/state';
 import type { HexCoord } from '../data/map';
@@ -79,15 +76,9 @@ type RetreatChoice =
   | { kind: 'retreat'; legalHexes: HexCoord[]; onChosen: (hex: HexCoord) => void }
   | { kind: 'choosePushTarget'; pushTargets: Unit[]; onChosen: (pushed: Unit) => void };
 
-/** An elephant's "drift" in progress: direction rolled, walking one hex at
- * a time, real combat resolved against anything encountered. `remainingSteps`
- * is a single shared movement budget (the elephant's full movement
- * allowance) that persists across re-rolled directions — being repelled
- * (AR) doesn't reset it, it just rolls a new heading for what's left. */
+/** Accumulated narration and completion callback for the active engine-owned
+ * elephant drift. The actual drift stack lives in engine/drift.ts. */
 interface DriftState {
-  elephant: Unit;
-  direction: HexCoord;
-  remainingSteps: number;
   lines: string[];
   onComplete: () => void;
 }
@@ -120,18 +111,84 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * time: `retreatQueue` first, then `driftQueue`. */
   private retreatQueue: RetreatQueueItem[] = [];
   private driftQueue: RetreatQueueItem[] = [];
-  /** MEDIUM finding from adversarial review (M11): every unit ID a push
-   * cascade has actually moved or destroyed during the CURRENT
-   * `beginRetreatChoices` batch — reset there, populated by
-   * `beginUnitRetreatChoice`. A single AR/DR result can queue several units
-   * from the same side independently; if resolving one of them pushes a
-   * SIBLING also sitting in `retreatQueue`, that sibling must not be asked
-   * to retreat a second time when the queue reaches its own entry — see
-   * `advanceRetreatQueue`'s skip check. Mirrors `fuzzHarness.ts`'s
-   * `processRetreats`'s locally-scoped `resolvedIds`. */
-  private retreatResolvedIds = new Set<string>();
+  /** Every unit ID already resolved during the CURRENT `beginRetreatChoices`
+   * batch, whether via retreat/push or drift. Prevents a unit moved by one
+   * queued resolution from being processed again later in the same batch. */
+  private resolutionResolvedIds = new Set<string>();
   private retreatChoice: RetreatChoice | null = null;
   private driftState: DriftState | null = null;
+  private beginDrift(
+    elephant: Unit,
+    remainingSteps: number,
+    onComplete: () => void,
+    existingLines?: string[],
+    forbiddenDirection?: HexCoord,
+  ): void {
+    if (elephant.destroyed || remainingSteps <= 0) {
+      onComplete();
+      return;
+    }
+    const lines = existingLines ?? [];
+    this.driftState = { lines, onComplete };
+    this.decisionPending = true;
+    resolveElephantDrift(
+      this.state(),
+      elephant,
+      remainingSteps,
+      this,
+      () => this.rollDie(),
+      {
+        onDriftStart: (drifting) => {
+          this.resolutionResolvedIds.add(drifting.id);
+        },
+        onLine: (line) => this.appendLine(line),
+        onRender: () => this.renderAllUnits(),
+        onCombat: (detail, _outcome, drifting, occupant, hex) => {
+          const dieLine =
+            detail.terrainModifier !== 0
+              ? `die ${detail.rawDieRoll} +${detail.terrainModifier} terrain = ${detail.modifiedDieRoll}`
+              : `die ${detail.rawDieRoll}`;
+          this.appendLine(
+            `${unitType(drifting).name} tramples into ${unitType(occupant).name} at (${hex.q}, ${hex.r}): ` +
+              `${detail.attackForce} vs ${detail.defenseForce} (${detail.ratioLabel.replace('-', ':')}), ${dieLine} ` +
+              `-> ${BoardScene.RESULT_LABELS[detail.result] ?? detail.result}`,
+          );
+        },
+        onRetreat: (unit, _hex, isPushedLink) => {
+          this.decisionPending = false;
+          if (!isPushedLink) this.appendLine(`${unitType(unit).name} retreats.`);
+          this.renderAllUnits();
+        },
+        onPush: (unit, pushed) => {
+          this.decisionPending = false;
+          this.appendLine(`${unitType(pushed).name} retreats, making room for ${unitType(unit).name}.`);
+          this.renderAllUnits();
+        },
+        onEliminated: (unit) => {
+          this.decisionPending = false;
+          this.appendLine(`${unitType(unit).name} had nowhere to retreat and was eliminated.`);
+          this.renderAllUnits();
+        },
+      },
+      forbiddenDirection,
+      undefined,
+      this.resolutionResolvedIds,
+    ).then(
+      () => {
+        this.renderAllUnits();
+        const complete = this.driftState?.onComplete ?? onComplete;
+        this.driftState = null;
+        this.decisionPending = false;
+        complete();
+      },
+      (error: unknown) => {
+        this.driftState = null;
+        this.decisionPending = false;
+        throw error;
+      },
+    );
+  }
+
   /**
    * True from the moment any `PlayerAgent` `choose*` method creates its
    * pending promise until its resolution has been fully applied (the
@@ -233,7 +290,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.attackedThisPhase = new Set();
     this.retreatQueue = [];
     this.driftQueue = [];
-    this.retreatResolvedIds = new Set();
+    this.resolutionResolvedIds = new Set();
     this.retreatChoice = null;
     this.driftState = null;
     this.decisionPending = false;
@@ -659,7 +716,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // can never leave a reference to a unit from the discarded state.
     this.retreatQueue = [];
     this.driftQueue = [];
-    this.retreatResolvedIds = new Set();
+    this.resolutionResolvedIds = new Set();
     this.retreatChoice = null;
     this.driftState = null;
     this.decisionPending = false;
@@ -1223,7 +1280,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.advanceEligibleAttackers = attackersForAdvance;
     this.retreatQueue = pendingRetreats.map((unit) => ({ unit, side, originalHex: { ...unit.position } }));
     this.driftQueue = pendingDrifts.map((unit) => ({ unit, side, originalHex: { ...unit.position } }));
-    this.retreatResolvedIds = new Set(); // fresh batch — see its own doc comment (M11)
+    this.resolutionResolvedIds = new Set();
     this.advanceRetreatQueue();
   }
 
@@ -1233,8 +1290,8 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       // M11: a push cascade resolving an EARLIER queue item can already have
       // moved this one (a sibling it pushed aside) — skip it rather than
       // asking the player to retreat it a second time for the same result.
-      if (item.unit.destroyed || this.retreatResolvedIds.has(item.unit.id)) {
-        this.advanceRetreatQueue();
+      if (item.unit.destroyed || this.resolutionResolvedIds.has(item.unit.id)) {
+        this.finishQueueItem(item);
         return;
       }
       this.beginUnitRetreatChoice(item.unit, () => this.finishQueueItem(item));
@@ -1243,8 +1300,8 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
 
     const driftItem = this.driftQueue.shift();
     if (driftItem) {
-      if (driftItem.unit.destroyed) {
-        this.advanceRetreatQueue();
+      if (driftItem.unit.destroyed || this.resolutionResolvedIds.has(driftItem.unit.id)) {
+        this.finishQueueItem(driftItem);
         return;
       }
       this.beginDrift(driftItem.unit, unitType(driftItem.unit).movement, () => this.finishQueueItem(driftItem));
@@ -1297,9 +1354,9 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // as a top-level queue item or a pushed unit reached via the recursive
     // branch below — so `advanceRetreatQueue` can skip a sibling this same
     // resolution already moved. Harmless when called outside a retreat-queue
-    // batch entirely (e.g. `resolveDriftHit`'s trampled-unit case): nothing
-    // reads `retreatResolvedIds` there.
-    this.retreatResolvedIds.add(unit.id);
+    // batch entirely (e.g. a trampled-unit drift case): nothing
+    // reads `resolutionResolvedIds` there.
+    this.resolutionResolvedIds.add(unit.id);
     // L12/L13 (LOW findings from adversarial review): a non-empty `visited`
     // means `unit` is itself a PUSHED unit mid-cascade, not the original
     // top-level retreater — worth saying so in the prompt (rather than the
@@ -1448,162 +1505,6 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     if (!pushed) return;
     this.retreatChoice = null;
     choice.onChosen(pushed);
-  }
-
-  /**
-   * Kicks off (or, after a re-roll, continues) an elephant's drift: rolls a
-   * direction, then walks it one hex at a time via `stepDrift`.
-   * `remainingSteps` is the movement budget shared across any re-rolls
-   * within this same drift (being repelled doesn't refill it — see
-   * `resolveDriftHit`'s 'AR' case). `existingLines` carries the narration
-   * across a re-roll so it reads as one continuous event. `forbiddenDirection`
-   * (only meaningful for a freshly-triggered drift, not its own re-rolls)
-   * excludes heading straight back at the elephant that just trampled this
-   * one — re-rolling until a different direction comes up keeps the other
-   * 5 directions equally likely.
-   */
-  private beginDrift(
-    elephant: Unit,
-    remainingSteps: number,
-    onComplete: () => void,
-    existingLines?: string[],
-    forbiddenDirection?: HexCoord,
-  ): void {
-    if (elephant.destroyed || remainingSteps <= 0) {
-      onComplete();
-      return;
-    }
-    const lines = existingLines ?? [`${unitType(elephant).name} is forced to retreat — instead it drifts!`];
-    let dieRoll: number;
-    let direction: HexCoord;
-    do {
-      dieRoll = this.rollDie();
-      direction = directionForDie(dieRoll);
-    } while (forbiddenDirection && direction.q === forbiddenDirection.q && direction.r === forbiddenDirection.r);
-    this.driftState = { elephant, direction, remainingSteps, lines, onComplete };
-    this.appendLine(`Direction die: ${dieRoll} — ${remainingSteps} hex(es) of movement to go.`);
-    this.stepDrift();
-  }
-
-  private stepDrift(): void {
-    const drift = this.driftState;
-    if (!drift) return;
-    const { elephant } = drift;
-
-    if (elephant.destroyed) {
-      this.finishDrift();
-      return;
-    }
-    if (drift.remainingSteps <= 0) {
-      this.appendLine(`${unitType(elephant).name} has used up its movement and stops drifting.`);
-      this.finishDrift();
-      return;
-    }
-
-    const nextHex = hexAdd(elephant.position, drift.direction);
-
-    if (!canElephantEnterHex(nextHex)) {
-      this.appendLine(`${unitType(elephant).name} drifts off the map or into the sea and is eliminated!`);
-      elephant.destroyed = true;
-      this.finishDrift();
-      return;
-    }
-
-    const occupant = unitAt(this.state(), nextHex);
-    if (!occupant) {
-      elephant.position = nextHex;
-      drift.remainingSteps -= 1;
-      this.appendLine(`${unitType(elephant).name} moves to (${nextHex.q}, ${nextHex.r}).`);
-      this.renderAllUnits();
-      this.stepDrift();
-      return;
-    }
-
-    this.resolveDriftHit(drift, nextHex, occupant);
-  }
-
-  /**
-   * A drifting elephant reaching an occupied hex: a real combat (elephant
-   * as attacker, occupant as defender), same engine as any other attack —
-   * but resolved by calling `describeLandAttack`/`applyLandCombatResult`
-   * directly rather than via `applyAction`'s `landAttack` case, since the
-   * whole drift cascade is out of stage-1 scope (see the class-level design
-   * note near `DriftState`). NOTE for Stage 2: this means a headless caller
-   * has no `applyAction`-based way to resolve a drift at all — a
-   * `LandCombatOutcome.pendingDrifts` entry from `applyAction`'s own
-   * `landAttack` case is a real dead end for a fuzz harness today. Elephant
-   * drifts can't be exercised by Stage 2's fuzzer until this cascade gets
-   * its own extraction pass.
-   */
-  private resolveDriftHit(drift: DriftState, hex: HexCoord, occupant: Unit): void {
-    const { elephant } = drift;
-    const state = this.state();
-    const dieRoll = this.rollDie();
-    const detail = describeLandAttack([elephant], [occupant], dieRoll);
-    const combatOutcome = applyLandCombatResult(state, [elephant], [occupant], detail.result);
-
-    const dieLine =
-      detail.terrainModifier !== 0
-        ? `die ${detail.rawDieRoll} +${detail.terrainModifier} terrain = ${detail.modifiedDieRoll}`
-        : `die ${detail.rawDieRoll}`;
-    this.appendLine(
-      `${unitType(elephant).name} tramples into ${unitType(occupant).name} at (${hex.q}, ${hex.r}): ` +
-        `${detail.attackForce} vs ${detail.defenseForce} (${detail.ratioLabel.replace('-', ':')}), ${dieLine} ` +
-        `-> ${BoardScene.RESULT_LABELS[detail.result] ?? detail.result}`,
-    );
-
-    switch (detail.result) {
-      case 'AE':
-      case 'EX':
-        this.appendLine(`${unitType(elephant).name} is destroyed.`);
-        this.finishDrift();
-        return;
-      case 'AR': {
-        this.appendLine(`${unitType(elephant).name} is repelled and must drift again!`);
-        const remaining = drift.remainingSteps;
-        const onComplete = drift.onComplete;
-        const lines = drift.lines;
-        this.driftState = null;
-        this.beginDrift(elephant, remaining, onComplete, lines);
-        return;
-      }
-      case 'DE':
-        elephant.position = hex;
-        drift.remainingSteps -= 1;
-        this.renderAllUnits();
-        this.stepDrift();
-        return;
-      case 'DR': {
-        const continueAfterVacated = () => {
-          this.driftState = drift; // restore — a nested choice/drift may have taken over
-          elephant.position = hex;
-          drift.remainingSteps -= 1;
-          this.renderAllUnits();
-          this.stepDrift();
-        };
-        const trampledElephant = combatOutcome.pendingDrifts.find((u) => u.id === occupant.id);
-        const trampledOther = combatOutcome.pendingRetreats.find((u) => u.id === occupant.id);
-        if (trampledElephant) {
-          // Can't drift straight back at the elephant that just trampled it.
-          const forbiddenDirection = { q: -drift.direction.q, r: -drift.direction.r };
-          this.beginDrift(occupant, unitType(occupant).movement, continueAfterVacated, undefined, forbiddenDirection);
-        } else if (trampledOther) {
-          this.beginUnitRetreatChoice(occupant, continueAfterVacated);
-        } else {
-          continueAfterVacated(); // no legal retreat/push for it — already eliminated
-        }
-        return;
-      }
-    }
-  }
-
-  private finishDrift(): void {
-    const drift = this.driftState;
-    if (!drift) return;
-    this.renderAllUnits();
-    const onComplete = drift.onComplete;
-    this.driftState = null;
-    onComplete();
   }
 
   /** Hexes still awaiting an advance-or-not offer — used when defenders are

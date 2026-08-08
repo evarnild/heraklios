@@ -90,15 +90,8 @@ export interface LandAttackResult {
    * resolving before the combat is fully settled, exactly as `BoardScene`
    * already branches on this same object today.
    *
-   * NOTE for a headless caller (Stage 2's fuzz harness): `pendingRetreats`
-   * has an engine-side resolution path (`legalRetreatHexes`/`pushCandidates`
-   * plus `retreatUnitTo`/`completePush`), but `pendingDrifts` does not yet —
-   * an elephant's drift/trample cascade is still resolved entirely inside
-   * `BoardScene` (`resolveDriftHit`, calling `describeLandAttack`/
-   * `applyLandCombatResult` directly, not through `applyAction`), which is
-   * out of this stage's scope. A `pendingDrifts` entry here is a dead end
-   * for a purely `applyAction`-driven caller today — elephants can't be
-   * fuzzed until that cascade gets its own extraction pass. */
+   * Headless callers can drive `pendingDrifts` through engine/drift.ts's
+   * resumable drift state machine, the same engine surface `BoardScene` uses. */
   outcome: LandCombatOutcome;
   /** The units that actually fought (post-mutation references), for the
    * caller's advance-into-vacated-hex offer. */

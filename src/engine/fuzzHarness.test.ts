@@ -5,12 +5,14 @@ import {
   buildPushScenarioGameState,
   resolveUnitRetreat,
   processRetreats,
+  processDrifts,
+  capturePendingResolutionItems,
   type HarnessStats,
 } from './fuzzHarness';
 import type { Action } from './actions';
 import type { CombatResult } from '../data/combatTable';
 import type { HexCoord } from '../data/map';
-import { legalRetreatHexes } from './combat';
+import { describeLandAttack, legalRetreatHexes } from './combat';
 import { createInitialState } from './turnManager';
 import type { PlayerAgent } from './agent';
 import type { GameState, Unit } from './state';
@@ -94,19 +96,14 @@ describe('playRandomGame', () => {
     expect(stats.gameOver).toBe(true);
   });
 
-  // Elephants are excluded from buildFuzzGameState() specifically so
-  // `outcome.pendingDrifts` can never legitimately be non-empty (see
-  // plan.md §6.7) — playRandomGame() throws loudly if that guard is ever
-  // tripped, which this suite exercises implicitly on every seed below
-  // simply by never seeing that throw.
-  it.skip('elephants: drift cascade not yet fuzzable (Stage 2b, see plan.md §6.7)', () => {
-    // Intentionally left unimplemented. This test exists purely so the gap
-    // prints in every `vitest run` until Stage 2b extracts the drift/
-    // trample cascade into a pure, resumable step function that a headless
-    // caller can drive (plan.md §6.7's `driftStep`/`DriftEvent` sketch).
-    // Once that lands: enable elephants in `buildFuzzGameState()`, answer
-    // `needsRetreatChoice` drift events through the harness's `RandomAgent`,
-    // delete this test and the `pendingDrifts` guard in `fuzzHarness.ts`.
+  // The default soak still keeps elephants out so its historical action mix
+  // stays stable. Stage 2b gives pendingDrifts an engine driver; Stage 2c
+  // can broaden buildFuzzGameState() itself and require non-zero drift stats
+  // from ordinary seeded self-play.
+  it.skip('elephants: default self-play army still excludes elephants until Stage 2c broadens coverage', () => {
+    // Kept as an explicit queue marker rather than a failing requirement:
+    // processDrifts and engine/drift.test.ts cover the extracted cascade now,
+    // while default self-play army composition remains a separate Stage 2c task.
   });
 });
 
@@ -131,6 +128,21 @@ function makeChainUnit(id: string, position: HexCoord, owner: 0 | 1 = 0): Unit {
     defendedThisPhase: false,
     charged: false,
     destroyed: false,
+  };
+}
+
+function dieForResult(attacker: Unit, defender: Unit, result: CombatResult): number {
+  for (let die = 1; die <= 6; die++) {
+    if (describeLandAttack([attacker], [defender], die).result === result) return die;
+  }
+  throw new Error(`No die produces ${result} for ${attacker.typeId} vs ${defender.typeId}`);
+}
+
+function rngFromDice(dice: number[]): () => number {
+  return () => {
+    const die = dice.shift();
+    if (die === undefined) throw new Error('rngFromDice: no scripted die left');
+    return (die - 1) / 6;
   };
 }
 
@@ -265,6 +277,321 @@ describe('processRetreats', () => {
     expect(a.position).toEqual(bOriginalPosition); // a takes over b's original hex
     expect(b.position).not.toEqual(bOriginalPosition); // b actually moved, exactly once
   });
+
+  it('shares resolved ids with the drift queue when a retreat pushes a pending elephant drift', async () => {
+    const { chain, state } = buildRetreatChain(2);
+    const [retreater, elephant] = chain as [Unit, Unit];
+    elephant.typeId = 'elephants';
+    const elephantOriginalPosition = { ...elephant.position };
+    const agent = new ScriptedFirstChoiceAgent();
+    const stats: HarnessStats = {
+      seed: 0,
+      gameOver: false,
+      winnerId: null,
+      endedByTimeLimit: false,
+      turnsReached: 1,
+      totalActions: 0,
+      actionsByKind: {},
+      landAttacksResolved: 0,
+      combatResultCounts: {},
+      ramsResolved: 0,
+      ramHits: 0,
+      boardingsResolved: 0,
+      driftsResolved: 0,
+      driftCombatsResolved: 0,
+      pushesResolved: 0,
+    };
+    const resolvedIds = new Set<string>();
+
+    await processRetreats(state, [retreater], 'attacker', [], agent, stats, resolvedIds);
+    await processDrifts(state, [elephant], 'attacker', [], agent, () => 0, stats, resolvedIds);
+
+    expect(stats.pushesResolved).toBe(1);
+    expect(stats.driftsResolved).toBe(0);
+    expect(elephant.position).not.toEqual(elephantOriginalPosition);
+  });
+
+  it('still offers defender advance when skipping a retreat item already resolved by a sibling cascade', async () => {
+    const players = [
+      { id: 0 as const, name: 'P0', edge: 'W' as const, purchasePoints: 0, eliminated: false },
+      { id: 1 as const, name: 'P1', edge: 'E' as const, purchasePoints: 0, eliminated: false },
+    ];
+    const state = createInitialState(players, 'multi-defender');
+    const attacker = makeChainUnit('attacker', { q: 9, r: 5 }, 0);
+    const defender = makeChainUnit('defender', { q: 10, r: 5 }, 1);
+    const originalHex = { ...defender.position };
+    const [pendingDefender] = capturePendingResolutionItems([defender]);
+    defender.position = { q: 10, r: 4 };
+    state.units = [attacker, defender];
+    const advanceOffers: HexCoord[] = [];
+    const agent: PlayerAgent = {
+      async chooseRetreat() {
+        throw new Error('skip-path test should not ask for a retreat');
+      },
+      async choosePushTarget() {
+        throw new Error('skip-path test should not ask for a push target');
+      },
+      async chooseAdvance(_state, candidates, vacated) {
+        advanceOffers.push({ ...vacated });
+        return candidates[0]!;
+      },
+      async chooseExchangeSacrifice(_state, attackers) {
+        return [attackers[0]!];
+      },
+    };
+    const resolvedIds = new Set([defender.id]);
+
+    await processRetreats(state, [pendingDefender!], 'defender', [attacker], agent, undefined, resolvedIds);
+
+    expect(advanceOffers).toEqual([originalHex]);
+    expect(attacker.position).toEqual(originalHex);
+  });
+});
+
+describe('processDrifts', () => {
+  it('pumps pending elephant drifts and records drift coverage stats', async () => {
+    const players = [
+      { id: 0 as const, name: 'P0', edge: 'W' as const, purchasePoints: 0, eliminated: false },
+      { id: 1 as const, name: 'P1', edge: 'E' as const, purchasePoints: 0, eliminated: false },
+    ];
+    const state = createInitialState(players, 'multi-defender');
+    const elephant = makeChainUnit('elephant', { q: 10, r: 5 });
+    elephant.typeId = 'elephants';
+    state.units = [elephant];
+    const stats: HarnessStats = {
+      seed: 0,
+      gameOver: false,
+      winnerId: null,
+      endedByTimeLimit: false,
+      turnsReached: 1,
+      totalActions: 0,
+      actionsByKind: {},
+      landAttacksResolved: 0,
+      combatResultCounts: {},
+      ramsResolved: 0,
+      ramHits: 0,
+      boardingsResolved: 0,
+      driftsResolved: 0,
+      driftCombatsResolved: 0,
+      pushesResolved: 0,
+    };
+
+    await processDrifts(state, [elephant], 'attacker', [], new ScriptedFirstChoiceAgent(), () => 0, stats);
+
+    expect(stats.driftsResolved).toBe(1);
+    expect(stats.driftCombatsResolved).toBe(0);
+    expect(elephant.position).toEqual({ q: 14, r: 5 });
+  });
+
+  it('does not process an elephant twice when an earlier queued drift tramples it into a nested drift', async () => {
+    const players = [
+      { id: 0 as const, name: 'P0', edge: 'W' as const, purchasePoints: 0, eliminated: false },
+      { id: 1 as const, name: 'P1', edge: 'E' as const, purchasePoints: 0, eliminated: false },
+    ];
+    const state = createInitialState(players, 'multi-defender');
+    const original = makeChainUnit('original', { q: 10, r: 5 });
+    original.typeId = 'elephants';
+    const nested = makeChainUnit('nested', { q: 11, r: 5 }, 1);
+    nested.typeId = 'elephants';
+    state.units = [original, nested];
+    const stats: HarnessStats = {
+      seed: 0,
+      gameOver: false,
+      winnerId: null,
+      endedByTimeLimit: false,
+      turnsReached: 1,
+      totalActions: 0,
+      actionsByKind: {},
+      landAttacksResolved: 0,
+      combatResultCounts: {},
+      ramsResolved: 0,
+      ramHits: 0,
+      boardingsResolved: 0,
+      driftsResolved: 0,
+      driftCombatsResolved: 0,
+      pushesResolved: 0,
+    };
+    const dice = [1, dieForResult(original, nested, 'DR'), 4, 2];
+
+    await processDrifts(state, [original, nested], 'attacker', [], new ScriptedFirstChoiceAgent(), rngFromDice(dice), stats);
+
+    expect(stats.driftsResolved).toBe(2);
+    expect(stats.driftCombatsResolved).toBe(1);
+    expect(original.position).toEqual({ q: 14, r: 5 });
+    expect(nested.position).toEqual({ q: 15, r: 1 });
+    expect(dice).toEqual([]);
+  });
+
+  it('counts push cascades triggered by a trampled non-elephant during drift', async () => {
+    const players = [
+      { id: 0 as const, name: 'P0', edge: 'W' as const, purchasePoints: 0, eliminated: false },
+      { id: 1 as const, name: 'P1', edge: 'E' as const, purchasePoints: 0, eliminated: false },
+    ];
+    const state = createInitialState(players, 'multi-defender');
+    const elephant = makeChainUnit('elephant', { q: 9, r: 5 }, 1);
+    elephant.typeId = 'elephants';
+    const trampled = makeChainUnit('trampled', { q: 10, r: 5 }, 0);
+    trampled.typeId = 'phalanges';
+    const pushed = makeChainUnit('pushed', { q: 10, r: 4 }, 0);
+    const blocker = makeChainUnit('blocker', { q: 11, r: 5 }, 1);
+    state.units = [
+      elephant,
+      trampled,
+      pushed,
+      blocker,
+      makeChainUnit('enemy-ne', { q: 11, r: 4 }, 1),
+      makeChainUnit('enemy-sw', { q: 9, r: 6 }, 1),
+      makeChainUnit('enemy-s', { q: 10, r: 6 }, 1),
+    ];
+    const stats: HarnessStats = {
+      seed: 0,
+      gameOver: false,
+      winnerId: null,
+      endedByTimeLimit: false,
+      turnsReached: 1,
+      totalActions: 0,
+      actionsByKind: {},
+      landAttacksResolved: 0,
+      combatResultCounts: {},
+      ramsResolved: 0,
+      ramHits: 0,
+      boardingsResolved: 0,
+      driftsResolved: 0,
+      driftCombatsResolved: 0,
+      pushesResolved: 0,
+    };
+    const agent: PlayerAgent = {
+      async chooseRetreat(_state, unit, options) {
+        return options.find((hex) => hex.r !== unit.position.r) ?? options[0]!;
+      },
+      async choosePushTarget(_state, _unit, candidates) {
+        return candidates[0]!;
+      },
+      async chooseAdvance() {
+        return null;
+      },
+      async chooseExchangeSacrifice(_state, attackers) {
+        return [attackers[0]!];
+      },
+    };
+    const dice = [1, dieForResult(elephant, trampled, 'DR'), dieForResult(elephant, blocker, 'DE')];
+
+    await processDrifts(state, [elephant], 'attacker', [], agent, rngFromDice(dice), stats);
+
+    expect(stats.pushesResolved).toBe(1);
+    expect(pushed.position).not.toEqual({ q: 10, r: 4 });
+  });
+
+  it('does not double-process a pending elephant pushed by a drift-triggered retreat', async () => {
+    const players = [
+      { id: 0 as const, name: 'P0', edge: 'W' as const, purchasePoints: 0, eliminated: false },
+      { id: 1 as const, name: 'P1', edge: 'E' as const, purchasePoints: 0, eliminated: false },
+    ];
+    const state = createInitialState(players, 'multi-defender');
+    const elephant = makeChainUnit('elephant', { q: 9, r: 5 }, 1);
+    elephant.typeId = 'elephants';
+    const trampled = makeChainUnit('trampled', { q: 10, r: 5 }, 0);
+    trampled.typeId = 'phalanges';
+    const queuedElephant = makeChainUnit('queued-elephant', { q: 10, r: 4 }, 0);
+    queuedElephant.typeId = 'elephants';
+    const blocker = makeChainUnit('blocker', { q: 11, r: 5 }, 1);
+    state.units = [
+      elephant,
+      trampled,
+      queuedElephant,
+      blocker,
+      makeChainUnit('enemy-ne', { q: 11, r: 4 }, 1),
+      makeChainUnit('enemy-sw', { q: 9, r: 6 }, 1),
+      makeChainUnit('enemy-s', { q: 10, r: 6 }, 1),
+    ];
+    const stats: HarnessStats = {
+      seed: 0,
+      gameOver: false,
+      winnerId: null,
+      endedByTimeLimit: false,
+      turnsReached: 1,
+      totalActions: 0,
+      actionsByKind: {},
+      landAttacksResolved: 0,
+      combatResultCounts: {},
+      ramsResolved: 0,
+      ramHits: 0,
+      boardingsResolved: 0,
+      driftsResolved: 0,
+      driftCombatsResolved: 0,
+      pushesResolved: 0,
+    };
+    const agent: PlayerAgent = {
+      async chooseRetreat(_state, unit, options) {
+        return options.find((hex) => hex.r !== unit.position.r) ?? options[0]!;
+      },
+      async choosePushTarget(_state, _unit, candidates) {
+        return candidates[0]!;
+      },
+      async chooseAdvance() {
+        return null;
+      },
+      async chooseExchangeSacrifice(_state, attackers) {
+        return [attackers[0]!];
+      },
+    };
+    const dice = [1, dieForResult(elephant, trampled, 'DR'), dieForResult(elephant, blocker, 'DE')];
+
+    await processDrifts(state, [elephant, queuedElephant], 'attacker', [], agent, rngFromDice(dice), stats);
+
+    expect(stats.driftsResolved).toBe(1);
+    expect(stats.pushesResolved).toBe(1);
+    expect(queuedElephant.position).not.toEqual({ q: 10, r: 4 });
+    expect(dice).toEqual([]);
+  });
+
+  it('still offers defender advance when skipping a drift item already resolved by a sibling cascade', async () => {
+    const players = [
+      { id: 0 as const, name: 'P0', edge: 'W' as const, purchasePoints: 0, eliminated: false },
+      { id: 1 as const, name: 'P1', edge: 'E' as const, purchasePoints: 0, eliminated: false },
+    ];
+    const state = createInitialState(players, 'multi-defender');
+    const attacker = makeChainUnit('attacker', { q: 9, r: 5 }, 0);
+    const elephant = makeChainUnit('elephant', { q: 10, r: 5 }, 1);
+    elephant.typeId = 'elephants';
+    const originalHex = { ...elephant.position };
+    const [pendingElephant] = capturePendingResolutionItems([elephant]);
+    elephant.position = { q: 10, r: 4 };
+    state.units = [attacker, elephant];
+    const advanceOffers: HexCoord[] = [];
+    const agent: PlayerAgent = {
+      async chooseRetreat() {
+        throw new Error('skip-path test should not ask for a retreat');
+      },
+      async choosePushTarget() {
+        throw new Error('skip-path test should not ask for a push target');
+      },
+      async chooseAdvance(_state, candidates, vacated) {
+        advanceOffers.push({ ...vacated });
+        return candidates[0]!;
+      },
+      async chooseExchangeSacrifice(_state, attackers) {
+        return [attackers[0]!];
+      },
+    };
+    const resolvedIds = new Set([elephant.id]);
+
+    await processDrifts(
+      state,
+      [pendingElephant!],
+      'defender',
+      [attacker],
+      agent,
+      () => {
+        throw new Error('skip-path test should not roll drift dice');
+      },
+      undefined,
+      resolvedIds,
+    );
+
+    expect(advanceOffers).toEqual([originalHex]);
+    expect(attacker.position).toEqual(originalHex);
+  });
 });
 
 describe('fuzz harness: seeded self-play soak', () => {
@@ -289,6 +616,8 @@ describe('fuzz harness: seeded self-play soak', () => {
     const totalRams = allStats.reduce((sum, g) => sum + g.ramsResolved, 0);
     const totalRamHits = allStats.reduce((sum, g) => sum + g.ramHits, 0);
     const totalBoardings = allStats.reduce((sum, g) => sum + g.boardingsResolved, 0);
+    const totalDrifts = allStats.reduce((sum, g) => sum + g.driftsResolved, 0);
+    const totalDriftCombats = allStats.reduce((sum, g) => sum + g.driftCombatsResolved, 0);
     // HIGH-4 finding from adversarial review: `pushesResolved` was collected
     // (plan.md §12) but never printed here, so the soak's own report line
     // couldn't show whether the cascading-push path was ever actually
@@ -313,18 +642,18 @@ describe('fuzz harness: seeded self-play soak', () => {
         `[fuzz] ${GAME_COUNT} games, ${totalActions} total actions (avg ${(totalActions / GAME_COUNT).toFixed(1)}/game)`,
         `[fuzz] actionsByKind: ${JSON.stringify(actionsByKind)}`,
         `[fuzz] combatResultCounts: ${JSON.stringify(combatResultCounts)}`,
-        `[fuzz] landAttacksResolved=${totalLandAttacks} ramsResolved=${totalRams} (hits=${totalRamHits}) boardingsResolved=${totalBoardings} pushesResolved=${totalPushes}`,
+        `[fuzz] landAttacksResolved=${totalLandAttacks} ramsResolved=${totalRams} (hits=${totalRamHits}) boardingsResolved=${totalBoardings} pushesResolved=${totalPushes} driftsResolved=${totalDrifts} driftCombatsResolved=${totalDriftCombats}`,
         `[fuzz] turnsReached: min=${Math.min(...turns)} max=${Math.max(...turns)} avg=${(turns.reduce((a, b) => a + b, 0) / turns.length).toFixed(1)}`,
         `[fuzz] outcomes: ${wins} decisive win(s), ${draws} draw(s) (mutual elimination or tied army value)`,
         `[fuzz] endings: ${endedByElimination} by mutual elimination, ${endedByTimeLimit} by the rulebook's turn-limit/army-value ending`,
         // MEDIUM finding from adversarial review: the `it.skip(...)` above
         // prints only as an anonymous "1 skipped" in vitest's summary — a
-        // full-text search of a `vitest run` for "not yet fuzzable" finds
-        // nothing. plan.md §6.7 requires the elephant gap to print on every
+        // full-text search of a `vitest run` should still show the Stage 2c
+        // default-army elephant coverage gap explicitly.
         // run; this line, inside the unconditional report block, is what
         // actually satisfies that (searchable, unconditional, not dependent
         // on vitest's own skip-reporting format).
-        `[fuzz] GAP: elephants excluded — drift cascade not yet fuzzable (Stage 2b, plan.md §6.7)`,
+        `[fuzz] GAP: elephants excluded from default self-play until Stage 2c broadens army coverage; dedicated drift tests now exercise the extracted cascade`,
       ].join('\n'),
     );
 
