@@ -19,6 +19,7 @@ import {
 } from './combat';
 import { resetMovementForActivePlayer, createInitialState, endGameByTimeLimit } from './turnManager';
 import {
+  armyValue,
   unitCategory,
   unitType,
   maxEquipmentPointsForType,
@@ -657,6 +658,21 @@ export interface HarnessStats {
    * (see `buildAttackGroup`), so this counter is how a soak reports whether
    * combined-attack coverage actually happened rather than being assumed. */
   multiAttackerAttacks: number;
+  /**
+   * Each player's surviving army value when the game ended (see
+   * `state.armyValue`) — the quantity `endGameByTimeLimit` actually decides a
+   * timed game on.
+   *
+   * Reported alongside `winnerId` rather than left to be inferred from it,
+   * because `winnerId` alone is a misleading measure of how well an agent
+   * played: `endGameByTimeLimit` awards a tie to whichever tied player comes
+   * first in `state.players`, so two agents that finish dead level are
+   * recorded as a clean win for the lower seat. That is not hypothetical —
+   * it is what a mirror match between two `HeuristicAgent`s mostly produces
+   * (they decline the same bad attacks), and reading only `winnerId` there
+   * would suggest a seat advantage that is really a tiebreak artefact.
+   */
+  finalArmyValues: Partial<Record<PlayerId, number>>;
 }
 
 export interface PlayRandomGameOptions {
@@ -917,6 +933,7 @@ export async function playRandomGame(seed: number, options: PlayRandomGameOption
     boardingsResolved: 0,
     pushesResolved: 0,
     multiAttackerAttacks: 0,
+    finalArmyValues: {},
   };
 
   assertInvariants(state, 'initial state');
@@ -952,6 +969,7 @@ export async function playRandomGame(seed: number, options: PlayRandomGameOption
 
   stats.gameOver = true;
   stats.winnerId = state.winnerId;
+  for (const player of state.players) stats.finalArmyValues[player.id] = armyValue(state, player.id);
   return stats;
 }
 

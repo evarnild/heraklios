@@ -319,26 +319,53 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
    */
   private chooseMovementAction(state: GameState, legal: Action[]): Action {
     const endPhase = legal.find((a) => a.kind === 'endPhase');
-    const enemies = livingUnits(state).filter((u) => u.owner !== this.activeOwner(state));
+    const activeOwner = this.activeOwner(state);
+    const enemies = livingUnits(state).filter((u) => u.owner !== activeOwner);
     const candidates: Scored[] = [];
+
+    // Two per-call caches, both for query functions that are far too
+    // expensive to run once per candidate destination: `hexesUnderZoc` walks
+    // every unit's six neighbours, and `findRammingContacts` runs a full
+    // `reachableNavalStates` BFS over the naval state graph. `legalActions`
+    // routinely offers a ship a hundred destinations, so recomputing that
+    // BFS per destination made a single seeded game take seconds.
+    //
+    // Safe to cache for the duration of one call: nothing here mutates the
+    // board. The one thing that does move a unit — `bestAttackValueFrom`'s
+    // temporary reposition — restores it before returning, and neither
+    // cached value is read while it is displaced.
+    const enemyZoc = hexesUnderZoc(state, activeOwner);
+    const rammingContacts = new Map<string, ReturnType<typeof findRammingContacts>>();
+    const contactsFor = (unit: Unit) => {
+      let contacts = rammingContacts.get(unit.id);
+      if (!contacts) {
+        contacts = findRammingContacts(state, unit);
+        rammingContacts.set(unit.id, contacts);
+      }
+      return contacts;
+    };
 
     legal.forEach((action, index) => {
       switch (action.kind) {
         case 'landMove': {
           const unit = this.requireUnit(state, action.unitId);
-          candidates.push({ action, score: this.scoreLandMove(state, unit, action.to, enemies), order: index });
+          candidates.push({ action, score: this.scoreLandMove(state, unit, action.to, enemies, enemyZoc), order: index });
           return;
         }
         case 'navalMove': {
           const unit = this.requireUnit(state, action.unitId);
-          candidates.push({ action, score: this.scoreNavalMove(state, unit, action.to, enemies), order: index });
+          candidates.push({
+            action,
+            score: this.scoreNavalMove(unit, action.to, enemies, contactsFor(unit)),
+            order: index,
+          });
           return;
         }
         case 'ram': {
           const unit = this.requireUnit(state, action.unitId);
           // `applyAction` resolves a 'ram' against the zero-cost contact, so
           // that is the one to price (see its `ram` case).
-          const contact = findRammingContacts(state, unit).find((c) => c.cost === 0);
+          const contact = contactsFor(unit).find((c) => c.cost === 0);
           if (!contact) return;
           candidates.push({
             action,
@@ -391,20 +418,29 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
    * expensive part — a full `validTargets` sweep plus an EV per target —
    * and every other destination scores zero for it by definition.
    */
-  private scoreLandMove(state: GameState, unit: Unit, to: HexCoord, enemies: Unit[]): number {
+  private scoreLandMove(
+    state: GameState,
+    unit: Unit,
+    to: HexCoord,
+    enemies: Unit[],
+    enemyZoc: ReadonlySet<string>,
+  ): number {
     const riskAware = this.difficulty === 'ev';
     let score = this.weights.approach * (nearestDistance(unit.position, enemies) - nearestDistance(to, enemies));
 
-    const charge = evaluateCharge(state, unit, to) !== null;
-    if (withinStrikeRange(to, enemies)) {
+    const nearEnemies = withinStrikeRange(to, enemies);
+    if (nearEnemies) {
+      const charge = evaluateCharge(state, unit, to) !== null;
       score += this.weights.strike * this.bestAttackValueFrom(state, unit, to, charge);
     }
 
     if (riskAware) {
       score += this.weights.terrainDefense * defensiveModifier(to);
-      const enemyZoc = hexesUnderZoc(state, unit.owner);
       if (enemyZoc.has(mapHexKey(to.q, to.r))) score -= this.weights.zocPenalty;
-      if (this.wouldBeTrappedAt(state, unit, to)) score -= this.weights.retreatTrapPenalty;
+      // Only worth asking near the enemy: a retreat trap can only cost
+      // anything where a combat could actually force a retreat, and the
+      // check itself is a `legalRetreatHexes` call (another ZOC sweep).
+      if (nearEnemies && this.wouldBeTrappedAt(state, unit, to)) score -= this.weights.retreatTrapPenalty;
     }
     return score;
   }
@@ -418,10 +454,15 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
    * onto a contact hex is really "get into position to ram," and is priced
    * as the ram it enables, discounted by nothing but the chance of missing.
    */
-  private scoreNavalMove(state: GameState, unit: Unit, to: HexCoord, enemies: Unit[]): number {
+  private scoreNavalMove(
+    unit: Unit,
+    to: HexCoord,
+    enemies: Unit[],
+    contacts: readonly { hex: HexCoord; bonus: 0 | 1 | 2; target: Unit }[],
+  ): number {
     const ships = enemies.filter((u) => unitType(u).domain === 'naval');
     let score = this.weights.approach * (nearestDistance(unit.position, ships) - nearestDistance(to, ships));
-    for (const contact of findRammingContacts(state, unit)) {
+    for (const contact of contacts) {
       if (contact.hex.q !== to.q || contact.hex.r !== to.r) continue;
       score += this.weights.strike * evaluateRam(unit, contact.target, contact.bonus).expectedValue;
       break;
