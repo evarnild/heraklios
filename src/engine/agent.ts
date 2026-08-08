@@ -116,3 +116,45 @@ export interface ActionObserver {
    * chosen, handed over for context. */
   observeCommittedAction(state: GameState, legal: Action[]): Promise<Action>;
 }
+
+/**
+ * The pull-shaped counterpart to `ActionObserver`: "hand me the legal
+ * actions, I'll tell you which one to apply." This IS the `chooseAction`
+ * shape cut from `PlayerAgent` above — kept as its own interface, and
+ * pointedly NOT merged back into `PlayerAgent`, because the reason it was
+ * cut has not changed: `BoardScene` cannot honestly implement it (a click
+ * handler has already applied the action by the time anything could return
+ * it, so a caller following the contract would double-apply). What HAS
+ * changed since Stage 1 is that there are now callers that can: a headless
+ * driver like `engine/fuzzHarness.ts` owns its whole loop and calls
+ * `chooseNextAction` then `applyAction` itself, in that order, with no
+ * click handler racing it.
+ *
+ * So the two interfaces split cleanly by who is driving:
+ * - `PlayerAgent` — mid-resolution decisions. Everyone implements this,
+ *   `BoardScene` and bots alike; it is the shared half.
+ * - `ActionChooser` — top-level action selection, bots only.
+ * - `ActionObserver` — top-level action *reporting*, `BoardScene` only.
+ *
+ * Unifying the last two behind one interface both a human seat and a bot
+ * seat satisfy is still open and still deferred to Stage 4 (plan.md §6.4),
+ * where per-seat Human/AI configuration finally forces the question. Naming
+ * the bot side explicitly here is what lets Stage 3 exist without
+ * pre-judging that: `RandomAgent` already had this method structurally, and
+ * `HeuristicAgent` needs the same one, so the alternative was two classes
+ * agreeing on an unwritten convention.
+ *
+ * Synchronous, unlike `PlayerAgent`'s methods: a bot's action choice is pure
+ * computation over `state` and `legal`, with nothing to await. The
+ * mid-resolution methods are async because a HUMAN implementation of them
+ * has to wait on a click; nothing analogous applies to an interface only
+ * bots implement.
+ */
+export interface ActionChooser {
+  chooseNextAction(state: GameState, legal: Action[]): Action;
+}
+
+/** An agent a headless driver can play a whole game with: it both picks
+ * top-level actions and answers the mid-resolution questions those actions
+ * provoke. `RandomAgent` and `HeuristicAgent` both satisfy it. */
+export type DrivingAgent = PlayerAgent & ActionChooser;
