@@ -1552,12 +1552,20 @@ room of its own. Now `a` passes the fixpoint, and the visited set is the only
 thing that can exclude it. Verified: the new test fails under the mutant and
 the old one passes.
 
-Generalizing — **when a guard's output feeds another filter, the test has to
-make the guard the only thing that can reject the input.** The `triremes`
-probe in [§15.4](#154-outcome) is the same trick against a different masking
-filter (two attack values that happen to be equal), and §15.6's
-`cheapestSacrifice` gap was a third variant (no test at all downstream of the
-change).
+The specific mechanism here: **when a guard's output feeds another filter,
+the test has to make the guard the only thing that can reject the input.**
+That is finding 1's explanation, and independent review was right to push
+back on an earlier version of this paragraph that offered it as the general
+rule — it does not describe its two supposed siblings at all. §15.4's
+`triremes` probe was masked by two attack values that happen to be *equal*,
+with no second filter anywhere; §15.6's `cheapestSacrifice` gap had no
+downstream test to be masked by.
+
+What genuinely unifies all three is the weaker claim: **a test can exercise
+a guard's code path and still not test the guard.** The operational rule that
+catches all three is already recorded in §15.6 — *enumerate mutations from
+`git diff`, one per changed behavioural line* — and it is the rule, not the
+mechanism, that is worth carrying forward.
 
 **2 — the stale string.** `BoardScene`'s prompt still said *"is surrounded by
 friendly units"* after §12.2 widened the rule to "no retreat, and at least one

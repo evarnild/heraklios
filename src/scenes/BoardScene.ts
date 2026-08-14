@@ -70,8 +70,11 @@ interface RetreatQueueItem {
  *   unmodified, for a *pushed* unit's own retreat destination once
  *   'choosePushTarget' has picked who gets pushed (see `PlayerAgent`'s doc
  *   comment in engine/agent.ts for why one shape covers both).
- * - 'choosePushTarget': `unit` is boxed in by friendlies; pick which one of
- *   `pushTargets` retreats to make room.
+ * - 'choosePushTarget': `unit` has no legal retreat hex; pick which of the
+ *   adjacent friendly units in `pushTargets` retreats to make room. (NOT
+ *   "boxed in by friendlies" — that was the strict `entourée` reading
+ *   plan.md §12.2 rejected; one friendly neighbour among five enemies is
+ *   the common case.)
  * `onChosen` fires with the player's pick — shared by the normal post-combat
  * retreat queue and, mid-drift, a trampled unit's own retreat. */
 type RetreatChoice =
@@ -1445,7 +1448,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       // in the common case (one friendly neighbour, five enemies). The count
       // is stated because the player is about to be asked to click one of
       // them.
-      const roomMakers = pushTargets.length === 1 ? 'one neighbouring friendly unit can' : `${pushTargets.length} neighbouring friendly units can`;
+      const roomMakers = pushTargets.length === 1 ? 'one neighboring friendly unit can' : `${pushTargets.length} neighboring friendly units can`;
       this.appendLine(
         `${unitType(unit).name} has nowhere to retreat — ${roomMakers} make room. Click one to push it.`,
       );

@@ -812,8 +812,12 @@ describe('fuzz harness: push-scenario soak (plan.md §12, HIGH-4)', () => {
     }
     const totalPushes = allStats.reduce((sum, g) => sum + g.pushesResolved, 0);
     const seedsWithPush = allStats.filter((g) => g.pushesResolved > 0).length;
-    // Both numbers, not just the total: a total that holds while the seed
-    // count collapses means the coverage narrowed onto one lucky seed.
+    // Both numbers, not just the total, and both ASSERTED below rather than
+    // only printed — the first version of this logged the seed spread under a
+    // comment describing it as a guard, which independent review pointed out
+    // was a print pretending to be a guarantee. The collapse it warns about
+    // (total holding up while the pushes bunch onto one lucky seed) really
+    // would have passed silently.
     // eslint-disable-next-line no-console
     console.log(
       `[fuzz:push-scenario] ${PUSH_GAME_COUNT} games, pushesResolved=${totalPushes} across ${seedsWithPush} seed(s)`,
@@ -824,5 +828,12 @@ describe('fuzz harness: push-scenario soak (plan.md §12, HIGH-4)', () => {
       totalPushes,
       'no push reached in self-play — if the push-or-die test above still passes, the scenario is fine and the RNG flow changed; re-tune PUSH_GAME_COUNT rather than hunting pushCandidates',
     ).toBeGreaterThan(0);
+    // Costs no extra brittleness at the current margin (8 seeds against a
+    // floor of 1) and closes the gap between what the comment above claims
+    // and what actually fails the run.
+    expect(
+      seedsWithPush,
+      'every push in this soak came from a single seed — coverage has narrowed, even though the total still looks healthy',
+    ).toBeGreaterThan(1);
   });
 });
