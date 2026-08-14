@@ -3,6 +3,7 @@ import {
   playRandomGame,
   buildFuzzGameState,
   buildPushScenarioGameState,
+  buildElephantScenarioGameState,
   resolveUnitRetreat,
   processRetreats,
   processDrifts,
@@ -12,7 +13,7 @@ import {
 import type { Action } from './actions';
 import type { CombatResult } from '../data/combatTable';
 import type { HexCoord } from '../data/map';
-import { describeLandAttack, legalRetreatHexes, pushCandidates } from './combat';
+import { describeLandAttack, legalRetreatHexes, pushCandidates, resolveLandAttack } from './combat';
 import { createInitialState } from './turnManager';
 import type { PlayerAgent } from './agent';
 import type { GameState, Unit } from './state';

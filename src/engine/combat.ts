@@ -1,6 +1,6 @@
 import type { HexCoord } from '../data/map';
 import { MAP_TERRAIN, RIVER_HEXSIDES, riverEdgeKey, hexKey as mapHexKey } from '../data/map';
-import { TERRAIN_EFFECTS, RIVER_CROSSING, canEnterTerrain, isSeaLike, type TerrainType } from '../data/terrain';
+import { TERRAIN_EFFECTS, RIVER_CROSSING, canEnterTerrain, type TerrainType } from '../data/terrain';
 import { resolveLandCombat, ratioToColumnIndex, RATIO_COLUMNS, type CombatResult } from '../data/combatTable';
 import { isRammingSuccessful, type ShipTypeId } from '../data/navalRamming';
 import { resolveBoarding, type BoardingResult } from '../data/navalBoarding';
@@ -557,15 +557,63 @@ export function checkRangedEligibility(attacker: Unit, distance: number): Ranged
 }
 
 /**
- * Whether a drifting elephant may enter `hex` at all: on the map, and
- * within the "land zone" (not sea-like, not coastal fringe). Per the
- * rulebook ("lorsqu'il sort du plateau de jeu ou de la zone terrestre, il
- * est éliminé"), failing this eliminates the elephant on the spot.
+ * Whether a drifting elephant may enter `hex` at all. Per the rulebook
+ * ("lorsqu'il sort du plateau de jeu ou de la zone terrestre, il est
+ * éliminé" — `docs/research/05-rules-french-original.md:288-289`), failing
+ * this eliminates the elephant on the spot.
+ *
+ * INTERPRETATION (Stage 2c, plan.md §6.7) — this used to check only
+ * off-map/coast/sea-like, NOT marsh, even though the terrain N.B. two
+ * paragraphs earlier is unconditional: "chars, cavaleries et éléphants ne
+ * peuvent accéder aux marais" (`:186-188`, no exception carved out for a
+ * forced/uncontrollable move). That gap was invisible before Stage 2c
+ * because no fuzz seed ever put an elephant on the board at all; enabling
+ * elephants in the harness turned it from a theoretical reading question
+ * into something `assertHardcodedTerrainRestrictions` (`fuzzHarness.ts`)
+ * would actually throw on the first time a drift's random direction and
+ * remaining movement happened to land one on a marsh hex.
+ *
+ * The literal drift-elimination sentence only names "sort[ir] du plateau de
+ * jeu ou de la zone terrestre" (leaving the board or the land zone) — marsh
+ * is still *within* the land zone, so a maximally literal reading would let
+ * a drifting elephant walk straight across marsh untouched, ignoring the
+ * N.B.'s restriction entirely for this one case. That reading is rejected:
+ * it would make the N.B.'s "éléphants" clause a dead letter specifically
+ * during the one situation (an uncontrolled, player-chosen-nothing move)
+ * where a literal absolute ban ("ne peuvent accéder") is least likely to
+ * have been meant to lapse. It also breaks internal consistency with this
+ * codebase's own retreat ruling: `legalRetreatHexes`'s doc comment already
+ * reasons that if sea blocks retreat and eliminates on failure, steep-flank
+ * and marsh (the other two restrictions in the SAME rulebook sentence) read
+ * as intended to as well. Drift is the elephant's analogue of a forced
+ * retreat (the rulebook itself substitutes drift FOR the normal retreat
+ * result), so treating marsh differently between the two forced-movement
+ * paths would be the inconsistent choice, not this one.
+ *
+ * So this now delegates to `canEnterTerrain(terrain, 'elephant')` — the
+ * same authoritative, data-driven predicate every other "can this unit
+ * category stand here" check in this file already uses — rather than the
+ * old hand-rolled coast/sea-like check. For every terrain OTHER than marsh
+ * this is behavior-preserving: `canEnterTerrain`'s `forbiddenFor` list has
+ * nothing else that names 'elephant' (steep-flank forbids only
+ * chariot/cavalry, so elephants may still drift across it, matching
+ * pre-Stage-2c behavior), and its sea-like/coast branch for a non-naval
+ * category is exactly the `terrain !== 'coast' && !isSeaLike(terrain)` this
+ * replaced (see `combat.test.ts`'s regression pin on that equivalence).
+ *
+ * Elimination-vs-blocked, the other half of this question: nothing in the
+ * rulebook offers a "the elephant just stops instead" alternative anywhere
+ * — the ONLY two things ever said to happen to a drifting elephant are
+ * "moves" and "est éliminé" on leaving the land zone/board. Marsh, reached
+ * here, is folded into the SAME elimination branch `driftStep` already uses
+ * for off-map/sea (`if (!canElephantEnterHex(nextHex)) { elephant.destroyed
+ * = true; ... }`) rather than inventing a third "drift halts, elephant
+ * survives on its last legal hex" outcome the text never describes.
  */
 export function canElephantEnterHex(hex: HexCoord): boolean {
   const terrain = MAP_TERRAIN.get(mapHexKey(hex.q, hex.r));
   if (terrain === undefined) return false; // off the map
-  return terrain !== 'coast' && !isSeaLike(terrain);
+  return canEnterTerrain(terrain, 'elephant');
 }
 
 /**
