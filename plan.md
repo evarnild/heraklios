@@ -50,9 +50,12 @@ Stage 3 — the `HeuristicAgent`
 attack force (merged `272bcf0`), and Stage 2c — elephants in the harness
 ([§6.7](#67-the-elephant-problem-stage-2-split), merged `0e54b59`), which
 completes Stage 2 and fixed a live defect in hotseat play on the way (a
-drifting elephant could enter marsh).
+drifting elephant could enter marsh), and
+[§13](#13-hex-coordinate-tooltip)'s hex coordinate tooltip (merged
+`62892c3`).
 **In flight:** nothing — [Current Queue](#10-sequenced-queue) is next, and
-its first item is now the hex coordinate tooltip.
+its first item is now [§9.2](#92-endgamebytimelimit-is-never-called)'s
+turn-limit ending, which needs a design decision before implementation.
 **Live defects still open:**
 [§9.2](#92-endgamebytimelimit-is-never-called).
 
@@ -79,10 +82,13 @@ sync when something merges** — it went stale once and the user caught it.
 | [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 3 — `HeuristicAgent` (+1 engine defect it found) | `a2a1329` |
 | [§15](#15-live-defect-ranged-attacks-resolve-at-zero-attack-force) ranged attack force (+1 wedged-board defect, +2 review findings) | `272bcf0` |
 | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2c — elephants in the harness (+1 live marsh defect, +1 HIGH/3 MEDIUM review findings) | `0e54b59` |
+| [§13](#13-hex-coordinate-tooltip) hex coordinate tooltip | `62892c3` |
 
 ### In flight
 
-- *Nothing.* Next up is #1 below, the hex coordinate tooltip.
+- *Nothing.* Next up is #1 below, the turn-limit ending — the only open
+  live defect, and the one queue item that needs a design decision before
+  any code is written.
 
 ### Queued
 
@@ -91,10 +97,9 @@ sync when something merges** — it went stale once and the user caught it.
 | ~~0~~ | ~~[§12](#12-cascading-push-when-a-unit-cannot-retreat) follow-ups~~ | — | **✅ Shipped `c23648c`.** All three closed; see [§12.6](#126-the-three-follow-ups). |
 | ~~0b~~ | ~~Reviewer-agent file corrections~~ | — | **✅ Shipped `9f99b1a`.** See [§15.7](#157-the-two-follow-ups). |
 | ~~0c~~ | ~~Combat groups not revalidated after a removal~~ | — | **✅ Shipped `9f99b1a`.** See [§15.7](#157-the-two-follow-ups). |
-| 1 | [§13](#13-hex-coordinate-tooltip) hex coordinate tooltip | `ui/MapView.ts`, `BoardScene.ts` | Presentation only. |
-| 2 | [§9.2](#92-endgamebytimelimit-is-never-called) turn-limit ending | design + scenes | **Live gap, and now the only open one.** Needs a design decision first (what sets the limit, how the player is told). Stage 3 added a second reason to care: `endGameByTimeLimit` breaks a tied army value in favour of the lower seat, silently (§6.9). |
-| 3 | [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 4 — AI seat UI + save format | scenes, `saveGame.ts` | `SAVE_VERSION` bump. The engine half is done and idle: nothing can reach the AI from the UI. |
-| 4 | [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 3b — shallow lookahead tier | `engine/` | The fourth difficulty tier, deliberately not shipped with the other three. Needs state cloning + an opponent model + a performance budget; see `heuristicAgent.ts`'s header. |
+| 1 | [§9.2](#92-endgamebytimelimit-is-never-called) turn-limit ending | design + scenes | **Live gap, and now the only open one.** Needs a design decision first (what sets the limit, how the player is told). Stage 3 added a second reason to care: `endGameByTimeLimit` breaks a tied army value in favour of the lower seat, silently (§6.9). |
+| 2 | [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 4 — AI seat UI + save format | scenes, `saveGame.ts` | `SAVE_VERSION` bump. The engine half is done and idle: nothing can reach the AI from the UI. |
+| 3 | [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 3b — shallow lookahead tier | `engine/` | The fourth difficulty tier, deliberately not shipped with the other three. Needs state cloning + an opponent model + a performance budget; see `heuristicAgent.ts`'s header. |
 
 **Standing hazard:** almost everything queued touches `BoardScene.ts`, so
 these mostly cannot run in parallel with each other.
@@ -102,9 +107,10 @@ these mostly cannot run in parallel with each other.
 ## Backlog Map
 
 - **Start here:** [Current Queue](#10-sequenced-queue).
-- **Current next task:** #1, [§13](#13-hex-coordinate-tooltip)'s hex
-  coordinate tooltip — presentation only, and the smallest thing in the
-  queue.
+- **Current next task:** #1, [§9.2](#92-endgamebytimelimit-is-never-called)'s
+  turn-limit ending. **Read §9.2 before launching anything** — it needs a
+  design decision (what sets the limit, how the player is told) that no
+  implementer should make alone.
 - **Live defects:** [§9.2](#92-endgamebytimelimit-is-never-called) (needs a
   design decision) is the only one left open.
 - **Larger future work:** [§6.4](#64-stage-3-shipped-stage-4-deferred)'s
@@ -437,6 +443,34 @@ Always invoke the project's own binary, and confirm the exit code:
 
 `vitest` does not have this failure mode (it produced genuine results even
 via `npx`), but prefer the local binary for both.
+
+### ⚠️ Verifying a UI change by hand: pin the port
+
+This project routinely has **four checkouts** live (`heraklios`,
+`heraklios-stable`, `heraklios-codex`, plus any agent worktree under
+`.claude/worktrees/`), and a `npm run dev` in each grabs the next free Vite
+port. During [§13](#13-hex-coordinate-tooltip) three servers were running
+with **two bound to 5173**, so `http://localhost:5173` non-deterministically
+served a tree that did not contain the feature under test — two rounds of
+manual verification reported "no tooltip" against code that never had one.
+`localhost` resolves to IPv4 or IPv6 depending on the client, and two
+processes can each hold one of them on the same port.
+
+So: start the server on an explicit port, and **prove the code is served
+before asking anyone to look**.
+
+```bash
+npm run dev -- --port 5199 --strictPort --host 127.0.0.1
+curl -s http://127.0.0.1:5199/src/ui/MapView.ts | grep -c showHexTooltip   # must be non-zero
+```
+
+`--strictPort` makes a collision fail loudly instead of silently sliding to
+the next port, and quoting `127.0.0.1` rather than `localhost` removes the
+IPv4/IPv6 ambiguity. To see what is actually running:
+
+```bash
+powershell -Command "Get-NetTCPConnection -State Listen -LocalPort 4173,5173,5174 | Select-Object LocalPort,OwningProcess"
+```
 
 ### Reviewer must check out DETACHED
 
@@ -1703,14 +1737,19 @@ go hunting in `pushCandidates`.
 
 ## 13. Hex coordinate tooltip
 
-**Status:** planned, not started.
+**Status: ✅ Shipped** — merged to `main` as `62892c3`. Post-merge: `tsc
+--noEmit` and `npm run build` clean, 377 tests passing (374 + 3 new), and
+the rendering confirmed by hand in a browser, which is the only way scene
+code can be. See [§13.4](#134-outcome) for what the build decided and what
+it cost.
 
-> **Assumption flagged.** The request arrived truncated — *"a tooltip display
-> that says the coordinates of the hex which…"*. Written up as **the hex
-> currently under the cursor, shown on hover**, which is the natural reading
-> for a tooltip. If what was meant was the *selected* hex, or the hex of a
-> selected unit, this is a small edit — the display logic is the same, only
-> the trigger changes.
+> **Assumption flagged, and shipped unresolved.** The request arrived
+> truncated — *"a tooltip display that says the coordinates of the hex
+> which…"*. Built as **the hex currently under the cursor, shown on hover**,
+> the natural reading for a tooltip. If the *selected* hex was meant, the
+> swap is still cheap and was deliberately kept so: all display logic lives
+> in `MapView`'s `showHexTooltip`/`hideHexTooltip`, so a different trigger
+> calls the same pair and nothing else moves.
 
 ### 13.1 Why it earns its place
 
@@ -1762,6 +1801,49 @@ Three things to get right:
   queue in [Current Queue](#10-sequenced-queue).
 - Little to unit-test by the repo's convention (it is scene/UI code); keep
   any coordinate-formatting helper pure if one is needed.
+
+### 13.4 Outcome
+
+Merged as `62892c3`; two commits, +140 lines, nothing deleted.
+
+**The scope prediction was wrong in a useful direction.** §13.3 expected
+"`src/ui/MapView.ts` plus a small amount of `src/scenes/BoardScene.ts`
+wiring". The implementation needed **zero** scene code: both scenes that
+show a map already construct a `MapView`, so putting the tooltip inside it
+gave `PlacementScene` the feature for free and kept the pin/depth/clamp
+logic in one place — which is the logic §13.2 warned would drift if
+duplicated. Worth remembering for the queue's other UI items: "touches
+`BoardScene.ts`" is sometimes an artefact of where a feature was first
+imagined, not where it belongs.
+
+Depth 35 as planned, above the HUD (30) and below SaveLoadPanel (40/41) and
+the modals (50-52). The only unit-tested piece is `ui/hexTooltip.ts`'s pure
+`formatHexTooltip`, per §13.3's own instruction not to inflate scene code
+into a test suite.
+
+**Carried, not fixed:** `MapView.onHexHover` is a public callback that fires
+on every hover and that nothing consumes — the extension point for the
+flagged hover-vs-selected assumption above. Speculative surface; delete it
+if that assumption is ever resolved in hover's favour.
+
+#### The verification failure, which cost more than the feature
+
+The feature worked on the first try. **Confirming that took three rounds**,
+and the cause was environmental, not a defect: four checkouts of this repo
+(`heraklios`, `heraklios-stable`, `heraklios-codex`, and the agent worktree)
+had three dev servers running between them, **two of them bound to port
+5173**. A `localhost:5173` URL was handed over without checking for the
+collision, so the first two manual tests ran against trees that did not
+contain the feature at all, and both correctly showed no tooltip.
+
+**The rule this earns:** when verifying a UI change by hand in this project,
+start the server on an explicit unused port and say so —
+`npm run dev -- --port 5199 --strictPort --host 127.0.0.1` — and prove the
+right code is being served before asking anyone to look, e.g.
+`curl -s http://127.0.0.1:<port>/src/ui/MapView.ts | grep -c showHexTooltip`.
+`localhost` is ambiguous across IPv4/IPv6 when two servers contend for a
+port, which is exactly the situation multiple worktrees create. Added to
+[§4](#4-runbook-detailed-launch-hazards-appendix)'s hazards.
 
 ---
 
