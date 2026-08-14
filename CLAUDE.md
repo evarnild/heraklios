@@ -61,12 +61,13 @@ and rendering.
   deterministic replay), `randomAgent.ts`'s `RandomAgent` (a trivial
   uniform-random `PlayerAgent`, driven by that seed), and `fuzzHarness.ts`
   (`playRandomGame(seed)`, a fully headless self-play driver — no Phaser,
-  no scenes — with its own continuously-checked invariants). Elephants are
-  deliberately excluded from the harness's armies: the drift/trample
-  cascade isn't extracted yet (still `BoardScene`'s), so a headless caller
-  has no way to resolve it — see plan.md §6.7 and `fuzzHarness.ts`'s own
-  doc comments for the loud guard against that gap being silently
-  reintroduced.
+  no scenes — with its own continuously-checked invariants). The elephant
+  drift/trample cascade is `drift.ts`'s explicit, resumable state machine
+  (Stage 2b), and Stage 2c put elephants into the harness's armies, so
+  ordinary seeded self-play now resolves drifts and drift combats; the
+  `buildPushScenarioGameState`/`buildElephantScenarioGameState` builders in
+  `fuzzHarness.ts` are purpose-built positions that make the push and drift
+  paths reachable deterministically rather than by luck.
 - `src/scenes/` — the Phaser scenes, run in sequence: `MenuScene` →
   `ArmyBuilderScene` → `PlacementScene` → `BoardScene` → `GameOverScene`.
   `BoardScene.ts` is by far the largest file in the repo (~1600 lines) and
@@ -74,8 +75,9 @@ and rendering.
   naval rotation/ramming/boarding UI; it implements `PlayerAgent` and
   `ActionObserver` via those same prompts, and delegates its movement,
   attack, ram, boarding and end-phase mutations to `engine/actions.ts`'s
-  `applyAction`. The elephant drift/trample cascade and the post-combat
-  advance/elimination bookkeeping are not yet extracted and still mutate
+  `applyAction`. The elephant drift/trample cascade is no longer the
+  scene's — it pumps `engine/drift.ts` — but the post-combat
+  advance/elimination bookkeeping is still not extracted and mutates
   `GameState` inline.
 - `src/ui/` — shared, Phaser-adjacent helpers used across scenes:
   `MapView.ts`/`hexRender.ts` (camera + hex grid rendering), `session.ts`

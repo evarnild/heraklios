@@ -46,10 +46,13 @@ function normalizePendingResolutionItems(pending: readonly PendingResolutionInpu
 
 // ---------------------------------------------------------------------------
 // Army construction - deliberately explicit, NOT `defaultArmySelection()`
-// (engine/army.ts), which includes 3 elephants (`army.ts:68`). The default
-// soak still keeps elephants out so its historical cavalry/phalanx/boarding
-// action mix stays stable; Stage 2b gives pendingDrifts an engine driver,
-// and Stage 2c can broaden this army mix to require live drift coverage.
+// (engine/army.ts), which includes 3 elephants (`army.ts:68`) among many more
+// units of everything else. This army is kept far smaller for the
+// performance reason `buildFuzzGameState`'s own doc comment explains below,
+// but per Stage 2c (plan.md §6.7, cross-referenced from §6.9's "the AI has
+// never played a game containing one") it now includes exactly one elephant
+// per side, placed so a drift is reliably reached rather than merely
+// possible — see that function's doc comment for the placement reasoning.
 // ---------------------------------------------------------------------------
 
 /** (10,3) through (19,3) are all confirmed 'plain' hexes on the shipped map
@@ -87,13 +90,13 @@ function makeUnit(id: string, owner: PlayerId, typeId: string, position: HexCoor
 }
 
 /**
- * A small, deliberately non-elephant 2-player army: cavalry, a phalanx (to
- * exercise `cavalryMayAttack` both ways — P0's cavalry can eventually reach
- * P1's phalanx, and vice versa), a ranged unit, and one ship per side
+ * A small 2-player army: cavalry, a phalanx (to exercise `cavalryMayAttack`
+ * both ways — P0's cavalry can eventually reach P1's phalanx, and vice
+ * versa), a ranged unit, one elephant per side, and one ship per side
  * (started already adjacent with matching/parallel facing, so boarding is
  * immediately legal in the first combat phase).
  *
- * Kept DELIBERATELY small (3 land + 1 naval per side, 8 units total) for
+ * Kept DELIBERATELY small (4 land + 1 naval per side, 10 units total) for
  * performance, not realism — `legalActions` recomputes a full
  * `reachableHexes` BFS for every living unit of the active player on EVERY
  * single action choice (not just once per phase), so a game's total cost is
@@ -105,6 +108,43 @@ function makeUnit(id: string, owner: PlayerId, typeId: string, position: HexCoor
  * separate (and more interesting) discovery that also shaped `turnCap`'s
  * default: near-even 1v1 match-ups never eliminate a unit at all under this
  * CRT, only ever retreat it.
+ *
+ * ELEPHANT PLACEMENT (Stage 2c, plan.md §6.7/§6.9) — `p0-elephant` and
+ * `p1-elephant` are placed immediately ADJACENT to each other, the same
+ * "distance 1, not just close" discipline `p0-cav-l`/`p1-phalanx` already
+ * use below and for the identical reason: "an invariant that only MIGHT get
+ * exercised depending on how random movement happens to unfold is a weak
+ * regression guard" applies just as much to a *coverage* assertion
+ * (`driftsResolved > 0`) as it does to a correctness one. But placement here
+ * does more than just guarantee the attack gets OFFERED early — it
+ * guarantees that IF the two elephants ever fight, a drift is not merely
+ * likely but CERTAIN, with no die-roll dependency at all:
+ * elephants are 8 attack / 5 defense (`data/units.ts`), so an elephant-vs-
+ * elephant combat is always exactly the "1-1" column of `data/
+ * combatTable.ts`'s CRT (8/5 = 1.6, which `ratioToColumnIndex` rounds down
+ * to the defender's favor, i.e. to ratio 1, not 2) — and EVERY row of that
+ * column is AR or DR, never AE/DE/EX (see the printed table: die 1-3 -> DR,
+ * die 4-6 -> AR). So whichever side's elephant loses this fight, it is
+ * forced to retreat, and `applyLandCombatResult`'s `forceRetreat` routes
+ * `unitType(unit).id === 'elephants'` straight to `pendingDrifts`
+ * unconditionally, with no `legalRetreatHexes`/`pushCandidates` check first
+ * (unlike every other unit type) — so under `legalActions`' singleton-only
+ * enumeration there is no scenario where this specific matchup resolves
+ * without a drift. The only randomness left is
+ * whether `RandomAgent` picks this attack at all among everything else it
+ * could legally do that turn, which is exactly the same residual randomness
+ * `p0-cav-l`/`p1-phalanx` already accept below.
+ *
+ * That "singleton-only" qualifier is load-bearing, and it is about this
+ * ARMY's other drivers rather than about this pairing. A `HeuristicAgent`
+ * assembles COMBINED attacks and hands them to `applyAction` itself (the
+ * escape hatch `legalActions`' own doc comment sanctions), and
+ * `heuristicSoak.test.ts` drives this very army — four attackers totalling
+ * 8+8+3+2 against a defending elephant's defense 5 is the '4-1' column,
+ * which does have DE and EX faces. Nothing is broken there; the guarantee
+ * above is simply what the `RandomAgent` soak in `fuzzHarness.test.ts`
+ * relies on, and the heuristic soak gets a richer mix rather than a weaker
+ * invariant.
  */
 export function buildFuzzGameState(): GameState {
   const players: Player[] = [
@@ -128,15 +168,20 @@ export function buildFuzzGameState(): GameState {
     makeUnit('p0-cav-l', 0, 'cavalerie-legere', landHex(0)),
     makeUnit('p0-phalanx', 0, 'phalanges', landHex(2)),
     makeUnit('p0-archers', 0, 'fantassins-archers', landHex(4)),
+    makeUnit('p0-elephant', 0, 'elephants', landHex(6)),
 
     // Player 1 — mirrored so BOTH directions of the cavalry/phalanx check
     // (P0's cavalry vs. P1's phalanx, and vice versa) are exercised from
     // turn one: `p1-phalanx` sits right next to `p0-cav-l` (landHex(1) is
     // adjacent to landHex(0)), and `p1-cav-h` sits right next to
-    // `p0-phalanx` (landHex(3) is adjacent to landHex(2)).
+    // `p0-phalanx` (landHex(3) is adjacent to landHex(2)). `p1-elephant`
+    // sits right next to `p0-elephant` for the same reason (landHex(7) is
+    // adjacent to landHex(6)) — see this function's own doc comment above
+    // for why THIS specific pairing guarantees a drift once it fights.
     makeUnit('p1-phalanx', 1, 'phalanges', landHex(1)),
     makeUnit('p1-cav-h', 1, 'cavalerie-lourde', landHex(3)),
     makeUnit('p1-archers', 1, 'archers', landHex(5)),
+    makeUnit('p1-elephant', 1, 'elephants', landHex(7)),
 
     // Naval: one ship per side, already adjacent with matching facing so
     // boarding is immediately legal in the first combat phase.
@@ -207,6 +252,91 @@ export function buildPushScenarioGameState(): GameState {
   state.units = [
     makeUnit('attacker', 0, 'fantassins', attackerPos),
     makeUnit('defender', 1, 'fantassins', PUSH_CENTER),
+    ...ring.map((pos, i) => makeUnit(`ring${i}`, 1, 'fantassins', pos)),
+    ...attackerFillers.map((pos, i) => makeUnit(`filler${i}`, 1, 'fantassins', pos)),
+  ];
+
+  return state;
+}
+
+/** The same confirmed-clean 'plain' patch `PUSH_CENTER` sits on (see that
+ * constant's own doc comment) — reused under its own name rather than the
+ * literal `PUSH_CENTER` symbol so this scenario reads as independent of the
+ * push one. Safe to share the coordinate: each `build*GameState` function
+ * returns a brand-new `GameState`, so two functions building on the same hex
+ * never interact at runtime. */
+const ELEPHANT_CENTER = PUSH_CENTER;
+
+/**
+ * Stage 2c (plan.md §6.7/§6.9): `buildFuzzGameState()`'s single elephant per
+ * side (see its own doc comment) makes a drift REACHABLE in ordinary
+ * self-play, but whether that drift ever tramples anything is still down to
+ * luck — its elephants start on an open strip with nothing nearby for a
+ * randomly-rolled direction to hit. `driftCombatsResolved` needs its own
+ * purpose-built scenario for the same reason `pushesResolved` did (HIGH-4,
+ * above): a coverage number that depends on where random movement happens to
+ * wander is exactly the weak regression guard this repo's placement
+ * convention (see `buildFuzzGameState`'s `p0-cav-l`/`p1-phalanx` comment)
+ * exists to avoid.
+ *
+ * Reuses `buildPushScenarioGameState`'s exact box geometry — `attacker` on
+ * `defender`'s 6th neighbor, `ring0`..`ring4` on the other 5, `filler0`..
+ * `filler2` completing `attacker`'s own box — but with BOTH `attacker` and
+ * `defender` as elephants instead of fantassins, which changes what the
+ * geometry guarantees:
+ *
+ * - Elephants are 8 attack / 5 defense (`data/units.ts`), so an elephant-vs-
+ *   elephant combat is always exactly the "1-1" column of `data/
+ *   combatTable.ts`'s CRT (8/5 = 1.6, rounded down to ratio 1 in the
+ *   defender's favor by `ratioToColumnIndex`) — and every row of that column
+ *   is AR or DR, never AE/DE/EX. So THIS fight, whenever it happens, ALWAYS
+ *   forces one side's elephant to retreat — never eliminates either side
+ *   outright, unlike the push scenario's 2:1 fantassins fight, which still
+ *   has some chance of missing AR/DR entirely at the die's tails (there
+ *   isn't one on the "1-1" column: rows 1-3 are DR, rows 4-6 are AR, per the
+ *   printed table).
+ * - `applyLandCombatResult`'s `forceRetreat` routes an elephant straight to
+ *   `pendingDrifts` unconditionally — `unitType(unit).id === 'elephants'` is
+ *   checked BEFORE `legalRetreatHexes`/`pushCandidates`, unlike every other
+ *   unit type — so being boxed in does not change that this always drifts,
+ *   only what the drift finds once it starts.
+ * - BOTH `attacker` and `defender` are individually fully boxed (that's what
+ *   the reused geometry gives for free), so it does not matter WHICH side's
+ *   elephant ends up retreating: whichever one it is, all 6 of ITS
+ *   neighbors are occupied, by friend or foe. The rulebook's own drift
+ *   sentence fights "toute unité (amie ou ennemie) qui se trouve sur sa
+ *   trajectoire" (`docs/research/05-rules-french-original.md:285-286`) — any
+ *   unit in its path, friendly or enemy — so `driftStep`'s occupant check
+ *   does not care which side of this fight built the box. The very first
+ *   step of the drift, in whichever of the 6 directions the direction die
+ *   rolls, lands on an occupied hex and triggers `combatRollNeeded`.
+ *
+ * So `driftsResolved` AND `driftCombatsResolved` are both guaranteed the
+ * instant this specific attack is chosen and resolved — no die roll (attack
+ * die, direction die, or drift-combat die) can avoid it. The only residual
+ * randomness is whether `RandomAgent` picks this attack among everything
+ * else legal that turn, exactly the same residual randomness
+ * `buildPushScenarioGameState`'s own soak accepts. See
+ * `fuzzHarness.test.ts`'s deterministic "no dice involved" test for the
+ * property asserted directly off the built state, and its soak test for the
+ * seeded self-play confirmation, mirroring the push scenario's own pairing
+ * of the two (plan.md §12's third finding on why a soak alone is a thin
+ * canary).
+ */
+export function buildElephantScenarioGameState(): GameState {
+  const players: Player[] = [
+    { id: 0, name: 'P0', edge: 'W', purchasePoints: 0, eliminated: false },
+    { id: 1, name: 'P1', edge: 'E', purchasePoints: 0, eliminated: false },
+  ];
+  const state = createInitialState(players, 'multi-defender');
+
+  const attackerPos = hexAdd(ELEPHANT_CENTER, DIRECTIONS[5]!);
+  const ring = DIRECTIONS.slice(0, 5).map((d) => hexAdd(ELEPHANT_CENTER, d));
+  const attackerFillers = [DIRECTIONS[0]!, DIRECTIONS[4]!, DIRECTIONS[5]!].map((d) => hexAdd(attackerPos, d));
+
+  state.units = [
+    makeUnit('attacker', 0, 'elephants', attackerPos),
+    makeUnit('defender', 1, 'elephants', ELEPHANT_CENTER),
     ...ring.map((pos, i) => makeUnit(`ring${i}`, 1, 'fantassins', pos)),
     ...attackerFillers.map((pos, i) => makeUnit(`filler${i}`, 1, 'fantassins', pos)),
   ];
@@ -925,11 +1055,17 @@ export class SeatAgentRouter implements DrivingAgent {
  * reproducible repro on its own.
  *
  * Asserts invariants continuously (see `assertInvariants` et al. above),
- * throwing immediately and loudly the first time one is violated, including
- * — per plan.md §6.7 — a hard throw if `pendingDrifts` is ever non-empty:
- * elephants are excluded from `buildFuzzGameState()` specifically so this
- * can never legitimately happen; a violation means the exclusion itself has
- * broken, not that a drift needs handling.
+ * throwing immediately and loudly the first time one is violated. Stale
+ * note corrected here (plan.md §6.10's exact "stale prose after a parallel
+ * merge" failure mode): an earlier version of this comment claimed
+ * `pendingDrifts` triggered a hard throw because elephants were excluded
+ * from `buildFuzzGameState()` entirely. That exclusion (and the throw) is
+ * gone as of Stage 2c (plan.md §6.7/§6.9) — elephants are now part of the
+ * default army and of `buildElephantScenarioGameState()`, and any
+ * `pendingDrifts`/`pendingRetreats` a resolved action produces is actively
+ * pumped through `processDrifts`/`processRetreats` below (see
+ * `applyOneAction`'s `landAttack` case), the same headless driver Stage 2b
+ * gave the drift cascade.
  *
  * TERMINATION — read this before changing `turnCap`: with `legalActions`'
  * combat enumeration deliberately singleton-only (one attacker vs. one
@@ -1127,6 +1263,35 @@ async function applyOneAction(
       stats.landAttacksResolved++;
       if (action.attackerIds.length > 1) stats.multiAttackerAttacks++;
       stats.combatResultCounts[result.detail.result] = (stats.combatResultCounts[result.detail.result] ?? 0) + 1;
+
+      // Stage 2c investigation (plan.md §6.7/§6.9, finding B): can a single
+      // resolved combat need BOTH an exchange-sacrifice choice AND carry
+      // pendingDrifts/pendingRetreats, which the `requiresExchangeChoice`
+      // branch below never reads? Traced through `applyLandCombatResult`
+      // (engine/combat.ts): `pendingDrifts`/`pendingRetreats` are only ever
+      // populated inside `forceRetreat`, which is only ever called from the
+      // 'AR'/'DR' cases. The 'EX' case's `requiresExchangeChoice: true`
+      // branch returns immediately without calling `forceRetreat` at all —
+      // an EX result destroys every defender outright and (with more than
+      // one attacker) defers ONLY the attacker-side sacrifice choice, never
+      // a retreat or drift for anyone. So this combination is structurally
+      // IMPOSSIBLE from `applyLandCombatResult` today, not merely untested —
+      // the throw below is a regression guard against that invariant
+      // silently breaking under a future refactor, not a workaround for a
+      // bug that currently fires (confirmed: it did not fire once across
+      // this file's default/elephant-scenario soaks while writing this
+      // guard). `BoardScene.ts`'s combat handler
+      // (`applyAttack`/`beginRetreatChoices`, `BoardScene.ts:1719-1743`) has
+      // the exact same branch shape — `if (outcome.requiresExchangeChoice)
+      // { ...; return; }` before the `pendingRetreats`/`pendingDrifts` check
+      // — so it would share the exact same latent drop if this ever became
+      // reachable; this guard stands in for that untested scene too.
+      if (result.outcome.requiresExchangeChoice && (result.outcome.pendingDrifts.length > 0 || result.outcome.pendingRetreats.length > 0)) {
+        throw new Error(
+          "Invariant violated: applyLandCombatResult returned requiresExchangeChoice=true together with a non-empty pendingDrifts/pendingRetreats — the exchange-choice branch below never processes either, so this would silently drop a forced retreat or elephant drift.",
+        );
+      }
+
       if (!result.outcome.requiresExchangeChoice && result.outcome.pendingDrifts.length > 0) {
         const side = result.detail.result === 'DR' ? 'defender' : 'attacker';
         const resolvedIds = new Set<string>();

@@ -62,7 +62,9 @@ npm run build   # production build
    real combat (elephant vs. that unit) rather than an automatic kill; a
    result that would force the elephant itself to retreat instead re-rolls
    a new direction with whatever movement it has left, and it's eliminated
-   outright if the drift would carry it off the map or into the sea. When a
+   outright if the drift would carry it out of the land zone — off the map,
+   into the sea, or into a marsh, which elephants may never enter at all.
+   When a
    **defender** retreats, or is eliminated outright (DE/EX), the attacking
    side is then offered the chance to advance a unit *adjacent to* that hex
    into it (see
@@ -553,14 +555,16 @@ here rather than silently:
   menu has no Human/Computer choice per player, there is no pacing or
   animation to make its moves legible, and the save format does not record
   which seats were AI.
-- **The computer opponent never uses elephants.** Not because it can't —
-  the drift cascade an elephant goes through instead of retreating is now
-  resolvable outside the board scene — but because the armies its self-play
-  tests are built from still leave elephants out, so the AI has never been
-  exercised with one. It also makes no attempt to predict where a drifting
-  elephant ends up when weighing an attack; it assumes the elephant
-  survives, which understates rather than overstates the value of hitting
-  one.
+- **The computer opponent doesn't predict where a drifting elephant ends
+  up.** It commands them perfectly well — the self-play armies its tests are
+  built from now include one per side, so the AI moves and fights with
+  elephants and resolves drifts headlessly when one is forced — but when
+  *weighing* an attack it scores a drifting elephant as surviving. A real
+  drift can end anywhere from
+  unharmed to dead, depending on a second die roll, whatever it tramples,
+  and how far the cascade runs, so pricing it properly is lookahead rather
+  than arithmetic. The assumption understates rather than overstates the
+  value of hitting an elephant, which keeps the error on the cautious side.
 - **Naval movement is destination-click, not path-drawn.** Clicking a
   highlighted hex moves the selected ship there by the cheapest combination
   of rotation + forward moves (or, for an orange-highlighted contact hex,
