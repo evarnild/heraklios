@@ -4,6 +4,7 @@ import {
   applyExchangeSacrifice,
   applyLandCombatResult,
   applyRammingResult,
+  attackForceAgainst,
   attackerCanJoin,
   canBoard,
   canElephantEnterHex,
@@ -15,6 +16,7 @@ import {
   defenderCanJoin,
   describeLandAttack,
   eligibleAdvanceCandidates,
+  exchangeSacrificeForce,
   exchangeSacrificeMeetsThreshold,
   legalRetreatHexes,
   pushCandidates,
@@ -27,6 +29,7 @@ import {
 import { DIRECTIONS, hexAdd, hexDistance } from './hex';
 import { createInitialState } from './turnManager';
 import { RIVER_HEXSIDES, riverEdgeKey } from '../data/map';
+import { UNIT_TYPES } from '../data/units';
 import type { GameState, Unit } from './state';
 
 /** Picks a real river hexside from whatever map is currently loaded, so
@@ -84,26 +87,70 @@ describe('eligibleAdvanceCandidates', () => {
   // harness's OWN terrain invariant from ever seeing the same bug in
   // `BoardScene.ts`'s `promptAdvanceChoice`. Extracted here so both callers
   // share one tested implementation.
+  // Every candidate below stands ADJACENT to the vacated hex it is being
+  // tested against, so each test isolates the filter it is named for rather
+  // than passing for free on the adjacency rule added later (see the
+  // dedicated adjacency tests underneath).
+  const VACATED = { q: 5, r: 5 }; // plain
+  const NEXT_TO_VACATED = [
+    { q: 6, r: 5 },
+    { q: 5, r: 6 },
+  ];
+
   it('excludes a destroyed candidate', () => {
-    const alive = makeUnit({ id: 'a', typeId: 'fantassins', position: { q: 0, r: 0 } });
-    const dead = makeUnit({ id: 'd', typeId: 'fantassins', position: { q: 1, r: 0 }, destroyed: true });
-    const result = eligibleAdvanceCandidates([alive, dead], { q: 5, r: 5 });
+    const alive = makeUnit({ id: 'a', typeId: 'fantassins', position: NEXT_TO_VACATED[0]! });
+    const dead = makeUnit({ id: 'd', typeId: 'fantassins', position: NEXT_TO_VACATED[1]!, destroyed: true });
+    const result = eligibleAdvanceCandidates([alive, dead], VACATED);
     expect(result.map((u) => u.id)).toEqual(['a']);
   });
 
   it('excludes a candidate whose category cannot enter the vacated hex\'s terrain', () => {
-    const chariot = makeUnit({ id: 'c', typeId: 'chars-lourds', position: { q: 0, r: 0 } });
-    const infantry = makeUnit({ id: 'i', typeId: 'fantassins', position: { q: 1, r: 0 } });
     // (7,15) is 'marsh' — forbidden to chariots, fine for infantry.
-    const result = eligibleAdvanceCandidates([chariot, infantry], { q: 7, r: 15 });
+    const marsh = { q: 7, r: 15 };
+    const chariot = makeUnit({ id: 'c', typeId: 'chars-lourds', position: { q: 8, r: 15 } });
+    const infantry = makeUnit({ id: 'i', typeId: 'fantassins', position: { q: 7, r: 16 } });
+    for (const u of [chariot, infantry]) expect(hexDistance(u.position, marsh)).toBe(1);
+    const result = eligibleAdvanceCandidates([chariot, infantry], marsh);
     expect(result.map((u) => u.id)).toEqual(['i']);
   });
 
-  it('returns every alive, terrain-eligible candidate when the vacated hex is unrestricted', () => {
-    const a = makeUnit({ id: 'a', typeId: 'fantassins', position: { q: 0, r: 0 } });
-    const b = makeUnit({ id: 'b', typeId: 'cavalerie-legere', position: { q: 1, r: 0 } });
-    const result = eligibleAdvanceCandidates([a, b], { q: 5, r: 5 }); // plain
+  it('returns every alive, adjacent, terrain-eligible candidate', () => {
+    const a = makeUnit({ id: 'a', typeId: 'fantassins', position: NEXT_TO_VACATED[0]! });
+    const b = makeUnit({ id: 'b', typeId: 'cavalerie-legere', position: NEXT_TO_VACATED[1]! });
+    const result = eligibleAdvanceCandidates([a, b], VACATED);
     expect(result.map((u) => u.id).sort()).toEqual(['a', 'b']);
+  });
+
+  it('excludes an attacker that is not adjacent to the vacated hex', () => {
+    // The archer case (plan.md §15.5): a unit that shot from two hexes never
+    // came into contact, so it has no hex to step forward FROM. Reading the
+    // rulebook's "sans tenir compte des limites de déplacement" literally
+    // would let it cross the intervening hex — occupied or not — which no
+    // other rule in the game allows.
+    const adjacent = makeUnit({ id: 'melee', typeId: 'fantassins', position: NEXT_TO_VACATED[0]! });
+    const shooter = makeUnit({ id: 'archer', typeId: 'archers', position: { q: 7, r: 5 } });
+    expect(hexDistance(shooter.position, VACATED)).toBe(2);
+    // Terrain and liveness are BOTH satisfied for the archer, so adjacency is
+    // the only thing that can exclude it — the control that makes this test
+    // discriminating rather than incidentally green.
+    expect(canUnitEnterHex(shooter, VACATED)).toBe(true);
+    expect(shooter.destroyed).toBe(false);
+
+    const result = eligibleAdvanceCandidates([adjacent, shooter], VACATED);
+    expect(result.map((u) => u.id)).toEqual(['melee']);
+  });
+
+  it('is a no-op for a melee attacker, which is adjacent by construction', () => {
+    // Guards the claim the interpretation rests on: enforcing adjacency
+    // cannot take the advance away from anyone the rulebook meant to give it
+    // to, because being adjacent to the defender is what made them an
+    // attacker. Swept over every land type rather than asserted for one.
+    for (const t of UNIT_TYPES) {
+      if (t.domain !== 'land' || !t.meleeCapable) continue;
+      const attacker = makeUnit({ id: t.id, typeId: t.id, position: NEXT_TO_VACATED[0]! });
+      if (!canUnitEnterHex(attacker, VACATED)) continue; // terrain, a separate filter
+      expect([t.id, eligibleAdvanceCandidates([attacker], VACATED).length]).toEqual([t.id, 1]);
+    }
   });
 });
 
@@ -125,6 +172,62 @@ describe('checkRangedEligibility', () => {
     const infantry = makeUnit({ typeId: 'fantassins', position: { q: 0, r: 0 } });
     expect(checkRangedEligibility(infantry, 1).canAttack).toBe(true);
     expect(checkRangedEligibility(infantry, 2).canAttack).toBe(false);
+  });
+});
+
+describe('attackForceAgainst (plan.md §15)', () => {
+  it('resolves an archer volley on its projectile value, not its melee 0', () => {
+    // The defect this function exists to fix: `archers` are `attack: 0,
+    // rangedAttack: 2`, and summing `currentAttack` alone made every volley
+    // resolve at force 0 — the CRT's 1-5 column, five AE faces of six.
+    const archers = makeUnit({ typeId: 'archers', position: { q: 0, r: 0 } });
+    const target = makeUnit({ typeId: 'fantassins', position: { q: 2, r: 0 }, owner: 1 });
+    expect(hexDistance(archers.position, target.position)).toBe(2); // exactly their range
+    expect(attackForceAgainst(archers, [target])).toBe(2);
+  });
+
+  it('prefers the melee value at contact and the projectile value at range', () => {
+    // Deliberately probed with a `triremes` (attack 20, rangedAttack 2,
+    // meleeCapable, range 2): it is the only roster entry whose two attack
+    // values DIFFER, so it is the only unit that can tell the two branches
+    // apart at all. `fantassins-archers`, the hybrid this rule is really
+    // about, is 2 and 2 — a test written on it would pass with the branch
+    // selection inverted, or deleted.
+    const contact = makeUnit({ id: 'c', typeId: 'triremes', position: { q: 0, r: 0 } });
+    const atRange = makeUnit({ id: 'r', typeId: 'triremes', position: { q: 0, r: 0 } });
+    const adjacentTarget = makeUnit({ id: 't1', typeId: 'fantassins', position: { q: 1, r: 0 }, owner: 1 });
+    const distantTarget = makeUnit({ id: 't2', typeId: 'fantassins', position: { q: 2, r: 0 }, owner: 1 });
+
+    expect(attackForceAgainst(contact, [adjacentTarget])).toBe(20);
+    expect(attackForceAgainst(atRange, [distantTarget])).toBe(2);
+    // Adjacency wins when a multi-defender group offers both: "fights the
+    // way it would against the nearest of them."
+    expect(attackForceAgainst(contact, [distantTarget, adjacentTarget])).toBe(20);
+  });
+
+  it('keeps the charge doubling for a melee attacker', () => {
+    const charger = makeUnit({ typeId: 'cavalerie-lourde', position: { q: 0, r: 0 }, charged: true });
+    const target = makeUnit({ typeId: 'fantassins', position: { q: 1, r: 0 }, owner: 1 });
+    expect(attackForceAgainst(charger, [target])).toBe(12); // 6 doubled, not the printed 6
+  });
+
+  it('sums each attacker at its own engagement distance in a combined attack', () => {
+    // The rulebook names archers specifically as an example of a
+    // per-attacker proximity condition inside a combined attack, so an
+    // archer at 2 and an infantry unit at 1 both contribute 2, for 4 total
+    // against a `fantassins-lourds`' defense of 3 — the 1-1 column, where
+    // before the fix the same pair reached only 2 and rounded down to 1-2.
+    const archers = makeUnit({ id: 'x', typeId: 'archers', position: { q: 0, r: 0 } });
+    const infantry = makeUnit({ id: 'f', typeId: 'fantassins', position: { q: 1, r: 1 } });
+    const defender = makeUnit({ id: 'd', typeId: 'fantassins-lourds', position: { q: 2, r: 0 }, owner: 1 });
+    expect(hexDistance(archers.position, defender.position)).toBe(2);
+    expect(hexDistance(infantry.position, defender.position)).toBe(1);
+
+    const detail = describeLandAttack([archers, infantry], [defender], 1);
+    expect(detail.attackForce).toBe(4);
+    expect(detail.ratioLabel).toBe('1-1');
+    expect(detail.attackerForces.get('x')).toBe(2);
+    expect(detail.attackerForces.get('f')).toBe(2);
   });
 });
 
@@ -943,6 +1046,56 @@ describe('exchangeSacrificeMeetsThreshold / applyExchangeSacrifice', () => {
     expect(exchangeSacrificeMeetsThreshold([weak], 3)).toBe(false);
     expect(exchangeSacrificeMeetsThreshold([strong], 3)).toBe(true);
     expect(exchangeSacrificeMeetsThreshold([weak, strong], 10)).toBe(true);
+  });
+
+  it('counts an archer at its projectile value, so an all-archer EX is satisfiable', () => {
+    // Regression for the wedged board §15 would otherwise have created:
+    // two archers firing on a `fantassins` is 4 vs 1 = the 4-1 column, whose
+    // die-6 row is EX. With more than one attacker `applyLandCombatResult`
+    // defers the sacrifice to the player — and if archers counted 0 here, NO
+    // subset of the attackers could ever reach the threshold of 1. The
+    // prompt could not be confirmed and both `RandomAgent` and
+    // `HeuristicAgent` throw "CRT invariant violated".
+    const defender = makeUnit({ id: 'd', typeId: 'fantassins', position: { q: 1, r: 1 }, owner: 1 });
+    const x1 = makeUnit({ id: 'x1', typeId: 'archers', position: { q: 3, r: 1 } });
+    const x2 = makeUnit({ id: 'x2', typeId: 'archers', position: { q: 1, r: 3 } });
+    for (const x of [x1, x2]) expect(hexDistance(x.position, defender.position)).toBe(2);
+    const state = makeState([x1, x2, defender]);
+
+    const detail = describeLandAttack([x1, x2], [defender], 6);
+    expect(detail.attackForce).toBe(4);
+    expect(detail.ratioLabel).toBe('4-1');
+    expect(detail.result).toBe('EX');
+
+    const outcome = applyLandCombatResult(state, [x1, x2], [defender], detail.result);
+    expect(outcome.requiresExchangeChoice).toBe(true);
+    expect(outcome.requiredSacrificeForce).toBe(1);
+    expect(exchangeSacrificeForce(x1)).toBe(2);
+    expect(exchangeSacrificeMeetsThreshold([x1], outcome.requiredSacrificeForce)).toBe(true);
+  });
+
+  it('prices every land unit that can join a land attack at its real contribution', () => {
+    // Pins the coincidence `exchangeSacrificeForce` is built on: it takes the
+    // better of a unit's melee and projectile values rather than the exact
+    // per-combat contribution from `LandAttackDetail.attackerForces`. Add a
+    // land type that breaks the coincidence and this fails here, loudly,
+    // instead of silently mis-pricing a sacrifice — at which point the honest
+    // fix is to thread `attackerForces` through
+    // `PlayerAgent.chooseExchangeSacrifice`.
+    //
+    // TWO shapes break it, and independent review caught that an earlier
+    // version of this guard only caught one. The obvious one is two different
+    // non-zero values. The subtle one is `attack: 0, rangedAttack: n,
+    // meleeCapable: TRUE` — legal to write, and then `attackForceAgainst`
+    // contributes 0 at contact while `exchangeSacrificeForce` prices it at
+    // `n`. Real `archers` dodge it only by being `meleeCapable: false`, so
+    // that flag is load-bearing here and is asserted rather than assumed.
+    for (const t of UNIT_TYPES) {
+      if (t.domain !== 'land') continue; // naval resolves by boarding, never through the land CRT
+      if (t.rangedAttack === 0) continue;
+      const priceable = t.attack === t.rangedAttack || (t.attack === 0 && !t.meleeCapable);
+      expect([t.id, priceable]).toEqual([t.id, true]);
+    }
   });
 
   it('destroys only the units it is given', () => {

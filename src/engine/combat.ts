@@ -12,6 +12,7 @@ import {
   unitType,
   unitCategory,
   currentAttack,
+  currentRangedAttack,
   currentDefense,
 } from './state';
 
@@ -46,9 +47,61 @@ export function canUnitEnterHex(unit: Unit, hex: HexCoord): boolean {
 /**
  * The subset of `candidates` (attackers eligible to advance into a hex a
  * combat just vacated) that could ACTUALLY occupy `vacatedHex`: still
- * alive, and — per `canUnitEnterHex` above — terrain its own category can
- * enter, which is not necessarily the same terrain the unit that vacated it
- * could stand on.
+ * alive, adjacent to it, and — per `canUnitEnterHex` above — terrain its own
+ * category can enter, which is not necessarily the same terrain the unit
+ * that vacated it could stand on.
+ *
+ * INTERPRETATION — the adjacency requirement. The rulebook grants the
+ * advance as "l'unité attaquante peut, si elle le désire, occuper la case
+ * que le défenseur abandonne, et ceci sans tenir compte des limites de
+ * déplacement qui lui sont propres ni [sans tenir compte] des zones
+ * d'influence" (`docs/research/05-rules-french-original.md:248-254`). NOTE
+ * the transcription is corrupt at :250-252 — it repeats "des limites de
+ * déplacement qui lui sont propres" a second time where the sentence needs
+ * the elided "sans tenir compte" before "des zones d'influence"; the reading
+ * bracketed above is the only coherent one, and is recorded here rather than
+ * silently repaired.
+ *
+ * So the rule waives movement points and ZOC, and says nothing about
+ * distance — because in the case it was written for there is nothing to say:
+ * a melee attacker is adjacent to the hex it just attacked, by definition.
+ * **A RANGED attacker is not.** The literal reading is therefore rejected
+ * WHOLESALE, not merely where it misbehaves: an archer two hexes away is
+ * barred from advancing even across an empty intervening hex, where the
+ * literal reading has no obstacle at all, because the waiver of "limites de
+ * déplacement" is what would otherwise sanction it. The case that shows the
+ * literal reading cannot be right is the blocked one — it would let the
+ * archer cross an OCCUPIED enemy hex and its ZOC, which nothing else in this
+ * game permits — but the rule adopted here is the general one, that "occuper
+ * la case que le défenseur abandonne" means stepping into contact.
+ *
+ * Note the deliberate asymmetry with AR, which is left literal: an archer
+ * that never closed still retreats a hex on an attacker-retreat result. That
+ * is a forced move away from a threat, not an optional move onto ground the
+ * unit never reached, so the same objection does not apply.
+ *
+ * This is a no-op for every melee attacker **as of the combat** — adjacency
+ * to the defender is what made it an attacker at all — so what it changes is
+ * an archer advancing after a volley, plus (in the house-rule
+ * 'multi-defender' mode, where a group can vacate several hexes at once) an
+ * attacker advancing into the hex of a defender it was never in contact
+ * with. Both are the same defect.
+ *
+ * Distance is measured from each candidate's CURRENT position, which is NOT
+ * always where it stood during the combat — an earlier version of this
+ * comment claimed it was, and independent review found two paths where it
+ * isn't. (a) A defending elephant on a DR drifts BEFORE the advance is
+ * offered (`fuzzHarness.ts`'s `processDrifts`, and `BoardScene`'s matching
+ * queue), and that drift can trample an attacker of this same combat into a
+ * retreat, leaving it at distance 2. (b) Within a multi-hex batch, a unit
+ * that already advanced measures from the hex it took. Both are deliberate:
+ * a unit shoved backwards by a rampaging elephant should not then step
+ * forward into the hex it was shoved away from.
+ *
+ * Reachable, not hypothetical: before plan.md §15 an archer's volley always
+ * resolved on the CRT's 1-5 column, whose only non-AE face is AR, so a solo
+ * archer could not produce the defender retreat that triggers this offer.
+ * Once volleys resolved at the projectile value, DR became four faces of six.
  *
  * Exported specifically so both callers of the post-combat "advance into
  * the vacated hex" offer can share ONE implementation of this filter rather
@@ -62,7 +115,9 @@ export function canUnitEnterHex(unit: Unit, hex: HexCoord): boolean {
  * terrain check.
  */
 export function eligibleAdvanceCandidates(candidates: readonly Unit[], vacatedHex: HexCoord): Unit[] {
-  return candidates.filter((u) => !u.destroyed && canUnitEnterHex(u, vacatedHex));
+  return candidates.filter(
+    (u) => !u.destroyed && hexDistance(u.position, vacatedHex) === 1 && canUnitEnterHex(u, vacatedHex),
+  );
 }
 
 /** True if a (normal) river runs along the hexside shared by two adjacent hexes. */
@@ -88,6 +143,14 @@ export function unitAt(state: GameState, hex: HexCoord): Unit | undefined {
  */
 export interface LandAttackDetail {
   attackForce: number;
+  /** What each attacker individually contributed to `attackForce`, keyed by
+   * `Unit.id` — melee value or projectile value depending on how far it was
+   * from the units it engaged (see `attackForceAgainst`). Carried on the
+   * detail rather than left for a caller to re-derive because the combat log
+   * has to show a per-unit number that adds up to `attackForce`, and by the
+   * time it renders, `applyLandCombatResult` may already have destroyed some
+   * of these units. Always has exactly one entry per attacker. */
+  attackerForces: ReadonlyMap<string, number>;
   defenseForce: number;
   /** Force-ratio column label, e.g. "4-1" (see `RATIO_COLUMNS`). */
   ratioLabel: string;
@@ -124,12 +187,100 @@ export interface LandAttackDetail {
   result: CombatResult;
 }
 
+/**
+ * The force ONE attacker contributes to a combat against `defenders` — its
+ * melee value when it is fighting at contact, its projectile value when it
+ * is shooting.
+ *
+ * INTERPRETATION. The counter format is `attack (rangedAttack) range /
+ * defense movement`, and the rulebook says of the parenthesized number: "le
+ * chiffre entre parenthèses correspond à la valeur d'attaque par projectiles
+ * (flèches des archers, par exemple). Toutes les unités qui ont une valeur
+ * nulle en force d'attaque par projectiles sont obligées de combattre au
+ * contact" (`docs/research/05-rules-french-original.md:78-81`). It is
+ * explicitly an *attack value*, so a volley resolves on it. The combat rules
+ * themselves never restate this — they say only "on additionne les points
+ * d'attaque des unités offensives" (`:200-201`) without saying which of the
+ * two numbers a shooter contributes — so reading "points d'attaque" as "the
+ * attack value appropriate to how this unit is engaging" is a reading, not a
+ * quotation. Everything else in the roster is unaffected: only `archers`,
+ * `fantassins-archers`, `triremes` and `quintiremes` have a non-zero
+ * `rangedAttack` at all.
+ *
+ * Three sub-questions the rulebook does not answer directly, and the
+ * readings taken here:
+ *
+ * 1. **Which value a melee-capable shooter uses at distance 1.** Of the
+ *    archer-infantry the rules say they shoot at two hexes "qui ont en outre
+ *    la possibilité de combattre au contact" (`:261-263`) — fighting at
+ *    contact is an *additional* ability, i.e. the ordinary melee attack, so
+ *    contact takes the melee value. This mirrors `checkRangedEligibility`'s
+ *    own precedence, which resolves distance 1 through the melee branch
+ *    before it ever looks at `range`. It is also, on the shipped roster, a
+ *    distinction without a difference: `fantassins-archers` are 2 and 2.
+ * 2. **Whether a shooter may join a combined attack.** Yes: "plusieurs
+ *    unités d'une même armée peuvent attaquer une seule unité adverse [...]
+ *    Il faut cependant qu'elles remplissent les conditions de proximité
+ *    inhérentes à leurs types d'armes. Attention, les archers notamment ne
+ *    peuvent combattre qu'à exactement 2 cases de distance" (`:192-198`) —
+ *    the rule names archers specifically as an example of a per-attacker
+ *    proximity condition inside a combined attack, so each attacker
+ *    contributes the value matching *its own* engagement distance. That is
+ *    what the per-attacker loop below does.
+ * 3. **Whether a ranged result behaves like a melee one.** There is one
+ *    combat-results table and no ranged variant of it, so an AR/DR/EX from a
+ *    volley resolves exactly as it does at contact, including the defender
+ *    retreating one hex. **One exception**, and it is the exception that
+ *    proves the rule was written for contact: the attacker's option to
+ *    advance into the vacated hex requires adjacency, which a shooter does
+ *    not have — see `eligibleAdvanceCandidates` above for the reading and
+ *    why a literal one lets an archer cross an occupied enemy hex.
+ *
+ * With several defenders (multi-defender mode), an attacker is taken to be
+ * fighting at contact if ANY defender in the group is adjacent to it, and
+ * shooting if any sits at exactly its range — checked in that order, so a
+ * unit that could do either against different members of one group fights
+ * the way it would against the nearest of them.
+ *
+ * The final fallback catches an attacker at neither contact nor its exact
+ * range. `checkRangedEligibility` refuses to let one into a group in the
+ * first place (via `validTargets` → `legalActions`), and `HeuristicAgent`
+ * re-derives that per attacker before assembling a group
+ * (`heuristicAgent.ts`'s `attackerCanJoin` gate).
+ *
+ * `BoardScene` does NOT, and saying otherwise here was wrong — independent
+ * review found the path. `toggleDefender` splices a defender out of the
+ * group without revalidating the attackers, so in 'multi-defender' mode a
+ * player can target D1 and D2, then untarget D1, leaving an archer that only
+ * ever reached D1 sitting in the group. It lands here and contributes its
+ * melee value. That is pre-existing and out of this function's hands — the
+ * fix belongs at the splice — but it is the one live situation where an
+ * attacker's contribution is not what `exchangeSacrificeForce` would price
+ * it at. Logged in plan.md's queue.
+ *
+ * The fallback returns `currentAttack` rather than throwing, because the
+ * reachable case above is a UI slip mid-selection rather than a corrupt
+ * state, and a throw there would wedge the board. It is deliberately NOT 0:
+ * a silent 0 would resolve on the 1-5 column and look exactly like the
+ * defect this function exists to fix.
+ */
+export function attackForceAgainst(attacker: Unit, defenders: readonly Unit[]): number {
+  const t = unitType(attacker);
+  const atDistance = (d: number) => defenders.some((u) => hexDistance(attacker.position, u.position) === d);
+  if (t.meleeCapable && atDistance(1)) return currentAttack(attacker);
+  if (t.rangedAttack > 0 && atDistance(t.range)) return currentRangedAttack(attacker);
+  return currentAttack(attacker);
+}
+
 function computeLandAttackDetail(
   attackers: Unit[],
   defenders: Unit[],
   rawDieRoll: number,
 ): LandAttackDetail {
-  const attackForce = attackers.reduce((sum, u) => sum + currentAttack(u), 0);
+  const attackerForces = new Map<string, number>(
+    attackers.map((u) => [u.id, attackForceAgainst(u, defenders)]),
+  );
+  const attackForce = attackers.reduce((sum, u) => sum + attackerForces.get(u.id)!, 0);
   const defenseForce = defenders.reduce((sum, u) => sum + currentDefense(u), 0);
 
   let terrainOnlyModifier = 0;
@@ -163,6 +314,7 @@ function computeLandAttackDetail(
 
   return {
     attackForce,
+    attackerForces,
     defenseForce,
     ratioLabel,
     crtColumnIndex,
@@ -720,10 +872,40 @@ export function applyLandCombatResult(
   return { result, requiresExchangeChoice: false, requiredSacrificeForce, pendingDrifts, pendingRetreats };
 }
 
+/**
+ * The force one attacking unit counts for toward an 'EX' sacrifice
+ * threshold ("les unités attaquantes totalisant une force au moins égale") —
+ * the better of its melee and projectile attack values.
+ *
+ * WHY NOT the exact per-combat contribution from `LandAttackDetail.
+ * attackerForces`. That would be the pedantically correct number, but it
+ * would have to be threaded through `PlayerAgent.chooseExchangeSacrifice`
+ * and every agent implementing it, and **on the shipped roster the two are
+ * identical for every unit that can legally be in a land attack group**:
+ * `archers` are 0/2, `fantassins-archers` are 2/2, every other land type has
+ * `rangedAttack: 0`, and the only types where the two values differ
+ * (`triremes` 20/2, `quintiremes` 25/2) are naval and resolve by boarding,
+ * never through the land CRT. `combat.test.ts` walks `UNIT_TYPES` to pin
+ * that coincidence, so a future roster edit that breaks it fails loudly
+ * rather than silently mis-pricing a sacrifice.
+ *
+ * Charging cavalry is covered: `currentAttack` already returns the doubled
+ * value, which per the README counts normally toward this threshold.
+ *
+ * This is not cosmetic. Before the ranged-force fix (plan.md §15) an archer
+ * counted 0 here AND 0 in the attack, so a two-archer volley that rolled an
+ * 'EX' at 4:1 produced a threshold no subset of the attackers could ever
+ * meet — `RandomAgent`/`HeuristicAgent` throw "CRT invariant violated" and
+ * `BoardScene`'s prompt can never be satisfied, i.e. a wedged board.
+ */
+export function exchangeSacrificeForce(unit: Unit): number {
+  return Math.max(currentAttack(unit), currentRangedAttack(unit));
+}
+
 /** Whether `selected` attacking units' combined attack value meets the
  * exchange-sacrifice threshold required on an 'EX' result. */
 export function exchangeSacrificeMeetsThreshold(selected: Unit[], requiredForce: number): boolean {
-  return selected.reduce((sum, u) => sum + currentAttack(u), 0) >= requiredForce;
+  return selected.reduce((sum, u) => sum + exchangeSacrificeForce(u), 0) >= requiredForce;
 }
 
 export function applyExchangeSacrifice(selected: Unit[]): void {

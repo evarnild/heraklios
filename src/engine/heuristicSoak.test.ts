@@ -111,21 +111,32 @@ describe('HeuristicAgent: difficulty tiers are ordered by strength', () => {
    * Both parts of that matter. `winnerId` alone would be measuring the wrong
    * thing twice over: `endGameByTimeLimit` breaks a tie in favour of the
    * lower seat (see `HarnessStats.finalArmyValues`), and — measured on this
-   * scenario — moving first is worth a great deal once a side plays well at
+   * scenario — moving first is worth real material once a side plays well at
    * all.
    *
    * Measured over these exact 12 seeds, as average surviving army value:
    *
    * ```
-   * ev-vs-ev          [35.83,  6.67]   wins [12, 0]
-   * random-vs-random  [30.42, 32.08]   wins [ 6, 6]
+   * ev-vs-ev          [23.33, 16.25]   wins [ 7, 5]
+   * random-vs-random  [31.25, 33.75]   wins [ 6, 6]
    * ```
    *
    * Two `RandomAgent`s finish level — if anything a shade in seat 1's favour
-   * — while two `HeuristicAgent`s finish five to one apart. The first-move
+   * — while two `HeuristicAgent`s finish about 3:2 apart. The first-move
    * advantage is therefore created by good play, not baked into the starting
    * position. A one-sided comparison would credit the seat rather than the
    * agent, so the tests below hold the seat constant on each side.
+   *
+   * These numbers moved when plan.md §15 made a volley resolve at the
+   * archer's projectile value instead of at 0. Before that, seat 0 finished
+   * [35.83, 6.67] and won all 12: the whole roster's ranged half was dead
+   * weight, so whoever landed the first real melee kept the initiative
+   * unanswered. Both sides now shoot, and the second seat can trade back —
+   * the ordering the tests below assert is unchanged, the margin is simply
+   * smaller and the game less decided by who moves first. §15.5's
+   * advance-adjacency fix then moved them again, but only in the third
+   * significant figure: an EV agent rarely wanted to walk a defense-1 archer
+   * into the contact it had just shot at anyway.
    */
   it('the EV tier ends with far more material than a RandomAgent, from either seat', async () => {
     const asSeat0 = await playSeries('ev', 'pure-random');
@@ -136,8 +147,12 @@ describe('HeuristicAgent: difficulty tiers are ordered by strength', () => {
 
     const heuristicTotal = asSeat0.material[0] + asSeat1.material[1];
     const randomTotal = asSeat0.material[1] + asSeat1.material[0];
-    // Measured at roughly 3x; asserted at 2x so ordinary tuning of the
-    // weights doesn't turn a still-comfortable win into a red suite.
+    // Measured at roughly 3.5x. The per-game averages are 67.5 vs 19.2; the
+    // totals asserted below are those times the 12 seeds, i.e. 810 vs 230 —
+    // stated because quoting only the averages next to an assertion on the
+    // totals reads as if they were the same number. Asserted at 2x so
+    // ordinary tuning of the weights doesn't turn a still-comfortable win
+    // into a red suite.
     expect(heuristicTotal).toBeGreaterThan(randomTotal * 2);
   });
 

@@ -64,8 +64,11 @@ npm run build   # production build
    a new direction with whatever movement it has left, and it's eliminated
    outright if the drift would carry it off the map or into the sea. When a
    **defender** retreats, or is eliminated outright (DE/EX), the attacking
-   side is then offered the chance to advance a unit into the hex it
-   vacated. "End phase" advances movement → combat → the next player's
+   side is then offered the chance to advance a unit *adjacent to* that hex
+   into it (see
+   [Shooting](#shooting-melee-force-vs-projectile-force) for why a unit that
+   shot from range doesn't get the offer). "End phase" advances movement →
+   combat → the next player's
    movement. The game ends when only one army remains on the board.
 
 ### Saving and loading
@@ -223,6 +226,58 @@ least the defenders' force — with only one attacker there's no real choice,
 but a multi-unit attack group gets a prompt to pick which units to
 sacrifice.
 
+### Shooting: melee force vs. projectile force
+
+Each counter carries two attack numbers — `attack (rangedAttack) range /
+defense movement` — and the rulebook names the parenthesized one outright:
+"le chiffre entre parenthèses correspond à la valeur d'attaque par
+projectiles (flèches des archers, par exemple). Toutes les unités qui ont
+une valeur nulle en force d'attaque par projectiles sont obligées de
+combattre au contact." **Each attacker contributes the value matching how it
+is engaging**: its melee value at contact, its projectile value when
+shooting from range. Only Archers (`0 (2) 2`) and Fantassins-Archers
+(`2 (2) 2`) have a projectile value at all among land units, so in practice
+this is the archers' rule.
+
+Three points the rulebook leaves to interpretation, resolved as follows (the
+reasoning is recorded in full at `attackForceAgainst` in
+`src/engine/combat.ts`):
+
+- **A melee-capable shooter at contact uses its melee value.** Of the
+  archer-infantry the rules say they shoot at two hexes and "ont en outre la
+  possibilité de combattre au contact" — fighting at contact is described as
+  an *additional* ability, i.e. the ordinary attack. On this roster it makes
+  no numeric difference anyway: Fantassins-Archers are 2 either way.
+- **A shooter may join a combined attack**, contributing its projectile
+  value, because the combining rule states each attacker must satisfy "les
+  conditions de proximité inhérentes à leurs types d'armes" and names
+  archers-at-exactly-2 as its example — a per-attacker condition inside one
+  combined attack. So archers firing from 2 hexes and infantry attacking
+  from 1 add up normally.
+- **A ranged result is an ordinary result, with one exception.** There is one
+  combat-results table and no ranged variant, so AR/DR/EX resolve exactly as
+  at contact, including the defender's retreat — and including an **AR**
+  retreating a shooter that never closed, which is left literal because it is
+  a forced move away from a threat. But **a shooter may not advance into the
+  vacated hex**. The rulebook grants that advance "sans tenir compte des
+  limites de déplacement qui lui sont propres ni ... des zones d'influence"
+  and never mentions distance — because for the attacker it was written for
+  there is nothing to mention: a melee attacker is adjacent to the hex it
+  just attacked. Taken literally it would let an archer that never left its
+  hex occupy a hex two away, crossing whatever sits between — including an
+  occupied enemy hex, which nothing else in the game permits. That blocked
+  case is what shows the literal reading can't be right, but the rule adopted
+  is the general one: **advance requires adjacency**, so an archer is barred
+  even where the intervening hex is empty. It changes nothing for a melee
+  attacker, which was adjacent to the hex it attacked by definition. (One
+  exception to *that*: a unit shoved backwards between the combat and the
+  offer — trampled by a defending elephant's drift — is now excluded too,
+  deliberately.)
+
+Until this was fixed, every volley resolved at attack force **0** — the
+CRT's 1-5 column, five of whose six faces are AE — so firing a plain archer
+was a 5-in-6 chance of losing it for nothing.
+
 ### Cavalry charges and phalanxes
 
 Per the rulebook: "à chaque fois qu'elle emploie son potentiel de
@@ -350,7 +405,10 @@ Every combat resolution's log entry is written to be auditable against the
 printed tables in `docs/research/`, not just a bottom-line result:
 
 - **Land combat** lists each attacker's/defender's individual and total
-  force, the ratio *and* the exact CRT column it resolved to (name and
+  force — for an attacker that shot rather than closed, the projectile value
+  it actually contributed, so the per-unit lines always add up to the total
+  (see "Shooting: melee force vs. projectile force" above) — the ratio *and*
+  the exact CRT column it resolved to (name and
   index, so it can be checked directly against `src/data/combatTable.ts`),
   the die roll with every contributor to its modifier named separately —
   which terrain (and which defender's hex, for a multi-defender combat) and

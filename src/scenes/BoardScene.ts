@@ -16,6 +16,7 @@ import type { PlayerAgent, ActionObserver } from '../engine/agent';
 import { rollDie as engineRollDie } from '../engine/dice';
 import { reachableHexes, reachableNavalHexes, findRammingContacts, type RammingContact } from '../engine/movement';
 import {
+  exchangeSacrificeForce,
   exchangeSacrificeMeetsThreshold,
   applyExchangeSacrifice,
   legalRetreatHexes,
@@ -1745,7 +1746,11 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
 
     const lines = [
       `ATTACKERS (total ${detail.attackForce}):`,
-      unitLines(attackers, currentAttack, 'atk'),
+      // Per-unit force comes from `detail.attackerForces`, NOT `currentAttack`:
+      // an archer shooting from two hexes contributes its projectile value
+      // (see `attackForceAgainst`), and printing its melee 0 here would make
+      // the per-unit lines fail to add up to the total right above them.
+      unitLines(attackers, (u) => detail.attackerForces.get(u.id) ?? currentAttack(u), 'atk'),
       `DEFENDERS (total ${detail.defenseForce}):`,
       unitLines(defenders, currentDefense, 'def'),
       // The column/row pair a result can be checked against directly in
@@ -1813,10 +1818,11 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         .setInteractive({ useHandCursor: true });
 
       const selected = new Set<string>();
-      const label = (u: Unit) => `${selected.has(u.id) ? '☒' : '☐'} ${unitType(u).name} (atk ${currentAttack(u)})`;
+      const label = (u: Unit) =>
+        `${selected.has(u.id) ? '☒' : '☐'} ${unitType(u).name} (atk ${exchangeSacrificeForce(u)})`;
       const updateTotal = () => {
         const chosen = attackers.filter((u) => selected.has(u.id));
-        const sum = chosen.reduce((s, u) => s + currentAttack(u), 0);
+        const sum = chosen.reduce((s, u) => s + exchangeSacrificeForce(u), 0);
         const met = exchangeSacrificeMeetsThreshold(chosen, requiredForce);
         totalText.setText(`Selected force: ${sum} / ${requiredForce}${met ? ' ✓' : ''}`);
         confirmBtn.setStyle({ backgroundColor: met ? '#2a5a2a' : '#553' });

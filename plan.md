@@ -45,12 +45,14 @@ through friendly units, combat reporting detail, cascading push
 terrain (merged `6172f2f`), Stage 2b drift extraction
 ([§6.7](#67-the-elephant-problem-stage-2-split), merged `7544a96`), and AI
 Stage 3 — the `HeuristicAgent`
-([§6.4](#64-stage-3-shipped-stage-4-deferred), merged `a2a1329`).
-**In flight:** nothing — [Current Queue](#10-sequenced-queue) is next.
+([§6.4](#64-stage-3-shipped-stage-4-deferred), merged `a2a1329`), and
+[§15](#15-live-defect-ranged-attacks-resolve-at-zero-attack-force)'s ranged
+attack force (`feat/ranged-attack-force`, awaiting review/merge).
+**In flight:** [§15](#15-live-defect-ranged-attacks-resolve-at-zero-attack-force)
+is built and green on its branch; review it before merging, then promote #0
+below.
 **Live defects still open:**
-[§9.2](#92-endgamebytimelimit-is-never-called) and
-[§15](#15-live-defect-ranged-attacks-resolve-at-zero-attack-force) (new, and
-the more serious of the two).
+[§9.2](#92-endgamebytimelimit-is-never-called).
 
 <a id="10-sequenced-queue"></a>
 
@@ -76,19 +78,29 @@ sync when something merges** — it went stale once and the user caught it.
 
 ### In flight
 
-- *Nothing.* Next up is #0 below.
+- [§15](#15-live-defect-ranged-attacks-resolve-at-zero-attack-force) **ranged
+  attack force** — `feat/ranged-attack-force`, tsc/build/357 tests green, 9
+  mutations killed. Reviewed **twice**: a self-review that found
+  [§15.5](#155-review-finding-advance-after-combat-from-range), then an
+  independent `heraklios-reviewer` pass that returned PASS and found what the
+  self-review could not — see [§15.6](#156-independent-review). All findings
+  fixed on the branch. **Ready to merge.** Outcome
+  and what it turned up beyond the stated scope (an EX soft-lock, a lying
+  combat log, advance-from-range) are in [§15.4](#154-outcome). Next up after
+  it merges is #0 below.
 
 ### Queued
 
 | # | Item | Touches | Notes |
 | --- | --- | --- | --- |
 | 0 | [§12](#12-cascading-push-when-a-unit-cannot-retreat) follow-ups | `engine/fuzzHarness*.ts`, `BoardScene.ts` | The three non-blocking findings that shipped with `3c766d6`: the untested `chainVisited` cycle guard (+ two comments wrongly claiming coverage), the stale "surrounded by friendly units" string, the thin `pushesResolved` canary. Small; fold into whatever touches those files next. |
-| 1 | [§15](#15-live-defect-ranged-attacks-resolve-at-zero-attack-force) ranged attack force | `engine/combat.ts` or `state.ts` | **Live defect, and the most consequential open item.** Plain archers resolve every volley at attack force 0 — the 1-5 column — so firing one is suicide. Pure engine, no scene change. Needs a rulebook reading, not just a code change. |
-| 2 | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2c — elephants in the harness | `engine/fuzzHarness.ts` | Now unblocked: 2b landed the extracted cascade, so this is putting elephants back into the generated armies, deleting the exclusion guard and the skipped test. Also what unblocks the AI ever using one (§6.9). |
-| 3 | [§13](#13-hex-coordinate-tooltip) hex coordinate tooltip | `ui/MapView.ts`, `BoardScene.ts` | Presentation only. |
-| 4 | [§9.2](#92-endgamebytimelimit-is-never-called) turn-limit ending | design + scenes | **Live gap.** Needs a design decision first (what sets the limit, how the player is told). Stage 3 added a second reason to care: `endGameByTimeLimit` breaks a tied army value in favour of the lower seat, silently (§6.9). |
-| 5 | [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 4 — AI seat UI + save format | scenes, `saveGame.ts` | `SAVE_VERSION` bump. The engine half is done and idle: nothing can reach the AI from the UI. |
-| 6 | [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 3b — shallow lookahead tier | `engine/` | The fourth difficulty tier, deliberately not shipped with the other three. Needs state cloning + an opponent model + a performance budget; see `heuristicAgent.ts`'s header. |
+| 0b | Reviewer-agent file corrections | `.claude/agents/heraklios-reviewer.md` | **Cheap, do it next.** [§15.6](#156-independent-review) had to override four of its rules per-run: it prescribes `npx tsc --noEmit` (the [§4](#4-runbook-detailed-launch-hazards-appendix) false-green trap), a `--detach` that wrecks the tree when the branch is already HEAD, "plan.md must not be edited" (untrue when the operator drives the branch), and a "Known simplifications" step that doesn't apply to defect fixes. |
+| 0c | `toggleDefender` leaves stale attackers in the group | `scenes/BoardScene.ts` | Found by [§15.6](#156-independent-review). Untargeting a defender doesn't revalidate the attack group, so an archer that only reached the removed target stays in it and contributes its melee value — the §15 defect, live, for that unit. Minimal fix: after the splice at `toggleDefender`, drop attackers failing `attackerCanJoin` against the remaining defenders. |
+| 1 | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2c — elephants in the harness | `engine/fuzzHarness.ts` | Now unblocked: 2b landed the extracted cascade, so this is putting elephants back into the generated armies, deleting the exclusion guard and the skipped test. Also what unblocks the AI ever using one (§6.9). |
+| 2 | [§13](#13-hex-coordinate-tooltip) hex coordinate tooltip | `ui/MapView.ts`, `BoardScene.ts` | Presentation only. |
+| 3 | [§9.2](#92-endgamebytimelimit-is-never-called) turn-limit ending | design + scenes | **Live gap, and now the only open one.** Needs a design decision first (what sets the limit, how the player is told). Stage 3 added a second reason to care: `endGameByTimeLimit` breaks a tied army value in favour of the lower seat, silently (§6.9). |
+| 4 | [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 4 — AI seat UI + save format | scenes, `saveGame.ts` | `SAVE_VERSION` bump. The engine half is done and idle: nothing can reach the AI from the UI. |
+| 5 | [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 3b — shallow lookahead tier | `engine/` | The fourth difficulty tier, deliberately not shipped with the other three. Needs state cloning + an opponent model + a performance budget; see `heuristicAgent.ts`'s header. |
 
 **Standing hazard:** almost everything queued touches `BoardScene.ts`, so
 these mostly cannot run in parallel with each other.
@@ -96,11 +108,11 @@ these mostly cannot run in parallel with each other.
 ## Backlog Map
 
 - **Start here:** [Current Queue](#10-sequenced-queue).
-- **Current next task:** [§15](#15-live-defect-ranged-attacks-resolve-at-zero-attack-force),
-  unless §12 follow-ups are folded into a nearby branch first.
-- **Live defects:** [§15](#15-live-defect-ranged-attacks-resolve-at-zero-attack-force)
-  (needs a rulebook reading) and
-  [§9.2](#92-endgamebytimelimit-is-never-called) (needs a design decision).
+- **Current next task:** review and merge `feat/ranged-attack-force`
+  ([§15](#15-live-defect-ranged-attacks-resolve-at-zero-attack-force)), then
+  #0's §12 follow-ups or #1's Stage 2c.
+- **Live defects:** [§9.2](#92-endgamebytimelimit-is-never-called) (needs a
+  design decision) is the only one left open.
 - **Larger future work:** [§6.7](#67-the-elephant-problem-stage-2-split)'s
   Stage 2c, [§6.4](#64-stage-3-shipped-stage-4-deferred)'s Stage 4, and
   [§14](#14-decomposing-boardscenets-for-parallel-work).
@@ -856,17 +868,25 @@ hex **(4,9)**, a plateau ringed by six steep-flank hexes and the shipped map's
 only terrain-boxed hex, is now eliminated by an AR/DR where it previously
 retreated.
 
-**What the soak actually exercises** (measured 2026-08-07, 100 seeds):
+**What the soak actually exercises** (re-measured 2026-08-14 on `main` after
+[§15](#15-live-defect-ranged-attacks-resolve-at-zero-attack-force), 100
+seeds):
 
 ```
-100 games, 9043 total actions (avg 90.4/game)
-actionsByKind: landMove 3029, endPhase 2800, navalMove 2115, navalRotate 537,
-               landAttack 551, board 6, ram 5
-combatResultCounts: DR 306, AR 178, AE 28, EX 21, DE 18
-landAttacksResolved=551  ramsResolved=5 (hits=1)  boardingsResolved=6
+100 games, 9209 total actions (avg 92.1/game)
+actionsByKind: landMove 3177, endPhase 2800, navalMove 2118, navalRotate 545,
+               landAttack 557, board 6, ram 6
+combatResultCounts: DR 317, AR 195, DE 19, EX 20, AE 6
+landAttacksResolved=557  ramsResolved=6 (hits=1)  boardingsResolved=6
 turnsReached: min=8 max=8 avg=8.0
 outcomes: 100 decisive, 0 draws — all 100 by turn-limit/army-value ending
 ```
+
+The pre-§15 numbers, for comparison, were 9043 actions and
+`DR 306, AR 178, AE 28, EX 21, DE 18`. **AE fell 28 → 6**, which is the fix
+visible in aggregate: the harness fields `p1-archers` (plain archers), and
+every volley they fired used to resolve on the 1-5 column, five of whose six
+faces eliminate the attacker.
 
 **What it does *not* cover** — the part that matters when reading a green
 run:
@@ -880,9 +900,11 @@ run:
   could have been: the *enumeration* is still singleton-only, but
   `HeuristicAgent` assembles groups itself and hands them to `applyAction`
   (the escape hatch `legalActions`' own doc comment sanctions), so
-  `heuristicSoak.test.ts` now reaches 12 combined attacks in 12 games where
-  a `RandomAgent` control over the same seeds reaches 0. This soak's own
-  number stays 0 forever and is now printed with a pointer, per §6.9.
+  `heuristicSoak.test.ts` now reaches 28 combined attacks in 12 games where
+  a `RandomAgent` control over the same seeds reaches 0. (It was 12; §15 more
+  than doubled it, because an archer that can actually hurt something is
+  worth adding to a group.) This soak's own number stays 0 forever and is
+  now printed with a pointer, per §6.9.
 - **Pushes and exchange sacrifices** — `pushTarget: 0` and
   `exchangeChoice: 0` across 100 games with the default armies. §12's branch
   adds a dedicated scenario to reach a push at all.
@@ -919,7 +941,8 @@ plan's own estimate being wrong rather than the implementer under-delivering:
 a ply needs a cloned `GameState` (`history.ts` deliberately doesn't provide
 one), an answer for every mid-resolution decision the clone provokes, an
 opponent model, and a performance budget against a `legalActions` that
-re-runs a `reachableHexes` BFS per unit per call. Queued as #6 with that
+re-runs a `reachableHexes` BFS per unit per call. Queued (last in the
+queue) with that
 reasoning recorded in code rather than stubbed.
 
 **Strength, measured seat-controlled.** ~3x a `RandomAgent`'s surviving army
@@ -932,6 +955,15 @@ because moving first is worth a great deal once a side plays well at all
 32.1 — the first-move advantage is created by good play, not baked into the
 position). The tests compare surviving army value with the seat held
 constant.
+
+> **Superseded by [§15](#15-live-defect-ranged-attacks-resolve-at-zero-attack-force)
+> (2026-08-14).** Re-measured over the same 12 seeds once volleys resolved at
+> the archer's projectile value: EV-vs-EV is now **23.3 to 16.3, wins 7-5**
+> (was 35.8 to 6.7, wins 12-0), and EV-vs-`RandomAgent` widened to **~3.5x**.
+> The seat-controlled *ordering* every test asserts is unchanged; what moved
+> is the first-move advantage, which shrank from ~5:1 to ~3:2 because the
+> second seat can now shoot back. The methodological point above stands — it
+> is the numbers, not the reasoning, that were roster-dependent.
 
 **A modelling bug caught before it reached the soak:** charging the
 retreat "tempo" penalty per *unit* makes an attack score worse the more
@@ -1704,13 +1736,13 @@ than presentation.
 
 <a id="15-live-defect-ranged-attacks-resolve-at-zero-attack-force"></a>
 
-## 15. Live defect: ranged attacks resolve at zero attack force
+## 15. Ranged attacks resolve at zero attack force
 
-**Status: open, queued #1.** Found while correcting a wrong CRT worked
-example during [§6.9](#69-stage-3-outcome)'s review. Pinned by a regression
-test (`combatOdds.test.ts`, "inherits the engine scoring a ranged attack at
-zero force") but deliberately **not fixed on that branch** — it changes live
-hotseat combat resolution and deserves its own review.
+**Status: ✅ Shipped** — `feat/ranged-attack-force`. Found while correcting a
+wrong CRT worked example during [§6.9](#69-stage-3-outcome)'s review, pinned
+there by a deliberately-failing-later regression test, and fixed on its own
+branch because it changes live hotseat combat resolution. The original
+write-up follows, then [§15.4](#154-outcome) records what it actually took.
 
 ### 15.1 The defect
 
@@ -1767,3 +1799,205 @@ least these points:
 - Worth re-running `heuristicSoak.test.ts`'s strength margins afterward: an
   EV agent currently never fires a plain archer, correctly, and will start
   to once a volley is worth something.
+
+<a id="154-outcome"></a>
+
+### 15.4 Outcome
+
+`feat/ranged-attack-force`. `tsc --noEmit` clean, `npm run build` clean,
+**355 passed / 1 skipped** against `main`'s 347 / 1 — eight net new tests,
+and the one skip is the permanent Stage 2c elephant skip in both. Reviewed
+once, which found one real defect the branch made live
+([§15.5](#155-review-finding-advance-after-combat-from-range)); fixed on the
+branch.
+
+**The reading held.** All three questions §15.2 raised are answered by the
+rulebook once you read the counter-format footnote rather than the combat
+section: "le chiffre entre parenthèses correspond à la valeur d'attaque par
+projectiles ... Toutes les unités qui ont une valeur nulle en force d'attaque
+par projectiles sont obligées de combattre au contact"
+(`05-rules-french-original.md:78-81`) makes the parenthesized number an
+*attack value*, not a flag. (1) A melee-capable shooter at contact uses its
+melee value, because archer-infantry are described as having contact combat
+"en outre" — additionally (`:261-263`). (2) A shooter joins a combined attack
+at its projectile value, because the combining rule requires each attacker to
+meet "les conditions de proximité inhérentes à leurs types d'armes" and names
+archers-at-exactly-2 as its example (`:194-198`) — a *per-attacker*
+condition. (3) A ranged result is an ordinary result: there is one CRT and no
+ranged variant. All three are recorded at `attackForceAgainst` and in the
+README's new "Shooting" section.
+
+**The scope was wrong in one direction, and it mattered.** §15.3 said "pure
+engine, no scene change." Two things fell out that it did not anticipate:
+
+1. **A wedged board, not just a bad trade.** `exchangeSacrificeMeetsThreshold`
+   priced attackers by `currentAttack` too, so fixing only the attack total
+   would have left archers contributing 2 to the ratio and 0 to the EX
+   sacrifice threshold. Two archers volleying at a `fantassins` is 4 vs 1 —
+   the 4-1 column, whose die-6 row is EX — and with more than one attacker
+   the sacrifice is a player choice. No subset of the attackers could ever
+   reach a threshold of 1: `BoardScene`'s prompt can never be confirmed, and
+   both `RandomAgent` and `HeuristicAgent` throw "CRT invariant violated".
+   Fixed by `exchangeSacrificeForce` (the better of a unit's two attack
+   values), which is exact on this roster and is pinned as exact by a test
+   walking `UNIT_TYPES` — the honest fix if a future land unit ever has two
+   different non-zero attack values is to thread
+   `LandAttackDetail.attackerForces` through
+   `PlayerAgent.chooseExchangeSacrifice`, and that test says so where it
+   fails.
+2. **The combat log would have lied.** It printed each attacker's
+   `currentAttack`, so an archer's line would have read 0 under a total of 2.
+   `LandAttackDetail` now carries `attackerForces` and the scene reads that.
+
+**Verification.** Nine mutations, all killed: reverting `attackForceAgainst`
+to `currentAttack` (5 tests), swapping its melee/ranged precedence (1 —
+deliberately probed with `triremes`, the roster's only unit whose two attack
+values differ, since a test written on `fantassins-archers` at 2/2 passes
+with the branches inverted), reverting `exchangeSacrificeForce` (1), giving
+`archers` a melee attack of 1 to break the roster coincidence (1, and it
+names the offending unit id in the failure), dropping the advance adjacency
+term (1), dropping the advance terrain term (1), and reverting
+`cheapestSacrifice`'s pricing in each of its two branches (1 each — **both
+survived until the independent review**, see
+[§15.6](#156-independent-review)).
+
+**Both soaks moved, as §15.3 predicted, and the trace-hash technique was
+correctly unavailable.** Numbers re-derived rather than re-baselined:
+`AE` across 100 random-agent games fell **28 → 6**; `heuristicSoak`'s
+combined attacks rose **12 → 28**; and EV-vs-EV went from 35.8-6.7 (12-0) to
+23.3-16.3 (7-5). Both §6.8 and §6.9 are updated above rather than left
+stale — that exact staleness was a MEDIUM in §6.9's own review.
+
+<a id="155-review-finding-advance-after-combat-from-range"></a>
+
+### 15.5 Review finding: advance-after-combat from range
+
+Caught reviewing the branch, fixed on it (`b78bc44`), and worth recording as
+a *class* of finding rather than a one-off: **a change can be defective by
+what it makes reachable, without touching the defective code at all.**
+
+`eligibleAdvanceCandidates` filtered advance candidates on liveness and
+terrain only — never distance. Confirmed with a throwaway probe rather than
+by reading:
+
+```
+archer (10,5) shoots fantassins (12,5) -> force 2, ratio 2-1, result DR
+archer offered advance to vacated hex? true | distance = 2
+  | enemy sitting between at (11,5)? true
+```
+
+So an archer that never left its hex could occupy a hex two away, **crossing
+an occupied enemy hex and its ZOC** — something no other rule in the game
+permits. `HeuristicAgent.chooseAdvance` scores ground value and exposure with
+no distance term, so the AI took it whenever the hex was unexposed.
+
+**This branch did not introduce it** — an archer inside a combined group
+could already reach it — but a *solo* volley used to resolve on the 1-5
+column, whose only non-AE face is AR, so it could never produce the defender
+retreat that triggers the offer. §15 made it DR on four faces of six. A
+review that only diffed the changed lines would have passed it.
+
+**The reading** is recorded at the function: the rulebook waives movement
+points and ZOC for this advance ("sans tenir compte des limites de
+déplacement qui lui sont propres ni ... des zones d'influence", `:248-254`)
+and says nothing about distance, because for the attacker it was written for
+there is nothing to say — a melee attacker is adjacent to the hex it just
+attacked. Requiring adjacency is therefore a no-op for every melee attacker,
+which is the argument for it being safe, and is pinned by a test sweeping
+every melee-capable land type rather than asserting it for one.
+
+It also narrows a second instance of the same defect that nobody had noticed:
+in 'multi-defender' mode a group can vacate several hexes at once, and an
+attacker in contact with defender A was being offered defender B's hex
+across the board.
+
+**Cost of the finding:** one more soak re-baseline (100-game `AE` 7 → 6) and
+a third strength re-measurement, which barely moved — an EV agent rarely
+wanted to walk a defense-1 archer into the contact it had just shot at.
+
+<a id="156-independent-review"></a>
+
+### 15.6 Independent review
+
+Run by `heraklios-reviewer` after the branch had already been written *and
+self-reviewed in the same session*. **Verdict: PASS**, 1 MEDIUM, 2
+MEDIUM-LOW, 4 LOW, no HIGH. Every finding below was re-verified by hand
+before being acted on; all were real.
+
+**The self-review's blind spot was exactly where you'd expect it: the lines
+it had just written.** §15's core fix touched `cheapestSacrifice`'s pricing
+in three places (`combatOdds.ts`, the exact ≤12 branch and the greedy >12
+branch). Reverting all three to `currentAttack` **left the entire 355-test
+suite green** — two independent surviving mutations on changed lines, and the
+self-review's four-mutation sweep had simply not thought to aim at them. The
+consequence was not cosmetic: with archer pricing reverted, the exact search
+returns `[]` for any EX group whose cheap units are archers, `HeuristicAgent`
+reads `[]` as "sacrifice everything", and `evaluateAttack` then prices every
+EX face at the full group value — skewing the EV of every attack that can
+roll EX, silently, with a green suite. **This is plan.md §6.6's failure mode
+happening to the very branch that cites §6.6.** Both branches now have a
+guard that dies under that revert.
+
+**The lesson worth keeping is about mutation coverage, not about this bug.**
+A mutation sweep aimed at the *feature* is not the same as one aimed at the
+*diff*. The rule going forward: enumerate mutations from `git diff`, one per
+changed behavioural line, not from a mental list of what the feature does.
+
+**And a second lesson, from re-running the sweep that way.** Four of the nine
+mutations initially reported `SURVIVED` — falsely. The patch script matched
+on `\n` while the files are `\r\n`, so those four never applied at all and
+the harness scored an unmodified tree as a surviving mutant. It failed safe
+here (a false SURVIVED gets investigated), but the same bug with a pattern
+that matched the *wrong* place would have produced a false KILLED and
+certified a guard that guards nothing — the exact thing the sweep exists to
+disprove. **A mutation harness needs its own guard**: assert the file
+actually changed (`git diff --quiet` before running the suite) rather than
+trusting the patch step. Cheap, and it caught this immediately once added.
+
+**Two of the remaining findings were claims in comments that were simply
+false**, both written with confidence:
+
+- "no-op for every melee attacker" — untrue on the drift path. A defending
+  elephant on a DR drifts *before* the advance is offered, and that drift can
+  trample an attacker of the same combat into a retreat, leaving it at
+  distance 2 and now excluded. The behaviour is right; the universal claim
+  was not.
+- "both in-tree callers that assemble groups are separately policed for
+  legality" — true of `HeuristicAgent`, false of `BoardScene`, whose
+  `toggleDefender` splices a defender out without revalidating the attackers.
+  That is a live hotseat path (target D1 and D2 with an archer that reaches
+  only D1, then untarget D1) which resurrects the §15 defect for that unit,
+  and is the ONE situation where `exchangeSacrificeForce`'s pricing differs
+  from the real contribution. Pre-existing; queued as its own item rather
+  than fixed here.
+
+**Also corrected:** the roster-coincidence guard had a hole at exactly the
+shape it exists to catch (`attack: 0, rangedAttack: n, meleeCapable: true`
+passed via its `t.attack === 0` arm — real `archers` dodge it only by being
+`meleeCapable: false`, so that flag is load-bearing and is now asserted);
+three citation line ranges were off; and the advance passage's transcription
+turns out to be **corrupt** — `:250-252` repeats "des limites de déplacement
+qui lui sont propres" where the sentence needs an elided "sans tenir compte"
+before "des zones d'influence". Both the code comment and the README had
+quietly repaired it while quoting, which CLAUDE.md's ambiguous-passage
+convention forbids; the duplication is now recorded where it is quoted.
+
+**What the review confirmed rather than found**, worth recording because it
+is what a PASS is made of: it re-read all six rulebook citations at source
+and cross-checked them against `02-rules-transcription.md` and
+`03-tables-reference.md`; it reconstructed `main`'s engine in place and
+reproduced every documented measurement digit for digit, including §6.8's
+before/after blocks and §15.5's intermediate `AE 7`; it re-ran all six
+claimed mutations rather than believing them; and it could not construct a
+legal in-game divergence for `exchangeSacrificeForce` via charged cavalry,
+damaged ships, multi-defender mode, or the drift path.
+
+**Process note.** The agent definition in
+`.claude/agents/heraklios-reviewer.md` told the reviewer to run
+`npx tsc --noEmit` (the false-green trap [§4](#4-runbook-detailed-launch-hazards-appendix)
+documents) and to `git checkout --detach` a branch that was already the main
+tree's HEAD (which would have left the operator's tree detached). Both had to
+be overridden in the launch brief, along with its "plan.md must not be
+edited" and "move the item out of Known simplifications" rules, neither of
+which applied. **The agent file should be fixed so the next run doesn't need
+the same four corrections** — queued below.
