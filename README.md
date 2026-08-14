@@ -64,8 +64,11 @@ npm run build   # production build
    a new direction with whatever movement it has left, and it's eliminated
    outright if the drift would carry it off the map or into the sea. When a
    **defender** retreats, or is eliminated outright (DE/EX), the attacking
-   side is then offered the chance to advance a unit into the hex it
-   vacated. "End phase" advances movement → combat → the next player's
+   side is then offered the chance to advance a unit *adjacent to* that hex
+   into it (see
+   [Shooting](#shooting-melee-force-vs-projectile-force) for why a unit that
+   shot from range doesn't get the offer). "End phase" advances movement →
+   combat → the next player's
    movement. The game ends when only one army remains on the board.
 
 ### Saving and loading
@@ -251,10 +254,18 @@ reasoning is recorded in full at `attackForceAgainst` in
   archers-at-exactly-2 as its example — a per-attacker condition inside one
   combined attack. So archers firing from 2 hexes and infantry attacking
   from 1 add up normally.
-- **A ranged result is an ordinary result.** There is one combat-results
-  table and no ranged variant, so AR/DR/EX resolve exactly as at contact,
-  including the defender's retreat and the attacker's option to advance into
-  the vacated hex.
+- **A ranged result is an ordinary result, with one exception.** There is one
+  combat-results table and no ranged variant, so AR/DR/EX resolve exactly as
+  at contact, including the defender's retreat. But **a shooter may not
+  advance into the vacated hex**. The rulebook grants that advance "sans
+  tenir compte des limites de déplacement qui lui sont propres ni ... des
+  zones d'influence" and never mentions distance — because for the attacker
+  it was written for there is nothing to mention: a melee attacker is
+  adjacent to the hex it just attacked. Taken literally it would let an
+  archer that never left its hex occupy a hex two away, crossing whatever
+  sits between — including an occupied enemy hex, which nothing else in the
+  game permits. Advance therefore requires adjacency to the vacated hex,
+  which changes nothing for any melee attacker.
 
 Until this was fixed, every volley resolved at attack force **0** — the
 CRT's 1-5 column, five of whose six faces are AE — so firing a plain archer

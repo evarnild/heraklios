@@ -79,11 +79,14 @@ sync when something merges** — it went stale once and the user caught it.
 ### In flight
 
 - [§15](#15-live-defect-ranged-attacks-resolve-at-zero-attack-force) **ranged
-  attack force** — `feat/ranged-attack-force`, 2 commits, tsc/build/353 tests
-  green, 4 mutations killed. Not merged: needs the adversarial review pass.
-  Outcome and what it turned up beyond the stated scope (an EX soft-lock, a
-  lying combat log) are in [§15.4](#154-outcome). Next up after it merges is
-  #0 below.
+  attack force** — `feat/ranged-attack-force`, tsc/build/355 tests green, 5
+  mutations killed. Reviewed once (finding and fix:
+  [§15.5](#155-review-finding-advance-after-combat-from-range)); that pass
+  was **not independent** — the same session wrote the code — so an
+  adversarial `heraklios-reviewer` run is still owed before merge. Outcome
+  and what it turned up beyond the stated scope (an EX soft-lock, a lying
+  combat log, advance-from-range) are in [§15.4](#154-outcome). Next up after
+  it merges is #0 below.
 
 ### Queued
 
@@ -867,17 +870,17 @@ retreated.
 seeds):
 
 ```
-100 games, 9156 total actions (avg 91.6/game)
-actionsByKind: landMove 3132, endPhase 2800, navalMove 2123, navalRotate 534,
-               landAttack 557, board 6, ram 4
-combatResultCounts: DR 315, AR 197, DE 17, EX 21, AE 7
-landAttacksResolved=557  ramsResolved=4 (hits=1)  boardingsResolved=6
+100 games, 9209 total actions (avg 92.1/game)
+actionsByKind: landMove 3177, endPhase 2800, navalMove 2118, navalRotate 545,
+               landAttack 557, board 6, ram 6
+combatResultCounts: DR 317, AR 195, DE 19, EX 20, AE 6
+landAttacksResolved=557  ramsResolved=6 (hits=1)  boardingsResolved=6
 turnsReached: min=8 max=8 avg=8.0
 outcomes: 100 decisive, 0 draws — all 100 by turn-limit/army-value ending
 ```
 
 The pre-§15 numbers, for comparison, were 9043 actions and
-`DR 306, AR 178, AE 28, EX 21, DE 18`. **AE fell 28 → 7**, which is the fix
+`DR 306, AR 178, AE 28, EX 21, DE 18`. **AE fell 28 → 6**, which is the fix
 visible in aggregate: the harness fields `p1-archers` (plain archers), and
 every volley they fired used to resolve on the 1-5 column, five of whose six
 faces eliminate the attacker.
@@ -952,8 +955,8 @@ constant.
 
 > **Superseded by [§15](#15-live-defect-ranged-attacks-resolve-at-zero-attack-force)
 > (2026-08-14).** Re-measured over the same 12 seeds once volleys resolved at
-> the archer's projectile value: EV-vs-EV is now **23.3 to 15.8, wins 7-5**
-> (was 35.8 to 6.7, wins 12-0), and EV-vs-`RandomAgent` widened to **~4x**.
+> the archer's projectile value: EV-vs-EV is now **23.3 to 16.3, wins 7-5**
+> (was 35.8 to 6.7, wins 12-0), and EV-vs-`RandomAgent` widened to **~3.5x**.
 > The seat-controlled *ordering* every test asserts is unchanged; what moved
 > is the first-move advantage, which shrank from ~5:1 to ~3:2 because the
 > second seat can now shoot back. The methodological point above stands — it
@@ -1798,10 +1801,12 @@ least these points:
 
 ### 15.4 Outcome
 
-Two commits on `feat/ranged-attack-force`. `tsc --noEmit` clean,
-`npm run build` clean, **353 passed / 1 skipped** against `main`'s 347 / 1 —
-six net new tests, and the one skip is the permanent Stage 2c elephant skip
-in both.
+`feat/ranged-attack-force`. `tsc --noEmit` clean, `npm run build` clean,
+**355 passed / 1 skipped** against `main`'s 347 / 1 — eight net new tests,
+and the one skip is the permanent Stage 2c elephant skip in both. Reviewed
+once, which found one real defect the branch made live
+([§15.5](#155-review-finding-advance-after-combat-from-range)); fixed on the
+branch.
 
 **The reading held.** All three questions §15.2 raised are answered by the
 rulebook once you read the counter-format footnote rather than the combat
@@ -1851,7 +1856,54 @@ it names the offending unit id in the failure).
 
 **Both soaks moved, as §15.3 predicted, and the trace-hash technique was
 correctly unavailable.** Numbers re-derived rather than re-baselined:
-`AE` across 100 random-agent games fell **28 → 7**; `heuristicSoak`'s
+`AE` across 100 random-agent games fell **28 → 6**; `heuristicSoak`'s
 combined attacks rose **12 → 28**; and EV-vs-EV went from 35.8-6.7 (12-0) to
-23.3-15.8 (7-5). Both §6.8 and §6.9 are updated above rather than left
+23.3-16.3 (7-5). Both §6.8 and §6.9 are updated above rather than left
 stale — that exact staleness was a MEDIUM in §6.9's own review.
+
+<a id="155-review-finding-advance-after-combat-from-range"></a>
+
+### 15.5 Review finding: advance-after-combat from range
+
+Caught reviewing the branch, fixed on it (`b78bc44`), and worth recording as
+a *class* of finding rather than a one-off: **a change can be defective by
+what it makes reachable, without touching the defective code at all.**
+
+`eligibleAdvanceCandidates` filtered advance candidates on liveness and
+terrain only — never distance. Confirmed with a throwaway probe rather than
+by reading:
+
+```
+archer (10,5) shoots fantassins (12,5) -> force 2, ratio 2-1, result DR
+archer offered advance to vacated hex? true | distance = 2
+  | enemy sitting between at (11,5)? true
+```
+
+So an archer that never left its hex could occupy a hex two away, **crossing
+an occupied enemy hex and its ZOC** — something no other rule in the game
+permits. `HeuristicAgent.chooseAdvance` scores ground value and exposure with
+no distance term, so the AI took it whenever the hex was unexposed.
+
+**This branch did not introduce it** — an archer inside a combined group
+could already reach it — but a *solo* volley used to resolve on the 1-5
+column, whose only non-AE face is AR, so it could never produce the defender
+retreat that triggers the offer. §15 made it DR on four faces of six. A
+review that only diffed the changed lines would have passed it.
+
+**The reading** is recorded at the function: the rulebook waives movement
+points and ZOC for this advance ("sans tenir compte des limites de
+déplacement qui lui sont propres ni ... des zones d'influence", `:250-256`)
+and says nothing about distance, because for the attacker it was written for
+there is nothing to say — a melee attacker is adjacent to the hex it just
+attacked. Requiring adjacency is therefore a no-op for every melee attacker,
+which is the argument for it being safe, and is pinned by a test sweeping
+every melee-capable land type rather than asserting it for one.
+
+It also narrows a second instance of the same defect that nobody had noticed:
+in 'multi-defender' mode a group can vacate several hexes at once, and an
+attacker in contact with defender A was being offered defender B's hex
+across the board.
+
+**Cost of the finding:** one more soak re-baseline (100-game `AE` 7 → 6) and
+a third strength re-measurement, which barely moved — an EV agent rarely
+wanted to walk a defense-1 archer into the contact it had just shot at.

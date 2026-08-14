@@ -210,11 +210,12 @@ export interface LandAttackDetail {
  *    what the per-attacker loop below does.
  * 3. **Whether a ranged result behaves like a melee one.** There is one
  *    combat-results table and no ranged variant of it, so an AR/DR/EX from a
- *    volley resolves exactly as it does at contact — including the defender
- *    retreating one hex, and including the attacker's option to advance into
- *    the vacated hex "sans tenir compte des limites de déplacement qui lui
- *    sont propres" (`:250-256`). Unchanged from before this function
- *    existed.
+ *    volley resolves exactly as it does at contact, including the defender
+ *    retreating one hex. **One exception**, and it is the exception that
+ *    proves the rule was written for contact: the attacker's option to
+ *    advance into the vacated hex requires adjacency, which a shooter does
+ *    not have — see `eligibleAdvanceCandidates` above for the reading and
+ *    why a literal one lets an archer cross an occupied enemy hex.
  *
  * With several defenders (multi-defender mode), an attacker is taken to be
  * fighting at contact if ANY defender in the group is adjacent to it, and

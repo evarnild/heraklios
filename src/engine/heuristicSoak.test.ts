@@ -117,8 +117,8 @@ describe('HeuristicAgent: difficulty tiers are ordered by strength', () => {
    * Measured over these exact 12 seeds, as average surviving army value:
    *
    * ```
-   * ev-vs-ev          [23.33, 15.83]   wins [ 7, 5]
-   * random-vs-random  [30.42, 32.50]   wins [ 6, 6]
+   * ev-vs-ev          [23.33, 16.25]   wins [ 7, 5]
+   * random-vs-random  [31.25, 33.75]   wins [ 6, 6]
    * ```
    *
    * Two `RandomAgent`s finish level — if anything a shade in seat 1's favour
@@ -133,7 +133,10 @@ describe('HeuristicAgent: difficulty tiers are ordered by strength', () => {
    * weight, so whoever landed the first real melee kept the initiative
    * unanswered. Both sides now shoot, and the second seat can trade back —
    * the ordering the tests below assert is unchanged, the margin is simply
-   * smaller and the game less decided by who moves first.
+   * smaller and the game less decided by who moves first. §15.5's
+   * advance-adjacency fix then moved them again, but only in the third
+   * significant figure: an EV agent rarely wanted to walk a defense-1 archer
+   * into the contact it had just shot at anyway.
    */
   it('the EV tier ends with far more material than a RandomAgent, from either seat', async () => {
     const asSeat0 = await playSeries('ev', 'pure-random');
@@ -144,9 +147,9 @@ describe('HeuristicAgent: difficulty tiers are ordered by strength', () => {
 
     const heuristicTotal = asSeat0.material[0] + asSeat1.material[1];
     const randomTotal = asSeat0.material[1] + asSeat1.material[0];
-    // Measured at roughly 4x (69.6 to 17.5 across the two seat assignments);
-    // asserted at 2x so ordinary tuning of the weights doesn't turn a
-    // still-comfortable win into a red suite.
+    // Measured at roughly 3.5x (67.5 to 19.2 across the two seat
+    // assignments); asserted at 2x so ordinary tuning of the weights doesn't
+    // turn a still-comfortable win into a red suite.
     expect(heuristicTotal).toBeGreaterThan(randomTotal * 2);
   });
 
