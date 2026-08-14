@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { MapView } from '../ui/MapView';
-import { session, resetToMenu } from '../ui/session';
+import { session, resetToMenu, seatControlFor } from '../ui/session';
 import { showConfirmDialog } from '../ui/confirmDialog';
 import { SaveLoadPanel } from '../ui/saveLoadPanel';
 import {
@@ -11,8 +11,9 @@ import {
 } from '../ui/saveStorage';
 import type { SavedGame } from '../engine/saveGame';
 import { resetMovementForActivePlayer } from '../engine/turnManager';
-import { applyAction, type Action } from '../engine/actions';
-import type { PlayerAgent, ActionObserver } from '../engine/agent';
+import { applyAction, legalActions, type Action } from '../engine/actions';
+import type { PlayerAgent, ActionObserver, DrivingAgent } from '../engine/agent';
+import { createSeatAgent, isAiSeat, seatControlLabel } from '../engine/seatControl';
 import { rollDie as engineRollDie } from '../engine/dice';
 import { reachableHexes, reachableNavalHexes, findRammingContacts, type RammingContact } from '../engine/movement';
 import {
@@ -37,7 +38,15 @@ import {
 } from '../engine/combat';
 import { resolveElephantDrift } from '../engine/drift';
 import { History } from '../engine/history';
-import { unitType, currentAttack, currentDefense, maxEquipmentPoints, type GameState, type Unit } from '../engine/state';
+import {
+  unitType,
+  currentAttack,
+  currentDefense,
+  maxEquipmentPoints,
+  type GameState,
+  type PlayerId,
+  type Unit,
+} from '../engine/state';
 import type { HexCoord } from '../data/map';
 import { RATIO_COLUMNS } from '../data/combatTable';
 import { RIVER_CROSSING } from '../data/terrain';
@@ -54,6 +63,23 @@ import { BOARDING_RATIO_COLUMNS } from '../data/navalBoarding';
 /** Width of the left-hand HUD panel (buttons, phase status, combat log),
  * reserved outside the map's own viewport — see `MapView`'s `leftPanelWidth`. */
 const PANEL_WIDTH = 300;
+
+/**
+ * How long an AI seat pauses between its own actions, so its turn plays out
+ * as something a human can follow rather than as a single frame in which the
+ * whole board rearranges itself (plan.md §6.4's "turn pacing/animation so AI
+ * moves are legible").
+ *
+ * Two values because the two kinds of action need very different reading
+ * time: a move is one marker sliding one hex, and a `HeuristicAgent` makes
+ * dozens per turn, so a long pause there would make a turn take minutes; a
+ * combat writes a whole block of log (forces, ratio, die, result, retreats)
+ * that is worth stopping to read. The mid-combat prompts an attack provokes
+ * are NOT paced — they resolve as fast as the agent answers them — since the
+ * combat log records what happened either way.
+ */
+const AI_MOVE_DELAY_MS = 160;
+const AI_COMBAT_DELAY_MS = 700;
 
 /** A unit still awaiting the owning player's retreat/push/drift choice.
  * `originalHex` is where it stood before any of that — needed for the
@@ -140,7 +166,11 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       this.state(),
       elephant,
       remainingSteps,
-      this,
+      // The router, not `this`: a drifting elephant tramples whoever is in
+      // its path, and that unit's retreat belongs to ITS owner — which may be
+      // a human even when an AI's elephant is the one drifting, or the other
+      // way round.
+      this.seatRouter,
       () => this.rollDie(),
       {
         onDriftStart: (drifting) => {
@@ -270,6 +300,75 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * scene's click handlers commits a whole `Action` via `applyAction`. */
   private pendingActionResolve: ((action: Action) => void) | null = null;
 
+  // ---------------------------------------------------------------------------
+  // AI seats (plan.md §6.4, Stage 4)
+  // ---------------------------------------------------------------------------
+
+  /** One `HeuristicAgent` per AI seat, built from `session.seatControls` in
+   * `create`/`loadInPlace`. A seat absent from this map is played by the
+   * human at the keyboard — i.e. by this scene's own prompts. */
+  private seatAgents = new Map<PlayerId, DrivingAgent>();
+  /** True from the moment an AI seat starts its turn until control returns to
+   * a human seat (or the game ends). Joins `retreatChoice`/`driftState`/
+   * `decisionPending` in the guards on every control a human could otherwise
+   * use to act inside someone else's turn — with the deliberate exception of
+   * a retreat/push CLICK, which is exactly what a human defender still has to
+   * answer while an AI is attacking (see `onHexClick`). */
+  private aiRunning = false;
+  /**
+   * Invalidates an in-flight AI turn. The driver loop below is a long-lived
+   * `async` function holding `session.gameState` across `await`s, so anything
+   * that replaces or discards that state underneath it — leaving the scene
+   * (`resetSceneState`), abandoning the game (which nulls `session.gameState`
+   * outright), loading a different one — bumps this, and the loop stops at
+   * its next checkpoint instead of continuing to mutate a board nobody is
+   * looking at any more.
+   */
+  private aiRunToken = 0;
+  /** Resolves once a land attack's ENTIRE consequence chain (exchange
+   * sacrifice, retreats, pushes, drifts, advance offers) has settled — see
+   * `executeLandAttack`. Null in ordinary hotseat play, where nothing is
+   * waiting for that moment. */
+  private resolutionDone: (() => void) | null = null;
+
+  /**
+   * Answers every mid-resolution decision with the agent of the seat that
+   * decision actually belongs to — this scene's own prompts for a human seat,
+   * that seat's `HeuristicAgent` for an AI one.
+   *
+   * Necessary, not decorative: these questions are NOT all addressed to the
+   * active player. `applyLandCombatResult` hands the DEFENDER a retreat to
+   * choose while the attacker is the one whose turn it is, so a human
+   * defending against an AI must still be asked where to retreat, and an AI
+   * defending against a human must answer for itself rather than making the
+   * human play both sides. (The same reasoning, and the same split, as
+   * `fuzzHarness.ts`'s `SeatAgentRouter` — that one is `DrivingAgent`-shaped
+   * because a headless driver also picks top-level actions; this one is
+   * `PlayerAgent`-shaped because `BoardScene` cannot honestly implement
+   * `chooseNextAction`, see `ActionObserver`'s doc comment in agent.ts.)
+   *
+   * An object field rather than four call-site lookups so the dispatch rule
+   * exists once: `engine/drift.ts` takes a whole `PlayerAgent`, not
+   * individual callbacks, so there has to be a routing object anyway.
+   */
+  private readonly seatRouter: PlayerAgent = {
+    chooseRetreat: (state, unit, options) => this.agentFor(unit.owner).chooseRetreat(state, unit, options),
+    choosePushTarget: (state, unit, candidates) =>
+      this.agentFor(unit.owner).choosePushTarget(state, unit, candidates),
+    // Advance candidates all come from one attack group, so they share an
+    // owner; `promptAdvanceChoice` never calls this with an empty list.
+    chooseAdvance: (state, candidates, vacated) =>
+      this.agentFor(candidates[0]!.owner).chooseAdvance(state, candidates, vacated),
+    chooseExchangeSacrifice: (state, attackers, requiredForce) =>
+      this.agentFor(attackers[0]!.owner).chooseExchangeSacrifice(state, attackers, requiredForce),
+  };
+
+  /** The `PlayerAgent` for `owner` — this scene (i.e. the human at the
+   * keyboard) unless that seat is configured as an AI. */
+  private agentFor(owner: PlayerId): PlayerAgent {
+    return this.seatAgents.get(owner) ?? this;
+  }
+
   constructor() {
     super('Board');
   }
@@ -305,6 +404,23 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.navalContacts = [];
     this.rammedThisTurn = new Set();
     this.pendingActionResolve = null;
+    // Stops any AI turn still running from a previous game/entry into this
+    // scene before it can touch the new one's state (see `aiRunToken`).
+    this.aiRunToken++;
+    this.aiRunning = false;
+    this.resolutionDone = null;
+    this.seatAgents = new Map();
+  }
+
+  /** (Re)builds the per-seat agents from `session.seatControls`. Called after
+   * anything that can change which seats are AI: entering the scene, and
+   * loading a save (whose `seatControls` overwrite the session's). */
+  private buildSeatAgents(): void {
+    this.seatAgents = new Map();
+    for (let i = 0; i < session.playerCount; i++) {
+      const agent = createSeatAgent(seatControlFor(i));
+      if (agent) this.seatAgents.set(i as PlayerId, agent);
+    }
   }
 
   create(): void {
@@ -314,6 +430,9 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // reset at the end of `create` must be skipped.
     const staged = consumePendingLoad();
     if (staged) this.adoptSave(staged);
+    // After `adoptSave`, so a loaded game's own AI seats win over whatever
+    // the Menu was last set to.
+    this.buildSeatAgents();
 
     const { width, height } = this.scale;
     this.mapView = new MapView(this, width, height, PANEL_WIDTH);
@@ -500,6 +619,9 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.refreshUndoRedoButtons();
     this.autosave();
     if (staged) this.log('Game loaded.');
+    // Last: a game whose first (or resumed) seat is an AI plays itself
+    // straight away, with no human input needed to get it going.
+    this.maybeStartAiTurn();
   }
 
   private state() {
@@ -580,12 +702,14 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   private loadInPlace(save: SavedGame): void {
     this.resetSceneState();
     this.adoptSave(save);
+    this.buildSeatAgents();
     this.clearNavalMovementControls();
     this.mapView.clearHighlights();
     this.renderAllUnits();
     this.refreshStatus();
     this.refreshUndoRedoButtons();
     this.log('Game loaded.');
+    this.maybeStartAiTurn();
   }
 
   /**
@@ -600,7 +724,14 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
 
   private openSaveLoad(): void {
     // A pending retreat/drift can't be captured at all: those sequences carry
-    // `onComplete` closures, which don't survive serialization.
+    // `onComplete` closures, which don't survive serialization. An AI turn
+    // can't either — not because of serialization, but because the board is
+    // being mutated between frames, so a save taken mid-turn would capture an
+    // arbitrary half-finished position.
+    if (this.aiRunning) {
+      this.log("Wait for the computer's turn to finish before saving or loading.");
+      return;
+    }
     if (this.retreatChoice || this.driftState || this.decisionPending) {
       this.log('Resolve the pending retreat/drift before saving or loading.');
       return;
@@ -670,6 +801,11 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         // very next game to reach this scene overwrites the abandoned one's
         // autosave as soon as it does, whether that's a fresh game or
         // another loaded save.
+        // An AI turn may be mid-flight, holding `session.gameState` across an
+        // await; `resetToMenu()` is about to null it. Bumping the token stops
+        // that loop at its next checkpoint instead of letting it dereference
+        // a game that no longer exists (see `aiRunToken`).
+        this.aiRunToken++;
         resetToMenu();
         this.scene.start('Menu');
       },
@@ -743,6 +879,17 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   }
 
   private undo(): void {
+    if (this.aiRunning) {
+      // Undo is phase-scoped (see `endPhase`, which clears the stack), so
+      // there has never been anything to undo across a seat handoff — an AI
+      // turn is simply the case where the human is looking at someone else's
+      // phase while it happens. plan.md §6.5 asked whether undo should rewind
+      // *into* an AI turn or past it as a whole; the answer that falls out of
+      // the existing rule is neither: it stops at the handoff, exactly as it
+      // already does between two human seats.
+      this.log("Can't undo during the computer's turn.");
+      return;
+    }
     if (this.retreatChoice || this.driftState || this.decisionPending) {
       this.log('Resolve the pending retreat/drift before undoing.');
       return;
@@ -757,6 +904,10 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   }
 
   private redo(): void {
+    if (this.aiRunning) {
+      this.log("Can't redo during the computer's turn.");
+      return;
+    }
     if (this.retreatChoice || this.driftState || this.decisionPending) {
       this.log('Resolve the pending retreat/drift before redoing.');
       return;
@@ -839,17 +990,23 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     const redoLabel = this.history.redoLabel;
     this.undoBtn.setText(undoLabel ? `↶ Undo: ${undoLabel}` : '↶ Undo');
     this.redoBtn.setText(redoLabel ? `↷ Redo: ${redoLabel}` : '↷ Redo');
-    this.undoBtn.setAlpha(this.history.canUndo ? 1 : 0.4);
-    this.redoBtn.setAlpha(this.history.canRedo ? 1 : 0.4);
+    this.undoBtn.setAlpha(!this.aiRunning && this.history.canUndo ? 1 : 0.4);
+    this.redoBtn.setAlpha(!this.aiRunning && this.history.canRedo ? 1 : 0.4);
   }
 
   private refreshStatus(): void {
     const state = this.state();
-    const player = state.players[this.activePlayerId()]!;
+    const activeId = this.activePlayerId();
+    const player = state.players[activeId]!;
+    // Naming the seat's controller (and its difficulty) in the status line is
+    // what makes an AI turn readable as one: without it, a board rearranging
+    // itself is indistinguishable from a bug.
+    const control = seatControlFor(activeId);
+    const who = isAiSeat(control) ? `${player.name} [${seatControlLabel(control)}]` : player.name;
     this.statusText.setText(
-      `Turn ${state.turnNumber} — ${player.name} — ${state.phase.toUpperCase()} phase`,
+      `Turn ${state.turnNumber} — ${who} — ${state.phase.toUpperCase()} phase`,
     );
-    this.resolveBtn.setVisible(state.phase === 'combat');
+    this.resolveBtn.setVisible(state.phase === 'combat' && !this.aiRunning);
   }
 
   private log(message: string): void {
@@ -877,7 +1034,11 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // An advance/exchange-sacrifice panel is up (or one JUST resolved and its
     // mutation hasn't landed yet — see `decisionPending`'s doc comment):
     // ignore ordinary board clicks rather than let them race against it.
-    if (this.decisionPending) return;
+    // `aiRunning` sits here rather than at the top of this method on purpose:
+    // a human whose unit is forced to retreat by an AI's attack still has to
+    // click a hex, and that click is handled by the `retreatChoice` branch
+    // above, before this line.
+    if (this.decisionPending || this.aiRunning) return;
 
     const state = this.state();
     const occupant = unitAt(state, hex);
@@ -1083,57 +1244,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
 
     yesBtn.on('pointerdown', () => {
       cleanup();
-      this.recordAction(`Ram ${unitType(defender).name}`);
-      const attackerType = attacker.typeId as ShipTypeId;
-      const defenderType = defender.typeId as ShipTypeId;
-      // `applyAction`'s 'ram' case zeroes `attacker.movementLeft` once the ram
-      // is committed, so this must be read BEFORE that call — at this point
-      // it's exactly the "unused movement points at the moment of contact"
-      // value `findRammingContacts` fed into `rammingBonusFromUnusedMovement`
-      // to produce `bonus` in the first place (the move that reached contact,
-      // if any, already deducted its cost — see `applyAction`'s 'navalMove'
-      // case — so what's left here IS that unused amount).
-      const unusedMovement = attacker.movementLeft;
-      const action: Action = { kind: 'ram', unitId: attacker.id };
-      const result = applyAction(this.state(), action, this.diceRng);
-      this.reportAction(action);
-      this.rammedThisTurn.add(attacker.id);
-      const effectiveRange = rammingSuccessRange(attackerType, defenderType, result.bonus);
-      const fullRange = fullRammingSuccessRange(attackerType, defenderType);
-      const maxReachable = maxReachableRammingEntries(attackerType, defenderType);
-      // Which sentence to show is decided entirely by `wholeRowReachableAtMaxBonus`
-      // (a tested predicate in navalRamming.ts), NOT re-derived here — this
-      // exact comparison used to live inline in this file and shipped a
-      // false "full table... at max bonus" claim for every wider row, since
-      // nothing exercised it (see that function's doc comment). Only claim
-      // the full printed row is reachable "at max bonus" when it actually
-      // is; for wider rows, the row has entries no bonus (capped at
-      // MAX_RAMMING_BONUS) can ever reach at all, and saying otherwise
-      // would tell a player who rolls into one of those entries that the
-      // game mis-resolved a hit.
-      let tableNote: string;
-      if (!wholeRowReachableAtMaxBonus(attackerType, defenderType)) {
-        tableNote = `printed table row: ${fullRange.join('-')} — entries past the first ${maxReachable} are unreachable at any bonus; see rammingSuccessRange's doc comment in navalRamming.ts`;
-      } else if (fullRange.length === 1 + MAX_RAMMING_BONUS) {
-        // Reproduces the rulebook's worked example ("1, then 1-2, then
-        // 1-2-3") exactly at every bonus level for this matchup.
-        tableNote = `full table for this matchup: ${fullRange.join('-')} at max bonus`;
-      } else {
-        // The whole (narrow) row IS reachable at max bonus, but it's
-        // narrower than the rulebook's own worked example — e.g. galère
-        // vs. quintirème, the exact pairing that example uses, has a
-        // printed row of just `[1]` here, not the book's "1, 2, or 3".
-        tableNote = `full table for this matchup: ${fullRange.join('-')} at max bonus (narrower than the rulebook's own worked example, which reaches 1-2-3 at max bonus)`;
-      }
-      const pointWord = unusedMovement === 1 ? 'point' : 'points';
-      this.log(
-        `Ramming: ${unitType(attacker).name} vs ${unitType(defender).name}, bonus +${result.bonus} ` +
-          `(${unusedMovement} unused movement ${pointWord})\n` +
-          `Succeeds on: ${effectiveRange.join('-')}   (${tableNote})\n` +
-          `Die: ${result.dieRoll} -> ${result.hit ? 'SUNK!' : 'missed'}`,
-      );
-      this.renderAllUnits();
-      this.deselectMovement();
+      this.commitRam(attacker, defender);
     });
     noBtn.on('pointerdown', () => {
       cleanup();
@@ -1141,6 +1252,68 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         this.refreshNavalMovementControls(attacker);
       }
     });
+  }
+
+  /**
+   * Declares and resolves a ram, with its full audit-trail log. Split out of
+   * `promptRam`'s confirm button so an AI seat — which picks
+   * `{kind: 'ram'}` as a top-level `Action` and is never offered a
+   * yes/no panel — commits it through exactly the same code, rather than
+   * through a second, quietly diverging copy of the ramming log (the failure
+   * mode plan.md §11 already caught once).
+   */
+  private commitRam(attacker: Unit, defender: Unit): void {
+    this.recordAction(`Ram ${unitType(defender).name}`);
+    const attackerType = attacker.typeId as ShipTypeId;
+    const defenderType = defender.typeId as ShipTypeId;
+    // `applyAction`'s 'ram' case zeroes `attacker.movementLeft` once the ram
+    // is committed, so this must be read BEFORE that call — at this point
+    // it's exactly the "unused movement points at the moment of contact"
+    // value `findRammingContacts` fed into `rammingBonusFromUnusedMovement`
+    // to produce `bonus` in the first place (the move that reached contact,
+    // if any, already deducted its cost — see `applyAction`'s 'navalMove'
+    // case — so what's left here IS that unused amount).
+    const unusedMovement = attacker.movementLeft;
+    const action: Action = { kind: 'ram', unitId: attacker.id };
+    const result = applyAction(this.state(), action, this.diceRng);
+    this.reportAction(action);
+    this.rammedThisTurn.add(attacker.id);
+    const effectiveRange = rammingSuccessRange(attackerType, defenderType, result.bonus);
+    const fullRange = fullRammingSuccessRange(attackerType, defenderType);
+    const maxReachable = maxReachableRammingEntries(attackerType, defenderType);
+    // Which sentence to show is decided entirely by `wholeRowReachableAtMaxBonus`
+    // (a tested predicate in navalRamming.ts), NOT re-derived here — this
+    // exact comparison used to live inline in this file and shipped a
+    // false "full table... at max bonus" claim for every wider row, since
+    // nothing exercised it (see that function's doc comment). Only claim
+    // the full printed row is reachable "at max bonus" when it actually
+    // is; for wider rows, the row has entries no bonus (capped at
+    // MAX_RAMMING_BONUS) can ever reach at all, and saying otherwise
+    // would tell a player who rolls into one of those entries that the
+    // game mis-resolved a hit.
+    let tableNote: string;
+    if (!wholeRowReachableAtMaxBonus(attackerType, defenderType)) {
+      tableNote = `printed table row: ${fullRange.join('-')} — entries past the first ${maxReachable} are unreachable at any bonus; see rammingSuccessRange's doc comment in navalRamming.ts`;
+    } else if (fullRange.length === 1 + MAX_RAMMING_BONUS) {
+      // Reproduces the rulebook's worked example ("1, then 1-2, then
+      // 1-2-3") exactly at every bonus level for this matchup.
+      tableNote = `full table for this matchup: ${fullRange.join('-')} at max bonus`;
+    } else {
+      // The whole (narrow) row IS reachable at max bonus, but it's
+      // narrower than the rulebook's own worked example — e.g. galère
+      // vs. quintirème, the exact pairing that example uses, has a
+      // printed row of just `[1]` here, not the book's "1, 2, or 3".
+      tableNote = `full table for this matchup: ${fullRange.join('-')} at max bonus (narrower than the rulebook's own worked example, which reaches 1-2-3 at max bonus)`;
+    }
+    const pointWord = unusedMovement === 1 ? 'point' : 'points';
+    this.log(
+      `Ramming: ${unitType(attacker).name} vs ${unitType(defender).name}, bonus +${result.bonus} ` +
+        `(${unusedMovement} unused movement ${pointWord})\n` +
+        `Succeeds on: ${effectiveRange.join('-')}   (${tableNote})\n` +
+        `Die: ${result.dieRoll} -> ${result.hit ? 'SUNK!' : 'missed'}`,
+    );
+    this.renderAllUnits();
+    this.deselectMovement();
   }
 
   private deselectMovement(): void {
@@ -1344,6 +1517,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
 
     this.retreatChoice = null;
     this.mapView.clearHighlights();
+    this.settleResolution();
   }
 
   /** Called once a queued unit's retreat/push/drift is fully settled. Per
@@ -1408,7 +1582,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
           ? `${unitType(unit).name} must retreat to make room — click a highlighted hex.`
           : `${unitType(unit).name} must retreat — click a highlighted hex.`,
       );
-      this.chooseRetreat(state, unit, legalHexes).then((hex) => {
+      this.seatRouter.chooseRetreat(state, unit, legalHexes).then((hex) => {
         // `decisionPending` must clear even if the mutation below throws —
         // otherwise every guard it gates (undo, autosave, onHexClick, ...)
         // stays soft-locked with no way to recover short of a page reload,
@@ -1452,7 +1626,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       this.appendLine(
         `${unitType(unit).name} has nowhere to retreat — ${roomMakers} make room. Click one to push it.`,
       );
-      this.choosePushTarget(state, unit, pushTargets).then((pushed) => {
+      this.seatRouter.choosePushTarget(state, unit, pushTargets).then((pushed) => {
         // Unlike the direct-retreat leaf above, this one can't just clear
         // `decisionPending` in a `finally`: it's already `true` from
         // `choosePushTarget` above, and the happy path here hands off to
@@ -1563,7 +1737,10 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
 
   private processNextAdvanceOffer(): void {
     const hex = this.advanceOfferQueue.shift();
-    if (!hex) return;
+    if (!hex) {
+      this.settleResolution();
+      return;
+    }
     this.promptAdvanceChoice(hex, () => this.processNextAdvanceOffer());
   }
 
@@ -1587,7 +1764,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       onDone();
       return;
     }
-    this.chooseAdvance(this.state(), candidates, vacatedHex).then((chosen) => {
+    this.seatRouter.chooseAdvance(this.state(), candidates, vacatedHex).then((chosen) => {
       try {
         if (chosen) {
           chosen.position = vacatedHex;
@@ -1676,6 +1853,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   }
 
   private resolveGroupAttack(): void {
+    if (this.aiRunning) return;
     if (this.retreatChoice || this.driftState || this.decisionPending) {
       this.log('Resolve the pending retreat/drift before starting a new attack.');
       return;
@@ -1698,55 +1876,101 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.recordAction(
       `Attack with ${this.attackGroup.length} unit(s)`,
     );
-    const attackerIds = this.attackGroup.map((u) => u.id);
-    const defenderIds = this.defenderGroup.map((u) => u.id);
-    for (const id of attackerIds) this.attackedThisPhase.add(id);
-    const action: Action = { kind: 'landAttack', attackerIds, defenderIds };
-    const { detail, outcome, attackers: attackersFromThisCombat, defenderOriginalHexes } = applyAction(
-      state,
-      action,
-      this.diceRng,
-    );
-    this.reportAction(action);
-    this.logCombatOutcome(
-      attackersFromThisCombat,
-      this.defenderGroup,
-      detail,
-      outcome.requiredSacrificeForce,
-      outcome.requiresExchangeChoice,
-    );
+    void this.executeLandAttack({
+      kind: 'landAttack',
+      attackerIds: this.attackGroup.map((u) => u.id),
+      defenderIds: this.defenderGroup.map((u) => u.id),
+    });
+  }
 
-    if (outcome.requiresExchangeChoice) {
-      this.chooseExchangeSacrifice(state, attackersFromThisCombat, outcome.requiredSacrificeForce).then((chosen) => {
-        try {
-          applyExchangeSacrifice(chosen);
-          this.log(
-            `Exchange: defender(s) destroyed; sacrificed ${chosen.map((u) => unitType(u).name).join(', ') || 'none'}.`,
-          );
-          this.renderAllUnits();
-          this.clearCombatSelection();
-        } finally {
-          this.decisionPending = false;
-        }
-        this.beginAdvanceOffers(
-          defenderOriginalHexes,
-          attackersFromThisCombat.filter((u) => !u.destroyed),
-        );
-      });
-      return;
-    }
-    this.renderAllUnits();
-    this.clearCombatSelection();
+  /**
+   * Resolves a land attack and everything it drags behind it — exchange
+   * sacrifice, retreats, pushes, elephant drifts, advance-after-combat — and
+   * resolves its promise only once ALL of that has settled.
+   *
+   * Split out of `resolveGroupAttack` (which keeps the click-path guards and
+   * the undo snapshot) for two reasons. An AI seat needs to commit an attack
+   * it assembled itself, with attacker/defender ids that were never in
+   * `attackGroup`/`defenderGroup`; and, more subtly, an AI driver loop cannot
+   * choose its *next* action until this one is fully finished — the board is
+   * mid-retreat until then, and a human defender may still owe a click.
+   * Ordinary hotseat play ignores the promise entirely, which is why the
+   * completion hook (`resolutionDone`, fired by `settleResolution`) is
+   * allowed to be null.
+   */
+  private executeLandAttack(action: { kind: 'landAttack'; attackerIds: string[]; defenderIds: string[] }): Promise<void> {
+    return new Promise<void>((resolve) => {
+      this.resolutionDone = resolve;
+      const state = this.state();
+      const defenders = action.defenderIds
+        .map((id) => state.units.find((u) => u.id === id))
+        .filter((u): u is Unit => u !== undefined);
+      for (const id of action.attackerIds) this.attackedThisPhase.add(id);
+      const { detail, outcome, attackers: attackersFromThisCombat, defenderOriginalHexes } = applyAction(
+        state,
+        action,
+        this.diceRng,
+      );
+      this.reportAction(action);
+      this.logCombatOutcome(
+        attackersFromThisCombat,
+        defenders,
+        detail,
+        outcome.requiredSacrificeForce,
+        outcome.requiresExchangeChoice,
+      );
 
-    if (outcome.pendingRetreats.length > 0 || outcome.pendingDrifts.length > 0) {
-      const side = detail.result === 'DR' ? 'defender' : 'attacker';
-      this.beginRetreatChoices(outcome.pendingRetreats, outcome.pendingDrifts, side, attackersFromThisCombat);
-    } else if (detail.result === 'DE' || detail.result === 'EX') {
-      // The defender(s) were eliminated outright rather than retreating —
-      // per the same "advance into the vacated hex" option, extended here
-      // to cover elimination too, since that frees the hex just as plainly.
-      this.beginAdvanceOffers(defenderOriginalHexes, attackersFromThisCombat);
-    }
+      if (outcome.requiresExchangeChoice) {
+        this.seatRouter
+          .chooseExchangeSacrifice(state, attackersFromThisCombat, outcome.requiredSacrificeForce)
+          .then((chosen) => {
+            try {
+              applyExchangeSacrifice(chosen);
+              this.log(
+                `Exchange: defender(s) destroyed; sacrificed ${chosen.map((u) => unitType(u).name).join(', ') || 'none'}.`,
+              );
+              this.renderAllUnits();
+              this.clearCombatSelection();
+            } finally {
+              this.decisionPending = false;
+            }
+            this.beginAdvanceOffers(
+              defenderOriginalHexes,
+              attackersFromThisCombat.filter((u) => !u.destroyed),
+            );
+          });
+        return;
+      }
+      this.renderAllUnits();
+      this.clearCombatSelection();
+
+      if (outcome.pendingRetreats.length > 0 || outcome.pendingDrifts.length > 0) {
+        const side = detail.result === 'DR' ? 'defender' : 'attacker';
+        this.beginRetreatChoices(outcome.pendingRetreats, outcome.pendingDrifts, side, attackersFromThisCombat);
+      } else if (detail.result === 'DE' || detail.result === 'EX') {
+        // The defender(s) were eliminated outright rather than retreating —
+        // per the same "advance into the vacated hex" option, extended here
+        // to cover elimination too, since that frees the hex just as plainly.
+        this.beginAdvanceOffers(defenderOriginalHexes, attackersFromThisCombat);
+      } else {
+        // AE/AR with nobody left to retreat, or a result with no follow-up at
+        // all: this combat is already over.
+        this.settleResolution();
+      }
+    });
+  }
+
+  /**
+   * Fires (once) whatever is waiting for the current combat's whole
+   * consequence chain to finish. Called from the two places that chain can
+   * end — `advanceRetreatQueue` with both queues drained, and
+   * `processNextAdvanceOffer` with no offers left — which are reached by
+   * disjoint paths, so this never double-fires for one attack.
+   */
+  private settleResolution(): void {
+    const done = this.resolutionDone;
+    this.resolutionDone = null;
+    done?.();
   }
 
   private static readonly RESULT_LABELS: Record<string, string> = {
@@ -1958,60 +2182,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
 
     boardBtn.on('pointerdown', () => {
       cleanup();
-      this.recordAction(`Board ${unitType(defender).name}`);
-      this.attackedThisPhase.add(attacker.id);
-      // Equipment points are read BEFORE `applyAction` mutates them — this
-      // is presentation-layer bookkeeping (a before/after snapshot around a
-      // single call), not a rules derivation: unlike the force/column
-      // values below, nothing here recomputes anything `applyAction` itself
-      // doesn't already compute.
-      const attackerMax = maxEquipmentPoints(attacker);
-      const defenderMax = maxEquipmentPoints(defender);
-      const attackerEquipBefore = attacker.equipmentPoints ?? attackerMax;
-      const defenderEquipBefore = defender.equipmentPoints ?? defenderMax;
-      const action: Action = { kind: 'board', attackerId: attacker.id, defenderId: defender.id };
-      // `attackForce`/`defenseForce`/`columnIndex` come from the result
-      // rather than being recomputed here — they're resolution inputs
-      // `applyAction`'s 'board' case already derived (via
-      // `currentAttack`/`currentDefense`/`boardingRatioToColumnIndex`)
-      // BEFORE mutating either ship's equipment, so re-deriving them in
-      // this scene would risk silently desyncing from whatever the engine
-      // actually resolved against (see plan.md §11.5's engine/presentation
-      // boundary).
-      const { dieRoll, result, attackForce, defenseForce, columnIndex } = applyAction(
-        this.state(),
-        action,
-        this.diceRng,
-      );
-      this.reportAction(action);
-      const attackerEquipAfter = attacker.equipmentPoints ?? attackerMax;
-      const defenderEquipAfter = defender.equipmentPoints ?? defenderMax;
-      // `data/navalBoarding.ts` has no single win/lose die threshold to show
-      // the way `rammingSuccessRange` does for ramming — its table grades a
-      // roll into one of several outcomes (no effect, or either side losing
-      // 1-4 equipment) that vary by column, not a boolean success/fail split
-      // — so the closest audit trail is naming which column was used,
-      // mirroring the land CRT column line above.
-      const resultLine =
-        result.side !== null
-          ? `Die: ${dieRoll} -> ${result.side} loses ${result.equipmentLoss} equipment`
-          : `Die: ${dieRoll} -> no decisive effect`;
-      const sunkLines = [
-        ...(attackerEquipAfter <= 0 && attackerEquipBefore > 0 ? [`  ${unitType(attacker).name} is SUNK!`] : []),
-        ...(defenderEquipAfter <= 0 && defenderEquipBefore > 0 ? [`  ${unitType(defender).name} is SUNK!`] : []),
-      ];
-      this.log(
-        [
-          `Boarding: ${unitType(attacker).name} (attack ${attackForce}) vs ${unitType(defender).name} (defense ${defenseForce})`,
-          `CRT column: "${BOARDING_RATIO_COLUMNS[columnIndex]}" (column ${columnIndex + 1} of ${BOARDING_RATIO_COLUMNS.length}, array index ${columnIndex})`,
-          resultLine,
-          ...sunkLines,
-          `  ${unitType(attacker).name} (attacker): ${attackerEquipBefore}/${attackerMax} -> ${attackerEquipAfter}/${attackerMax} equipment (attack ${attackForce} -> ${currentAttack(attacker)})`,
-          `  ${unitType(defender).name} (defender): ${defenderEquipBefore}/${defenderMax} -> ${defenderEquipAfter}/${defenderMax} equipment (defense ${defenseForce} -> ${currentDefense(defender)})`,
-        ].join('\n'),
-      );
-      this.renderAllUnits();
-      this.clearCombatSelection();
+      this.commitBoarding(attacker, defender);
     });
     cancelBtn.on('pointerdown', () => {
       cleanup();
@@ -2020,11 +2191,87 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     });
   }
 
+  /**
+   * Resolves a boarding attempt, with its full audit-trail log. Split out of
+   * `navalAttackPrompt`'s confirm button for the same reason as `commitRam`:
+   * an AI seat commits `{kind: 'board', ...}` as a top-level `Action` without
+   * ever seeing the panel, and must go through this exact code rather than a
+   * parallel copy of it.
+   */
+  private commitBoarding(attacker: Unit, defender: Unit): void {
+    this.recordAction(`Board ${unitType(defender).name}`);
+    this.attackedThisPhase.add(attacker.id);
+    // Equipment points are read BEFORE `applyAction` mutates them — this
+    // is presentation-layer bookkeeping (a before/after snapshot around a
+    // single call), not a rules derivation: unlike the force/column
+    // values below, nothing here recomputes anything `applyAction` itself
+    // doesn't already compute.
+    const attackerMax = maxEquipmentPoints(attacker);
+    const defenderMax = maxEquipmentPoints(defender);
+    const attackerEquipBefore = attacker.equipmentPoints ?? attackerMax;
+    const defenderEquipBefore = defender.equipmentPoints ?? defenderMax;
+    const action: Action = { kind: 'board', attackerId: attacker.id, defenderId: defender.id };
+    // `attackForce`/`defenseForce`/`columnIndex` come from the result
+    // rather than being recomputed here — they're resolution inputs
+    // `applyAction`'s 'board' case already derived (via
+    // `currentAttack`/`currentDefense`/`boardingRatioToColumnIndex`)
+    // BEFORE mutating either ship's equipment, so re-deriving them in
+    // this scene would risk silently desyncing from whatever the engine
+    // actually resolved against (see plan.md §11.5's engine/presentation
+    // boundary).
+    const { dieRoll, result, attackForce, defenseForce, columnIndex } = applyAction(
+      this.state(),
+      action,
+      this.diceRng,
+    );
+    this.reportAction(action);
+    const attackerEquipAfter = attacker.equipmentPoints ?? attackerMax;
+    const defenderEquipAfter = defender.equipmentPoints ?? defenderMax;
+    // `data/navalBoarding.ts` has no single win/lose die threshold to show
+    // the way `rammingSuccessRange` does for ramming — its table grades a
+    // roll into one of several outcomes (no effect, or either side losing
+    // 1-4 equipment) that vary by column, not a boolean success/fail split
+    // — so the closest audit trail is naming which column was used,
+    // mirroring the land CRT column line above.
+    const resultLine =
+      result.side !== null
+        ? `Die: ${dieRoll} -> ${result.side} loses ${result.equipmentLoss} equipment`
+        : `Die: ${dieRoll} -> no decisive effect`;
+    const sunkLines = [
+      ...(attackerEquipAfter <= 0 && attackerEquipBefore > 0 ? [`  ${unitType(attacker).name} is SUNK!`] : []),
+      ...(defenderEquipAfter <= 0 && defenderEquipBefore > 0 ? [`  ${unitType(defender).name} is SUNK!`] : []),
+    ];
+    this.log(
+      [
+        `Boarding: ${unitType(attacker).name} (attack ${attackForce}) vs ${unitType(defender).name} (defense ${defenseForce})`,
+        `CRT column: "${BOARDING_RATIO_COLUMNS[columnIndex]}" (column ${columnIndex + 1} of ${BOARDING_RATIO_COLUMNS.length}, array index ${columnIndex})`,
+        resultLine,
+        ...sunkLines,
+        `  ${unitType(attacker).name} (attacker): ${attackerEquipBefore}/${attackerMax} -> ${attackerEquipAfter}/${attackerMax} equipment (attack ${attackForce} -> ${currentAttack(attacker)})`,
+        `  ${unitType(defender).name} (defender): ${defenderEquipBefore}/${defenderMax} -> ${defenderEquipAfter}/${defenderMax} equipment (defense ${defenseForce} -> ${currentDefense(defender)})`,
+      ].join('\n'),
+    );
+    this.renderAllUnits();
+    this.clearCombatSelection();
+  }
+
   private endPhase(): void {
+    if (this.aiRunning) return;
     if (this.retreatChoice || this.driftState || this.decisionPending) {
       this.log('Resolve the pending retreat/drift before ending the phase.');
       return;
     }
+    this.commitEndPhase();
+    // A human handing off to an AI seat is the ordinary way an AI turn
+    // starts; a no-op when the next seat is human too.
+    this.maybeStartAiTurn();
+  }
+
+  /** The phase change itself, with none of the click-path guards — shared by
+   * the "End phase" button above and by an AI seat's own `endPhase` action,
+   * which must not be blocked by the `aiRunning` guard it is itself the
+   * cause of. */
+  private commitEndPhase(): void {
     this.deselectMovement();
     this.clearCombatSelection();
     // Undo reaches back only within the current phase: rewinding across the
@@ -2037,6 +2284,9 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.reportAction(endAction);
     this.attackedThisPhase.clear();
     if (state.gameOver) {
+      // Stops an AI turn that ended the game from continuing to run against
+      // a board the player has already left (see `aiRunToken`).
+      this.aiRunToken++;
       this.scene.start('GameOver');
       return;
     }
@@ -2052,6 +2302,159 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     }
     this.refreshStatus();
     this.log('');
+  }
+
+  // ---------------------------------------------------------------------------
+  // The AI driver (plan.md §6.4, Stage 4)
+  //
+  // This is the "pull" loop `engine/agent.ts` says `BoardScene` itself cannot
+  // be: it asks the seat's `ActionChooser` for an action, applies it, and
+  // repeats. Everything it applies goes through the SAME methods a click
+  // does — `executeLandAttack`, `commitRam`, `commitBoarding`,
+  // `commitEndPhase` — so an AI's move is not a second implementation of the
+  // rules, only a second way of choosing one.
+  // ---------------------------------------------------------------------------
+
+  /** Starts the active seat's turn if that seat is an AI, and keeps going
+   * through any further AI seats behind it. A no-op for a human seat, for a
+   * finished game, and while an AI turn is already running (which is what
+   * lets `commitEndPhase` -> `endPhase` be called from inside the loop
+   * without re-entering it). */
+  private maybeStartAiTurn(): void {
+    if (this.aiRunning) return;
+    const state = session.gameState;
+    if (!state || state.gameOver) return;
+    if (!this.seatAgents.has(this.activePlayerId() as PlayerId)) return;
+
+    this.aiRunning = true;
+    this.refreshStatus();
+    this.refreshUndoRedoButtons();
+    const token = this.aiRunToken;
+    const finish = () => {
+      // Only the run that is still current may clear the flag: a stale run
+      // (abandoned game, reloaded save) has already been superseded by a
+      // `resetSceneState`/`loadInPlace` that reset it itself.
+      if (token !== this.aiRunToken) return;
+      this.aiRunning = false;
+      this.refreshStatus();
+      this.refreshUndoRedoButtons();
+    };
+    void this.runAiSeats(token).then(finish, (error: unknown) => {
+      finish();
+      this.log('The computer player hit an error and stopped. See the console.');
+      // Rethrown rather than swallowed: a silent stop would look exactly like
+      // a hung turn, and this is a defect worth surfacing.
+      throw error;
+    });
+  }
+
+  /**
+   * Plays out every consecutive AI seat, one action at a time, until control
+   * reaches a human seat or the game ends.
+   *
+   * Re-reads the active seat each iteration rather than capturing it, so a
+   * run of AI seats (an all-AI game, or two bots between two humans) chains
+   * without the caller having to notice; `token` is checked at every point
+   * where the board could have been replaced underneath the loop while it was
+   * suspended.
+   */
+  private async runAiSeats(token: number): Promise<void> {
+    for (;;) {
+      if (token !== this.aiRunToken) return;
+      const state = session.gameState;
+      if (!state || state.gameOver) return;
+      const agent = this.seatAgents.get(this.activePlayerId() as PlayerId);
+      if (!agent) return; // back to a human seat
+
+      const legal = legalActions(state, {
+        attackedThisPhase: this.attackedThisPhase,
+        rammedThisTurn: this.rammedThisTurn,
+      });
+      const action = agent.chooseNextAction(state, legal);
+      await this.pause(this.delayFor(action));
+      if (token !== this.aiRunToken) return;
+      await this.applyAiAction(action);
+    }
+  }
+
+  /** How long to dwell on `action` before committing it — see
+   * `AI_MOVE_DELAY_MS`/`AI_COMBAT_DELAY_MS`. */
+  private delayFor(action: Action): number {
+    switch (action.kind) {
+      case 'landAttack':
+      case 'ram':
+      case 'board':
+        return AI_COMBAT_DELAY_MS;
+      default:
+        return AI_MOVE_DELAY_MS;
+    }
+  }
+
+  /** `setTimeout` rather than Phaser's `time.delayedCall`: a scene timer is
+   * destroyed on shutdown and would leave this promise pending forever, which
+   * would strand the driver loop mid-turn instead of letting it reach its
+   * next `aiRunToken` check and exit cleanly. */
+  private pause(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Commits one AI-chosen action through the scene's own mutation paths, and
+   * (for a land attack) waits for its entire consequence chain — including
+   * any retreat a HUMAN defender still has to click — before returning.
+   */
+  private async applyAiAction(action: Action): Promise<void> {
+    const state = this.state();
+    const seatName = state.players[this.activePlayerId()]!.name;
+    const findUnit = (id: string): Unit | undefined => state.units.find((u) => u.id === id);
+
+    switch (action.kind) {
+      case 'endPhase':
+        this.commitEndPhase();
+        return;
+
+      case 'landMove':
+      case 'navalMove': {
+        const unit = findUnit(action.unitId);
+        applyAction(state, action, this.diceRng);
+        this.reportAction(action);
+        this.renderAllUnits();
+        if (unit) this.log(`${seatName}: ${unitType(unit).name} moves to (${action.to.q}, ${action.to.r}).`);
+        return;
+      }
+
+      case 'navalRotate': {
+        const unit = findUnit(action.unitId);
+        applyAction(state, action, this.diceRng);
+        this.reportAction(action);
+        this.renderAllUnits();
+        if (unit) this.log(`${seatName}: ${unitType(unit).name} turns.`);
+        return;
+      }
+
+      case 'ram': {
+        const ship = findUnit(action.unitId);
+        // `legalActions` only offers a ram when a zero-cost contact exists,
+        // and `applyAction` re-derives the same one; this look-up is purely
+        // to name the target in the log.
+        const contact = ship ? findRammingContacts(state, ship).find((c) => c.cost === 0) : undefined;
+        if (!ship || !contact) return;
+        this.commitRam(ship, contact.target);
+        return;
+      }
+
+      case 'board': {
+        const attacker = findUnit(action.attackerId);
+        const defender = findUnit(action.defenderId);
+        if (!attacker || !defender) return;
+        this.commitBoarding(attacker, defender);
+        return;
+      }
+
+      case 'landAttack':
+        await this.executeLandAttack(action);
+        return;
+    }
   }
 }
 
