@@ -47,10 +47,9 @@ terrain (merged `6172f2f`), Stage 2b drift extraction
 Stage 3 — the `HeuristicAgent`
 ([§6.4](#64-stage-3-shipped-stage-4-deferred), merged `a2a1329`), and
 [§15](#15-live-defect-ranged-attacks-resolve-at-zero-attack-force)'s ranged
-attack force (`feat/ranged-attack-force`, awaiting review/merge).
-**In flight:** [§15](#15-live-defect-ranged-attacks-resolve-at-zero-attack-force)
-is built and green on its branch; review it before merging, then promote #0
-below.
+attack force (merged `272bcf0`).
+**In flight:** nothing — [Current Queue](#10-sequenced-queue) is next, and
+its first two items (`0b`, `0c`) both came out of §15's independent review.
 **Live defects still open:**
 [§9.2](#92-endgamebytimelimit-is-never-called).
 
@@ -75,19 +74,14 @@ sync when something merges** — it went stale once and the user caught it.
 | [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) advance terrain | `6172f2f` |
 | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2b — drift extraction | `7544a96` |
 | [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 3 — `HeuristicAgent` (+1 engine defect it found) | `a2a1329` |
+| [§15](#15-live-defect-ranged-attacks-resolve-at-zero-attack-force) ranged attack force (+1 wedged-board defect, +2 review findings) | `272bcf0` |
 
 ### In flight
 
-- [§15](#15-live-defect-ranged-attacks-resolve-at-zero-attack-force) **ranged
-  attack force** — `feat/ranged-attack-force`, tsc/build/357 tests green, 9
-  mutations killed. Reviewed **twice**: a self-review that found
-  [§15.5](#155-review-finding-advance-after-combat-from-range), then an
-  independent `heraklios-reviewer` pass that returned PASS and found what the
-  self-review could not — see [§15.6](#156-independent-review). All findings
-  fixed on the branch. **Ready to merge.** Outcome
-  and what it turned up beyond the stated scope (an EX soft-lock, a lying
-  combat log, advance-from-range) are in [§15.4](#154-outcome). Next up after
-  it merges is #0 below.
+- *Nothing.* Next up is #0 below. Note **0b** and **0c** both came out of
+  §15's independent review ([§15.6](#156-independent-review)) and are small;
+  clearing them before starting Stage 2c keeps the reviewer usable and closes
+  a live hotseat path.
 
 ### Queued
 
@@ -108,9 +102,9 @@ these mostly cannot run in parallel with each other.
 ## Backlog Map
 
 - **Start here:** [Current Queue](#10-sequenced-queue).
-- **Current next task:** review and merge `feat/ranged-attack-force`
-  ([§15](#15-live-defect-ranged-attacks-resolve-at-zero-attack-force)), then
-  #0's §12 follow-ups or #1's Stage 2c.
+- **Current next task:** the two items §15's independent review left behind
+  (`0b` the reviewer-agent file, `0c` `toggleDefender`), then #0's §12
+  follow-ups or #1's Stage 2c.
 - **Live defects:** [§9.2](#92-endgamebytimelimit-is-never-called) (needs a
   design decision) is the only one left open.
 - **Larger future work:** [§6.7](#67-the-elephant-problem-stage-2-split)'s
@@ -1738,7 +1732,7 @@ than presentation.
 
 ## 15. Ranged attacks resolve at zero attack force
 
-**Status: ✅ Shipped** — `feat/ranged-attack-force`. Found while correcting a
+**Status: ✅ Shipped** — merged to `main` as `272bcf0`. Found while correcting a
 wrong CRT worked example during [§6.9](#69-stage-3-outcome)'s review, pinned
 there by a deliberately-failing-later regression test, and fixed on its own
 branch because it changes live hotseat combat resolution. The original
@@ -1804,8 +1798,8 @@ least these points:
 
 ### 15.4 Outcome
 
-`feat/ranged-attack-force`. `tsc --noEmit` clean, `npm run build` clean,
-**355 passed / 1 skipped** against `main`'s 347 / 1 — eight net new tests,
+Merged as `272bcf0`. `tsc --noEmit` clean, `npm run build` clean,
+**357 passed / 1 skipped** against the pre-branch 347 / 1 — ten net new tests,
 and the one skip is the permanent Stage 2c elephant skip in both. Reviewed
 once, which found one real defect the branch made live
 ([§15.5](#155-review-finding-advance-after-combat-from-range)); fixed on the
