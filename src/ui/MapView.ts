@@ -12,6 +12,7 @@ import {
   PLAYER_COLORS_HEX,
 } from './hexRender';
 import { allHexes } from './mapBounds';
+import { formatHexTooltip } from './hexTooltip';
 
 /** Renders the hex map into a scene and handles hex click callbacks. Owns
  * camera scrolling (drag) since the full board is larger than the viewport. */
@@ -31,6 +32,26 @@ export class MapView {
    * created world objects (unit markers) get excluded from it too. */
   private uiCamera: Phaser.Cameras.Scene2D.Camera | null = null;
   onHexClick: ((hex: HexCoord) => void) | null = null;
+  /** Fired on `pointerover`/`pointerout`, mirroring `onHexClick` exactly (see
+   * `:71-80`'s per-hex wiring below) — a hook for callers that want to react
+   * to hover themselves. `MapView` does NOT rely on this to drive its own
+   * tooltip: `showHexTooltip`/`hideHexTooltip` are called directly from the
+   * same pointerover/pointerout listeners, so the tooltip's display logic
+   * (formatting, camera-pinning, depth, viewport clamping) lives in one place
+   * that a future trigger swap (e.g. "the selected hex" instead of "the
+   * hovered hex", see plan.md §13's flagged assumption) can call directly
+   * without going back through this callback. */
+  onHexHover: ((hex: HexCoord | null) => void) | null = null;
+  /** The hover tooltip's backing text object, created lazily on first hover
+   * (same lazy-creation pattern as `movementLabel`) since it may never be
+   * needed in a given scene visit. */
+  private hoverTooltip: Phaser.GameObjects.Text | null = null;
+  /** Depth 35: the natural free slot above the HUD (buttons/status at 30,
+   * SaveLoadPanel at 40/41) and below any modal (confirm dialog at 50-52) —
+   * see plan.md §13.2's re-derived depth map. A tooltip above a modal could
+   * float over the abandon-confirmation dialog; below the HUD it could be
+   * hidden by it. */
+  private static readonly TOOLTIP_DEPTH = 35;
 
   /**
    * @param leftPanelWidth Reserves a strip of screen space on the left (the
@@ -76,6 +97,14 @@ export class MapView {
       poly.setStrokeStyle(1, 0x2a2016, 0.4);
       poly.setInteractive(new Phaser.Geom.Polygon(points), Phaser.Geom.Polygon.Contains);
       poly.on('pointerdown', () => this.onHexClick?.(hex));
+      poly.on('pointerover', (pointer: Phaser.Input.Pointer) => {
+        this.onHexHover?.(hex);
+        this.showHexTooltip(hex, pointer.x, pointer.y);
+      });
+      poly.on('pointerout', () => {
+        this.onHexHover?.(null);
+        this.hideHexTooltip();
+      });
       this.hexPolys.set(`${hex.q},${hex.r}`, poly);
     }
 
@@ -350,6 +379,53 @@ export class MapView {
 
   clearFacingIndicators(): void {
     this.facingGraphics.clear();
+  }
+
+  /**
+   * Shows (creating on first use) the hex coordinate/terrain tooltip near
+   * the given SCREEN position (`pointer.x`/`pointer.y` — viewport pixels,
+   * not world/hex pixels: the tooltip is HUD, pinned to the fixed UI camera
+   * exactly like a button, not to the pannable/zoomable map underneath it —
+   * see `pinUIObjects`'s doc comment for the same trap this avoids).
+   *
+   * Not interactive (never `setInteractive`'d), so it can never steal
+   * `pointerover` from the hex polygons beneath it and cause flicker.
+   * Offset from the cursor so it doesn't sit directly under it, and that
+   * offset flips near the right/bottom viewport edge so the label never
+   * runs off-screen.
+   */
+  private showHexTooltip(hex: HexCoord, pointerX: number, pointerY: number): void {
+    const text = formatHexTooltip(hex);
+    if (!this.hoverTooltip) {
+      this.hoverTooltip = this.scene.add
+        .text(0, 0, text, {
+          fontSize: '13px',
+          color: '#f4e9d0',
+          backgroundColor: '#1a1408e0',
+          padding: { x: 6, y: 4 },
+        })
+        .setScrollFactor(0)
+        .setDepth(MapView.TOOLTIP_DEPTH);
+      // HUD element: render it only via the fixed UI camera (once
+      // `pinUIObjects` adds one), never the zoomable main camera — see this
+      // method's own doc comment. Works regardless of call order since
+      // `excludeFromMainCamera` only touches the main camera's ignore list.
+      this.excludeFromMainCamera([this.hoverTooltip]);
+    } else {
+      this.hoverTooltip.setText(text);
+    }
+
+    const OFFSET = 16;
+    let x = pointerX + OFFSET;
+    let y = pointerY + OFFSET;
+    if (x + this.hoverTooltip.width > this.viewportWidth) x = pointerX - OFFSET - this.hoverTooltip.width;
+    if (y + this.hoverTooltip.height > this.viewportHeight) y = pointerY - OFFSET - this.hoverTooltip.height;
+    this.hoverTooltip.setPosition(x, y);
+    this.hoverTooltip.setVisible(true);
+  }
+
+  private hideHexTooltip(): void {
+    this.hoverTooltip?.setVisible(false);
   }
 
   centerOn(hex: HexCoord): void {
