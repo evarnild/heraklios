@@ -73,6 +73,11 @@ npm run build   # production build
    combat → the next player's
    movement. The game ends when only one army remains on the board.
 
+On both the Placement and Board screens, hovering any hex shows a small
+tooltip with its coordinate and terrain type (e.g. "(4, 9) — Plateaux") —
+useful for telling plain from plateau or marsh at a glance, or for pinning
+down exactly which hex a rule, a bug, or a screenshot is talking about.
+
 ### Saving and loading
 
 The Board's **💾 Save / Load** button opens a panel with six save slots plus a
