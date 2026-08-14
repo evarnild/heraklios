@@ -187,12 +187,17 @@ export interface LandAttackDetail {
  * unit that could do either against different members of one group fights
  * the way it would against the nearest of them.
  *
- * The final fallback is deliberately `currentAttack` rather than 0: this is
- * only reached for an attacker that satisfies neither condition, i.e. one
- * that was never eligible to be in this combat at all
- * (`checkRangedEligibility` gates that), so it is a "caller built an illegal
- * group" case and should not silently look like a legal attack at zero
- * force — the exact failure this whole function exists to fix.
+ * The final fallback is unreachable through any legal group: an attacker
+ * matching neither branch is at neither contact nor its exact range, which
+ * `checkRangedEligibility` already refuses (via `validTargets` →
+ * `legalActions` / `BoardScene`'s target selection). It returns
+ * `currentAttack` — the pre-fix behaviour, whatever that unit's melee value
+ * is — rather than throwing, because the only caller that could reach it is
+ * one that hand-assembled an illegal group, and the two in-tree callers that
+ * assemble groups themselves (`HeuristicAgent`, `BoardScene`) are both
+ * separately policed for legality. It is deliberately NOT 0: a silent 0
+ * would resolve on the 1-5 column and look exactly like the defect this
+ * function exists to fix.
  */
 export function attackForceAgainst(attacker: Unit, defenders: readonly Unit[]): number {
   const t = unitType(attacker);
