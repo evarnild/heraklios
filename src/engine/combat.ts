@@ -47,9 +47,42 @@ export function canUnitEnterHex(unit: Unit, hex: HexCoord): boolean {
 /**
  * The subset of `candidates` (attackers eligible to advance into a hex a
  * combat just vacated) that could ACTUALLY occupy `vacatedHex`: still
- * alive, and — per `canUnitEnterHex` above — terrain its own category can
- * enter, which is not necessarily the same terrain the unit that vacated it
- * could stand on.
+ * alive, adjacent to it, and — per `canUnitEnterHex` above — terrain its own
+ * category can enter, which is not necessarily the same terrain the unit
+ * that vacated it could stand on.
+ *
+ * INTERPRETATION — the adjacency requirement. The rulebook grants the
+ * advance as "l'unité attaquante peut, si elle le désire, occuper la case
+ * que le défenseur abandonne, et ceci sans tenir compte des limites de
+ * déplacement qui lui sont propres ni ... des zones d'influence"
+ * (`docs/research/05-rules-french-original.md:250-256`). It waives movement
+ * points and ZOC, and says nothing about distance — because in the case it
+ * was written for there is nothing to say: a melee attacker is adjacent to
+ * the hex it just attacked, by definition. **A RANGED attacker is not**,
+ * and reading the waiver literally lets an archer that never left its hex
+ * occupy a hex two away — crossing whatever sits between, including an
+ * occupied enemy hex and its zone of control, which no other rule in this
+ * game permits. Requiring adjacency is therefore taken as the reading, on
+ * the grounds that "occuper la case que le défenseur abandonne" describes
+ * stepping into contact, not a free teleport.
+ *
+ * This is a no-op for every melee attacker — adjacency to the defender is
+ * what made it an attacker at all — so it changes exactly two things: an
+ * archer may no longer advance after a volley, and (in the house-rule
+ * 'multi-defender' mode, where a group can vacate several hexes at once) an
+ * attacker may no longer advance into the hex of a defender it was never in
+ * contact with. Both are the same defect.
+ *
+ * Distance is measured from each candidate's CURRENT position, which for the
+ * first offer of a batch is where it stood during the combat (advances are
+ * only ever offered on a DEFENDER's retreat/elimination, so no attacker has
+ * moved yet). Within a batch, a unit that already advanced measures from the
+ * hex it took — a strict narrowing of what it could reach before.
+ *
+ * Reachable, not hypothetical: before plan.md §15 an archer's volley always
+ * resolved on the CRT's 1-5 column, whose only non-AE face is AR, so a solo
+ * archer could not produce the defender retreat that triggers this offer.
+ * Once volleys resolved at the projectile value, DR became four faces of six.
  *
  * Exported specifically so both callers of the post-combat "advance into
  * the vacated hex" offer can share ONE implementation of this filter rather
@@ -63,7 +96,9 @@ export function canUnitEnterHex(unit: Unit, hex: HexCoord): boolean {
  * terrain check.
  */
 export function eligibleAdvanceCandidates(candidates: readonly Unit[], vacatedHex: HexCoord): Unit[] {
-  return candidates.filter((u) => !u.destroyed && canUnitEnterHex(u, vacatedHex));
+  return candidates.filter(
+    (u) => !u.destroyed && hexDistance(u.position, vacatedHex) === 1 && canUnitEnterHex(u, vacatedHex),
+  );
 }
 
 /** True if a (normal) river runs along the hexside shared by two adjacent hexes. */

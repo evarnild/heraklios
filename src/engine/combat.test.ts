@@ -87,26 +87,70 @@ describe('eligibleAdvanceCandidates', () => {
   // harness's OWN terrain invariant from ever seeing the same bug in
   // `BoardScene.ts`'s `promptAdvanceChoice`. Extracted here so both callers
   // share one tested implementation.
+  // Every candidate below stands ADJACENT to the vacated hex it is being
+  // tested against, so each test isolates the filter it is named for rather
+  // than passing for free on the adjacency rule added later (see the
+  // dedicated adjacency tests underneath).
+  const VACATED = { q: 5, r: 5 }; // plain
+  const NEXT_TO_VACATED = [
+    { q: 6, r: 5 },
+    { q: 5, r: 6 },
+  ];
+
   it('excludes a destroyed candidate', () => {
-    const alive = makeUnit({ id: 'a', typeId: 'fantassins', position: { q: 0, r: 0 } });
-    const dead = makeUnit({ id: 'd', typeId: 'fantassins', position: { q: 1, r: 0 }, destroyed: true });
-    const result = eligibleAdvanceCandidates([alive, dead], { q: 5, r: 5 });
+    const alive = makeUnit({ id: 'a', typeId: 'fantassins', position: NEXT_TO_VACATED[0]! });
+    const dead = makeUnit({ id: 'd', typeId: 'fantassins', position: NEXT_TO_VACATED[1]!, destroyed: true });
+    const result = eligibleAdvanceCandidates([alive, dead], VACATED);
     expect(result.map((u) => u.id)).toEqual(['a']);
   });
 
   it('excludes a candidate whose category cannot enter the vacated hex\'s terrain', () => {
-    const chariot = makeUnit({ id: 'c', typeId: 'chars-lourds', position: { q: 0, r: 0 } });
-    const infantry = makeUnit({ id: 'i', typeId: 'fantassins', position: { q: 1, r: 0 } });
     // (7,15) is 'marsh' — forbidden to chariots, fine for infantry.
-    const result = eligibleAdvanceCandidates([chariot, infantry], { q: 7, r: 15 });
+    const marsh = { q: 7, r: 15 };
+    const chariot = makeUnit({ id: 'c', typeId: 'chars-lourds', position: { q: 8, r: 15 } });
+    const infantry = makeUnit({ id: 'i', typeId: 'fantassins', position: { q: 7, r: 16 } });
+    for (const u of [chariot, infantry]) expect(hexDistance(u.position, marsh)).toBe(1);
+    const result = eligibleAdvanceCandidates([chariot, infantry], marsh);
     expect(result.map((u) => u.id)).toEqual(['i']);
   });
 
-  it('returns every alive, terrain-eligible candidate when the vacated hex is unrestricted', () => {
-    const a = makeUnit({ id: 'a', typeId: 'fantassins', position: { q: 0, r: 0 } });
-    const b = makeUnit({ id: 'b', typeId: 'cavalerie-legere', position: { q: 1, r: 0 } });
-    const result = eligibleAdvanceCandidates([a, b], { q: 5, r: 5 }); // plain
+  it('returns every alive, adjacent, terrain-eligible candidate', () => {
+    const a = makeUnit({ id: 'a', typeId: 'fantassins', position: NEXT_TO_VACATED[0]! });
+    const b = makeUnit({ id: 'b', typeId: 'cavalerie-legere', position: NEXT_TO_VACATED[1]! });
+    const result = eligibleAdvanceCandidates([a, b], VACATED);
     expect(result.map((u) => u.id).sort()).toEqual(['a', 'b']);
+  });
+
+  it('excludes an attacker that is not adjacent to the vacated hex', () => {
+    // The archer case (plan.md §15.5): a unit that shot from two hexes never
+    // came into contact, so it has no hex to step forward FROM. Reading the
+    // rulebook's "sans tenir compte des limites de déplacement" literally
+    // would let it cross the intervening hex — occupied or not — which no
+    // other rule in the game allows.
+    const adjacent = makeUnit({ id: 'melee', typeId: 'fantassins', position: NEXT_TO_VACATED[0]! });
+    const shooter = makeUnit({ id: 'archer', typeId: 'archers', position: { q: 7, r: 5 } });
+    expect(hexDistance(shooter.position, VACATED)).toBe(2);
+    // Terrain and liveness are BOTH satisfied for the archer, so adjacency is
+    // the only thing that can exclude it — the control that makes this test
+    // discriminating rather than incidentally green.
+    expect(canUnitEnterHex(shooter, VACATED)).toBe(true);
+    expect(shooter.destroyed).toBe(false);
+
+    const result = eligibleAdvanceCandidates([adjacent, shooter], VACATED);
+    expect(result.map((u) => u.id)).toEqual(['melee']);
+  });
+
+  it('is a no-op for a melee attacker, which is adjacent by construction', () => {
+    // Guards the claim the interpretation rests on: enforcing adjacency
+    // cannot take the advance away from anyone the rulebook meant to give it
+    // to, because being adjacent to the defender is what made them an
+    // attacker. Swept over every land type rather than asserted for one.
+    for (const t of UNIT_TYPES) {
+      if (t.domain !== 'land' || !t.meleeCapable) continue;
+      const attacker = makeUnit({ id: t.id, typeId: t.id, position: NEXT_TO_VACATED[0]! });
+      if (!canUnitEnterHex(attacker, VACATED)) continue; // terrain, a separate filter
+      expect([t.id, eligibleAdvanceCandidates([attacker], VACATED).length]).toEqual([t.id, 1]);
+    }
   });
 });
 
