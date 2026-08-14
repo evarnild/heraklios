@@ -1077,15 +1077,24 @@ describe('exchangeSacrificeMeetsThreshold / applyExchangeSacrifice', () => {
   it('prices every land unit that can join a land attack at its real contribution', () => {
     // Pins the coincidence `exchangeSacrificeForce` is built on: it takes the
     // better of a unit's melee and projectile values rather than the exact
-    // per-combat contribution from `LandAttackDetail.attackerForces`, which
-    // is only safe while no LAND type has two different non-zero attack
-    // values. Add one and this fails here, loudly, instead of silently
-    // mis-pricing a sacrifice — at which point the honest fix is to thread
-    // `attackerForces` through `PlayerAgent.chooseExchangeSacrifice`.
+    // per-combat contribution from `LandAttackDetail.attackerForces`. Add a
+    // land type that breaks the coincidence and this fails here, loudly,
+    // instead of silently mis-pricing a sacrifice — at which point the honest
+    // fix is to thread `attackerForces` through
+    // `PlayerAgent.chooseExchangeSacrifice`.
+    //
+    // TWO shapes break it, and independent review caught that an earlier
+    // version of this guard only caught one. The obvious one is two different
+    // non-zero values. The subtle one is `attack: 0, rangedAttack: n,
+    // meleeCapable: TRUE` — legal to write, and then `attackForceAgainst`
+    // contributes 0 at contact while `exchangeSacrificeForce` prices it at
+    // `n`. Real `archers` dodge it only by being `meleeCapable: false`, so
+    // that flag is load-bearing here and is asserted rather than assumed.
     for (const t of UNIT_TYPES) {
       if (t.domain !== 'land') continue; // naval resolves by boarding, never through the land CRT
       if (t.rangedAttack === 0) continue;
-      expect([t.id, t.attack === 0 || t.attack === t.rangedAttack]).toEqual([t.id, true]);
+      const priceable = t.attack === t.rangedAttack || (t.attack === 0 && !t.meleeCapable);
+      expect([t.id, priceable]).toEqual([t.id, true]);
     }
   });
 

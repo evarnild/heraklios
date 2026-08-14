@@ -54,30 +54,49 @@ export function canUnitEnterHex(unit: Unit, hex: HexCoord): boolean {
  * INTERPRETATION — the adjacency requirement. The rulebook grants the
  * advance as "l'unité attaquante peut, si elle le désire, occuper la case
  * que le défenseur abandonne, et ceci sans tenir compte des limites de
- * déplacement qui lui sont propres ni ... des zones d'influence"
- * (`docs/research/05-rules-french-original.md:250-256`). It waives movement
- * points and ZOC, and says nothing about distance — because in the case it
- * was written for there is nothing to say: a melee attacker is adjacent to
- * the hex it just attacked, by definition. **A RANGED attacker is not**,
- * and reading the waiver literally lets an archer that never left its hex
- * occupy a hex two away — crossing whatever sits between, including an
- * occupied enemy hex and its zone of control, which no other rule in this
- * game permits. Requiring adjacency is therefore taken as the reading, on
- * the grounds that "occuper la case que le défenseur abandonne" describes
- * stepping into contact, not a free teleport.
+ * déplacement qui lui sont propres ni [sans tenir compte] des zones
+ * d'influence" (`docs/research/05-rules-french-original.md:248-254`). NOTE
+ * the transcription is corrupt at :250-252 — it repeats "des limites de
+ * déplacement qui lui sont propres" a second time where the sentence needs
+ * the elided "sans tenir compte" before "des zones d'influence"; the reading
+ * bracketed above is the only coherent one, and is recorded here rather than
+ * silently repaired.
  *
- * This is a no-op for every melee attacker — adjacency to the defender is
- * what made it an attacker at all — so it changes exactly two things: an
- * archer may no longer advance after a volley, and (in the house-rule
+ * So the rule waives movement points and ZOC, and says nothing about
+ * distance — because in the case it was written for there is nothing to say:
+ * a melee attacker is adjacent to the hex it just attacked, by definition.
+ * **A RANGED attacker is not.** The literal reading is therefore rejected
+ * WHOLESALE, not merely where it misbehaves: an archer two hexes away is
+ * barred from advancing even across an empty intervening hex, where the
+ * literal reading has no obstacle at all, because the waiver of "limites de
+ * déplacement" is what would otherwise sanction it. The case that shows the
+ * literal reading cannot be right is the blocked one — it would let the
+ * archer cross an OCCUPIED enemy hex and its ZOC, which nothing else in this
+ * game permits — but the rule adopted here is the general one, that "occuper
+ * la case que le défenseur abandonne" means stepping into contact.
+ *
+ * Note the deliberate asymmetry with AR, which is left literal: an archer
+ * that never closed still retreats a hex on an attacker-retreat result. That
+ * is a forced move away from a threat, not an optional move onto ground the
+ * unit never reached, so the same objection does not apply.
+ *
+ * This is a no-op for every melee attacker **as of the combat** — adjacency
+ * to the defender is what made it an attacker at all — so what it changes is
+ * an archer advancing after a volley, plus (in the house-rule
  * 'multi-defender' mode, where a group can vacate several hexes at once) an
- * attacker may no longer advance into the hex of a defender it was never in
- * contact with. Both are the same defect.
+ * attacker advancing into the hex of a defender it was never in contact
+ * with. Both are the same defect.
  *
- * Distance is measured from each candidate's CURRENT position, which for the
- * first offer of a batch is where it stood during the combat (advances are
- * only ever offered on a DEFENDER's retreat/elimination, so no attacker has
- * moved yet). Within a batch, a unit that already advanced measures from the
- * hex it took — a strict narrowing of what it could reach before.
+ * Distance is measured from each candidate's CURRENT position, which is NOT
+ * always where it stood during the combat — an earlier version of this
+ * comment claimed it was, and independent review found two paths where it
+ * isn't. (a) A defending elephant on a DR drifts BEFORE the advance is
+ * offered (`fuzzHarness.ts`'s `processDrifts`, and `BoardScene`'s matching
+ * queue), and that drift can trample an attacker of this same combat into a
+ * retreat, leaving it at distance 2. (b) Within a multi-hex batch, a unit
+ * that already advanced measures from the hex it took. Both are deliberate:
+ * a unit shoved backwards by a rampaging elephant should not then step
+ * forward into the hex it was shoved away from.
  *
  * Reachable, not hypothetical: before plan.md §15 an archer's volley always
  * resolved on the CRT's 1-5 column, whose only non-AE face is AR, so a solo
@@ -178,10 +197,10 @@ export interface LandAttackDetail {
  * chiffre entre parenthèses correspond à la valeur d'attaque par projectiles
  * (flèches des archers, par exemple). Toutes les unités qui ont une valeur
  * nulle en force d'attaque par projectiles sont obligées de combattre au
- * contact" (`docs/research/05-rules-french-original.md:78-82`). It is
+ * contact" (`docs/research/05-rules-french-original.md:78-81`). It is
  * explicitly an *attack value*, so a volley resolves on it. The combat rules
  * themselves never restate this — they say only "on additionne les points
- * d'attaque des unités offensives" (`:199-200`) without saying which of the
+ * d'attaque des unités offensives" (`:200-201`) without saying which of the
  * two numbers a shooter contributes — so reading "points d'attaque" as "the
  * attack value appropriate to how this unit is engaging" is a reading, not a
  * quotation. Everything else in the roster is unaffected: only `archers`,
@@ -223,17 +242,27 @@ export interface LandAttackDetail {
  * unit that could do either against different members of one group fights
  * the way it would against the nearest of them.
  *
- * The final fallback is unreachable through any legal group: an attacker
- * matching neither branch is at neither contact nor its exact range, which
- * `checkRangedEligibility` already refuses (via `validTargets` →
- * `legalActions` / `BoardScene`'s target selection). It returns
- * `currentAttack` — the pre-fix behaviour, whatever that unit's melee value
- * is — rather than throwing, because the only caller that could reach it is
- * one that hand-assembled an illegal group, and the two in-tree callers that
- * assemble groups themselves (`HeuristicAgent`, `BoardScene`) are both
- * separately policed for legality. It is deliberately NOT 0: a silent 0
- * would resolve on the 1-5 column and look exactly like the defect this
- * function exists to fix.
+ * The final fallback catches an attacker at neither contact nor its exact
+ * range. `checkRangedEligibility` refuses to let one into a group in the
+ * first place (via `validTargets` → `legalActions`), and `HeuristicAgent`
+ * re-derives that per attacker before assembling a group
+ * (`heuristicAgent.ts`'s `attackerCanJoin` gate).
+ *
+ * `BoardScene` does NOT, and saying otherwise here was wrong — independent
+ * review found the path. `toggleDefender` splices a defender out of the
+ * group without revalidating the attackers, so in 'multi-defender' mode a
+ * player can target D1 and D2, then untarget D1, leaving an archer that only
+ * ever reached D1 sitting in the group. It lands here and contributes its
+ * melee value. That is pre-existing and out of this function's hands — the
+ * fix belongs at the splice — but it is the one live situation where an
+ * attacker's contribution is not what `exchangeSacrificeForce` would price
+ * it at. Logged in plan.md's queue.
+ *
+ * The fallback returns `currentAttack` rather than throwing, because the
+ * reachable case above is a UI slip mid-selection rather than a corrupt
+ * state, and a throw there would wedge the board. It is deliberately NOT 0:
+ * a silent 0 would resolve on the 1-5 column and look exactly like the
+ * defect this function exists to fix.
  */
 export function attackForceAgainst(attacker: Unit, defenders: readonly Unit[]): number {
   const t = unitType(attacker);

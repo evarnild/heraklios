@@ -111,7 +111,7 @@ export function currentAttack(unit: Unit): number {
  * parenthèses correspond à la valeur d'attaque par projectiles (flèches des
  * archers, par exemple). Toutes les unités qui ont une valeur nulle en force
  * d'attaque par projectiles sont obligées de combattre au contact"
- * (`docs/research/05-rules-french-original.md:78-82`).
+ * (`docs/research/05-rules-french-original.md:78-81`).
  *
  * Which of this and `currentAttack` a given attacker actually contributes to
  * a combat is decided per-attacker by `combat.ts`'s `attackForceAgainst`,

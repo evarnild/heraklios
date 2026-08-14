@@ -256,16 +256,23 @@ reasoning is recorded in full at `attackForceAgainst` in
   from 1 add up normally.
 - **A ranged result is an ordinary result, with one exception.** There is one
   combat-results table and no ranged variant, so AR/DR/EX resolve exactly as
-  at contact, including the defender's retreat. But **a shooter may not
-  advance into the vacated hex**. The rulebook grants that advance "sans
-  tenir compte des limites de déplacement qui lui sont propres ni ... des
-  zones d'influence" and never mentions distance — because for the attacker
-  it was written for there is nothing to mention: a melee attacker is
-  adjacent to the hex it just attacked. Taken literally it would let an
-  archer that never left its hex occupy a hex two away, crossing whatever
-  sits between — including an occupied enemy hex, which nothing else in the
-  game permits. Advance therefore requires adjacency to the vacated hex,
-  which changes nothing for any melee attacker.
+  at contact, including the defender's retreat — and including an **AR**
+  retreating a shooter that never closed, which is left literal because it is
+  a forced move away from a threat. But **a shooter may not advance into the
+  vacated hex**. The rulebook grants that advance "sans tenir compte des
+  limites de déplacement qui lui sont propres ni ... des zones d'influence"
+  and never mentions distance — because for the attacker it was written for
+  there is nothing to mention: a melee attacker is adjacent to the hex it
+  just attacked. Taken literally it would let an archer that never left its
+  hex occupy a hex two away, crossing whatever sits between — including an
+  occupied enemy hex, which nothing else in the game permits. That blocked
+  case is what shows the literal reading can't be right, but the rule adopted
+  is the general one: **advance requires adjacency**, so an archer is barred
+  even where the intervening hex is empty. It changes nothing for a melee
+  attacker, which was adjacent to the hex it attacked by definition. (One
+  exception to *that*: a unit shoved backwards between the combat and the
+  offer — trampled by a defending elephant's drift — is now excluded too,
+  deliberately.)
 
 Until this was fixed, every volley resolved at attack force **0** — the
 CRT's 1-5 column, five of whose six faces are AE — so firing a plain archer

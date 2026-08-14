@@ -79,11 +79,12 @@ sync when something merges** — it went stale once and the user caught it.
 ### In flight
 
 - [§15](#15-live-defect-ranged-attacks-resolve-at-zero-attack-force) **ranged
-  attack force** — `feat/ranged-attack-force`, tsc/build/355 tests green, 5
-  mutations killed. Reviewed once (finding and fix:
-  [§15.5](#155-review-finding-advance-after-combat-from-range)); that pass
-  was **not independent** — the same session wrote the code — so an
-  adversarial `heraklios-reviewer` run is still owed before merge. Outcome
+  attack force** — `feat/ranged-attack-force`, tsc/build/357 tests green, 9
+  mutations killed. Reviewed **twice**: a self-review that found
+  [§15.5](#155-review-finding-advance-after-combat-from-range), then an
+  independent `heraklios-reviewer` pass that returned PASS and found what the
+  self-review could not — see [§15.6](#156-independent-review). All findings
+  fixed on the branch. **Ready to merge.** Outcome
   and what it turned up beyond the stated scope (an EX soft-lock, a lying
   combat log, advance-from-range) are in [§15.4](#154-outcome). Next up after
   it merges is #0 below.
@@ -93,6 +94,8 @@ sync when something merges** — it went stale once and the user caught it.
 | # | Item | Touches | Notes |
 | --- | --- | --- | --- |
 | 0 | [§12](#12-cascading-push-when-a-unit-cannot-retreat) follow-ups | `engine/fuzzHarness*.ts`, `BoardScene.ts` | The three non-blocking findings that shipped with `3c766d6`: the untested `chainVisited` cycle guard (+ two comments wrongly claiming coverage), the stale "surrounded by friendly units" string, the thin `pushesResolved` canary. Small; fold into whatever touches those files next. |
+| 0b | Reviewer-agent file corrections | `.claude/agents/heraklios-reviewer.md` | **Cheap, do it next.** [§15.6](#156-independent-review) had to override four of its rules per-run: it prescribes `npx tsc --noEmit` (the [§4](#4-runbook-detailed-launch-hazards-appendix) false-green trap), a `--detach` that wrecks the tree when the branch is already HEAD, "plan.md must not be edited" (untrue when the operator drives the branch), and a "Known simplifications" step that doesn't apply to defect fixes. |
+| 0c | `toggleDefender` leaves stale attackers in the group | `scenes/BoardScene.ts` | Found by [§15.6](#156-independent-review). Untargeting a defender doesn't revalidate the attack group, so an archer that only reached the removed target stays in it and contributes its melee value — the §15 defect, live, for that unit. Minimal fix: after the splice at `toggleDefender`, drop attackers failing `attackerCanJoin` against the remaining defenders. |
 | 1 | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2c — elephants in the harness | `engine/fuzzHarness.ts` | Now unblocked: 2b landed the extracted cascade, so this is putting elephants back into the generated armies, deleting the exclusion guard and the skipped test. Also what unblocks the AI ever using one (§6.9). |
 | 2 | [§13](#13-hex-coordinate-tooltip) hex coordinate tooltip | `ui/MapView.ts`, `BoardScene.ts` | Presentation only. |
 | 3 | [§9.2](#92-endgamebytimelimit-is-never-called) turn-limit ending | design + scenes | **Live gap, and now the only open one.** Needs a design decision first (what sets the limit, how the player is told). Stage 3 added a second reason to care: `endGameByTimeLimit` breaks a tied army value in favour of the lower seat, silently (§6.9). |
@@ -1813,13 +1816,13 @@ rulebook once you read the counter-format footnote rather than the combat
 section: "le chiffre entre parenthèses correspond à la valeur d'attaque par
 projectiles ... Toutes les unités qui ont une valeur nulle en force d'attaque
 par projectiles sont obligées de combattre au contact"
-(`05-rules-french-original.md:78-82`) makes the parenthesized number an
+(`05-rules-french-original.md:78-81`) makes the parenthesized number an
 *attack value*, not a flag. (1) A melee-capable shooter at contact uses its
 melee value, because archer-infantry are described as having contact combat
 "en outre" — additionally (`:261-263`). (2) A shooter joins a combined attack
 at its projectile value, because the combining rule requires each attacker to
 meet "les conditions de proximité inhérentes à leurs types d'armes" and names
-archers-at-exactly-2 as its example (`:192-198`) — a *per-attacker*
+archers-at-exactly-2 as its example (`:194-198`) — a *per-attacker*
 condition. (3) A ranged result is an ordinary result: there is one CRT and no
 ranged variant. All three are recorded at `attackForceAgainst` and in the
 README's new "Shooting" section.
@@ -1846,13 +1849,17 @@ engine, no scene change." Two things fell out that it did not anticipate:
    `currentAttack`, so an archer's line would have read 0 under a total of 2.
    `LandAttackDetail` now carries `attackerForces` and the scene reads that.
 
-**Verification.** Four mutations, all killed: reverting `attackForceAgainst`
+**Verification.** Nine mutations, all killed: reverting `attackForceAgainst`
 to `currentAttack` (5 tests), swapping its melee/ranged precedence (1 —
 deliberately probed with `triremes`, the roster's only unit whose two attack
 values differ, since a test written on `fantassins-archers` at 2/2 passes
-with the branches inverted), reverting `exchangeSacrificeForce` (1), and
-giving `archers` a melee attack of 1 to break the roster coincidence (1, and
-it names the offending unit id in the failure).
+with the branches inverted), reverting `exchangeSacrificeForce` (1), giving
+`archers` a melee attack of 1 to break the roster coincidence (1, and it
+names the offending unit id in the failure), dropping the advance adjacency
+term (1), dropping the advance terrain term (1), and reverting
+`cheapestSacrifice`'s pricing in each of its two branches (1 each — **both
+survived until the independent review**, see
+[§15.6](#156-independent-review)).
 
 **Both soaks moved, as §15.3 predicted, and the trace-hash technique was
 correctly unavailable.** Numbers re-derived rather than re-baselined:
@@ -1892,7 +1899,7 @@ review that only diffed the changed lines would have passed it.
 
 **The reading** is recorded at the function: the rulebook waives movement
 points and ZOC for this advance ("sans tenir compte des limites de
-déplacement qui lui sont propres ni ... des zones d'influence", `:250-256`)
+déplacement qui lui sont propres ni ... des zones d'influence", `:248-254`)
 and says nothing about distance, because for the attacker it was written for
 there is nothing to say — a melee attacker is adjacent to the hex it just
 attacked. Requiring adjacency is therefore a no-op for every melee attacker,
@@ -1907,3 +1914,90 @@ across the board.
 **Cost of the finding:** one more soak re-baseline (100-game `AE` 7 → 6) and
 a third strength re-measurement, which barely moved — an EV agent rarely
 wanted to walk a defense-1 archer into the contact it had just shot at.
+
+<a id="156-independent-review"></a>
+
+### 15.6 Independent review
+
+Run by `heraklios-reviewer` after the branch had already been written *and
+self-reviewed in the same session*. **Verdict: PASS**, 1 MEDIUM, 2
+MEDIUM-LOW, 4 LOW, no HIGH. Every finding below was re-verified by hand
+before being acted on; all were real.
+
+**The self-review's blind spot was exactly where you'd expect it: the lines
+it had just written.** §15's core fix touched `cheapestSacrifice`'s pricing
+in three places (`combatOdds.ts`, the exact ≤12 branch and the greedy >12
+branch). Reverting all three to `currentAttack` **left the entire 355-test
+suite green** — two independent surviving mutations on changed lines, and the
+self-review's four-mutation sweep had simply not thought to aim at them. The
+consequence was not cosmetic: with archer pricing reverted, the exact search
+returns `[]` for any EX group whose cheap units are archers, `HeuristicAgent`
+reads `[]` as "sacrifice everything", and `evaluateAttack` then prices every
+EX face at the full group value — skewing the EV of every attack that can
+roll EX, silently, with a green suite. **This is plan.md §6.6's failure mode
+happening to the very branch that cites §6.6.** Both branches now have a
+guard that dies under that revert.
+
+**The lesson worth keeping is about mutation coverage, not about this bug.**
+A mutation sweep aimed at the *feature* is not the same as one aimed at the
+*diff*. The rule going forward: enumerate mutations from `git diff`, one per
+changed behavioural line, not from a mental list of what the feature does.
+
+**And a second lesson, from re-running the sweep that way.** Four of the nine
+mutations initially reported `SURVIVED` — falsely. The patch script matched
+on `\n` while the files are `\r\n`, so those four never applied at all and
+the harness scored an unmodified tree as a surviving mutant. It failed safe
+here (a false SURVIVED gets investigated), but the same bug with a pattern
+that matched the *wrong* place would have produced a false KILLED and
+certified a guard that guards nothing — the exact thing the sweep exists to
+disprove. **A mutation harness needs its own guard**: assert the file
+actually changed (`git diff --quiet` before running the suite) rather than
+trusting the patch step. Cheap, and it caught this immediately once added.
+
+**Two of the remaining findings were claims in comments that were simply
+false**, both written with confidence:
+
+- "no-op for every melee attacker" — untrue on the drift path. A defending
+  elephant on a DR drifts *before* the advance is offered, and that drift can
+  trample an attacker of the same combat into a retreat, leaving it at
+  distance 2 and now excluded. The behaviour is right; the universal claim
+  was not.
+- "both in-tree callers that assemble groups are separately policed for
+  legality" — true of `HeuristicAgent`, false of `BoardScene`, whose
+  `toggleDefender` splices a defender out without revalidating the attackers.
+  That is a live hotseat path (target D1 and D2 with an archer that reaches
+  only D1, then untarget D1) which resurrects the §15 defect for that unit,
+  and is the ONE situation where `exchangeSacrificeForce`'s pricing differs
+  from the real contribution. Pre-existing; queued as its own item rather
+  than fixed here.
+
+**Also corrected:** the roster-coincidence guard had a hole at exactly the
+shape it exists to catch (`attack: 0, rangedAttack: n, meleeCapable: true`
+passed via its `t.attack === 0` arm — real `archers` dodge it only by being
+`meleeCapable: false`, so that flag is load-bearing and is now asserted);
+three citation line ranges were off; and the advance passage's transcription
+turns out to be **corrupt** — `:250-252` repeats "des limites de déplacement
+qui lui sont propres" where the sentence needs an elided "sans tenir compte"
+before "des zones d'influence". Both the code comment and the README had
+quietly repaired it while quoting, which CLAUDE.md's ambiguous-passage
+convention forbids; the duplication is now recorded where it is quoted.
+
+**What the review confirmed rather than found**, worth recording because it
+is what a PASS is made of: it re-read all six rulebook citations at source
+and cross-checked them against `02-rules-transcription.md` and
+`03-tables-reference.md`; it reconstructed `main`'s engine in place and
+reproduced every documented measurement digit for digit, including §6.8's
+before/after blocks and §15.5's intermediate `AE 7`; it re-ran all six
+claimed mutations rather than believing them; and it could not construct a
+legal in-game divergence for `exchangeSacrificeForce` via charged cavalry,
+damaged ships, multi-defender mode, or the drift path.
+
+**Process note.** The agent definition in
+`.claude/agents/heraklios-reviewer.md` told the reviewer to run
+`npx tsc --noEmit` (the false-green trap [§4](#4-runbook-detailed-launch-hazards-appendix)
+documents) and to `git checkout --detach` a branch that was already the main
+tree's HEAD (which would have left the operator's tree detached). Both had to
+be overridden in the launch brief, along with its "plan.md must not be
+edited" and "move the item out of Known simplifications" rules, neither of
+which applied. **The agent file should be fixed so the next run doesn't need
+the same four corrections** — queued below.

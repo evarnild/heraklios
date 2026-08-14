@@ -147,9 +147,12 @@ describe('HeuristicAgent: difficulty tiers are ordered by strength', () => {
 
     const heuristicTotal = asSeat0.material[0] + asSeat1.material[1];
     const randomTotal = asSeat0.material[1] + asSeat1.material[0];
-    // Measured at roughly 3.5x (67.5 to 19.2 across the two seat
-    // assignments); asserted at 2x so ordinary tuning of the weights doesn't
-    // turn a still-comfortable win into a red suite.
+    // Measured at roughly 3.5x. The per-game averages are 67.5 vs 19.2; the
+    // totals asserted below are those times the 12 seeds, i.e. 810 vs 230 —
+    // stated because quoting only the averages next to an assertion on the
+    // totals reads as if they were the same number. Asserted at 2x so
+    // ordinary tuning of the weights doesn't turn a still-comfortable win
+    // into a red suite.
     expect(heuristicTotal).toBeGreaterThan(randomTotal * 2);
   });
 

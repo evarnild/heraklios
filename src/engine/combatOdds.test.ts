@@ -288,6 +288,36 @@ describe('cheapestSacrifice', () => {
     expect(cheapestSacrifice([infantry], 99)).toEqual([]);
   });
 
+  // The next two exist because independent review found that reverting this
+  // function's pricing to `currentAttack` — which plan.md §15 changed in
+  // three places here — left the ENTIRE suite green. Both branches now have a
+  // guard that dies under exactly that revert.
+  it('prices a shooter at its projectile value (exact branch)', () => {
+    // A threshold of 1 that only `exchangeSacrificeForce` pricing can meet
+    // cheaply: archers are 5 points and contribute 2 by projectile, heavy
+    // infantry 10 points and 4 at contact. Priced by `currentAttack` the
+    // archers count 0, no subset containing only them qualifies, and the
+    // search settles for the unit costing twice as much.
+    const archers = makeUnit({ id: 'x', typeId: 'archers', position: CENTER, owner: 0 });
+    const heavy = makeUnit({ id: 'h', typeId: 'fantassins-lourds', position: CENTER, owner: 0 });
+    expect(cheapestSacrifice([archers, heavy], 1).map((u) => u.id)).toEqual(['x']);
+  });
+
+  it('prices a shooter at its projectile value (greedy branch, >12 attackers)', () => {
+    // Above 12 the exact search hands off to the value-per-force greedy
+    // fallback, a separate code path with its own copy of the pricing.
+    // Reachable in hotseat: one defender has 6 contact neighbours plus 12
+    // hexes at exact archer range.
+    const group = Array.from({ length: 13 }, (_, i) =>
+      makeUnit({ id: `x${i}`, typeId: 'archers', position: CENTER, owner: 0 }),
+    );
+    const chosen = cheapestSacrifice(group, 2);
+    // One archer covers a threshold of 2 exactly. Priced at `currentAttack`,
+    // the accumulator never moves off 0 and the whole thing returns [] —
+    // which `HeuristicAgent` reads as "sacrifice everything".
+    expect(chosen).toHaveLength(1);
+  });
+
   it('is used by evaluateAttack to price an exchange', () => {
     // Two attackers, so an 'EX' offers a choice: the valuation must charge
     // the cheap unit, not the whole group.
