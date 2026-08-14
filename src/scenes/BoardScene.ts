@@ -30,6 +30,7 @@ import {
   defenderCanJoin,
   cavalryMayAttack,
   eligibleAdvanceCandidates,
+  pruneIllegalSelections,
   unitAt,
   type LandAttackDetail,
   type LandCombatOutcome,
@@ -1155,6 +1156,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     if (idx >= 0) {
       this.recordAction(`Deselect ${unitType(unit).name}`);
       this.attackGroup.splice(idx, 1);
+      this.pruneIllegalCombatSelections();
       this.refreshCombatHighlights();
       return;
     }
@@ -1192,6 +1194,33 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.refreshCombatHighlights();
   }
 
+  /**
+   * Re-applies the join rules after a unit is removed from either combat
+   * group, dropping anything the removal stranded — see
+   * `pruneIllegalSelections` in engine/combat.ts for why a removal needs this
+   * and an addition doesn't. Called AFTER `recordAction`, so the whole
+   * cleanup is part of the same undo step as the click that caused it.
+   *
+   * Says what it dropped: a unit vanishing from the selection with no
+   * explanation reads as a bug, and the reason ("nothing left it can reach")
+   * is not obvious from the board.
+   */
+  private pruneIllegalCombatSelections(): void {
+    const state = this.state();
+    const { attackers, defenders, dropped } = pruneIllegalSelections(
+      state,
+      this.attackGroup,
+      this.defenderGroup,
+      state.combatMode,
+    );
+    if (dropped.length === 0) return;
+    this.attackGroup = attackers;
+    this.defenderGroup = defenders;
+    this.log(
+      `Removed from the combat (nothing left in range): ${dropped.map((u) => unitType(u).name).join(', ')}.`,
+    );
+  }
+
   private toggleDefender(unit: Unit): void {
     if (this.attackGroup.length === 0) return;
     if (unit.defendedThisPhase) {
@@ -1202,6 +1231,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     if (idx >= 0) {
       this.recordAction(`Untarget ${unitType(unit).name}`);
       this.defenderGroup.splice(idx, 1);
+      this.pruneIllegalCombatSelections();
       this.refreshCombatHighlights();
       return;
     }

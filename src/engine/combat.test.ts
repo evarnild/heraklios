@@ -19,6 +19,7 @@ import {
   exchangeSacrificeForce,
   exchangeSacrificeMeetsThreshold,
   legalRetreatHexes,
+  pruneIllegalSelections,
   pushCandidates,
   resolveLandAttack,
   retreatUnitTo,
@@ -228,6 +229,84 @@ describe('attackForceAgainst (plan.md §15)', () => {
     expect(detail.ratioLabel).toBe('1-1');
     expect(detail.attackerForces.get('x')).toBe(2);
     expect(detail.attackerForces.get('f')).toBe(2);
+  });
+});
+
+describe('pruneIllegalSelections (plan.md §15.6)', () => {
+  /**
+   * `d1` is reachable by BOTH attackers (infantry adjacent, archer at exactly
+   * its range of 2). `d2` is reachable ONLY by the infantry: it is adjacent
+   * to the archer too, but archers are not `meleeCapable`, so adjacency is
+   * not a legal attack for them. That asymmetry is what makes each direction
+   * of the prune testable.
+   */
+  function scenario() {
+    const infantry = makeUnit({ id: 'inf', typeId: 'fantassins', position: { q: 10, r: 5 }, owner: 0 });
+    const archer = makeUnit({ id: 'arch', typeId: 'archers', position: { q: 9, r: 5 }, owner: 0 });
+    const d1 = makeUnit({ id: 'd1', typeId: 'fantassins', position: { q: 11, r: 5 }, owner: 1 });
+    const d2 = makeUnit({ id: 'd2', typeId: 'fantassins', position: { q: 10, r: 4 }, owner: 1 });
+    return { infantry, archer, d1, d2, state: makeState([infantry, archer, d1, d2]) };
+  }
+
+  it('pins the scenario geometry the rest of this block depends on', () => {
+    const { infantry, archer, d1, d2, state } = scenario();
+    expect(hexDistance(archer.position, d1.position)).toBe(2); // exactly its range
+    expect(hexDistance(archer.position, d2.position)).toBe(1); // adjacent, and it cannot melee
+    expect(validTargets(state, archer).map((u) => u.id)).toEqual(['d1']);
+    expect(validTargets(state, infantry).map((u) => u.id).sort()).toEqual(['d1', 'd2']);
+  });
+
+  it('drops an attacker stranded by untargeting the only defender it reached', () => {
+    // The live path adversarial review found: target d1 and d2 with both
+    // units, then untarget d1. The archer now reaches nothing in the group —
+    // but nothing re-checked, so it stayed in and contributed through
+    // `attackForceAgainst`'s fallback at its MELEE value of 0. That is
+    // plan.md §15's defect resurrected for that unit.
+    const { infantry, archer, d2, state } = scenario();
+    const pruned = pruneIllegalSelections(state, [infantry, archer], [d2], 'multi-defender');
+    expect(pruned.attackers.map((u) => u.id)).toEqual(['inf']);
+    expect(pruned.dropped.map((u) => u.id)).toEqual(['arch']);
+    expect(pruned.defenders.map((u) => u.id)).toEqual(['d2']); // still reachable, so still targeted
+  });
+
+  it('drops a defender stranded by deselecting the only attacker that reached it', () => {
+    // The mirror case, which the review did not name: deselect the infantry
+    // and d2 is left targeted by a group that cannot touch it.
+    const { archer, d1, d2, state } = scenario();
+    const pruned = pruneIllegalSelections(state, [archer], [d1, d2], 'multi-defender');
+    expect(pruned.defenders.map((u) => u.id)).toEqual(['d1']);
+    expect(pruned.dropped.map((u) => u.id)).toEqual(['d2']);
+    expect(pruned.attackers.map((u) => u.id)).toEqual(['arch']);
+  });
+
+  it('leaves a still-legal selection completely untouched', () => {
+    // The control: without it, a prune that dropped everything unconditionally
+    // would satisfy both tests above.
+    const { infantry, archer, d1, state } = scenario();
+    const pruned = pruneIllegalSelections(state, [infantry, archer], [d1], 'multi-defender');
+    expect(pruned.attackers.map((u) => u.id)).toEqual(['inf', 'arch']);
+    expect(pruned.defenders.map((u) => u.id)).toEqual(['d1']);
+    expect(pruned.dropped).toEqual([]);
+  });
+
+  it('never empties the attack group while defenders remain', () => {
+    // The invariant the "one pass is enough" argument rests on: every
+    // surviving defender is reachable by some surviving attacker. Asserted
+    // over every subset rather than left as prose.
+    const { infantry, archer, d1, d2, state } = scenario();
+    for (const defenders of [[d1], [d2], [d1, d2]]) {
+      const pruned = pruneIllegalSelections(state, [infantry, archer], defenders, 'multi-defender');
+      if (pruned.defenders.length > 0) expect(pruned.attackers.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('drops nothing when the defender group is emptied entirely', () => {
+    // With no target selected the join rules impose nothing, so an untarget
+    // that clears the board must not cascade into deselecting the attackers.
+    const { infantry, archer, state } = scenario();
+    const pruned = pruneIllegalSelections(state, [infantry, archer], [], 'multi-defender');
+    expect(pruned.attackers.map((u) => u.id)).toEqual(['inf', 'arch']);
+    expect(pruned.dropped).toEqual([]);
   });
 });
 

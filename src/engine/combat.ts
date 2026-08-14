@@ -485,6 +485,59 @@ export function defenderCanJoin(
   return unionValidTargets(state, attackGroup).some((u) => u.id === candidate.id);
 }
 
+/**
+ * Drops selections that a REMOVAL has just made illegal, and returns the
+ * surviving groups plus what it took out.
+ *
+ * `attackerCanJoin`/`defenderCanJoin` are gates on *adding* to a combat
+ * group, and `BoardScene` applies them faithfully on every add. Nothing was
+ * re-checking after a REMOVAL, which is not symmetric: legality of one side
+ * is defined against the other, so taking a unit out of one group can strand
+ * a unit in the other. Two live paths, both reachable by ordinary clicking in
+ * 'multi-defender' mode:
+ *
+ * - Untarget a defender, and an attacker whose only reachable target was
+ *   that defender stays in the attack group. It then contributes through
+ *   `attackForceAgainst`'s fallback — for an archer, its melee value, which
+ *   is 0. That is plan.md §15's defect resurrected for that unit, and the
+ *   one situation where `exchangeSacrificeForce` prices a unit differently
+ *   from what it actually contributed.
+ * - Deselect an attacker, and a defender that only that attacker could reach
+ *   stays targeted — a unit dragged into a combat nothing in the group can
+ *   legally attack.
+ *
+ * ONE PASS IS ENOUGH, and the reason is worth stating because "prune until
+ * stable" would be the obvious defensive guess: a dropped attacker is by
+ * definition one that reaches none of the surviving defenders, so it cannot
+ * have been the sole support for any of them; symmetrically a dropped
+ * defender is unreachable by every surviving attacker, so no attacker was
+ * relying on it. Neither removal can therefore invalidate anything else.
+ *
+ * For the same reason the attack group cannot be emptied while defenders
+ * remain: every surviving defender is reachable by at least one attacker, so
+ * that attacker survives too.
+ *
+ * Pure and exported (rather than inlined in the scene) so the rule is
+ * testable — this repo's `src/scenes/` is deliberately untested, and the
+ * defect above is exactly the kind that hides there. Found by adversarial
+ * review of plan.md §15; see §15.6.
+ */
+export function pruneIllegalSelections(
+  state: GameState,
+  attackers: readonly Unit[],
+  defenders: readonly Unit[],
+  mode: CombatMode,
+): { attackers: Unit[]; defenders: Unit[]; dropped: Unit[] } {
+  const keptAttackers = attackers.filter((a) => attackerCanJoin(state, a, [...defenders], mode));
+  const keptDefenders = defenders.filter((d) => defenderCanJoin(state, d, keptAttackers, mode));
+  const kept = new Set([...keptAttackers, ...keptDefenders].map((u) => u.id));
+  return {
+    attackers: keptAttackers,
+    defenders: keptDefenders,
+    dropped: [...attackers, ...defenders].filter((u) => !kept.has(u.id)),
+  };
+}
+
 export interface RangedCheck {
   canAttack: boolean;
   reason?: string;
