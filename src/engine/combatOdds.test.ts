@@ -137,45 +137,37 @@ describe('evaluateAttack', () => {
     const good = evaluateAttack(makeState([heavy, archers]), [heavy], [archers]);
     expect(good.expectedValue).toBeGreaterThan(0);
 
-    // Roles reversed, with the archers at their actual firing range of 2
-    // (they are not `meleeCapable`, so adjacency is not a legal attack for
-    // them at all). Their attack force is 0, not 2 — see the dedicated test
-    // below — so this lands on the 1-5 column, five of whose six faces
-    // eliminate the attacker outright.
-    const phalanx = makeUnit({ id: 'p', typeId: 'phalanges', position: CENTER, owner: 0 });
-    const distantArchers = makeUnit({ id: 'x2', typeId: 'archers', position: hexAdd(CENTER, { q: 2, r: 0 }), owner: 1 });
-    const bad = evaluateAttack(makeState([phalanx, distantArchers]), [distantArchers], [phalanx]);
+    // Roles reversed and then some: one infantry unit (attack 2) walking
+    // into two phalanxes (defense 5 each) is 2 vs 10 — the 1-5 column, five
+    // of whose six faces eliminate the attacker outright.
+    const p1 = makeUnit({ id: 'p1', typeId: 'phalanges', position: CENTER, owner: 0 });
+    const p2 = makeUnit({ id: 'p2', typeId: 'phalanges', position: hexAdd(CENTER, DIRECTIONS[2]!), owner: 0 });
+    const lone = makeUnit({ id: 'f', typeId: 'fantassins', position: hexAdd(CENTER, DIRECTIONS[1]!), owner: 1 });
+    const bad = evaluateAttack(makeState([p1, p2, lone]), [lone], [p1, p2]);
     expect(bad.distribution.ratioLabel).toBe('1-5');
     expect(bad.expectedValue).toBeLessThan(0);
     expect(bad.distribution.faceCounts.AE).toBe(5);
   });
 
-  it('inherits the engine scoring a ranged attack at zero force (pre-existing defect)', () => {
-    // NOT a property of this module, and NOT introduced by this branch —
-    // recorded here because the exact-odds layer is what finally makes the
-    // consequence measurable.
+  it('scores an archer volley at its projectile value, not at zero (plan.md §15)', () => {
+    // The regression guard for §15, kept in this file because the exact-odds
+    // layer is what made the original defect measurable in the first place.
+    // Before the fix `describeLandAttack` summed `currentAttack` alone, which
+    // returns `UnitType.attack` — 0 for plain `archers` (`attack: 0,
+    // rangedAttack: 2`) — so every volley resolved on the 1-5 column and
+    // killed the archer on five faces of six, whatever it shot at.
     //
-    // `describeLandAttack` sums `currentAttack`, which returns
-    // `UnitType.attack`; plain `archers` are `attack: 0, rangedAttack: 2`
-    // (data/units.ts), and `rangedAttack` is consulted ONLY for eligibility
-    // (`checkRangedEligibility`), never for force. So an archer volley always
-    // resolves at attack force 0 — the 1-5 column — and kills the archer on
-    // five faces out of six, whatever it shoots at. `fantassins-archers`
-    // (`attack: 2`) are unaffected, which is why this has gone unnoticed.
-    //
-    // The practical upshot for the agent: no EV tier will ever fire a plain
-    // archer, correctly, because doing so is suicide under the current
-    // resolution. Fixing it changes live hotseat combat, so it belongs on
-    // its own reviewed branch rather than riding along with the AI.
+    // Now it resolves on `rangedAttack`: 2 vs a `fantassins`' defense of 1 is
+    // the 2-1 column, four DR faces and two AR, and no way to lose the unit.
     const archers = makeUnit({ id: 'x', typeId: 'archers', position: CENTER, owner: 0 });
     const target = makeUnit({ id: 't', typeId: 'fantassins', position: hexAdd(CENTER, { q: 2, r: 0 }), owner: 1 });
 
     expect(checkRangedEligibility(archers, 2).canAttack).toBe(true); // the shot is legal
     const evaluation = evaluateAttack(makeState([archers, target]), [archers], [target]);
-    expect(evaluation.distribution.attackForce).toBe(0); // ...and worth nothing
-    expect(evaluation.distribution.ratioLabel).toBe('1-5');
-    expect(evaluation.distribution.faceCounts.AE).toBe(5);
-    expect(evaluation.expectedValue).toBeLessThan(0);
+    expect(evaluation.distribution.attackForce).toBe(2); // ...and now worth firing
+    expect(evaluation.distribution.ratioLabel).toBe('2-1');
+    expect(evaluation.distribution.faceCounts).toMatchObject({ DR: 4, AR: 2, AE: 0, DE: 0, EX: 0 });
+    expect(evaluation.expectedValue).toBeGreaterThan(0);
   });
 
   it('does not treat an overwhelming ratio as automatically worth taking', () => {

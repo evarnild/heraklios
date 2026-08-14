@@ -4,6 +4,7 @@ import {
   applyExchangeSacrifice,
   applyLandCombatResult,
   applyRammingResult,
+  attackForceAgainst,
   attackerCanJoin,
   canBoard,
   canElephantEnterHex,
@@ -15,6 +16,7 @@ import {
   defenderCanJoin,
   describeLandAttack,
   eligibleAdvanceCandidates,
+  exchangeSacrificeForce,
   exchangeSacrificeMeetsThreshold,
   legalRetreatHexes,
   pushCandidates,
@@ -27,6 +29,7 @@ import {
 import { DIRECTIONS, hexAdd, hexDistance } from './hex';
 import { createInitialState } from './turnManager';
 import { RIVER_HEXSIDES, riverEdgeKey } from '../data/map';
+import { UNIT_TYPES } from '../data/units';
 import type { GameState, Unit } from './state';
 
 /** Picks a real river hexside from whatever map is currently loaded, so
@@ -125,6 +128,62 @@ describe('checkRangedEligibility', () => {
     const infantry = makeUnit({ typeId: 'fantassins', position: { q: 0, r: 0 } });
     expect(checkRangedEligibility(infantry, 1).canAttack).toBe(true);
     expect(checkRangedEligibility(infantry, 2).canAttack).toBe(false);
+  });
+});
+
+describe('attackForceAgainst (plan.md §15)', () => {
+  it('resolves an archer volley on its projectile value, not its melee 0', () => {
+    // The defect this function exists to fix: `archers` are `attack: 0,
+    // rangedAttack: 2`, and summing `currentAttack` alone made every volley
+    // resolve at force 0 — the CRT's 1-5 column, five AE faces of six.
+    const archers = makeUnit({ typeId: 'archers', position: { q: 0, r: 0 } });
+    const target = makeUnit({ typeId: 'fantassins', position: { q: 2, r: 0 }, owner: 1 });
+    expect(hexDistance(archers.position, target.position)).toBe(2); // exactly their range
+    expect(attackForceAgainst(archers, [target])).toBe(2);
+  });
+
+  it('prefers the melee value at contact and the projectile value at range', () => {
+    // Deliberately probed with a `triremes` (attack 20, rangedAttack 2,
+    // meleeCapable, range 2): it is the only roster entry whose two attack
+    // values DIFFER, so it is the only unit that can tell the two branches
+    // apart at all. `fantassins-archers`, the hybrid this rule is really
+    // about, is 2 and 2 — a test written on it would pass with the branch
+    // selection inverted, or deleted.
+    const contact = makeUnit({ id: 'c', typeId: 'triremes', position: { q: 0, r: 0 } });
+    const atRange = makeUnit({ id: 'r', typeId: 'triremes', position: { q: 0, r: 0 } });
+    const adjacentTarget = makeUnit({ id: 't1', typeId: 'fantassins', position: { q: 1, r: 0 }, owner: 1 });
+    const distantTarget = makeUnit({ id: 't2', typeId: 'fantassins', position: { q: 2, r: 0 }, owner: 1 });
+
+    expect(attackForceAgainst(contact, [adjacentTarget])).toBe(20);
+    expect(attackForceAgainst(atRange, [distantTarget])).toBe(2);
+    // Adjacency wins when a multi-defender group offers both: "fights the
+    // way it would against the nearest of them."
+    expect(attackForceAgainst(contact, [distantTarget, adjacentTarget])).toBe(20);
+  });
+
+  it('keeps the charge doubling for a melee attacker', () => {
+    const charger = makeUnit({ typeId: 'cavalerie-lourde', position: { q: 0, r: 0 }, charged: true });
+    const target = makeUnit({ typeId: 'fantassins', position: { q: 1, r: 0 }, owner: 1 });
+    expect(attackForceAgainst(charger, [target])).toBe(12); // 6 doubled, not the printed 6
+  });
+
+  it('sums each attacker at its own engagement distance in a combined attack', () => {
+    // The rulebook names archers specifically as an example of a
+    // per-attacker proximity condition inside a combined attack, so an
+    // archer at 2 and an infantry unit at 1 both contribute 2, for 4 total
+    // against a `fantassins-lourds`' defense of 3 — the 1-1 column, where
+    // before the fix the same pair reached only 2 and rounded down to 1-2.
+    const archers = makeUnit({ id: 'x', typeId: 'archers', position: { q: 0, r: 0 } });
+    const infantry = makeUnit({ id: 'f', typeId: 'fantassins', position: { q: 1, r: 1 } });
+    const defender = makeUnit({ id: 'd', typeId: 'fantassins-lourds', position: { q: 2, r: 0 }, owner: 1 });
+    expect(hexDistance(archers.position, defender.position)).toBe(2);
+    expect(hexDistance(infantry.position, defender.position)).toBe(1);
+
+    const detail = describeLandAttack([archers, infantry], [defender], 1);
+    expect(detail.attackForce).toBe(4);
+    expect(detail.ratioLabel).toBe('1-1');
+    expect(detail.attackerForces.get('x')).toBe(2);
+    expect(detail.attackerForces.get('f')).toBe(2);
   });
 });
 
@@ -943,6 +1002,47 @@ describe('exchangeSacrificeMeetsThreshold / applyExchangeSacrifice', () => {
     expect(exchangeSacrificeMeetsThreshold([weak], 3)).toBe(false);
     expect(exchangeSacrificeMeetsThreshold([strong], 3)).toBe(true);
     expect(exchangeSacrificeMeetsThreshold([weak, strong], 10)).toBe(true);
+  });
+
+  it('counts an archer at its projectile value, so an all-archer EX is satisfiable', () => {
+    // Regression for the wedged board §15 would otherwise have created:
+    // two archers firing on a `fantassins` is 4 vs 1 = the 4-1 column, whose
+    // die-6 row is EX. With more than one attacker `applyLandCombatResult`
+    // defers the sacrifice to the player — and if archers counted 0 here, NO
+    // subset of the attackers could ever reach the threshold of 1. The
+    // prompt could not be confirmed and both `RandomAgent` and
+    // `HeuristicAgent` throw "CRT invariant violated".
+    const defender = makeUnit({ id: 'd', typeId: 'fantassins', position: { q: 1, r: 1 }, owner: 1 });
+    const x1 = makeUnit({ id: 'x1', typeId: 'archers', position: { q: 3, r: 1 } });
+    const x2 = makeUnit({ id: 'x2', typeId: 'archers', position: { q: 1, r: 3 } });
+    for (const x of [x1, x2]) expect(hexDistance(x.position, defender.position)).toBe(2);
+    const state = makeState([x1, x2, defender]);
+
+    const detail = describeLandAttack([x1, x2], [defender], 6);
+    expect(detail.attackForce).toBe(4);
+    expect(detail.ratioLabel).toBe('4-1');
+    expect(detail.result).toBe('EX');
+
+    const outcome = applyLandCombatResult(state, [x1, x2], [defender], detail.result);
+    expect(outcome.requiresExchangeChoice).toBe(true);
+    expect(outcome.requiredSacrificeForce).toBe(1);
+    expect(exchangeSacrificeForce(x1)).toBe(2);
+    expect(exchangeSacrificeMeetsThreshold([x1], outcome.requiredSacrificeForce)).toBe(true);
+  });
+
+  it('prices every land unit that can join a land attack at its real contribution', () => {
+    // Pins the coincidence `exchangeSacrificeForce` is built on: it takes the
+    // better of a unit's melee and projectile values rather than the exact
+    // per-combat contribution from `LandAttackDetail.attackerForces`, which
+    // is only safe while no LAND type has two different non-zero attack
+    // values. Add one and this fails here, loudly, instead of silently
+    // mis-pricing a sacrifice — at which point the honest fix is to thread
+    // `attackerForces` through `PlayerAgent.chooseExchangeSacrifice`.
+    for (const t of UNIT_TYPES) {
+      if (t.domain !== 'land') continue; // naval resolves by boarding, never through the land CRT
+      if (t.rangedAttack === 0) continue;
+      expect([t.id, t.attack === 0 || t.attack === t.rangedAttack]).toEqual([t.id, true]);
+    }
   });
 
   it('destroys only the units it is given', () => {

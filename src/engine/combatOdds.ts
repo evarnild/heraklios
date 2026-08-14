@@ -2,6 +2,7 @@ import type { CombatResult } from '../data/combatTable';
 import { isRammingHitWithBonus, type ShipTypeId } from '../data/navalRamming';
 import {
   describeLandAttack,
+  exchangeSacrificeForce,
   legalRetreatHexes,
   pushCandidates,
   resolveNavalBoarding,
@@ -241,8 +242,11 @@ function retreatCost(state: GameState, units: readonly Unit[]): number {
  * which shuffles and takes a prefix).
  *
  * EXACT, not greedy, for groups of 12 or fewer: this is a small
- * cover problem (minimize total `unitValue` subject to total `currentAttack`
- * >= threshold) and an attack group is tiny, so enumerating all 2^n subsets
+ * cover problem (minimize total `unitValue` subject to total
+ * `exchangeSacrificeForce` >= threshold — the same pricing
+ * `exchangeSacrificeMeetsThreshold` will judge the answer by, so a subset
+ * this function calls sufficient can never be rejected by the caller) and an
+ * attack group is tiny, so enumerating all 2^n subsets
  * is both affordable and free of the classic greedy failure — "two cheap
  * units beat one mid-priced one" is exactly the case a value-per-force
  * ordering gets wrong. The greedy fallback above 12 attackers exists only so
@@ -261,13 +265,15 @@ export function cheapestSacrifice(attackers: readonly Unit[], requiredForce: num
   if (attackers.length > 12) {
     // Greedy fallback: most attack force per point of value first.
     const ordered = [...attackers].sort(
-      (a, b) => currentAttack(b) / Math.max(1, unitValue(b)) - currentAttack(a) / Math.max(1, unitValue(a)),
+      (a, b) =>
+        exchangeSacrificeForce(b) / Math.max(1, unitValue(b)) -
+        exchangeSacrificeForce(a) / Math.max(1, unitValue(a)),
     );
     const selected: Unit[] = [];
     let force = 0;
     for (const unit of ordered) {
       selected.push(unit);
-      force += currentAttack(unit);
+      force += exchangeSacrificeForce(unit);
       if (force >= requiredForce) return selected;
     }
     return [];
@@ -281,7 +287,7 @@ export function cheapestSacrifice(attackers: readonly Unit[], requiredForce: num
     for (let i = 0; i < attackers.length; i++) {
       if ((mask & (1 << i)) === 0) continue;
       const unit = attackers[i]!;
-      force += currentAttack(unit);
+      force += exchangeSacrificeForce(unit);
       value += unitValue(unit);
     }
     if (force < requiredForce || value >= bestValue) continue;

@@ -12,6 +12,7 @@ import {
   unitType,
   unitCategory,
   currentAttack,
+  currentRangedAttack,
   currentDefense,
 } from './state';
 
@@ -88,6 +89,14 @@ export function unitAt(state: GameState, hex: HexCoord): Unit | undefined {
  */
 export interface LandAttackDetail {
   attackForce: number;
+  /** What each attacker individually contributed to `attackForce`, keyed by
+   * `Unit.id` — melee value or projectile value depending on how far it was
+   * from the units it engaged (see `attackForceAgainst`). Carried on the
+   * detail rather than left for a caller to re-derive because the combat log
+   * has to show a per-unit number that adds up to `attackForce`, and by the
+   * time it renders, `applyLandCombatResult` may already have destroyed some
+   * of these units. Always has exactly one entry per attacker. */
+  attackerForces: ReadonlyMap<string, number>;
   defenseForce: number;
   /** Force-ratio column label, e.g. "4-1" (see `RATIO_COLUMNS`). */
   ratioLabel: string;
@@ -124,12 +133,84 @@ export interface LandAttackDetail {
   result: CombatResult;
 }
 
+/**
+ * The force ONE attacker contributes to a combat against `defenders` — its
+ * melee value when it is fighting at contact, its projectile value when it
+ * is shooting.
+ *
+ * INTERPRETATION. The counter format is `attack (rangedAttack) range /
+ * defense movement`, and the rulebook says of the parenthesized number: "le
+ * chiffre entre parenthèses correspond à la valeur d'attaque par projectiles
+ * (flèches des archers, par exemple). Toutes les unités qui ont une valeur
+ * nulle en force d'attaque par projectiles sont obligées de combattre au
+ * contact" (`docs/research/05-rules-french-original.md:78-82`). It is
+ * explicitly an *attack value*, so a volley resolves on it. The combat rules
+ * themselves never restate this — they say only "on additionne les points
+ * d'attaque des unités offensives" (`:199-200`) without saying which of the
+ * two numbers a shooter contributes — so reading "points d'attaque" as "the
+ * attack value appropriate to how this unit is engaging" is a reading, not a
+ * quotation. Everything else in the roster is unaffected: only `archers`,
+ * `fantassins-archers`, `triremes` and `quintiremes` have a non-zero
+ * `rangedAttack` at all.
+ *
+ * Three sub-questions the rulebook does not answer directly, and the
+ * readings taken here:
+ *
+ * 1. **Which value a melee-capable shooter uses at distance 1.** Of the
+ *    archer-infantry the rules say they shoot at two hexes "qui ont en outre
+ *    la possibilité de combattre au contact" (`:261-263`) — fighting at
+ *    contact is an *additional* ability, i.e. the ordinary melee attack, so
+ *    contact takes the melee value. This mirrors `checkRangedEligibility`'s
+ *    own precedence, which resolves distance 1 through the melee branch
+ *    before it ever looks at `range`. It is also, on the shipped roster, a
+ *    distinction without a difference: `fantassins-archers` are 2 and 2.
+ * 2. **Whether a shooter may join a combined attack.** Yes: "plusieurs
+ *    unités d'une même armée peuvent attaquer une seule unité adverse [...]
+ *    Il faut cependant qu'elles remplissent les conditions de proximité
+ *    inhérentes à leurs types d'armes. Attention, les archers notamment ne
+ *    peuvent combattre qu'à exactement 2 cases de distance" (`:192-198`) —
+ *    the rule names archers specifically as an example of a per-attacker
+ *    proximity condition inside a combined attack, so each attacker
+ *    contributes the value matching *its own* engagement distance. That is
+ *    what the per-attacker loop below does.
+ * 3. **Whether a ranged result behaves like a melee one.** There is one
+ *    combat-results table and no ranged variant of it, so an AR/DR/EX from a
+ *    volley resolves exactly as it does at contact — including the defender
+ *    retreating one hex, and including the attacker's option to advance into
+ *    the vacated hex "sans tenir compte des limites de déplacement qui lui
+ *    sont propres" (`:250-256`). Unchanged from before this function
+ *    existed.
+ *
+ * With several defenders (multi-defender mode), an attacker is taken to be
+ * fighting at contact if ANY defender in the group is adjacent to it, and
+ * shooting if any sits at exactly its range — checked in that order, so a
+ * unit that could do either against different members of one group fights
+ * the way it would against the nearest of them.
+ *
+ * The final fallback is deliberately `currentAttack` rather than 0: this is
+ * only reached for an attacker that satisfies neither condition, i.e. one
+ * that was never eligible to be in this combat at all
+ * (`checkRangedEligibility` gates that), so it is a "caller built an illegal
+ * group" case and should not silently look like a legal attack at zero
+ * force — the exact failure this whole function exists to fix.
+ */
+export function attackForceAgainst(attacker: Unit, defenders: readonly Unit[]): number {
+  const t = unitType(attacker);
+  const atDistance = (d: number) => defenders.some((u) => hexDistance(attacker.position, u.position) === d);
+  if (t.meleeCapable && atDistance(1)) return currentAttack(attacker);
+  if (t.rangedAttack > 0 && atDistance(t.range)) return currentRangedAttack(attacker);
+  return currentAttack(attacker);
+}
+
 function computeLandAttackDetail(
   attackers: Unit[],
   defenders: Unit[],
   rawDieRoll: number,
 ): LandAttackDetail {
-  const attackForce = attackers.reduce((sum, u) => sum + currentAttack(u), 0);
+  const attackerForces = new Map<string, number>(
+    attackers.map((u) => [u.id, attackForceAgainst(u, defenders)]),
+  );
+  const attackForce = attackers.reduce((sum, u) => sum + attackerForces.get(u.id)!, 0);
   const defenseForce = defenders.reduce((sum, u) => sum + currentDefense(u), 0);
 
   let terrainOnlyModifier = 0;
@@ -163,6 +244,7 @@ function computeLandAttackDetail(
 
   return {
     attackForce,
+    attackerForces,
     defenseForce,
     ratioLabel,
     crtColumnIndex,
@@ -720,10 +802,40 @@ export function applyLandCombatResult(
   return { result, requiresExchangeChoice: false, requiredSacrificeForce, pendingDrifts, pendingRetreats };
 }
 
+/**
+ * The force one attacking unit counts for toward an 'EX' sacrifice
+ * threshold ("les unités attaquantes totalisant une force au moins égale") —
+ * the better of its melee and projectile attack values.
+ *
+ * WHY NOT the exact per-combat contribution from `LandAttackDetail.
+ * attackerForces`. That would be the pedantically correct number, but it
+ * would have to be threaded through `PlayerAgent.chooseExchangeSacrifice`
+ * and every agent implementing it, and **on the shipped roster the two are
+ * identical for every unit that can legally be in a land attack group**:
+ * `archers` are 0/2, `fantassins-archers` are 2/2, every other land type has
+ * `rangedAttack: 0`, and the only types where the two values differ
+ * (`triremes` 20/2, `quintiremes` 25/2) are naval and resolve by boarding,
+ * never through the land CRT. `combat.test.ts` walks `UNIT_TYPES` to pin
+ * that coincidence, so a future roster edit that breaks it fails loudly
+ * rather than silently mis-pricing a sacrifice.
+ *
+ * Charging cavalry is covered: `currentAttack` already returns the doubled
+ * value, which per the README counts normally toward this threshold.
+ *
+ * This is not cosmetic. Before the ranged-force fix (plan.md §15) an archer
+ * counted 0 here AND 0 in the attack, so a two-archer volley that rolled an
+ * 'EX' at 4:1 produced a threshold no subset of the attackers could ever
+ * meet — `RandomAgent`/`HeuristicAgent` throw "CRT invariant violated" and
+ * `BoardScene`'s prompt can never be satisfied, i.e. a wedged board.
+ */
+export function exchangeSacrificeForce(unit: Unit): number {
+  return Math.max(currentAttack(unit), currentRangedAttack(unit));
+}
+
 /** Whether `selected` attacking units' combined attack value meets the
  * exchange-sacrifice threshold required on an 'EX' result. */
 export function exchangeSacrificeMeetsThreshold(selected: Unit[], requiredForce: number): boolean {
-  return selected.reduce((sum, u) => sum + currentAttack(u), 0) >= requiredForce;
+  return selected.reduce((sum, u) => sum + exchangeSacrificeForce(u), 0) >= requiredForce;
 }
 
 export function applyExchangeSacrifice(selected: Unit[]): void {

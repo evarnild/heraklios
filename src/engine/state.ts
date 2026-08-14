@@ -104,6 +104,39 @@ export function currentAttack(unit: Unit): number {
   return t.attack;
 }
 
+/**
+ * The force this unit brings when it attacks *by projectile* — the
+ * parenthesized number on the counter (`attack (rangedAttack) range /
+ * defense movement`), which the rulebook names outright: "le chiffre entre
+ * parenthèses correspond à la valeur d'attaque par projectiles (flèches des
+ * archers, par exemple). Toutes les unités qui ont une valeur nulle en force
+ * d'attaque par projectiles sont obligées de combattre au contact"
+ * (`docs/research/05-rules-french-original.md:78-82`).
+ *
+ * Which of this and `currentAttack` a given attacker actually contributes to
+ * a combat is decided per-attacker by `combat.ts`'s `attackForceAgainst`,
+ * from its distance to the units it is engaging.
+ *
+ * No charge doubling: a charge requires ending *adjacent* to an enemy and
+ * only cavalry can make one, and no cavalry type has a ranged attack — so
+ * the two are mutually exclusive by construction, not by a check here.
+ *
+ * Ship equipment loss IS applied, mirroring `currentAttack`/`currentDefense`,
+ * even though it zeroes a trirème's ranged 2 on its first lost point: naval
+ * units never make a ranged attack in this implementation (`validTargets`
+ * reduces every naval attack to an adjacent boarding), so the branch is
+ * unreachable and consistency with its two siblings is worth more than an
+ * invented softer rule.
+ */
+export function currentRangedAttack(unit: Unit): number {
+  const t = unitType(unit);
+  if (t.domain === 'naval' && unit.equipmentPoints !== undefined) {
+    const lost = Math.max(0, maxEquipmentPoints(unit) - unit.equipmentPoints);
+    return Math.max(0, t.rangedAttack - lost * 5);
+  }
+  return t.rangedAttack;
+}
+
 export function currentDefense(unit: Unit): number {
   const t = unitType(unit);
   if (t.domain === 'naval' && unit.equipmentPoints !== undefined) {
