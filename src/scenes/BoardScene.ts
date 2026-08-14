@@ -14,6 +14,7 @@ import { resetMovementForActivePlayer } from '../engine/turnManager';
 import { applyAction, legalActions, type Action } from '../engine/actions';
 import type { PlayerAgent, ActionObserver, DrivingAgent } from '../engine/agent';
 import { createSeatAgent, isAiSeat, seatControlLabel } from '../engine/seatControl';
+import { routeBySeat } from '../engine/seatRouter';
 import { rollDie as engineRollDie } from '../engine/dice';
 import { reachableHexes, reachableNavalHexes, findRammingContacts, type RammingContact } from '../engine/movement';
 import {
@@ -306,8 +307,13 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
 
   /** One `HeuristicAgent` per AI seat, built from `session.seatControls` in
    * `create`/`loadInPlace`. A seat absent from this map is played by the
-   * human at the keyboard — i.e. by this scene's own prompts. */
-  private seatAgents = new Map<PlayerId, DrivingAgent>();
+   * human at the keyboard — i.e. by this scene's own prompts.
+   *
+   * The map INSTANCE never changes (only its contents, via
+   * `buildSeatAgents`): `seatRouter` below reads it live, so replacing it
+   * with a fresh `Map` would leave the router pointing at the previous
+   * game's agents. */
+  private readonly seatAgents = new Map<PlayerId, DrivingAgent>();
   /** True from the moment an AI seat starts its turn until control returns to
    * a human seat (or the game ends). Joins `retreatChoice`/`driftState`/
    * `decisionPending` in the guards on every control a human could otherwise
@@ -347,27 +353,14 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * `PlayerAgent`-shaped because `BoardScene` cannot honestly implement
    * `chooseNextAction`, see `ActionObserver`'s doc comment in agent.ts.)
    *
-   * An object field rather than four call-site lookups so the dispatch rule
-   * exists once: `engine/drift.ts` takes a whole `PlayerAgent`, not
-   * individual callbacks, so there has to be a routing object anyway.
+   * The rule itself lives in `engine/seatRouter.ts` rather than inline here,
+   * because it is exactly the sort of dispatch that looks obviously right and
+   * is invisible when wrong (a hotseat game answers everything with the same
+   * human either way) — so it belongs where it can be unit-tested. `this` is
+   * the fallback: an unmapped seat is a human one, played through this
+   * scene's own prompts.
    */
-  private readonly seatRouter: PlayerAgent = {
-    chooseRetreat: (state, unit, options) => this.agentFor(unit.owner).chooseRetreat(state, unit, options),
-    choosePushTarget: (state, unit, candidates) =>
-      this.agentFor(unit.owner).choosePushTarget(state, unit, candidates),
-    // Advance candidates all come from one attack group, so they share an
-    // owner; `promptAdvanceChoice` never calls this with an empty list.
-    chooseAdvance: (state, candidates, vacated) =>
-      this.agentFor(candidates[0]!.owner).chooseAdvance(state, candidates, vacated),
-    chooseExchangeSacrifice: (state, attackers, requiredForce) =>
-      this.agentFor(attackers[0]!.owner).chooseExchangeSacrifice(state, attackers, requiredForce),
-  };
-
-  /** The `PlayerAgent` for `owner` — this scene (i.e. the human at the
-   * keyboard) unless that seat is configured as an AI. */
-  private agentFor(owner: PlayerId): PlayerAgent {
-    return this.seatAgents.get(owner) ?? this;
-  }
+  private readonly seatRouter: PlayerAgent = routeBySeat(this.seatAgents, this);
 
   constructor() {
     super('Board');
@@ -409,14 +402,15 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.aiRunToken++;
     this.aiRunning = false;
     this.resolutionDone = null;
-    this.seatAgents = new Map();
+    this.seatAgents.clear();
   }
 
   /** (Re)builds the per-seat agents from `session.seatControls`. Called after
    * anything that can change which seats are AI: entering the scene, and
-   * loading a save (whose `seatControls` overwrite the session's). */
+   * loading a save (whose `seatControls` overwrite the session's). Refills
+   * the existing map rather than replacing it — see `seatAgents`. */
   private buildSeatAgents(): void {
-    this.seatAgents = new Map();
+    this.seatAgents.clear();
     for (let i = 0; i < session.playerCount; i++) {
       const agent = createSeatAgent(seatControlFor(i));
       if (agent) this.seatAgents.set(i as PlayerId, agent);
