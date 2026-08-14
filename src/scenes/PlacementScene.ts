@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { MapView } from '../ui/MapView';
 import { legalDeploymentHexes, legalNavalDeploymentHexes } from '../ui/mapBounds';
 import { session, buildPlayers, resetToMenu } from '../ui/session';
+import { skipAiPlacementSeats } from '../ui/aiSetup';
 import { showConfirmDialog } from '../ui/confirmDialog';
 import { createInitialState } from '../engine/turnManager';
 import { History } from '../engine/history';
@@ -87,6 +88,18 @@ export class PlacementScene extends Phaser.Scene {
     if (this.playerIndex === 0 || !session.gameState) {
       session.gameState = createInitialState(buildPlayers(), session.combatMode, session.randomizedTurnOrder);
     }
+    // An AI seat deploys itself (ui/aiSetup.ts) — same legal hexes, same
+    // terrain rule, same unit shape a human's clicks would produce. Done here,
+    // after the state exists, so the whole run of AI seats is placed in one
+    // pass and this scene only ever renders for a seat a human actually
+    // plays; with every seat an AI, the Board is next.
+    const firstHumanSeat = skipAiPlacementSeats(session.gameState!, this.playerIndex);
+    if (firstHumanSeat === null) {
+      this.scene.start('Board');
+      return;
+    }
+    this.playerIndex = firstHumanSeat;
+
     this.placedShips = [];
     this.pendingShip = null;
     this.history.clear();
