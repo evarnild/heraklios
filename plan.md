@@ -1799,8 +1799,9 @@ least these points:
 ### 15.4 Outcome
 
 Two commits on `feat/ranged-attack-force`. `tsc --noEmit` clean,
-`npm run build` clean, 353 passed / 1 skipped (was 348; the permanent Stage
-2c elephant skip is the skip).
+`npm run build` clean, **353 passed / 1 skipped** against `main`'s 347 / 1 —
+six net new tests, and the one skip is the permanent Stage 2c elephant skip
+in both.
 
 **The reading held.** All three questions §15.2 raised are answered by the
 rulebook once you read the counter-format footnote rather than the combat
