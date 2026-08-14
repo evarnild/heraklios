@@ -78,16 +78,13 @@ sync when something merges** — it went stale once and the user caught it.
 
 ### In flight
 
-- [§12](#12-cascading-push-when-a-unit-cannot-retreat) **follow-ups** —
-  `feat/push-followups`, tsc/build/366 tests green, cycle-guard mutant killed.
-  Awaiting review/merge; see [§12.6](#126-the-three-follow-ups). Next up after
-  it merges is #1, Stage 2c.
+- *Nothing.* Next up is #1 below, Stage 2c.
 
 ### Queued
 
 | # | Item | Touches | Notes |
 | --- | --- | --- | --- |
-| ~~0~~ | ~~[§12](#12-cascading-push-when-a-unit-cannot-retreat) follow-ups~~ | — | **✅ Shipped `feat/push-followups`.** All three closed; see [§12.6](#126-the-three-follow-ups). |
+| ~~0~~ | ~~[§12](#12-cascading-push-when-a-unit-cannot-retreat) follow-ups~~ | — | **✅ Shipped `c23648c`.** All three closed; see [§12.6](#126-the-three-follow-ups). |
 | ~~0b~~ | ~~Reviewer-agent file corrections~~ | — | **✅ Shipped `9f99b1a`.** See [§15.7](#157-the-two-follow-ups). |
 | ~~0c~~ | ~~Combat groups not revalidated after a removal~~ | — | **✅ Shipped `9f99b1a`.** See [§15.7](#157-the-two-follow-ups). |
 | 1 | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2c — elephants in the harness | `engine/fuzzHarness.ts` | Now unblocked: 2b landed the extracted cascade, so this is putting elephants back into the generated armies, deleting the exclusion guard and the skipped test. Also what unblocks the AI ever using one (§6.9). |
@@ -102,8 +99,9 @@ these mostly cannot run in parallel with each other.
 ## Backlog Map
 
 - **Start here:** [Current Queue](#10-sequenced-queue).
-- **Current next task:** review and merge `feat/push-followups`
-  ([§12.6](#126-the-three-follow-ups)), then #1's Stage 2c.
+- **Current next task:** #1, [§6.7](#67-the-elephant-problem-stage-2-split)'s
+  Stage 2c — elephants in the harness, which is also what unblocks the AI
+  ever playing one ([§6.9](#69-stage-3-outcome)).
 - **Live defects:** [§9.2](#92-endgamebytimelimit-is-never-called) (needs a
   design decision) is the only one left open.
 - **Larger future work:** [§6.7](#67-the-elephant-problem-stage-2-split)'s
@@ -1534,8 +1532,13 @@ is why this survived. Required:
 
 ### 12.6 The three follow-ups
 
-Shipped on `feat/push-followups`. `tsc` clean, build clean, 366 passed / 1
-skipped (was 364).
+Merged to `main` as `c23648c`. `tsc` clean, build clean, 366 passed / 1
+skipped (was 364). Independently reviewed: **PASS**, nothing above LOW — the
+reviewer ran the mutation itself and confirmed the new branching test is the
+only one of the 366 that dies under it, broke the scenario builder to prove
+the deterministic test isn't tautological, and verified the 100-seed trace is
+unchanged from `main`. Its five LOW findings are fixed in `c8a8109`; the two
+that are worth remembering are recorded below.
 
 **1 — the cycle guard, and why a straight line could never test it.** This
 is the useful one, because the shape recurs: *a test can exercise a guard's
@@ -1588,6 +1591,26 @@ The point is that the two now fail for *different* reasons: the first means
 the builder stopped boxing the unit in, the second means self-play stopped
 reaching it. The soak's failure message says so, so the next person doesn't
 go hunting in `pushCandidates`.
+
+**Two review findings worth carrying forward** (the other three were local):
+
+- **A print pretending to be a guarantee.** The first version of item 3
+  computed the seed spread, logged it, and commented that it guarded against
+  coverage collapsing onto one lucky seed — while asserting nothing. The
+  reviewer deleted the variable and the suite stayed green. Both numbers are
+  asserted now. Worth generalizing: **a comment claiming a test defends
+  something is itself a claim that has to be mutation-tested**, and this
+  project has now shipped that mistake twice (see also §12's original finding
+  1, two comments claiming coverage that did not exist).
+- **A quote tidied into agreement with the decision made about it.**
+  `combat.ts`'s paraphrase of the transcription had dropped "surrounded
+  **entirely** by friendly units" — precisely the word carrying the strict
+  reading that §12.2's interpretation goes on to reject. Nobody was misled,
+  because the French is quoted verbatim four lines below, but it is the same
+  class as §15.6's corrupt-transcription finding and the second instance in
+  two branches. **When quoting a passage you are about to reinterpret, quote
+  it in full or not at all** — the words that make the reading hard are the
+  ones a paraphrase drops.
 
 ---
 
