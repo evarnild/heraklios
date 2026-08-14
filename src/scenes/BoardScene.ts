@@ -1438,8 +1438,16 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
 
     const pushTargets = pushCandidates(state, unit, visited);
     if (pushTargets.length > 0) {
+      // Says "has nowhere to retreat", not "is surrounded by friendly units":
+      // §12 widened the rulebook's `entourée d'unités amies` to fire whenever
+      // retreat is impossible and at least ONE adjacent friendly can make
+      // room, so the old wording contradicted both the README and the board
+      // in the common case (one friendly neighbour, five enemies). The count
+      // is stated because the player is about to be asked to click one of
+      // them.
+      const roomMakers = pushTargets.length === 1 ? 'one neighbouring friendly unit can' : `${pushTargets.length} neighbouring friendly units can`;
       this.appendLine(
-        `${unitType(unit).name} is surrounded by friendly units — click one to retreat and make room.`,
+        `${unitType(unit).name} has nowhere to retreat — ${roomMakers} make room. Click one to push it.`,
       );
       this.choosePushTarget(state, unit, pushTargets).then((pushed) => {
         // Unlike the direct-retreat leaf above, this one can't just clear

@@ -531,6 +531,14 @@ function assertNoActionTargetsADeadUnit(state: GameState, legal: Action[]): void
  * `visited` instead of the grown `chainVisited` into the recursive call —
  * both would silently corrupt a cascade) had no test that could catch it.
  * See `fuzzHarness.test.ts`'s `resolveUnitRetreat` describe block.
+ *
+ * NOTE on the second of those two bugs: covering it needs a BRANCHING
+ * geometry, not the straight-line chain. In a line the mid-chain unit's only
+ * other friendly neighbour is the caller itself, which fails
+ * `pushCandidates`'s `canMakeRoom` fixpoint on its own merits — so the
+ * straight-line test passes with the guard removed. An earlier version of
+ * this comment and of that test both claimed otherwise; corrected after
+ * independent review of §12, with a branching test that does kill the mutant.
  */
 export async function resolveUnitRetreat(
   state: GameState,
