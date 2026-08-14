@@ -339,6 +339,33 @@ describe('canElephantEnterHex', () => {
     expect(canElephantEnterHex({ q: 24, r: 3 })).toBe(false);
     expect(canElephantEnterHex({ q: 25, r: 3 })).toBe(false);
   });
+
+  // Stage 2c (plan.md §6.7). This function used to hand-roll its own
+  // `terrain !== 'coast' && !isSeaLike(terrain)` check, which silently let a
+  // drifting elephant walk onto MARSH — terrain the rulebook's N.B. forbids
+  // it unconditionally ("chars, cavaleries et éléphants ne peuvent accéder
+  // aux marais", docs/research/05-rules-french-original.md:186-188). It now
+  // delegates to `canEnterTerrain(terrain, 'elephant')`; see its doc comment
+  // for the reading, and why leaving the land zone via marsh eliminates the
+  // elephant rather than merely halting it.
+  //
+  // Both halves are pinned, because the fix is only correct if it changed
+  // exactly one answer. A mutation that over-corrected — say, forbidding
+  // every `forbiddenFor` category rather than the elephant's own — would
+  // start rejecting steep-flank too, which elephants may legitimately drift
+  // across (`TERRAIN_EFFECTS['steep-flank'].forbiddenFor` names only chariot
+  // and cavalry), and no other test in this repo would notice.
+  it('rejects marsh, which the pre-Stage-2c coast/sea-only check let through', () => {
+    // (7,15) and (8,14) are 'marsh' on the shipped map (src/data/map.ts).
+    expect(canElephantEnterHex({ q: 7, r: 15 })).toBe(false);
+    expect(canElephantEnterHex({ q: 8, r: 14 })).toBe(false);
+  });
+
+  it('still allows steep-flank, which forbids only chariots and cavalry', () => {
+    // (0,24) and (1,23) are 'steep-flank' on the shipped map (src/data/map.ts).
+    expect(canElephantEnterHex({ q: 0, r: 24 })).toBe(true);
+    expect(canElephantEnterHex({ q: 1, r: 23 })).toBe(true);
+  });
 });
 
 describe('resolveLandAttack', () => {

@@ -13,11 +13,11 @@ import {
 import type { Action } from './actions';
 import type { CombatResult } from '../data/combatTable';
 import type { HexCoord } from '../data/map';
-import { describeLandAttack, legalRetreatHexes, pushCandidates, resolveLandAttack } from './combat';
+import { applyLandCombatResult, describeLandAttack, legalRetreatHexes, pushCandidates, unitAt } from './combat';
 import { createInitialState } from './turnManager';
 import type { PlayerAgent } from './agent';
 import type { GameState, Unit } from './state';
-import { DIRECTIONS, hexAdd } from './hex';
+import { DIRECTIONS, hexAdd, hexDistance } from './hex';
 
 /**
  * Crank this up locally for a longer soak — just edit this constant (e.g. to
@@ -39,9 +39,48 @@ import { DIRECTIONS, hexAdd } from './hex';
 const GAME_COUNT = 100;
 
 describe('buildFuzzGameState', () => {
-  it('never includes an elephant — the exclusion this whole harness depends on (plan.md §6.7)', () => {
+  // The exact inverse of the assertion this test carried through Stages
+  // 2a/2b, which pinned elephants OUT of the default army ("the exclusion
+  // this whole harness depends on"). Stage 2c (plan.md §6.7's table) is the
+  // sub-stage that lifts that exclusion, so the guard is flipped rather than
+  // deleted: it now pins the thing that can silently rot, which is elephants
+  // quietly falling back out of the army and taking every drift assertion in
+  // this file to a vacuous zero with them.
+  it('includes one elephant per side — the exclusion Stage 2c lifted (plan.md §6.7)', () => {
     const state = buildFuzzGameState();
-    expect(state.units.some((u) => u.typeId === 'elephants')).toBe(false);
+    const elephants = state.units.filter((u) => u.typeId === 'elephants');
+    expect(elephants.map((u) => u.owner).sort()).toEqual([0, 1]);
+  });
+
+  // Placement, not mere presence, is what makes the drift coverage below a
+  // guard rather than a hope — see `buildFuzzGameState`'s own doc comment on
+  // why the two elephants start adjacent, and the identical reasoning it
+  // inherited from the `p0-cav-l`/`p1-phalanx` pairing.
+  it('starts the two elephants adjacent, so the drift-forcing matchup is offered from turn one', () => {
+    const state = buildFuzzGameState();
+    const p0 = state.units.find((u) => u.id === 'p0-elephant')!;
+    const p1 = state.units.find((u) => u.id === 'p1-elephant')!;
+    expect(hexDistance(p0.position, p1.position)).toBe(1);
+  });
+
+  // The CRT half of that same guarantee, asserted directly rather than only
+  // argued in a comment: whatever the die does, an elephant-vs-elephant
+  // singleton attack lands on the '1-1' column (8 attack / 5 defense = 1.6,
+  // which `ratioToColumnIndex` rounds down in the defender's favour), and
+  // every row of that column is AR or DR. Neither ever eliminates outright,
+  // so one side's elephant is always forced to retreat — and `forceRetreat`
+  // sends an elephant to `pendingDrifts` before it consults
+  // `legalRetreatHexes` at all. That chain is what turns "the harness now
+  // contains elephants" into "the harness now reaches drifts".
+  it('guarantees a drift whenever the two elephants fight: every die face on their CRT column is AR or DR', () => {
+    const state = buildFuzzGameState();
+    const p0 = state.units.find((u) => u.id === 'p0-elephant')!;
+    const p1 = state.units.find((u) => u.id === 'p1-elephant')!;
+    for (let die = 1; die <= 6; die++) {
+      const detail = describeLandAttack([p0], [p1], die);
+      expect(detail.ratioLabel).toBe('1-1');
+      expect(['AR', 'DR']).toContain(detail.result);
+    }
   });
 
   it('places every unit on legal, non-overlapping starting hexes', () => {
@@ -97,15 +136,6 @@ describe('playRandomGame', () => {
     expect(stats.gameOver).toBe(true);
   });
 
-  // The default soak still keeps elephants out so its historical action mix
-  // stays stable. Stage 2b gives pendingDrifts an engine driver; Stage 2c
-  // can broaden buildFuzzGameState() itself and require non-zero drift stats
-  // from ordinary seeded self-play.
-  it.skip('elephants: default self-play army still excludes elephants until Stage 2c broadens coverage', () => {
-    // Kept as an explicit queue marker rather than a failing requirement:
-    // processDrifts and engine/drift.test.ts cover the extracted cascade now,
-    // while default self-play army composition remains a separate Stage 2c task.
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -712,14 +742,10 @@ describe('fuzz harness: seeded self-play soak', () => {
         `[fuzz] turnsReached: min=${Math.min(...turns)} max=${Math.max(...turns)} avg=${(turns.reduce((a, b) => a + b, 0) / turns.length).toFixed(1)}`,
         `[fuzz] outcomes: ${wins} decisive win(s), ${draws} draw(s) (mutual elimination or tied army value)`,
         `[fuzz] endings: ${endedByElimination} by mutual elimination, ${endedByTimeLimit} by the rulebook's turn-limit/army-value ending`,
-        // MEDIUM finding from adversarial review: the `it.skip(...)` above
-        // prints only as an anonymous "1 skipped" in vitest's summary — a
-        // full-text search of a `vitest run` should still show the Stage 2c
-        // default-army elephant coverage gap explicitly.
-        // run; this line, inside the unconditional report block, is what
-        // actually satisfies that (searchable, unconditional, not dependent
-        // on vitest's own skip-reporting format).
-        `[fuzz] GAP: elephants excluded from default self-play until Stage 2c broadens army coverage; dedicated drift tests now exercise the extracted cascade`,
+        // The `[fuzz] GAP: elephants excluded ...` line that used to sit here
+        // is gone with Stage 2c, along with the `it.skip` it was compensating
+        // for: `driftsResolved` above is no longer a number that reads 0
+        // forever, it is an asserted one (see below).
         // The other coverage gap plan.md §6.8 names, reported the same way
         // and for the same reason: a number that reads 0 forever is only
         // honest if it is visible. It is 0 here BY CONSTRUCTION —
@@ -741,6 +767,17 @@ describe('fuzz harness: seeded self-play soak', () => {
     // regardless of what the invariant checks report.
     expect(totalLandAttacks).toBeGreaterThan(0);
     expect(totalBoardings).toBeGreaterThan(0);
+    // Stage 2c (plan.md §6.7): the whole point of putting elephants back into
+    // the default army. Before this, `driftsResolved` was printed on every
+    // run and was structurally 0 — the drift cascade Stage 2b extracted had
+    // no coverage from ordinary self-play at all, only from the hand-scripted
+    // `processDrifts` tests above. Asserted (not merely printed) so elephants
+    // silently dropping back out of `buildFuzzGameState()` fails the run
+    // rather than quietly restoring the gap.
+    expect(
+      totalDrifts,
+      'no elephant drift reached in default self-play — if buildFuzzGameState still starts its two elephants adjacent, the RNG flow changed; check the deterministic guards above before hunting in drift.ts',
+    ).toBeGreaterThan(0);
     expect((actionsByKind.landMove ?? 0) + (actionsByKind.navalMove ?? 0)).toBeGreaterThan(GAME_COUNT * 10);
     expect(Math.max(...turns)).toBeGreaterThan(1);
     // At least one AR/DR/EX/DE outcome of every kind should show up across
@@ -753,7 +790,24 @@ describe('fuzz harness: seeded self-play soak', () => {
 });
 
 describe('fuzz harness: push-scenario soak (plan.md §12, HIGH-4)', () => {
-  it('never includes an elephant, matching buildFuzzGameState()\'s own exclusion', () => {
+  // This assertion is UNCHANGED by Stage 2c, but its justification is: it
+  // used to read "matching buildFuzzGameState()'s own exclusion", which is
+  // now false — the default army has elephants. The reason to keep this
+  // scenario elephant-free is specific to what it measures, and is close to
+  // the opposite of the old one.
+  //
+  // An elephant never enters `pendingRetreats` at all: `applyLandCombatResult`'s
+  // `forceRetreat` checks `unitType(unit).id === 'elephants'` FIRST and routes
+  // it to `pendingDrifts`, without ever consulting `legalRetreatHexes` or
+  // `pushCandidates`. So an elephant anywhere in this scenario's box would
+  // not enrich its coverage, it would DESTROY it — a boxed-in elephant
+  // drifts instead of pushing, and `pushesResolved` (the single number this
+  // whole scenario exists to move off zero) would silently drop back to the
+  // 0 that plan.md §12.2 records as the symptom of the original bug. The
+  // elephant coverage lives in its own scenario below, for exactly the
+  // separation-of-concerns reason `buildPushScenarioGameState`'s doc comment
+  // gives for not folding it into `buildFuzzGameState()` either.
+  it('stays elephant-free: an elephant drifts instead of pushing, which would gut this scenario', () => {
     const state = buildPushScenarioGameState();
     expect(state.units.some((u) => u.typeId === 'elephants')).toBe(false);
   });
@@ -835,6 +889,124 @@ describe('fuzz harness: push-scenario soak (plan.md §12, HIGH-4)', () => {
     expect(
       seedsWithPush,
       'every push in this soak came from a single seed — coverage has narrowed, even though the total still looks healthy',
+    ).toBeGreaterThan(1);
+  });
+});
+
+describe('fuzz harness: elephant-scenario soak (plan.md §6.7 Stage 2c)', () => {
+  it('makes both combatants elephants, so the fight always forces a drift', () => {
+    const state = buildElephantScenarioGameState();
+    const attacker = state.units.find((u) => u.id === 'attacker')!;
+    const defender = state.units.find((u) => u.id === 'defender')!;
+    expect(attacker.typeId).toBe('elephants');
+    expect(defender.typeId).toBe('elephants');
+    expect(attacker.owner).not.toBe(defender.owner);
+    expect(hexDistance(attacker.position, defender.position)).toBe(1);
+  });
+
+  // The DETERMINISTIC half of the elephant-scenario guarantee, and the one to
+  // read first when the soak below goes to zero — the same pairing (and the
+  // same reasoning) as the push scenario's "no dice involved" test above,
+  // which plan.md §12's third finding motivated: a soak alone is a thin
+  // canary, because any change to RNG consumption can drop it to zero and
+  // read as a regression in code that never changed.
+  //
+  // Three properties, each covering one link of the chain from "these two
+  // units fight" to "a drift COMBAT is resolved", with no die roll anywhere:
+  //
+  // 1. Every die face on this matchup's CRT column is AR or DR (8 attack / 5
+  //    defense = ratio 1.6 -> the '1-1' column, rounded down in the
+  //    defender's favour). Neither result eliminates anyone outright, so the
+  //    losing side is always FORCED TO RETREAT. This is what the push
+  //    scenario's own 2:1 fantassins matchup cannot claim.
+  // 2. Whichever side loses, it is an elephant, and `forceRetreat` routes an
+  //    elephant to `pendingDrifts` unconditionally — asserted here through
+  //    the real `applyLandCombatResult` on a throwaway copy rather than by
+  //    re-describing its branch in a comment.
+  // 3. Both elephants are fully boxed, so the drift's very first step, in
+  //    whichever of the 6 directions the direction die rolls, lands on an
+  //    occupied hex and triggers a drift COMBAT rather than an empty walk.
+  //    That is what separates `driftCombatsResolved` from `driftsResolved`.
+  it('builds a state where a drift, and a drift combat, are both forced with no dice involved', () => {
+    const state = buildElephantScenarioGameState();
+    const attacker = state.units.find((u) => u.id === 'attacker')!;
+    const defender = state.units.find((u) => u.id === 'defender')!;
+
+    // (1) every die face on this column forces a retreat, never an elimination
+    for (let die = 1; die <= 6; die++) {
+      const detail = describeLandAttack([attacker], [defender], die);
+      expect(detail.ratioLabel).toBe('1-1');
+      expect(['AR', 'DR']).toContain(detail.result);
+    }
+
+    // (3) both elephants are boxed in on all six sides, so whichever one is
+    // the one to retreat, its first drift step must hit an occupant.
+    for (const elephant of [attacker, defender]) {
+      const neighbors = DIRECTIONS.map((d) => hexAdd(elephant.position, d));
+      expect(neighbors.every((hex) => unitAt(state, hex) !== undefined)).toBe(true);
+      // ...and being boxed in is precisely what would ELIMINATE an ordinary
+      // unit here (no legal retreat hex, no pushable friendly on the
+      // attacker's side), which is what makes point (2) below load-bearing
+      // rather than incidental.
+      expect(legalRetreatHexes(state, elephant)).toHaveLength(0);
+    }
+
+    // (2) an elephant is routed to pendingDrifts, not pendingRetreats, and
+    // not destroyed — driven through the real engine function on a fresh
+    // copy of the scenario so this cannot drift out of sync with combat.ts.
+    for (const [attackerId, defenderId, result] of [
+      ['attacker', 'defender', 'DR'],
+      ['attacker', 'defender', 'AR'],
+    ] as const) {
+      const fresh = buildElephantScenarioGameState();
+      const a = fresh.units.find((u) => u.id === attackerId)!;
+      const d = fresh.units.find((u) => u.id === defenderId)!;
+      const outcome = applyLandCombatResult(fresh, [a], [d], result);
+      const retreatingSide = result === 'DR' ? d : a;
+      expect(outcome.pendingDrifts.map((u) => u.id)).toEqual([retreatingSide.id]);
+      expect(outcome.pendingRetreats).toHaveLength(0);
+      expect(retreatingSide.destroyed).toBe(false);
+    }
+  });
+
+  // The seeded self-play half — proof that the scenario above is actually
+  // REACHED by a uniform-random agent, not merely constructible by a test.
+  // Mirrors the push scenario's soak, including its two-number assertion:
+  // the total alone can hold up while all the coverage bunches onto one lucky
+  // seed, which independent review caught as a print pretending to be a
+  // guarantee (see that soak's comment).
+  // 40, not the push scenario's 100: this scenario reaches its target far
+  // more reliably than that one does (measured at 100 seeds: 57 of them
+  // produced a drift, against 8 of 100 producing a push), so 40 still leaves
+  // roughly twenty seeds of margin over the floor of 1 while keeping this
+  // file's total runtime in budget — see `buildFuzzGameState`'s doc comment
+  // on why that budget is tight enough to be worth spending deliberately.
+  const ELEPHANT_GAME_COUNT = 40;
+  it(`reaches drifts and drift combats across ${ELEPHANT_GAME_COUNT} seeded games of the elephant scenario`, async () => {
+    const allStats: HarnessStats[] = [];
+    for (let seed = 0; seed < ELEPHANT_GAME_COUNT; seed++) {
+      allStats.push(await playRandomGame(seed, { buildInitialState: buildElephantScenarioGameState }));
+    }
+    const totalDrifts = allStats.reduce((sum, g) => sum + g.driftsResolved, 0);
+    const totalDriftCombats = allStats.reduce((sum, g) => sum + g.driftCombatsResolved, 0);
+    const seedsWithDrift = allStats.filter((g) => g.driftsResolved > 0).length;
+    // eslint-disable-next-line no-console
+    console.log(
+      `[fuzz:elephant-scenario] ${ELEPHANT_GAME_COUNT} games, driftsResolved=${totalDrifts} driftCombatsResolved=${totalDriftCombats} across ${seedsWithDrift} seed(s)`,
+    );
+
+    expect(allStats.every((g) => g.gameOver)).toBe(true);
+    expect(
+      totalDrifts,
+      'no drift reached in self-play — if the "no dice involved" test above still passes, the scenario is fine and the RNG flow changed; re-tune ELEPHANT_GAME_COUNT rather than hunting in drift.ts',
+    ).toBeGreaterThan(0);
+    expect(
+      totalDriftCombats,
+      'drifts happened but none ever trampled anything — the box geometry stopped guaranteeing an occupied first step',
+    ).toBeGreaterThan(0);
+    expect(
+      seedsWithDrift,
+      'every drift in this soak came from a single seed — coverage has narrowed, even though the total still looks healthy',
     ).toBeGreaterThan(1);
   });
 });

@@ -599,7 +599,9 @@ export function checkRangedEligibility(attacker: Unit, distance: number): Ranged
  * chariot/cavalry, so elephants may still drift across it, matching
  * pre-Stage-2c behavior), and its sea-like/coast branch for a non-naval
  * category is exactly the `terrain !== 'coast' && !isSeaLike(terrain)` this
- * replaced (see `combat.test.ts`'s regression pin on that equivalence).
+ * replaced. `combat.test.ts` pins BOTH halves of that — marsh now rejected,
+ * steep-flank still allowed — because the fix is only correct if it changed
+ * exactly one answer.
  *
  * Elimination-vs-blocked, the other half of this question: nothing in the
  * rulebook offers a "the elephant just stops instead" alternative anywhere

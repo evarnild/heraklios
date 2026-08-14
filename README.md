@@ -553,14 +553,15 @@ here rather than silently:
   menu has no Human/Computer choice per player, there is no pacing or
   animation to make its moves legible, and the save format does not record
   which seats were AI.
-- **The computer opponent never uses elephants.** Not because it can't —
-  the drift cascade an elephant goes through instead of retreating is now
-  resolvable outside the board scene — but because the armies its self-play
-  tests are built from still leave elephants out, so the AI has never been
-  exercised with one. It also makes no attempt to predict where a drifting
-  elephant ends up when weighing an attack; it assumes the elephant
-  survives, which understates rather than overstates the value of hitting
-  one.
+- **The computer opponent doesn't predict where a drifting elephant ends
+  up.** It commands elephants perfectly well — the self-play armies its
+  tests are built from now include one per side, so every scored game
+  contains the drift cascade — but when *weighing* an attack it scores a
+  drifting elephant as surviving. A real drift can end anywhere from
+  unharmed to dead, depending on a second die roll, whatever it tramples,
+  and how far the cascade runs, so pricing it properly is lookahead rather
+  than arithmetic. The assumption understates rather than overstates the
+  value of hitting an elephant, which keeps the error on the cautious side.
 - **Naval movement is destination-click, not path-drawn.** Clicking a
   highlighted hex moves the selected ship there by the cheapest combination
   of rotation + forward moves (or, for an orange-highlighted contact hex,
