@@ -746,7 +746,8 @@ describe('fuzz harness: seeded self-play soak', () => {
         // is gone with Stage 2c, along with the `it.skip` it was compensating
         // for: `driftsResolved` above is no longer a number that reads 0
         // forever, it is an asserted one (see below).
-        // The other coverage gap plan.md §6.8 names, reported the same way
+        //
+        // The remaining coverage gap plan.md §6.8 names, reported the same way
         // and for the same reason: a number that reads 0 forever is only
         // honest if it is visible. It is 0 here BY CONSTRUCTION —
         // `legalActions` enumerates one-attacker attacks only — so this line
@@ -774,6 +775,16 @@ describe('fuzz harness: seeded self-play soak', () => {
     // `processDrifts` tests above. Asserted (not merely printed) so elephants
     // silently dropping back out of `buildFuzzGameState()` fails the run
     // rather than quietly restoring the gap.
+    //
+    // Only `driftsResolved` is asserted here, NOT `driftCombatsResolved`
+    // (which currently prints 65), and the asymmetry is deliberate rather
+    // than an oversight: a drift is guaranteed by this army's geometry the
+    // moment the two adjacent elephants fight, but whether that drift then
+    // walks into an OCCUPIED hex depends on where random movement happens to
+    // have scattered everyone by then. Asserting the second number here would
+    // be asserting luck. The deterministic guarantee for drift combats lives
+    // in the elephant scenario at the bottom of this file, which boxes both
+    // elephants in so the first step of any drift must hit an occupant.
     expect(
       totalDrifts,
       'no elephant drift reached in default self-play — if buildFuzzGameState still starts its two elephants adjacent, the RNG flow changed; check the deterministic guards above before hunting in drift.ts',

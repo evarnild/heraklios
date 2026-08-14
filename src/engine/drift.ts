@@ -1,4 +1,4 @@
-import type { HexCoord } from '../data/map';
+import { MAP_TERRAIN, hexKey as mapHexKey, type HexCoord } from '../data/map';
 import { directionForDie, hexAdd } from './hex';
 import type { PlayerAgent } from './agent';
 import {
@@ -11,6 +11,31 @@ import {
 } from './combat';
 import { resolveUnitRetreat, type RetreatHooks } from './retreat';
 import { type GameState, type Unit, unitType } from './state';
+
+/**
+ * The phrase naming WHY a drift step was fatal, for the player-facing combat
+ * log line — "off the map", "into the sea", or "into the marsh".
+ *
+ * Split out as its own function (rather than one fixed string) with Stage 2c,
+ * plan.md §6.7. `canElephantEnterHex` used to reject only off-map, coastal
+ * and sea-like hexes, so a single "drifts off the map or into the sea"
+ * message covered every way the elimination branch below could fire. Widening
+ * that predicate to reject MARSH as well — terrain the rulebook forbids
+ * elephants unconditionally ("chars, cavaleries et éléphants ne peuvent
+ * accéder aux marais", `docs/research/05-rules-french-original.md:186-188`) —
+ * made the fixed string narrate something that had not happened, which is the
+ * kind of quietly-wrong UI text no test would ever fail on. The event kind was
+ * renamed from `eliminatedOffMapOrSea` to `eliminatedLeavingLandZone` in the
+ * same pass, for the same reason: it now covers a third case its old name
+ * excluded, and the rulebook's own wording for the elimination is leaving
+ * "la zone terrestre" (`:288-289`), not specifically the sea.
+ */
+function describeDriftExit(hex: HexCoord): string {
+  const terrain = MAP_TERRAIN.get(mapHexKey(hex.q, hex.r));
+  if (terrain === undefined) return 'off the map';
+  if (terrain === 'marsh') return 'into the marsh';
+  return 'into the sea';
+}
 
 interface DriftFrame {
   kind: 'drift';
@@ -70,7 +95,7 @@ export type DriftEvent =
   | { kind: 'moved'; elephant: Unit; hex: HexCoord }
   | { kind: 'enteredVacatedHex'; elephant: Unit; hex: HexCoord }
   | { kind: 'stopped'; elephant: Unit }
-  | { kind: 'eliminatedOffMapOrSea'; elephant: Unit }
+  | { kind: 'eliminatedLeavingLandZone'; elephant: Unit; hex: HexCoord }
   | { kind: 'combatRollNeeded'; elephant: Unit; occupant: Unit; hex: HexCoord }
   | {
       kind: 'combatResolved';
@@ -317,7 +342,7 @@ export function driftStep(game: GameState, drift: ElephantDriftState, input?: Dr
 
       if (!canElephantEnterHex(nextHex)) {
         elephant.destroyed = true;
-        events.push({ kind: 'eliminatedOffMapOrSea', elephant });
+        events.push({ kind: 'eliminatedLeavingLandZone', elephant, hex: nextHex });
         break;
       }
 
@@ -394,8 +419,8 @@ export async function resolveElephantDrift(
         case 'stopped':
           hooks.onLine?.(`${unitType(event.elephant).name} has used up its movement and stops drifting.`);
           break;
-        case 'eliminatedOffMapOrSea':
-          hooks.onLine?.(`${unitType(event.elephant).name} drifts off the map or into the sea and is eliminated!`);
+        case 'eliminatedLeavingLandZone':
+          hooks.onLine?.(`${unitType(event.elephant).name} drifts ${describeDriftExit(event.hex)} and is eliminated!`);
           hooks.onRender?.();
           break;
         case 'combatResolved':

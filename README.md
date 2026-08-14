@@ -62,7 +62,9 @@ npm run build   # production build
    real combat (elephant vs. that unit) rather than an automatic kill; a
    result that would force the elephant itself to retreat instead re-rolls
    a new direction with whatever movement it has left, and it's eliminated
-   outright if the drift would carry it off the map or into the sea. When a
+   outright if the drift would carry it out of the land zone — off the map,
+   into the sea, or into a marsh, which elephants may never enter at all.
+   When a
    **defender** retreats, or is eliminated outright (DE/EX), the attacking
    side is then offered the chance to advance a unit *adjacent to* that hex
    into it (see
@@ -554,10 +556,11 @@ here rather than silently:
   animation to make its moves legible, and the save format does not record
   which seats were AI.
 - **The computer opponent doesn't predict where a drifting elephant ends
-  up.** It commands elephants perfectly well — the self-play armies its
-  tests are built from now include one per side, so every scored game
-  contains the drift cascade — but when *weighing* an attack it scores a
-  drifting elephant as surviving. A real drift can end anywhere from
+  up.** It commands them perfectly well — the self-play armies its tests are
+  built from now include one per side, so the AI moves and fights with
+  elephants and resolves drifts headlessly when one is forced — but when
+  *weighing* an attack it scores a drifting elephant as surviving. A real
+  drift can end anywhere from
   unharmed to dead, depending on a second die roll, whatever it tramples,
   and how far the cascade runs, so pricing it properly is lookahead rather
   than arithmetic. The assumption understates rather than overstates the

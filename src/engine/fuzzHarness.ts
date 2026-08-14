@@ -128,11 +128,23 @@ function makeUnit(id: string, owner: PlayerId, typeId: string, position: HexCoor
  * forced to retreat, and `applyLandCombatResult`'s `forceRetreat` routes
  * `unitType(unit).id === 'elephants'` straight to `pendingDrifts`
  * unconditionally, with no `legalRetreatHexes`/`pushCandidates` check first
- * (unlike every other unit type) — so there is no scenario where this
- * specific matchup resolves without a drift. The only randomness left is
+ * (unlike every other unit type) — so under `legalActions`' singleton-only
+ * enumeration there is no scenario where this specific matchup resolves
+ * without a drift. The only randomness left is
  * whether `RandomAgent` picks this attack at all among everything else it
  * could legally do that turn, which is exactly the same residual randomness
  * `p0-cav-l`/`p1-phalanx` already accept below.
+ *
+ * That "singleton-only" qualifier is load-bearing, and it is about this
+ * ARMY's other drivers rather than about this pairing. A `HeuristicAgent`
+ * assembles COMBINED attacks and hands them to `applyAction` itself (the
+ * escape hatch `legalActions`' own doc comment sanctions), and
+ * `heuristicSoak.test.ts` drives this very army — four attackers totalling
+ * 8+8+3+2 against a defending elephant's defense 5 is the '4-1' column,
+ * which does have DE and EX faces. Nothing is broken there; the guarantee
+ * above is simply what the `RandomAgent` soak in `fuzzHarness.test.ts`
+ * relies on, and the heuristic soak gets a richer mix rather than a weaker
+ * invariant.
  */
 export function buildFuzzGameState(): GameState {
   const players: Player[] = [

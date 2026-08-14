@@ -117,26 +117,40 @@ describe('HeuristicAgent: difficulty tiers are ordered by strength', () => {
    * Measured over these exact 12 seeds, as average surviving army value:
    *
    * ```
-   * ev-vs-ev          [23.33, 16.25]   wins [ 7, 5]
-   * random-vs-random  [31.25, 33.75]   wins [ 6, 6]
+   * ev-vs-ev          [22.50, 22.08]   wins [ 7, 5]
+   * random-vs-random  [40.00, 36.25]   wins [ 7, 5]
    * ```
    *
-   * Two `RandomAgent`s finish level — if anything a shade in seat 1's favour
-   * — while two `HeuristicAgent`s finish about 3:2 apart. The first-move
-   * advantage is therefore created by good play, not baked into the starting
-   * position. A one-sided comparison would credit the seat rather than the
-   * agent, so the tests below hold the seat constant on each side.
+   * A one-sided comparison would credit the seat rather than the agent, so
+   * the tests below hold the seat constant on each side.
    *
-   * These numbers moved when plan.md §15 made a volley resolve at the
-   * archer's projectile value instead of at 0. Before that, seat 0 finished
-   * [35.83, 6.67] and won all 12: the whole roster's ranged half was dead
-   * weight, so whoever landed the first real melee kept the initiative
-   * unanswered. Both sides now shoot, and the second seat can trade back —
-   * the ordering the tests below assert is unchanged, the margin is simply
-   * smaller and the game less decided by who moves first. §15.5's
-   * advance-adjacency fix then moved them again, but only in the third
-   * significant figure: an EV agent rarely wanted to walk a defense-1 archer
-   * into the contact it had just shot at anyway.
+   * HISTORY, because these numbers have now moved twice and the REASONS are
+   * the durable part — the figures themselves are roster-dependent and will
+   * move again:
+   *
+   * - plan.md §15 (volleys resolving at the archer's projectile value rather
+   *   than at 0). Before it, seat 0 finished [35.83, 6.67] and won all 12:
+   *   the roster's whole ranged half was dead weight, so whoever landed the
+   *   first real melee kept the initiative unanswered. Once both sides could
+   *   shoot back, ev-vs-ev came in at [23.33, 16.25], wins 7-5.
+   * - plan.md §6.7's Stage 2c (one elephant per side in
+   *   `buildFuzzGameState`). That is what produced the numbers above, and it
+   *   compressed every margin on this page — see the next paragraph, which
+   *   is the interesting half.
+   *
+   * **An elephant is a material floor, and that is why the margins shrank.**
+   * Every other unit type with no legal retreat hex is simply eliminated
+   * (`applyLandCombatResult`'s `forceRetreat`); an elephant is routed to
+   * `pendingDrifts` FIRST and drifts instead, so the one outcome that
+   * permanently removes material from a badly-played army does not apply to
+   * it. Adding 10 points of un-loseable army value per side therefore lifts
+   * the loser's floor much more than the winner's ceiling, which compresses
+   * ratios without changing the ORDERING any test here asserts. It shows up
+   * clearest in the two mirror matches above: random-vs-random rose from
+   * totals [375, 405] to [480, 435], while ev-vs-ev barely moved.
+   *
+   * The consequence worth knowing before re-tuning weights is recorded at
+   * the 2x assertion below, whose headroom this change genuinely did eat.
    */
   it('the EV tier ends with far more material than a RandomAgent, from either seat', async () => {
     const asSeat0 = await playSeries('ev', 'pure-random');
@@ -147,12 +161,24 @@ describe('HeuristicAgent: difficulty tiers are ordered by strength', () => {
 
     const heuristicTotal = asSeat0.material[0] + asSeat1.material[1];
     const randomTotal = asSeat0.material[1] + asSeat1.material[0];
-    // Measured at roughly 3.5x. The per-game averages are 67.5 vs 19.2; the
-    // totals asserted below are those times the 12 seeds, i.e. 810 vs 230 —
-    // stated because quoting only the averages next to an assertion on the
-    // totals reads as if they were the same number. Asserted at 2x so
-    // ordinary tuning of the weights doesn't turn a still-comfortable win
-    // into a red suite.
+    // Measured at 2.33x: totals 875 vs 375 over the 12 seeds (per-game
+    // averages 36.5 vs 15.6 — both stated, because quoting only the averages
+    // next to an assertion on the TOTALS reads as if they were the same
+    // number).
+    //
+    // READ THIS BEFORE RE-TUNING THE WEIGHTS. The 2x floor was originally
+    // chosen with the comment "so ordinary tuning doesn't turn a
+    // still-comfortable win into a red suite", and at the time it measured
+    // 3.5x (810 vs 230), i.e. 76% headroom over the floor. Stage 2c
+    // (plan.md §6.7) cut that to **16.7%** — 875 against a floor of 750 — for
+    // the reason this file's header explains: an elephant cannot be
+    // eliminated by a failed retreat, so it is 10 points of army value the
+    // RandomAgent gets to keep no matter how badly it plays, and the floor it
+    // lifts is the LOSER's. The assertion is deliberately left at 2x rather
+    // than quietly relaxed to keep the strength claim honest, but it is no
+    // longer the comfortable guard the old comment described: a weight change
+    // that costs the EV agent ~15% of its edge will now redden this test, and
+    // that is a real result to investigate rather than a threshold to nudge.
     expect(heuristicTotal).toBeGreaterThan(randomTotal * 2);
   });
 

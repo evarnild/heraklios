@@ -109,6 +109,39 @@ describe('elephant drift engine', () => {
     expect(elephant.destroyed).toBe(true);
   });
 
+  // Stage 2c (plan.md §6.7). `canElephantEnterHex` was widened to reject
+  // MARSH — terrain the rulebook forbids elephants unconditionally ("chars,
+  // cavaleries et éléphants ne peuvent accéder aux marais",
+  // docs/research/05-rules-french-original.md:186-188) — which widened this
+  // same elimination branch. Two things are pinned here, because the rule
+  // half would pass on its own while the player-facing half quietly lied:
+  //
+  // 1. the elephant really is eliminated by drifting into marsh, and
+  // 2. the combat-log line SAYS marsh. Before this, the branch emitted a
+  //    fixed "drifts off the map or into the sea" string (and an event named
+  //    `eliminatedOffMapOrSea`), so a marsh elimination narrated something
+  //    that had not happened. No existing test could fail on that, which is
+  //    exactly why it is asserted rather than left to review.
+  //
+  // (6,15) is 'plain' and (7,15) is 'marsh' on the shipped map, and a
+  // direction die of 1 is DIRECTIONS[0] = {q:1,r:0} — so this walks one hex
+  // east, straight off the land zone, with no other terrain in the way.
+  it('eliminates an elephant that drifts into marsh, and says so', async () => {
+    const elephant = makeUnit('elephant', 0, 'elephants', { q: 6, r: 15 });
+    const state = makeState([elephant]);
+    const lines: string[] = [];
+
+    await resolveElephantDrift(state, elephant, 1, new ScriptedAgent(), () => 1, {
+      onLine: (line) => lines.push(line),
+    });
+
+    expect(elephant.destroyed).toBe(true);
+    expect(lines.some((l) => l.includes('into the marsh') && l.includes('eliminated'))).toBe(true);
+    // ...and does NOT reach for the old sea/off-map wording, which is the
+    // half a looser `includes('eliminated')` assertion would have missed.
+    expect(lines.some((l) => l.includes('into the sea') || l.includes('off the map'))).toBe(false);
+  });
+
   it('re-rolls a forbidden reverse direction without consuming movement', () => {
     const elephant = makeUnit('elephant', 0, 'elephants', CENTER);
     const state = makeState([elephant]);
