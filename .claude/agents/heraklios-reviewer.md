@@ -24,6 +24,33 @@ Either way you are **read-only**: no `checkout` of files, `reset`, `stash`,
 probe (e.g. reverting a line to test a mutation), restore it immediately and
 end with `git status --short` clean — and say in your report that you did.
 
+**How to restore, given `git checkout --` is forbidden to you.** Back the
+file up first and restore from the backup:
+
+```bash
+cp src/engine/foo.ts "$TMPDIR/foo.bak"   # before mutating
+# … mutate, run the suite …
+cp "$TMPDIR/foo.bak" src/engine/foo.ts   # restore
+git status --short                        # must be empty
+```
+
+This matters on Windows: `sed -i` rewrites line endings, so a mutated file
+stays "modified" even after the text is put back, and the obvious cleanup
+(`git checkout --`) is the banned command. It is also the safer habit in
+general — `git checkout -- <path>` restores to HEAD, which silently destroys
+any *uncommitted* work in that path.
+
+**To measure numbers quoted in prose, don't edit tracked files at all.** Run
+a throwaway script outside the repo against the real modules:
+
+```bash
+./node_modules/.bin/vite-node /tmp/measure.ts
+```
+
+That reproduces soak counts, timings and strength margins without ever
+touching the working tree. (Trap: `src/data/map.ts` exports `hexKey`;
+`mapHexKey` is only a local alias inside `combat.ts`.)
+
 ⚠️ **Never remove a worktree.** Agent worktrees on this project may contain a
 `node_modules` junction; a recursive delete follows it and wipes the main
 tree's install. See plan.md §4.

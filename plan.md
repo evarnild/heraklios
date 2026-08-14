@@ -78,14 +78,16 @@ sync when something merges** — it went stale once and the user caught it.
 
 ### In flight
 
-- *Nothing.* Next up is #0 below. **0b** and **0c**, both out of §15's
-  independent review, shipped as `9f99b1a` ([§15.7](#157-the-two-follow-ups)).
+- [§12](#12-cascading-push-when-a-unit-cannot-retreat) **follow-ups** —
+  `feat/push-followups`, tsc/build/366 tests green, cycle-guard mutant killed.
+  Awaiting review/merge; see [§12.6](#126-the-three-follow-ups). Next up after
+  it merges is #1, Stage 2c.
 
 ### Queued
 
 | # | Item | Touches | Notes |
 | --- | --- | --- | --- |
-| 0 | [§12](#12-cascading-push-when-a-unit-cannot-retreat) follow-ups | `engine/fuzzHarness*.ts`, `BoardScene.ts` | The three non-blocking findings that shipped with `3c766d6`: the untested `chainVisited` cycle guard (+ two comments wrongly claiming coverage), the stale "surrounded by friendly units" string, the thin `pushesResolved` canary. Small; fold into whatever touches those files next. |
+| ~~0~~ | ~~[§12](#12-cascading-push-when-a-unit-cannot-retreat) follow-ups~~ | — | **✅ Shipped `feat/push-followups`.** All three closed; see [§12.6](#126-the-three-follow-ups). |
 | ~~0b~~ | ~~Reviewer-agent file corrections~~ | — | **✅ Shipped `9f99b1a`.** See [§15.7](#157-the-two-follow-ups). |
 | ~~0c~~ | ~~Combat groups not revalidated after a removal~~ | — | **✅ Shipped `9f99b1a`.** See [§15.7](#157-the-two-follow-ups). |
 | 1 | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2c — elephants in the harness | `engine/fuzzHarness.ts` | Now unblocked: 2b landed the extracted cascade, so this is putting elephants back into the generated armies, deleting the exclusion guard and the skipped test. Also what unblocks the AI ever using one (§6.9). |
@@ -100,9 +102,8 @@ these mostly cannot run in parallel with each other.
 ## Backlog Map
 
 - **Start here:** [Current Queue](#10-sequenced-queue).
-- **Current next task:** #0's §12 follow-ups, or #1's Stage 2c. The two
-  items §15's independent review left behind (`0b`, `0c`) shipped as
-  `9f99b1a` — see [§15.7](#157-the-two-follow-ups).
+- **Current next task:** review and merge `feat/push-followups`
+  ([§12.6](#126-the-three-follow-ups)), then #1's Stage 2c.
 - **Live defects:** [§9.2](#92-endgamebytimelimit-is-never-called) (needs a
   design decision) is the only one left open.
 - **Larger future work:** [§6.7](#67-the-elephant-problem-stage-2-split)'s
@@ -1421,8 +1422,8 @@ reviewer also tried to prove the strict *entourée* reading vacuous and
 ringed by friendlies after an `AR`, so §12.2's "nearly unreachable" is
 accurate rather than overstated.
 
-Three non-blocking findings, **merged as-is and still open** — queued as #0
-in [Current Queue](#10-sequenced-queue):
+Three non-blocking findings, merged as-is and left open at the time. **All
+three are now closed** — see [§12.6](#126-the-three-follow-ups). They were:
 
 1. **MEDIUM — the `chainVisited` cycle guard is untested, and two comments
    claim it is.** In `buildRetreatChain`'s straight-line test geometry the
@@ -1528,6 +1529,65 @@ is why this survived. Required:
 - **Mutation-test each**, per [§6.6](#66-stage-1-outcome).
 - Ideally give the harness a scenario that actually reaches a push, so
   `pushTarget` stops reading 0.
+
+<a id="126-the-three-follow-ups"></a>
+
+### 12.6 The three follow-ups
+
+Shipped on `feat/push-followups`. `tsc` clean, build clean, 366 passed / 1
+skipped (was 364).
+
+**1 — the cycle guard, and why a straight line could never test it.** This
+is the useful one, because the shape recurs: *a test can exercise a guard's
+code path and still not test the guard.* In the straight-line chain
+`a—b—c—d`, when the cascade recurses into `b`, the mutant (pass the caller's
+`visited` instead of the grown `chainVisited`) does put `a` back in the
+candidate pool — but `a` then fails `pushCandidates`'s `canMakeRoom` fixpoint
+on its own merits, because in a line `a` is not adjacent to anything that can
+make room except `b` itself, which is excluded. The guard's effect is masked
+by an unrelated filter downstream of it.
+
+The fix is a **branching** geometry: hang a side unit `d` off `a` that has
+room of its own. Now `a` passes the fixpoint, and the visited set is the only
+thing that can exclude it. Verified: the new test fails under the mutant and
+the old one passes.
+
+The specific mechanism here: **when a guard's output feeds another filter,
+the test has to make the guard the only thing that can reject the input.**
+That is finding 1's explanation, and independent review was right to push
+back on an earlier version of this paragraph that offered it as the general
+rule — it does not describe its two supposed siblings at all. §15.4's
+`triremes` probe was masked by two attack values that happen to be *equal*,
+with no second filter anywhere; §15.6's `cheapestSacrifice` gap had no
+downstream test to be masked by.
+
+What genuinely unifies all three is the weaker claim: **a test can exercise
+a guard's code path and still not test the guard.** The operational rule that
+catches all three is already recorded in §15.6 — *enumerate mutations from
+`git diff`, one per changed behavioural line* — and it is the rule, not the
+mechanism, that is worth carrying forward.
+
+**2 — the stale string.** `BoardScene`'s prompt still said *"is surrounded by
+friendly units"* after §12.2 widened the rule to "no retreat, and at least one
+adjacent friendly can make room", so it was false in the common case and
+contradicted the README. Now states the real condition plus how many units
+can make room, since the next thing the player does is click one.
+
+**3 — the thin canary, split in two.** 4 pushes in 30 seeds against a `> 0`
+assertion meant an RNG-flow change would read as a defect in push code that
+hadn't changed. Now:
+
+- a **deterministic** test asserting the property the scenario exists to
+  create — the freshly-built state has a unit with zero legal retreats and a
+  non-empty `pushCandidates` — with no dice in it at all;
+- the **soak** widened to 100 seeds (8 pushes across 8 distinct seeds,
+  ~330ms more), reporting the seed spread as well as the total so coverage
+  narrowing onto one lucky seed is visible.
+
+The point is that the two now fail for *different* reasons: the first means
+the builder stopped boxing the unit in, the second means self-play stopped
+reaching it. The soak's failure message says so, so the next person doesn't
+go hunting in `pushCandidates`.
 
 ---
 

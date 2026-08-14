@@ -623,9 +623,16 @@ export function legalRetreatHexes(state: GameState, unit: Unit): HexCoord[] {
  * Friendly neighbors of `unit` that could make room for it by retreating
  * themselves (directly, or — see the cascade note below — by pushing
  * further down the chain) — the rulebook's exception to
- * elimination-on-no-retreat: "a unit forced to retreat with nowhere legal
- * to go is simply eliminated — unless it's surrounded by friendly units, in
- * which case it pushes one of them aside and takes its place."
+ * elimination-on-no-retreat: "A unit forced to retreat with nowhere legal to
+ * go (blocked by sea, enemy ZOC on all sides) is simply eliminated — unless
+ * it's surrounded **entirely** by friendly units, in which case it 'pushes'
+ * one friendly unit aside and takes its hex instead"
+ * (`docs/research/02-rules-transcription.md:161-164`). Quoted in full
+ * deliberately: an earlier version of this comment dropped "entirely", which
+ * is the single word carrying the strict reading the INTERPRETATION below
+ * goes on to reject — paraphrasing a passage into agreement with the
+ * decision made about it is exactly what this repo's ambiguous-passage
+ * convention exists to prevent.
  *
  * INTERPRETATION (plan.md §12.2) — the rulebook's exact wording
  * (`docs/research/05-rules-french-original.md:239-243`) is "Une unité qui se

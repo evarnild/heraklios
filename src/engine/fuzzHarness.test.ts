@@ -12,7 +12,7 @@ import {
 import type { Action } from './actions';
 import type { CombatResult } from '../data/combatTable';
 import type { HexCoord } from '../data/map';
-import { describeLandAttack, legalRetreatHexes } from './combat';
+import { describeLandAttack, legalRetreatHexes, pushCandidates } from './combat';
 import { createInitialState } from './turnManager';
 import type { PlayerAgent } from './agent';
 import type { GameState, Unit } from './state';
@@ -240,14 +240,67 @@ describe('resolveUnitRetreat', () => {
     expect(new Set(finalPositions).size).toBe(finalPositions.length);
 
     // Sequencing: exactly 3 push links (a->b, b->c, c->d), each offering
-    // ONLY the single friendly neighbor this geometry provides — in
-    // particular, never re-offering a unit already earlier in the chain
-    // (which `visited` exists to prevent — see `pushCandidates`'s doc
-    // comment). If `visited` weren't threaded correctly, b's own neighbor
-    // scan would find `a` (still sitting, unmoved, at its original hex at
-    // that point) as an extra "candidate" alongside c.
+    // ONLY the single friendly neighbor this geometry provides.
+    //
+    // NOTE this does NOT prove `visited` is threaded correctly, though an
+    // earlier version of this comment claimed it did (caught by independent
+    // review of §12; see plan.md's queue item #0). In a straight line, `a` is
+    // not adjacent to `c`, so when the cascade reaches `b`, `a` fails
+    // `pushCandidates`'s `canMakeRoom` fixpoint on its own merits — it would
+    // be excluded even if the guard were removed. The test below uses a
+    // BRANCHING geometry, which is what actually kills that mutant.
     expect(agent.pushOffers).toEqual([[b.id], [c.id], [d.id]]);
     for (const u of chain) expect(u.destroyed).toBe(false);
+  });
+
+  it('never offers a unit already in the chain, even when it would otherwise qualify', async () => {
+    // The real cycle-guard test. `d` is the branch: it hangs off `a` (and is
+    // NOT adjacent to `b`), and it has room of its own. That makes `a` itself
+    // a `canMakeRoom` unit — so when the cascade recurses into `b`, `a` is a
+    // friendly neighbour that passes the fixpoint on merit and is excluded
+    // ONLY because the grown `chainVisited` carries it down.
+    //
+    //          enemies all around a and b except along the chain
+    //     d(9,5) — a(10,5) — b(11,5) — c(12,5) → open ground
+    //
+    // Mutate `resolveUnitRetreat` to pass the caller's `visited` instead of
+    // `chainVisited` and b's offer becomes [a, c]: the cascade would be free
+    // to push a unit that is still mid-resolution higher up the stack.
+    const a = makeChainUnit('a', { q: 10, r: 5 });
+    const b = makeChainUnit('b', { q: 11, r: 5 });
+    const c = makeChainUnit('c', { q: 12, r: 5 });
+    const d = makeChainUnit('d', { q: 9, r: 5 });
+    const enemyHexes = [
+      { q: 11, r: 4 }, { q: 10, r: 4 }, { q: 9, r: 6 }, { q: 10, r: 6 }, // box in `a`
+      { q: 12, r: 4 }, { q: 11, r: 6 }, // box in `b`
+    ];
+    const enemies = enemyHexes.map((hex, i) => makeChainUnit(`enemy${i}`, hex, 1));
+    const state = createInitialState(
+      [
+        { id: 0, name: 'P0', edge: 'W', purchasePoints: 0, eliminated: false },
+        { id: 1, name: 'P1', edge: 'E', purchasePoints: 0, eliminated: false },
+      ],
+      'multi-defender',
+    );
+    state.units = [a, b, c, d, ...enemies];
+
+    // Preconditions, asserted rather than assumed — if a map edit ever gives
+    // `a` or `b` an escape, or takes `d`'s away, this test would quietly stop
+    // testing the thing it is named for.
+    expect(legalRetreatHexes(state, a)).toHaveLength(0);
+    expect(legalRetreatHexes(state, b)).toHaveLength(0);
+    expect(legalRetreatHexes(state, c).length).toBeGreaterThan(0);
+    expect(legalRetreatHexes(state, d).length).toBeGreaterThan(0);
+    // The branch is what makes this discriminating: `a` qualifies as a push
+    // target in its own right (via `d`), so only the visited set can exclude it.
+    expect(pushCandidates(state, b).map((u) => u.id).sort()).toEqual(['a', 'c']);
+
+    const agent = new ScriptedFirstChoiceAgent();
+    await resolveUnitRetreat(state, a, agent);
+
+    // a is offered both its friendlies; b is offered ONLY c — never `a`.
+    expect(agent.pushOffers).toEqual([['b', 'd'], ['c']]);
+    for (const u of [a, b, c, d]) expect(u.destroyed).toBe(false);
   });
 });
 
@@ -715,24 +768,72 @@ describe('fuzz harness: push-scenario soak (plan.md §12, HIGH-4)', () => {
     expect(state.units.length).toBe(10); // attacker + defender + 5 ring + 3 fillers
   });
 
+  // The DETERMINISTIC half of the push-scenario guarantee, and the one to
+  // read first when the soak below goes to zero.
+  //
+  // plan.md §12's third open finding was that the soak is a thin canary: it
+  // reached 4 pushes in 30 seeded games against a `> 0` assertion, so any
+  // change to RNG consumption could drop it to 0 and read as a regression in
+  // the push code when nothing about the push code had changed. This test
+  // removes the RNG from the question entirely by asserting the PROPERTY the
+  // scenario exists to create, straight off the freshly-built state: a unit
+  // with no legal retreat whose only way out is pushing a friendly.
+  //
+  // So the two tests fail for different reasons, which is the point. This one
+  // failing means the scenario builder stopped boxing the defender in. The
+  // soak failing while this passes means self-play stopped *reaching* the
+  // situation — re-tune the seeds, don't go looking for a bug in
+  // `pushCandidates`.
+  it('builds a state where a unit is already push-or-die, with no dice involved', () => {
+    const state = buildPushScenarioGameState();
+    const boxedIn = state.units.find((u) => u.id === 'defender')!;
+    expect(legalRetreatHexes(state, boxedIn)).toHaveLength(0);
+    expect(pushCandidates(state, boxedIn).length).toBeGreaterThan(0);
+  });
+
   // HIGH-4 finding from adversarial review: `pushesResolved` was collected
   // (plan.md §12) but the DEFAULT soak above never actually reaches one —
   // `buildFuzzGameState()`'s small, spread-out army essentially never boxes
   // a unit in tightly enough. This purpose-built scenario (see
   // `buildPushScenarioGameState`'s doc comment for exactly why it reliably
-  // does) proves the cascading-push path is genuinely exercised, not just
-  // unit-tested in isolation.
-  const PUSH_GAME_COUNT = 30;
+  // does) proves the cascading-push path is genuinely exercised end to end,
+  // not just unit-tested in isolation.
+  //
+  // 100 seeds rather than the original 30: measured 8 pushes across 8 distinct
+  // seeds versus 4 across 4, for ~330ms more runtime — twice the margin above
+  // zero for a cost that doesn't register against this file's soak. The count
+  // is low because a push needs a forced retreat to land on the one boxed-in
+  // unit, which a uniform-random agent reaches rarely even here.
+  const PUSH_GAME_COUNT = 100;
   it(`reaches at least one push across ${PUSH_GAME_COUNT} seeded games of the push scenario`, async () => {
     const allStats: HarnessStats[] = [];
     for (let seed = 0; seed < PUSH_GAME_COUNT; seed++) {
       allStats.push(await playRandomGame(seed, { buildInitialState: buildPushScenarioGameState }));
     }
     const totalPushes = allStats.reduce((sum, g) => sum + g.pushesResolved, 0);
+    const seedsWithPush = allStats.filter((g) => g.pushesResolved > 0).length;
+    // Both numbers, not just the total, and both ASSERTED below rather than
+    // only printed — the first version of this logged the seed spread under a
+    // comment describing it as a guard, which independent review pointed out
+    // was a print pretending to be a guarantee. The collapse it warns about
+    // (total holding up while the pushes bunch onto one lucky seed) really
+    // would have passed silently.
     // eslint-disable-next-line no-console
-    console.log(`[fuzz:push-scenario] ${PUSH_GAME_COUNT} games, pushesResolved=${totalPushes}`);
+    console.log(
+      `[fuzz:push-scenario] ${PUSH_GAME_COUNT} games, pushesResolved=${totalPushes} across ${seedsWithPush} seed(s)`,
+    );
 
     expect(allStats.every((g) => g.gameOver)).toBe(true);
-    expect(totalPushes).toBeGreaterThan(0);
+    expect(
+      totalPushes,
+      'no push reached in self-play — if the push-or-die test above still passes, the scenario is fine and the RNG flow changed; re-tune PUSH_GAME_COUNT rather than hunting pushCandidates',
+    ).toBeGreaterThan(0);
+    // Costs no extra brittleness at the current margin (8 seeds against a
+    // floor of 1) and closes the gap between what the comment above claims
+    // and what actually fails the run.
+    expect(
+      seedsWithPush,
+      'every push in this soak came from a single seed — coverage has narrowed, even though the total still looks healthy',
+    ).toBeGreaterThan(1);
   });
 });
