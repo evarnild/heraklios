@@ -78,18 +78,16 @@ sync when something merges** — it went stale once and the user caught it.
 
 ### In flight
 
-- *Nothing.* Next up is #0 below. Note **0b** and **0c** both came out of
-  §15's independent review ([§15.6](#156-independent-review)) and are small;
-  clearing them before starting Stage 2c keeps the reviewer usable and closes
-  a live hotseat path.
+- *Nothing.* Next up is #0 below. **0b** and **0c**, both out of §15's
+  independent review, shipped as `9f99b1a` ([§15.7](#157-the-two-follow-ups)).
 
 ### Queued
 
 | # | Item | Touches | Notes |
 | --- | --- | --- | --- |
 | 0 | [§12](#12-cascading-push-when-a-unit-cannot-retreat) follow-ups | `engine/fuzzHarness*.ts`, `BoardScene.ts` | The three non-blocking findings that shipped with `3c766d6`: the untested `chainVisited` cycle guard (+ two comments wrongly claiming coverage), the stale "surrounded by friendly units" string, the thin `pushesResolved` canary. Small; fold into whatever touches those files next. |
-| 0b | Reviewer-agent file corrections | `.claude/agents/heraklios-reviewer.md` | **Cheap, do it next.** [§15.6](#156-independent-review) had to override four of its rules per-run: it prescribes `npx tsc --noEmit` (the [§4](#4-runbook-detailed-launch-hazards-appendix) false-green trap), a `--detach` that wrecks the tree when the branch is already HEAD, "plan.md must not be edited" (untrue when the operator drives the branch), and a "Known simplifications" step that doesn't apply to defect fixes. |
-| 0c | `toggleDefender` leaves stale attackers in the group | `scenes/BoardScene.ts` | Found by [§15.6](#156-independent-review). Untargeting a defender doesn't revalidate the attack group, so an archer that only reached the removed target stays in it and contributes its melee value — the §15 defect, live, for that unit. Minimal fix: after the splice at `toggleDefender`, drop attackers failing `attackerCanJoin` against the remaining defenders. |
+| ~~0b~~ | ~~Reviewer-agent file corrections~~ | — | **✅ Shipped `9f99b1a`.** See [§15.7](#157-the-two-follow-ups). |
+| ~~0c~~ | ~~Combat groups not revalidated after a removal~~ | — | **✅ Shipped `9f99b1a`.** See [§15.7](#157-the-two-follow-ups). |
 | 1 | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2c — elephants in the harness | `engine/fuzzHarness.ts` | Now unblocked: 2b landed the extracted cascade, so this is putting elephants back into the generated armies, deleting the exclusion guard and the skipped test. Also what unblocks the AI ever using one (§6.9). |
 | 2 | [§13](#13-hex-coordinate-tooltip) hex coordinate tooltip | `ui/MapView.ts`, `BoardScene.ts` | Presentation only. |
 | 3 | [§9.2](#92-endgamebytimelimit-is-never-called) turn-limit ending | design + scenes | **Live gap, and now the only open one.** Needs a design decision first (what sets the limit, how the player is told). Stage 3 added a second reason to care: `endGameByTimeLimit` breaks a tied army value in favour of the lower seat, silently (§6.9). |
@@ -102,9 +100,9 @@ these mostly cannot run in parallel with each other.
 ## Backlog Map
 
 - **Start here:** [Current Queue](#10-sequenced-queue).
-- **Current next task:** the two items §15's independent review left behind
-  (`0b` the reviewer-agent file, `0c` `toggleDefender`), then #0's §12
-  follow-ups or #1's Stage 2c.
+- **Current next task:** #0's §12 follow-ups, or #1's Stage 2c. The two
+  items §15's independent review left behind (`0b`, `0c`) shipped as
+  `9f99b1a` — see [§15.7](#157-the-two-follow-ups).
 - **Live defects:** [§9.2](#92-endgamebytimelimit-is-never-called) (needs a
   design decision) is the only one left open.
 - **Larger future work:** [§6.7](#67-the-elephant-problem-stage-2-split)'s
@@ -1986,7 +1984,58 @@ claimed mutations rather than believing them; and it could not construct a
 legal in-game divergence for `exchangeSacrificeForce` via charged cavalry,
 damaged ships, multi-defender mode, or the drift path.
 
-**Process note.** The agent definition in
+<a id="157-the-two-follow-ups"></a>
+
+### 15.7 The two follow-ups §15.6 left behind
+
+Both shipped as `9f99b1a`, on `main`, after §15 merged.
+
+**0c — combat groups were never revalidated after a removal.**
+`attackerCanJoin`/`defenderCanJoin` gate *adding* to a group, and
+`BoardScene` applies them faithfully on every add. Nothing re-checked after a
+*removal*, and that is not symmetric: each side's legality is defined against
+the other, so taking a unit out of one group can strand a unit in the other.
+The review named one direction (untarget a defender → an archer that only
+reached it stays in, contributing its melee 0 via `attackForceAgainst`'s
+fallback). **The mirror is the same defect and was fixed with it**: deselect
+an attacker and a defender only that attacker could reach stays targeted by a
+group that cannot touch it.
+
+The fix is `pruneIllegalSelections` in `engine/combat.ts` — deliberately in
+the engine rather than inline in the scene, because `src/scenes/` is
+untested by convention and this is precisely the class of defect that hides
+there. One pass suffices, with the argument recorded at the function: a
+dropped attacker reaches none of the surviving defenders, so it cannot have
+been the sole support of any of them.
+
+**0b — the reviewer agent file.** Rewritten. It had drifted into telling
+every run to do two harmful things (`npx tsc --noEmit`, the
+[§4](#4-runbook-detailed-launch-hazards-appendix) false-green trap; and a
+`--detach` that leaves the operator's tree detached when the branch is
+already HEAD) and to assert two false ones ("plan.md must not be edited",
+"the item must move out of Known simplifications"). It now carries §15.6's
+two lessons as instructions: enumerate mutations from `git diff` rather than
+from the feature, and guard the mutation harness itself.
+
+**An equivalent mutant, recorded so it isn't re-investigated.** Pruning
+defenders against the *unpruned* attacker list survives the whole suite. It
+is genuinely equivalent in 'multi-defender' for the reason above. In
+'single-defender' the two would differ — `defenderCanJoin` there requires
+*every* attacker to reach the target — but that difference is unreachable,
+because in single-defender mode no attacker can ever be dropped (they all
+already reach the one target, and removing one doesn't change what the others
+reach). There is now a test asserting the prune is a no-op in that mode,
+which is the real gap the surviving mutant exposed.
+
+**And a third harness lesson, learned twice in one session the hard way.**
+`git checkout -- src/` after a mutation restores to HEAD — which silently
+discards *uncommitted* work in the same paths. It ate the adjacency fix once
+and this entire feature once. **Commit before every mutation sweep**, without
+exception. Related: the "did the patch apply?" guard §15.6 added must be
+scoped to the file being patched (`git diff --quiet -- "$file"`), not the
+whole tree, or one unrelated dirty file makes every mutation look applied.
+
+**Process note (fixed in [§15.7](#157-the-two-follow-ups)).** The agent definition in
 `.claude/agents/heraklios-reviewer.md` told the reviewer to run
 `npx tsc --noEmit` (the false-green trap [§4](#4-runbook-detailed-launch-hazards-appendix)
 documents) and to `git checkout --detach` a branch that was already the main
@@ -1994,4 +2043,4 @@ tree's HEAD (which would have left the operator's tree detached). Both had to
 be overridden in the launch brief, along with its "plan.md must not be
 edited" and "move the item out of Known simplifications" rules, neither of
 which applied. **The agent file should be fixed so the next run doesn't need
-the same four corrections** — queued below.
+the same four corrections.**

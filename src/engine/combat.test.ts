@@ -300,6 +300,27 @@ describe('pruneIllegalSelections (plan.md §15.6)', () => {
     }
   });
 
+  it('is a no-op in single-defender mode, where a removal cannot strand anything', () => {
+    // Coverage gap found by an EQUIVALENT MUTANT: pruning defenders against
+    // the UNPRUNED attacker list survives the whole suite. It is genuinely
+    // equivalent in 'multi-defender' (a dropped attacker reaches none of the
+    // survivors, so it supported none of them), but in 'single-defender' the
+    // two differ — `defenderCanJoin` there needs EVERY attacker to reach the
+    // target, so feeding it a dropped attacker would drop the defender too.
+    //
+    // That difference is unreachable, and this test is what says so: in
+    // single-defender mode every attacker already reaches the one target
+    // (enforced on add), removing an attacker doesn't change what the others
+    // reach, and removing the target leaves the defender group empty. So the
+    // prune has nothing to do here — asserted, rather than left to the
+    // reader to re-derive the next time that mutant survives.
+    const { infantry, archer, d1, state } = scenario();
+    const pruned = pruneIllegalSelections(state, [infantry, archer], [d1], 'single-defender');
+    expect(pruned.attackers.map((u) => u.id)).toEqual(['inf', 'arch']);
+    expect(pruned.defenders.map((u) => u.id)).toEqual(['d1']);
+    expect(pruned.dropped).toEqual([]);
+  });
+
   it('drops nothing when the defender group is emptied entirely', () => {
     // With no target selected the join rules impose nothing, so an untarget
     // that clears the board must not cascade into deselecting the attackers.
