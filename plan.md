@@ -45,11 +45,14 @@ through friendly units, combat reporting detail, cascading push
 terrain (merged `6172f2f`), Stage 2b drift extraction
 ([§6.7](#67-the-elephant-problem-stage-2-split), merged `7544a96`), and AI
 Stage 3 — the `HeuristicAgent`
-([§6.4](#64-stage-3-shipped-stage-4-deferred), merged `a2a1329`), and
+([§6.4](#64-stage-3-shipped-stage-4-deferred), merged `a2a1329`),
 [§15](#15-live-defect-ranged-attacks-resolve-at-zero-attack-force)'s ranged
-attack force (merged `272bcf0`).
+attack force (merged `272bcf0`), and Stage 2c — elephants in the harness
+([§6.7](#67-the-elephant-problem-stage-2-split), merged `0e54b59`), which
+completes Stage 2 and fixed a live defect in hotseat play on the way (a
+drifting elephant could enter marsh).
 **In flight:** nothing — [Current Queue](#10-sequenced-queue) is next, and
-its first two items (`0b`, `0c`) both came out of §15's independent review.
+its first item is now the hex coordinate tooltip.
 **Live defects still open:**
 [§9.2](#92-endgamebytimelimit-is-never-called).
 
@@ -75,10 +78,11 @@ sync when something merges** — it went stale once and the user caught it.
 | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2b — drift extraction | `7544a96` |
 | [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 3 — `HeuristicAgent` (+1 engine defect it found) | `a2a1329` |
 | [§15](#15-live-defect-ranged-attacks-resolve-at-zero-attack-force) ranged attack force (+1 wedged-board defect, +2 review findings) | `272bcf0` |
+| [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2c — elephants in the harness (+1 live marsh defect, +1 HIGH/3 MEDIUM review findings) | `0e54b59` |
 
 ### In flight
 
-- *Nothing.* Next up is #1 below, Stage 2c.
+- *Nothing.* Next up is #1 below, the hex coordinate tooltip.
 
 ### Queued
 
@@ -87,11 +91,10 @@ sync when something merges** — it went stale once and the user caught it.
 | ~~0~~ | ~~[§12](#12-cascading-push-when-a-unit-cannot-retreat) follow-ups~~ | — | **✅ Shipped `c23648c`.** All three closed; see [§12.6](#126-the-three-follow-ups). |
 | ~~0b~~ | ~~Reviewer-agent file corrections~~ | — | **✅ Shipped `9f99b1a`.** See [§15.7](#157-the-two-follow-ups). |
 | ~~0c~~ | ~~Combat groups not revalidated after a removal~~ | — | **✅ Shipped `9f99b1a`.** See [§15.7](#157-the-two-follow-ups). |
-| 1 | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2c — elephants in the harness | `engine/fuzzHarness.ts` | Now unblocked: 2b landed the extracted cascade, so this is putting elephants back into the generated armies, deleting the exclusion guard and the skipped test. Also what unblocks the AI ever using one (§6.9). |
-| 2 | [§13](#13-hex-coordinate-tooltip) hex coordinate tooltip | `ui/MapView.ts`, `BoardScene.ts` | Presentation only. |
-| 3 | [§9.2](#92-endgamebytimelimit-is-never-called) turn-limit ending | design + scenes | **Live gap, and now the only open one.** Needs a design decision first (what sets the limit, how the player is told). Stage 3 added a second reason to care: `endGameByTimeLimit` breaks a tied army value in favour of the lower seat, silently (§6.9). |
-| 4 | [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 4 — AI seat UI + save format | scenes, `saveGame.ts` | `SAVE_VERSION` bump. The engine half is done and idle: nothing can reach the AI from the UI. |
-| 5 | [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 3b — shallow lookahead tier | `engine/` | The fourth difficulty tier, deliberately not shipped with the other three. Needs state cloning + an opponent model + a performance budget; see `heuristicAgent.ts`'s header. |
+| 1 | [§13](#13-hex-coordinate-tooltip) hex coordinate tooltip | `ui/MapView.ts`, `BoardScene.ts` | Presentation only. |
+| 2 | [§9.2](#92-endgamebytimelimit-is-never-called) turn-limit ending | design + scenes | **Live gap, and now the only open one.** Needs a design decision first (what sets the limit, how the player is told). Stage 3 added a second reason to care: `endGameByTimeLimit` breaks a tied army value in favour of the lower seat, silently (§6.9). |
+| 3 | [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 4 — AI seat UI + save format | scenes, `saveGame.ts` | `SAVE_VERSION` bump. The engine half is done and idle: nothing can reach the AI from the UI. |
+| 4 | [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 3b — shallow lookahead tier | `engine/` | The fourth difficulty tier, deliberately not shipped with the other three. Needs state cloning + an opponent model + a performance budget; see `heuristicAgent.ts`'s header. |
 
 **Standing hazard:** almost everything queued touches `BoardScene.ts`, so
 these mostly cannot run in parallel with each other.
@@ -99,13 +102,13 @@ these mostly cannot run in parallel with each other.
 ## Backlog Map
 
 - **Start here:** [Current Queue](#10-sequenced-queue).
-- **Current next task:** #1, [§6.7](#67-the-elephant-problem-stage-2-split)'s
-  Stage 2c — elephants in the harness, which is also what unblocks the AI
-  ever playing one ([§6.9](#69-stage-3-outcome)).
+- **Current next task:** #1, [§13](#13-hex-coordinate-tooltip)'s hex
+  coordinate tooltip — presentation only, and the smallest thing in the
+  queue.
 - **Live defects:** [§9.2](#92-endgamebytimelimit-is-never-called) (needs a
   design decision) is the only one left open.
-- **Larger future work:** [§6.7](#67-the-elephant-problem-stage-2-split)'s
-  Stage 2c, [§6.4](#64-stage-3-shipped-stage-4-deferred)'s Stage 4, and
+- **Larger future work:** [§6.4](#64-stage-3-shipped-stage-4-deferred)'s
+  Stage 4, its Stage 3b, and
   [§14](#14-decomposing-boardscenets-for-parallel-work).
 
 ## History Map
@@ -114,7 +117,8 @@ these mostly cannot run in parallel with each other.
   and [§5](#5-outcome). It remains here as the first full implement/review
   run and as evidence for adversarial review.
 - **AI foundation history:** [§6.6](#66-stage-1-outcome),
-  [§6.8](#68-stage-2a-outcome), and [§6.9](#69-stage-3-outcome).
+  [§6.8](#68-stage-2a-outcome), [§6.9](#69-stage-3-outcome), and
+  [§6.11](#611-stage-2c-outcome).
 - **Shipped feature notes:** [§7](#7-start-a-new-game-at-any-time),
   [§8](#8-bug-units-cannot-move-through-friendly-units),
   [§11](#11-combat-reporting-detail), [§12](#12-cascading-push-when-a-unit-cannot-retreat),
@@ -526,11 +530,10 @@ pushed to `origin/main`. Branch and worktree cleaned up after merge.
 
 ## 6. Next: AI player
 
-**Status:** stages 1, 2a, 2b and 3 **✅ shipped** (merged `9cb7ed7`,
-`469f84a`, `7544a96` and `a2a1329`). **Stage 2c** (putting elephants back
-into the harness's armies now that 2b has extracted the cascade,
-[§6.7](#67-the-elephant-problem-stage-2-split)) and **stage 4** (the
-player-facing half) remain open.
+**Status:** stages 1, 2a, 2b, 2c and 3 **✅ shipped** (merged `9cb7ed7`,
+`469f84a`, `7544a96`, `0e54b59` and `a2a1329`). **Stage 2 is complete.**
+Only **stage 4** (the player-facing half) and the optional **stage 3b**
+(shallow lookahead) remain open.
 
 The original scope note said stages 3–4 were deferred "until the foundation
 is proven." The foundation was proven, stage 3 came in on it, and the
@@ -744,12 +747,13 @@ bar for this project, not an extra.
 **Known gap carried into Stage 2:** the elephant drift/trample cascade was
 not extracted in Stage 2a, so a headless caller could not resolve
 `outcome.pendingDrifts`. Stage 2b replaced the scene-owned closure cascade
-with `engine/drift.ts`'s explicit drift state machine; Stage 2c remains the
-point where ordinary seeded self-play starts including elephants.
+with `engine/drift.ts`'s explicit drift state machine; Stage 2c then made
+ordinary seeded self-play include elephants ([§6.11](#611-stage-2c-outcome)).
 
 ### 6.7 The elephant problem: Stage 2 split
 
-**Status: ✅ Shipped** — merged to `main` as `7544a96`. Verification on the
+**Status: ✅ Shipped, all three sub-stages.** 2a `469f84a`, 2b `7544a96`,
+2c `0e54b59` (see [§6.11](#611-stage-2c-outcome)). Verification of 2b on its
 branch: `npm.cmd test -- src/engine/fuzzHarness.test.ts src/engine/drift.test.ts`,
 `npm.cmd run build`, `git diff --check`, and `npm.cmd test` (302 passed,
 1 planned Stage 2c skip).
@@ -766,7 +770,7 @@ Decided approach — split Stage 2 rather than choosing between the extremes:
 | --- | --- |
 | **2a** | Fuzz harness, elephants excluded from generated armies, with a *loud* guard (below). |
 | **2b** | Extract drift as a pure **step function**, using 2a's harness as the safety net. |
-| **2c** | Enable elephants in the harness; delete the guard and the skipped test. |
+| **2c** | Enable elephants in the harness; delete the guard and the skipped test. **✅ Shipped `0e54b59`** — see [§6.11](#611-stage-2c-outcome). |
 
 **Why this order.** The fuzz harness is a *test tool for refactors*.
 Extracting drift first means reviewing another gnarly `BoardScene` change by
@@ -775,12 +779,13 @@ things until someone actually wrote a driver ([§6.6](#66-stage-1-outcome)).
 Doing the hardest refactor first discards the very tool built to make hard
 refactors safe.
 
-**Stage 2a exclusion status.** In Stage 2a the exclusion had to fail loudly:
-the harness threw if `outcome.pendingDrifts` appeared and carried a skipped
-test so the elephant gap printed on every run. Stage 2b replaced that guard
-with `processDrifts`; the default self-play army can still exclude elephants
-until Stage 2c requires ordinary soak coverage to show non-zero
-`driftsResolved` / `driftCombatsResolved`.
+**Stage 2a exclusion status — now historical.** In Stage 2a the exclusion had
+to fail loudly: the harness threw if `outcome.pendingDrifts` appeared and
+carried a skipped test so the elephant gap printed on every run. Stage 2b
+replaced that guard with `processDrifts`, and Stage 2c removed the exclusion
+itself along with the skipped test and the `[fuzz] GAP:` line. The default
+soak now reports `driftsResolved=148 driftCombatsResolved=65`, both asserted
+rather than merely printed.
 
 #### What 2b actually has to solve
 
@@ -882,8 +887,11 @@ faces eliminate the attacker.
 **What it does *not* cover** — the part that matters when reading a green
 run:
 
-- **Elephants** — excluded by design ([§6.7](#67-the-elephant-problem-stage-2-split)),
-  behind a throwing guard and a `[fuzz] GAP:` line printed on every run.
+- ~~**Elephants**~~ — **closed by Stage 2c** (`0e54b59`,
+  [§6.11](#611-stage-2c-outcome)). The exclusion, the throwing guard and the
+  `[fuzz] GAP:` line are all gone; the numbers above are the last ones
+  measured before it, and the soak now reads `driftsResolved=148
+  driftCombatsResolved=65` with 722 land attacks.
 - **Combined attacks** — `legalActions` enumerates singleton attacks only
   (`actions.ts:356-367`), so `multiAttacker` is structurally 0. This is why
   the harness could not have caught [§5](#5-outcome)'s multi-defender phalanx
@@ -906,8 +914,10 @@ run:
   [§9.1](#91-post-combat-advance-ignores-terrain-restrictions) survived on
   `main` before `feat/advance-terrain`: the harness enforced advance terrain
   via `eligibleAdvanceCandidates` while the scene did not.
-- **Every game ends the same way** (turn limit at turn 8, 0 mutual
-  eliminations), so elimination endings and long games are untested paths.
+- ~~**Every game ends the same way**~~ (turn limit at turn 8, 0 mutual
+  eliminations) — **incidentally closed by Stage 2c**, which added two units
+  and with them the first mutual-elimination ending (1 of 100). Long games
+  remain untested.
 
 ### 6.9 Stage 3 outcome
 
@@ -1003,15 +1013,92 @@ Final mutation sweep: 9 of 9 killed.
 **Found on the way, not fixed here:**
 [§15](#15-live-defect-ranged-attacks-resolve-at-zero-attack-force).
 
-**Carried forward:** the AI has still never played a game containing an
-elephant. Written during the branch as "for the same reason nothing headless
-can — Stage 2b"; that reason expired while the branch was in review, since
-Stage 2b landed in parallel. The remaining blocker is only
-[§6.7](#67-the-elephant-problem-stage-2-split)'s **Stage 2c** — the harness's
-armies still exclude them. It matters more than a test-coverage gap sounds,
-because `defaultArmySelection()` puts three elephants in a standard army, so
-the first human to play the AI will hand it a unit type no test has ever
-given it.
+**Carried forward — ✅ now closed by Stage 2c (`0e54b59`).** This section
+recorded that the AI had never played a game containing an elephant, which
+mattered more than a coverage gap sounds: `defaultArmySelection()` puts three
+elephants in a standard army, so the first human to play the AI would have
+handed it a unit type no test had ever given it. `heuristicSoak.test.ts`
+builds from `buildFuzzGameState`, so putting an elephant on each side there
+closed it for free. Stage 2c also falsified this section's strength figures
+in the process — see [§6.11](#611-stage-2c-outcome).
+
+<a id="611-stage-2c-outcome"></a>
+
+### 6.11 Stage 2c outcome
+
+Merged as `0e54b59`, completing Stage 2. Elephants went into
+`buildFuzzGameState()` (one per side, started adjacent) *and* got a
+purpose-built `buildElephantScenarioGameState()`, rather than one or the
+other — the default army makes drifts part of ordinary self-play, the
+scenario makes a drift *combat* deterministic. 374 tests (was 366) and,
+for the first time since Stage 2a, **0 skipped**: the `it.skip` queue
+marker and the `[fuzz] GAP:` report line are both gone.
+
+```
+driftsResolved        0 -> 148
+driftCombatsResolved  0 ->  65
+landAttacks         557 -> 722
+endings   100 by turn limit -> 99 turn limit, 1 by mutual elimination
+```
+
+That last line is a side effect worth noting: [§6.8](#68-stage-2a-outcome)
+lists "every game ends the same way, so elimination endings are untested" as
+a standing gap, and adding two units to the army closed it incidentally.
+
+**It found a live defect, which is the argument for the 2a/2b/2c split
+holding up.** `canElephantEnterHex` rejected only off-map, coast and
+sea-like hexes — not **marsh**, which the rulebook's N.B. forbids elephants
+unconditionally ("chars, cavaleries et éléphants ne peuvent accéder aux
+marais", `05-rules-french-original.md:186-188`). Not a harness artefact:
+`BoardScene` pumps the same `driftStep`, so a drifting elephant could land
+on marsh in ordinary hotseat play. And not theoretical — reverting the fix
+makes the *default soak* throw at action #63 with
+`p1-elephant sits on terrain "marsh" it cannot enter`. The reading is
+recorded on `canElephantEnterHex`: marsh blocks, and hitting it eliminates
+(the rulebook's only two outcomes for a drift step are "moves" and "est
+éliminé"), consistent with `legalRetreatHexes`' existing ruling that the
+three restrictions in that one sentence apply to forced movement together.
+
+**The review's real finding was a number nobody thought to re-measure.**
+`buildFuzzGameState` is `playRandomGame`'s default state, so adding two
+units silently falsified every strength figure documented in
+`heuristicSoak.test.ts` — and, more quietly, ate an assertion's margin:
+`heuristicTotal > randomTotal * 2` went from 76% headroom to **16.7%**.
+The cause is the interesting part and generalizes:
+
+> **An elephant is a material floor.** Every other unit type with no legal
+> retreat hex is eliminated; an elephant is routed to `pendingDrifts` first
+> and drifts instead. Ten points of army value that a badly-played side
+> cannot lose lifts the *loser's* floor far more than the winner's ceiling,
+> so every ratio compresses without any ordering changing. Visible in the
+> mirror matches: random-vs-random rose from totals [375, 405] to
+> [480, 435] while ev-vs-ev barely moved.
+
+The floor was left at 2x rather than quietly relaxed, with the reduced
+headroom stated at the assertion. **The lesson for the queue is narrower
+than "re-measure things": changing a shared fixture is an API change to
+every test that reads it.** [§6.10](#610-the-2b3-parallel-merge) already
+records the doc-comment version of this; this is the numeric version, and it
+was invisible to `tsc` and to a green suite alike.
+
+**Two more prose defects, same family.** A README bullet claimed the AI now
+plays elephants in "every scored game" — measured, 0 of the 12 EV-vs-EV
+seeds contain a drift (6 of 30). And widening `canElephantEnterHex` widened
+the elimination branch behind a *fixed string*, so the combat log narrated
+marsh deaths as "drifts off the map or into the sea". The event is now
+`eliminatedLeavingLandZone` and names the actual terrain, with a test that
+fails on the old wording. Neither would have been caught by any test that
+existed; both were caught by review reading the diff's consequences rather
+than its lines.
+
+**Mutation sweep: 5 of 5 killed** — revert the marsh fix (killed by the new
+pin *and* both soaks), strip elephants from the default army, delete
+`forceRetreat`'s elephant branch, unbox the elephant scenario, and drop
+marsh from the log narration. The fourth is the informative one: it was
+killed by the **deterministic** test only, with the soak still green. That
+is the argument for [§12](#12-cascading-push-when-a-unit-cannot-retreat)'s
+pairing of a no-dice property test with a seeded soak, now confirmed on a
+second path.
 
 ### 6.10 The 2b/3 parallel merge
 
