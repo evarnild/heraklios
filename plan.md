@@ -54,16 +54,21 @@ drifting elephant could enter marsh), and
 [§13](#13-hex-coordinate-tooltip)'s hex coordinate tooltip (merged
 `62892c3`), **Stage 4 — the AI's seat UI and save format v2 (merged
 `556fbf8`), which finally gives the computer opponent a seat**
-([§6.12](#612-stage-4-outcome)), and **[§9.2](#92-endgamebytimelimit-is-never-called) —
+([§6.12](#612-stage-4-outcome)), **[§9.2](#92-endgamebytimelimit-is-never-called) —
 the endgame: clock limit, round limit, and the Board's "End game" button
 (merged `836c70f`, +4 MEDIUM review findings fixed, +a mid-merge design
-revision — see [§9.2.4](#924-outcome))**, which closes the plan's last open
-live defect.
-**In flight:** nothing. Next is queue item #2,
-[§16](#16-identify-which-unit-a-choice-dialog-means)'s choice-dialog
-labeling — self-contained, no design decision blocking it.
-**Carried over from the merge:** Stage 4's manual browser pass was never
-run — see [§6.12](#612-stage-4-outcome).
+revision — see [§9.2.4](#924-outcome))**, which closed the plan's last open
+live defect, and **[§16](#16-identify-which-unit-a-choice-dialog-means) —
+per-hex "A"/"B"/"C" labels on the advance/exchange prompts (merged
+`ceb106a`)**, presentation-only.
+**In flight:** nothing. Queue is empty of self-contained items —
+[§6.4](#64-stage-3-shipped-stage-4-deferred)'s Stage 3b (shallow lookahead)
+is the only thing left queued, and it's a larger, deliberately-deferred
+piece of work, not a quick pickup.
+**Carried over from merges, manual browser pass still owed:** Stage 4's
+([§6.12](#612-stage-4-outcome)) and now §16's too — Chrome automation was
+unavailable in the session that shipped §16, so its per-hex badges have
+been verified by `tsc`/`vitest`/`build` and code review only, not by eye.
 **Live defects still open:** none.
 
 <a id="10-sequenced-queue"></a>
@@ -92,11 +97,12 @@ sync when something merges** — it went stale once and the user caught it.
 | [§13](#13-hex-coordinate-tooltip) hex coordinate tooltip | `62892c3` |
 | [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 4 — AI seat UI + save format v2 (+3 review defects) | `556fbf8` |
 | [§9.2](#92-endgamebytimelimit-is-never-called) endgame: clock, round limit, End game button (+4 MEDIUM review defects, +a mid-merge design revision) | `836c70f` |
+| [§16](#16-identify-which-unit-a-choice-dialog-means) label the units a choice dialog means | `ceb106a` |
 
 ### In flight
 
-- *Nothing.* Next up is #2 below, [§16](#16-identify-which-unit-a-choice-dialog-means) —
-  self-contained, no design decision blocking it. No live defects remain open.
+- *Nothing.* Queue is down to Stage 3b, a larger deferred piece of work —
+  see Queued below. No live defects remain open.
 
 ### Queued
 
@@ -107,20 +113,20 @@ sync when something merges** — it went stale once and the user caught it.
 | ~~0c~~ | ~~Combat groups not revalidated after a removal~~ | — | **✅ Shipped `9f99b1a`.** See [§15.7](#157-the-two-follow-ups). |
 | ~~1~~ | ~~[§9.2](#92-endgamebytimelimit-is-never-called) endgame: clock, round limit, and an "End game" button~~ | — | **✅ Shipped `836c70f`.** See [§9.2.4](#924-outcome) — including the mid-merge pause-behavior revision. |
 | ~~2~~ | ~~[§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 4 — AI seat UI + save format~~ | — | **✅ Shipped `556fbf8`.** See [§6.12](#612-stage-4-outcome) — including the one check it shipped without. |
-| 2 | [§16](#16-identify-which-unit-a-choice-dialog-means) label the units a choice dialog means | `ui/MapView.ts`, scenes | Requested 2026-08-15. The advance and exchange prompts name units by TYPE only, so a combined attack of three identical units gives three identical rows and the player picks blind — on an exchange, blind about which of their own units dies. Presentation only. Ready to start now — #1 shipped, nothing blocks it. |
+| ~~2~~ | ~~[§16](#16-identify-which-unit-a-choice-dialog-means) label the units a choice dialog means~~ | — | **✅ Shipped `ceb106a`.** Implemented directly (no agent pair), verified by `tsc`/`vitest`/`build` and code review — the manual browser pass is still owed, Chrome automation wasn't available in that session. |
 | 3 | [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 3b — shallow lookahead tier | `engine/` | The fourth difficulty tier, deliberately not shipped with the other three. Needs state cloning + an opponent model + a performance budget; see `heuristicAgent.ts`'s header. |
-
-**Standing hazard:** almost everything queued touches `BoardScene.ts`, so
-these mostly cannot run in parallel with each other.
 
 ## Backlog Map
 
 - **Start here:** [Current Queue](#10-sequenced-queue).
-- **Current next task:** #2, [§16](#16-identify-which-unit-a-choice-dialog-means) —
-  self-contained presentation fix, nothing blocking it.
+- **Current next task:** #3, Stage 3b — the only thing left queued, and a
+  larger piece of work than anything shipped recently. Needs a scoping pass
+  before launching (state cloning, an opponent model, a performance budget —
+  see `heuristicAgent.ts`'s header and [§6.9](#69-stage-3-outcome)).
 - **Live defects:** none open.
-- **Larger future work:** [§6.4](#64-stage-3-shipped-stage-4-deferred)'s
-  Stage 3b and [§14](#14-decomposing-boardscenets-for-parallel-work).
+- **Owed:** a manual browser pass over §16's per-hex choice labels (and
+  Stage 4's still-outstanding one, [§6.12](#612-stage-4-outcome)) — next
+  person with a working browser session should give both a look.
 
 ## History Map
 
