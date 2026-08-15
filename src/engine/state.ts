@@ -197,12 +197,11 @@ export interface GameState {
    * `advanceGameClock` (driven by `BoardScene`'s per-frame `update`) rather
    * than derived from a start timestamp — so a game saved Monday and resumed
    * Friday resumes with exactly the clock it had, not one that reads as
-   * instantly expired. Deliberately keeps advancing through AI turns and any
-   * open retreat/drift/advance/exchange prompt: this is a limit on the whole
-   * game's length, not a per-decision chess clock (the rulebook's separate
-   * 3-minute per-turn limit, same sentence, is out of scope — see plan.md
-   * §9.2.2 point 3), so there is no paused/running flag to keep correct
-   * across every scene transition.
+   * instantly expired. Advances through AI turns and any open retreat/drift/
+   * advance/exchange prompt: this is a limit on the whole game's length, not
+   * a per-decision chess clock (the rulebook's separate 3-minute per-turn
+   * limit, same sentence, is out of scope — see plan.md §9.2.2 point 3).
+   * Stops advancing while `paused` is true — see that field.
    */
   elapsedMs: number;
   /**
@@ -210,6 +209,18 @@ export interface GameState {
    * ends, chosen before the game starts, or `null` for "no round limit."
    */
   roundLimit: number | null;
+  /**
+   * True while Mode A's clock is paused — either because the browser
+   * tab/window is hidden (the Board's per-frame `update` simply doesn't run
+   * then, so `elapsedMs` doesn't advance) or because a player pressed the
+   * Board's Pause button. `advanceGameClock` is a no-op while this is true.
+   * Only the clock pauses: the round limit and the "End game" button (Modes
+   * B/C) don't consult this at all, and pausing never blocks moves, attacks,
+   * or an AI seat's turn — it only stops Mode A's budget from ticking down.
+   * Survives save/load and undo/redo like `elapsedMs`/`pendingGameEnd` (see
+   * `turnManager.ts`'s `carryLiveGameClock`).
+   */
+  paused: boolean;
   /**
    * True once ANY of the three endgame triggers (clock, round limit, or the
    * Board's "End game" button — Modes A/B/C) has fired, but the game has not

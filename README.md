@@ -389,10 +389,15 @@ clock and round limit are independent — off by default, either, or both):
   separate *"3 minutes"*-per-turn suggestion, same sentence, isn't
   implemented — so the clock keeps running through every seat's turn
   (including the computer's) and through any open retreat/drift/advance/
-  exchange-sacrifice prompt, with no way to pause it. It also survives
-  save/load: a game saved Monday and reloaded Friday resumes with exactly
-  the time it had left, not an instantly-expired one. Once a limit is set,
-  the Board's HUD shows the time remaining, counting down live.
+  exchange-sacrifice prompt. It also survives save/load: a game saved
+  Monday and reloaded Friday resumes with exactly the time it had left, not
+  an instantly-expired one. Once a limit is set, the Board's HUD shows the
+  time remaining, counting down live, plus a **Pause clock** button for a
+  table that needs to stop for a break — press it again (now labeled
+  **Resume clock**) to continue. The clock also pauses itself automatically
+  whenever the browser tab or window is hidden, so switching away doesn't
+  burn down the limit while nobody's looking at the board; either way the
+  HUD shows **"(paused)"** next to the time remaining.
 - **Round limit**: Off, 6, 8, or 12 full rounds (every player's Movement and
   Combat phases once).
 - **"End game" button**: on the Board at any time, regardless of the two

@@ -246,7 +246,7 @@ describe('migrateSavedGame', () => {
   /**
    * A version-2 file: exactly today's shape, except `gameState` still has the
    * OLD `winnerId: PlayerId | null` in place of `winnerIds`, and none of the
-   * four clock/round-limit fields plan.md §9.2 added. Derived from
+   * five clock/round-limit fields plan.md §9.2 added. Derived from
    * `sampleSave()` (today's shape) with those fields stripped/renamed back to
    * the version-2 shape, following this file's existing `version1Save()`
    * convention rather than a frozen hand-written JSON blob — so it will not
@@ -261,6 +261,7 @@ describe('migrateSavedGame', () => {
     delete gameState.clockLimitMs;
     delete gameState.elapsedMs;
     delete gameState.roundLimit;
+    delete gameState.paused;
     delete gameState.pendingGameEnd;
     save.version = 2;
     return save;
@@ -280,12 +281,13 @@ describe('migrateSavedGame', () => {
     expect(result.save.gameState.winnerIds).toEqual([1]);
   });
 
-  it('backfills the clock/round-limit fields as "off, nothing elapsed, nothing pending"', () => {
+  it('backfills the clock/round-limit fields as "off, nothing elapsed, nothing pending, not paused"', () => {
     const result = parseSavedGame(JSON.stringify(version2Save(0)));
     if (!('save' in result)) throw new Error(`expected a valid save, got ${JSON.stringify(result)}`);
     expect(result.save.gameState.clockLimitMs).toBeNull();
     expect(result.save.gameState.elapsedMs).toBe(0);
     expect(result.save.gameState.roundLimit).toBeNull();
+    expect(result.save.gameState.paused).toBe(false);
     expect(result.save.gameState.pendingGameEnd).toBe(false);
   });
 
@@ -297,6 +299,7 @@ describe('migrateSavedGame', () => {
     delete gameState.clockLimitMs;
     delete gameState.elapsedMs;
     delete gameState.roundLimit;
+    delete gameState.paused;
     delete gameState.pendingGameEnd;
 
     const result = parseSavedGame(JSON.stringify(save));

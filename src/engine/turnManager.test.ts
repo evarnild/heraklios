@@ -8,6 +8,7 @@ import {
   remainingClockMs,
   requestGameEnd,
   resetMovementForActivePlayer,
+  setClockPaused,
   shuffleSeatOrder,
 } from './turnManager';
 import type { GameState, Player, PlayerId, Unit } from './state';
@@ -503,29 +504,78 @@ describe('carryLiveGameClock (undo must not rewind the wall clock)', () => {
   it('overwrites the restored elapsedMs with the live value', () => {
     const restored = buildThreePlayerState();
     restored.elapsedMs = 3_000; // the snapshot's older, smaller elapsed time
-    carryLiveGameClock(restored, { elapsedMs: 9_000, pendingGameEnd: false });
+    carryLiveGameClock(restored, { elapsedMs: 9_000, pendingGameEnd: false, paused: false });
     expect(restored.elapsedMs).toBe(9_000);
   });
 
   it('keeps pendingGameEnd true if the restored snapshot already had it set', () => {
     const restored = buildThreePlayerState();
     restored.pendingGameEnd = true;
-    carryLiveGameClock(restored, { elapsedMs: 0, pendingGameEnd: false });
+    carryLiveGameClock(restored, { elapsedMs: 0, pendingGameEnd: false, paused: false });
     expect(restored.pendingGameEnd).toBe(true);
   });
 
   it('sets pendingGameEnd true if the live game had it set even though the older snapshot did not', () => {
     const restored = buildThreePlayerState();
     restored.pendingGameEnd = false;
-    carryLiveGameClock(restored, { elapsedMs: 0, pendingGameEnd: true });
+    carryLiveGameClock(restored, { elapsedMs: 0, pendingGameEnd: true, paused: false });
     expect(restored.pendingGameEnd).toBe(true);
   });
 
   it('leaves pendingGameEnd false when neither side had it set', () => {
     const restored = buildThreePlayerState();
     restored.pendingGameEnd = false;
-    carryLiveGameClock(restored, { elapsedMs: 0, pendingGameEnd: false });
+    carryLiveGameClock(restored, { elapsedMs: 0, pendingGameEnd: false, paused: false });
     expect(restored.pendingGameEnd).toBe(false);
+  });
+
+  it('overwrites the restored paused flag with the live value in both directions', () => {
+    const pausedInSnapshot = buildThreePlayerState();
+    pausedInSnapshot.paused = true;
+    carryLiveGameClock(pausedInSnapshot, { elapsedMs: 0, pendingGameEnd: false, paused: false });
+    expect(pausedInSnapshot.paused).toBe(false); // live game had resumed since the snapshot
+
+    const runningInSnapshot = buildThreePlayerState();
+    runningInSnapshot.paused = false;
+    carryLiveGameClock(runningInSnapshot, { elapsedMs: 0, pendingGameEnd: false, paused: true });
+    expect(runningInSnapshot.paused).toBe(true); // live game had paused since the snapshot
+  });
+});
+
+describe('setClockPaused', () => {
+  it('sets and clears paused', () => {
+    const state = buildThreePlayerState();
+    setClockPaused(state, true);
+    expect(state.paused).toBe(true);
+    setClockPaused(state, false);
+    expect(state.paused).toBe(false);
+  });
+
+  it('is a no-op once the game is already over', () => {
+    const state = buildThreePlayerState();
+    state.gameOver = true;
+    setClockPaused(state, true);
+    expect(state.paused).toBe(false);
+  });
+});
+
+describe('advanceGameClock respects paused', () => {
+  it('does not accumulate elapsed time while paused', () => {
+    const state = buildThreePlayerState();
+    state.clockLimitMs = 10_000;
+    state.paused = true;
+    advanceGameClock(state, 5_000);
+    expect(state.elapsedMs).toBe(0);
+  });
+
+  it('resumes accumulating once unpaused', () => {
+    const state = buildThreePlayerState();
+    state.clockLimitMs = 10_000;
+    state.paused = true;
+    advanceGameClock(state, 5_000);
+    state.paused = false;
+    advanceGameClock(state, 3_000);
+    expect(state.elapsedMs).toBe(3_000);
   });
 });
 

@@ -24,6 +24,7 @@ export function createInitialState(
     clockLimitMs,
     elapsedMs: 0,
     roundLimit,
+    paused: false,
     pendingGameEnd: false,
   };
 }
@@ -196,17 +197,23 @@ export function requestGameEnd(state: GameState): void {
  * Mode A: advances the whole-game elapsed-time counter by `deltaMs` and, once
  * it reaches `clockLimitMs`, sets `pendingGameEnd` — see that field's doc
  * comment on `GameState`, and `elapsedMs`'s for why this accumulates rather
- * than comparing against a start timestamp. Deliberately keeps running
- * through AI turns and any open prompt (no pause/resume state — see
- * `elapsedMs`'s doc comment). A no-op once the game is over, so a caller
- * driving this from a per-frame scene `update` doesn't need its own guard.
+ * than comparing against a start timestamp. A no-op once the game is over OR
+ * while `paused` is true, so a caller driving this from a per-frame scene
+ * `update` doesn't need its own guard for either.
  */
 export function advanceGameClock(state: GameState, deltaMs: number): void {
-  if (state.gameOver) return;
+  if (state.gameOver || state.paused) return;
   state.elapsedMs += deltaMs;
   if (state.clockLimitMs !== null && state.elapsedMs >= state.clockLimitMs) {
     state.pendingGameEnd = true;
   }
+}
+
+/** Sets or clears Mode A's pause — see `GameState.paused`'s doc comment.
+ * A no-op once the game is over, matching `advanceGameClock`/`requestGameEnd`. */
+export function setClockPaused(state: GameState, paused: boolean): void {
+  if (state.gameOver) return;
+  state.paused = paused;
 }
 
 /** Milliseconds left on the clock, or `null` if Mode A isn't in use — never
@@ -219,18 +226,22 @@ export function remainingClockMs(state: GameState): number | null {
 /**
  * Mutates `restored` in place so undo/redo (a whole-`GameState` restore from
  * a snapshot, see `history.ts`) can't be used to claw back real elapsed time
- * against Mode A's whole-game limit, or to un-fire a `pendingGameEnd` trigger
- * that had genuinely already gone off. `elapsedMs` reflects the wall clock,
- * not board state, so a restore must keep the LIVE value rather than
- * rewinding it; `pendingGameEnd` must never flip back to `false` once either
- * side has set it. `clockLimitMs`/`roundLimit` are pre-game settings that
- * never change mid-game, so they need no such handling — only the two fields
- * `advanceGameClock`/`requestGameEnd` actually mutate do.
+ * against Mode A's whole-game limit, to un-fire a `pendingGameEnd` trigger
+ * that had genuinely already gone off, or to flip `paused` back to whatever
+ * the snapshot happened to have. None of `elapsedMs`/`pendingGameEnd`/`paused`
+ * are board state — they track the wall clock and a live UI toggle, not
+ * anything an undo-able move/attack changes — so a restore must keep the
+ * LIVE values for all three rather than the snapshotted ones, except that
+ * `pendingGameEnd` must never flip back to `false` once either side has set
+ * it. `clockLimitMs`/`roundLimit` are pre-game settings that never change
+ * mid-game, so they need no such handling — only the fields
+ * `advanceGameClock`/`requestGameEnd`/`setClockPaused` actually mutate do.
  */
 export function carryLiveGameClock(
   restored: GameState,
-  live: { elapsedMs: number; pendingGameEnd: boolean },
+  live: { elapsedMs: number; pendingGameEnd: boolean; paused: boolean },
 ): void {
   restored.elapsedMs = live.elapsedMs;
   restored.pendingGameEnd = restored.pendingGameEnd || live.pendingGameEnd;
+  restored.paused = live.paused;
 }

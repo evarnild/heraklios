@@ -16,6 +16,7 @@ import {
   remainingClockMs,
   requestGameEnd,
   resetMovementForActivePlayer,
+  setClockPaused,
 } from '../engine/turnManager';
 import { formatRemainingClock } from '../engine/gameEndSettings';
 import { applyAction, legalActions, type Action } from '../engine/actions';
@@ -276,10 +277,10 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * `Text` re-render isn't free and the display only has second resolution
    * anyway. */
   private lastClockDisplaySeconds: number | null = null;
-  /** Wall-clock (`Date.now()`) timestamp of the last `update` tick, or `null`
-   * before the first one — see `update`'s doc comment for why Mode A's clock
-   * is driven off this rather than Phaser's own per-frame `delta`. */
-  private lastTickAtMs: number | null = null;
+  /** The `paused` value `clockText` last showed alongside `lastClockDisplaySeconds`
+   * — needed because pausing/resuming doesn't change the remaining-seconds
+   * count on its own, which is what the dedup check above otherwise keys on. */
+  private lastClockDisplayPaused: boolean | null = null;
   private logText!: Phaser.GameObjects.Text;
   private resolveBtn!: Phaser.GameObjects.Text;
   private rotateCCWBtn!: Phaser.GameObjects.Text;
@@ -288,6 +289,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   private undoBtn!: Phaser.GameObjects.Text;
   private redoBtn!: Phaser.GameObjects.Text;
   private endGameBtn!: Phaser.GameObjects.Text;
+  private pauseBtn!: Phaser.GameObjects.Text;
   private abandonBtn!: Phaser.GameObjects.Text;
   /** Undo/redo history, scoped to the current phase — `endPhase` clears it,
    * and so does any die roll outside test mode (see `rollDie`). */
@@ -426,7 +428,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.resolutionDone = null;
     this.seatAgents.clear();
     this.lastClockDisplaySeconds = null;
-    this.lastTickAtMs = null;
+    this.lastClockDisplayPaused = null;
   }
 
   /** (Re)builds the per-seat agents from `session.seatControls`. Called after
@@ -596,6 +598,24 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       .setInteractive({ useHandCursor: true });
     this.endGameBtn.on('pointerdown', () => this.confirmEndGame());
 
+    // Manual pause for Mode A: unlike the tab-hide auto-pause (see `update`'s
+    // doc comment), this is a deliberate table decision, so it needs no
+    // confirm dialog (reversible, doesn't touch board state at all) and no
+    // guard against an AI seat's turn or a pending choice — pausing only
+    // stops `elapsedMs` from advancing.
+    this.pauseBtn = this.add
+      .text(16, height - 200, '⏸ Pause clock', {
+        fontSize: '12px',
+        color: '#fff',
+        backgroundColor: '#2a4a4a',
+        padding: { x: 8, y: 4 },
+        wordWrap: { width: PANEL_WIDTH - 48 },
+      })
+      .setScrollFactor(0)
+      .setDepth(30)
+      .setInteractive({ useHandCursor: true });
+    this.pauseBtn.on('pointerdown', () => this.togglePause());
+
     this.input.keyboard?.on('keydown-Z', (event: KeyboardEvent) => {
       if (!event.ctrlKey && !event.metaKey) return;
       if (event.shiftKey) this.redo();
@@ -655,6 +675,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       saveLoadBtn,
       this.abandonBtn,
       this.endGameBtn,
+      this.pauseBtn,
       this.statusText,
       this.clockText,
       this.logText,
@@ -909,6 +930,20 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     });
   }
 
+  /**
+   * Toggles Mode A's manual pause. Deliberately no confirm dialog and no
+   * `aiRunning`/pending-choice guard, unlike `confirmEndGame`/`confirmAbandon`:
+   * pausing is fully reversible and doesn't touch board state, units, or turn
+   * order — it only stops `elapsedMs` from advancing (see `GameState.paused`'s
+   * doc comment). Not part of the undo history either, for the same reason
+   * `elapsedMs`/`pendingGameEnd` aren't: it isn't something a move/attack did.
+   */
+  private togglePause(): void {
+    const state = this.state();
+    setClockPaused(state, !state.paused);
+    this.refreshStatus();
+  }
+
   // ---------------------------------------------------------------------------
   // Undo / redo
   //
@@ -940,7 +975,11 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // Undo rewinds the BOARD to an earlier point but must not also rewind
     // the wall clock or un-fire an already-genuine pendingGameEnd — see
     // `carryLiveGameClock`'s doc comment.
-    const live = { elapsedMs: this.state().elapsedMs, pendingGameEnd: this.state().pendingGameEnd };
+    const live = {
+      elapsedMs: this.state().elapsedMs,
+      pendingGameEnd: this.state().pendingGameEnd,
+      paused: this.state().paused,
+    };
 
     const restored = structuredClone(snapshot.state);
     carryLiveGameClock(restored, live);
@@ -1117,6 +1156,10 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.resolveBtn.setVisible(state.phase === 'combat' && !this.aiRunning);
     this.endGameBtn.setText(state.pendingGameEnd ? '⚑ Ending after this round' : '⚑ End game');
     this.endGameBtn.setAlpha(state.pendingGameEnd ? 0.6 : 1);
+    // Only shown when Mode A is actually in use — pausing a clock that isn't
+    // running has nothing to do.
+    this.pauseBtn.setVisible(state.clockLimitMs !== null);
+    this.pauseBtn.setText(state.paused ? '▶ Resume clock' : '⏸ Pause clock');
     this.refreshClockText();
   }
 
@@ -1131,39 +1174,38 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     if (remaining === null) {
       this.clockText.setText('');
       this.lastClockDisplaySeconds = null;
+      this.lastClockDisplayPaused = null;
       return;
     }
     const seconds = Math.ceil(remaining / 1000);
-    if (seconds === this.lastClockDisplaySeconds) return;
+    if (seconds === this.lastClockDisplaySeconds && state.paused === this.lastClockDisplayPaused) return;
     this.lastClockDisplaySeconds = seconds;
-    this.clockText.setText(`Clock: ${formatRemainingClock(remaining)} remaining`);
+    this.lastClockDisplayPaused = state.paused;
+    const pausedSuffix = state.paused ? ' (paused)' : '';
+    this.clockText.setText(`Clock: ${formatRemainingClock(remaining)} remaining${pausedSuffix}`);
   }
 
   /**
    * Phaser's per-frame hook (auto-called every render frame once defined —
    * nothing schedules this manually). Drives Mode A's clock: `advanceGameClock`
-   * deliberately keeps running through AI turns and any open retreat/drift/
-   * advance/exchange prompt (see its doc comment on why there's no pause
-   * state), so this has no guard beyond "a real game is loaded and not yet
-   * over."
+   * keeps running through AI turns and any open retreat/drift/advance/
+   * exchange prompt, so this has no guard beyond "a real game is loaded and
+   * not yet over."
    *
-   * Uses `Date.now()` rather than Phaser's own per-frame `delta` argument:
-   * Phaser pauses its render loop when the browser tab/window is hidden and
-   * resets its delta on resume (`TimeStep.resetDelta`), discarding however
-   * long the tab was hidden. Trusting `delta` would let a player stop Mode
-   * A's clock just by switching tabs — silently contradicting the "no way to
-   * pause it" design (see `elapsedMs`'s doc comment and README's "Ending the
-   * game" section). Wall-clock time elapses regardless of tab visibility, so
-   * measuring it directly closes that gap.
+   * Uses Phaser's own per-frame `delta` argument, not `Date.now()`: Phaser
+   * pauses its render loop (and stops calling `update` at all) when the
+   * browser tab/window is hidden, which is exactly the desired behavior —
+   * the clock pauses automatically while nobody can see it, rather than
+   * accumulating time the table wasn't actually playing. `paused` (toggled
+   * by the Board's Pause button, see `togglePause`) covers the *deliberate*
+   * case; `advanceGameClock` itself is a no-op while either is true, so
+   * `update` doesn't need to check `paused` here.
    */
-  update(): void {
+  update(_time: number, delta: number): void {
     const state = session.gameState;
     if (!state || state.gameOver) return;
-    const now = Date.now();
-    const wallDeltaMs = this.lastTickAtMs === null ? 0 : now - this.lastTickAtMs;
-    this.lastTickAtMs = now;
     const wasPending = state.pendingGameEnd;
-    advanceGameClock(state, wallDeltaMs);
+    advanceGameClock(state, delta);
     this.refreshClockText();
     if (!wasPending && state.pendingGameEnd) {
       // Only `refreshStatus` — not `log`/`appendLine`, which REPLACE the
