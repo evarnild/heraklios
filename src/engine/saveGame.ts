@@ -7,7 +7,7 @@ import type { CombatMode, GameState, Phase, PlayerId } from './state';
  * `isValidSavedGame` rejects anything it doesn't recognise, so an old file
  * fails with a clear message instead of loading into a half-broken game.
  */
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 /**
  * The oldest version `migrateSavedGame` below can bring forward. Files older
@@ -51,6 +51,30 @@ export const MIN_SUPPORTED_SAVE_VERSION = 1;
 // outright with `parseSavedGame`'s clear message. Hence the bump: not because
 // this build can't read version 1 (it can), but because older builds must not
 // half-read version 2.
+//
+// `GameState.winnerId: PlayerId | null` -> `winnerIds: PlayerId[]` (plan.md
+// §9.2.2 point 2) is version 2 -> 3, and for the OPPOSITE reason
+// `randomizedTurnOrder`/`charged` did NOT need a bump: those fields'
+// ABSENCE was indistinguishable from their default. `winnerId`'s presence
+// isn't optional here — a version-2 file always has it, with a real value —
+// so this is a genuine shape change on an existing, populated field, not an
+// addition. `migrateSavedGame` translates it losslessly (`null` -> `[]`,
+// otherwise a one-element array), because a version-2 file was written by a
+// build that could only ever produce a single winner or "nobody," never a
+// draw, so that translation reproduces exactly the outcome that game had.
+//
+// The same bump also backfills `GameState`'s other three new fields
+// (`clockLimitMs`, `elapsedMs`, `roundLimit`, `pendingGameEnd` — plan.md
+// §9.2.1's clock and round-limit endgame modes) to "off, nothing elapsed,
+// nothing pending." These COULD have followed the absence-is-the-default
+// reasoning on their own — but `elapsedMs` specifically can't: `advanceGameClock`
+// does `state.elapsedMs += deltaMs`, and `undefined + number` is `NaN`, which
+// then compares false against everything forever (a `clockLimitMs` of
+// `undefined` also reads as "on" under a plain `!== null` check, unlike a
+// proper `null`) — silently wedging the clock rather than reproducing "off."
+// Since a version-2 file is already earning a version bump for `winnerIds`,
+// folding these four in as part of the SAME migration is simpler than
+// inventing a second special case for `elapsedMs` alone.
 
 export type EdgeCode = 'N' | 'S' | 'E' | 'W';
 
@@ -147,6 +171,14 @@ export function isValidSavedGame(data: unknown): data is SavedGame {
   if (state.activePlayerIndex < 0 || state.activePlayerIndex >= state.seatOrder.length) return false;
   if (!isPhase(state.phase)) return false;
   if (typeof state.gameOver !== 'boolean') return false;
+  // Same "checked strictly, post-migration" reasoning as `seatControls`
+  // above: a version-3 file missing any of these five is corrupt, not
+  // merely old — `migrateSavedGame` is the only place allowed to invent them.
+  if (!Array.isArray(state.winnerIds) || !state.winnerIds.every((w: unknown) => typeof w === 'number')) return false;
+  if (state.clockLimitMs !== null && typeof state.clockLimitMs !== 'number') return false;
+  if (typeof state.elapsedMs !== 'number') return false;
+  if (state.roundLimit !== null && typeof state.roundLimit !== 'number') return false;
+  if (typeof state.pendingGameEnd !== 'boolean') return false;
 
   for (const unit of state.units) {
     if (typeof unit !== 'object' || unit === null) return false;
@@ -192,6 +224,25 @@ export function migrateSavedGame(data: unknown): { migrated: unknown } | { error
     const counted = typeof save.playerCount === 'number' ? save.playerCount : 0;
     save.seatControls = normalizeSeatControls(save.seatControls, Math.max(named, counted));
     save.version = 2;
+  }
+
+  // 2 -> 3: see `SAVE_VERSION`'s doc comment above for the full reasoning.
+  // `winnerId` -> `winnerIds` translates losslessly (a version-2 file could
+  // only ever record a single winner or nobody, never a draw); the clock/
+  // round-limit fields default to "off, nothing elapsed, nothing pending,"
+  // which is the only state a pre-Mode-A/B file could have been in.
+  if (version < 3) {
+    const state = save.gameState as (Record<string, unknown> & { winnerId?: unknown }) | undefined;
+    if (state && typeof state === 'object') {
+      const oldWinnerId = state.winnerId;
+      state.winnerIds = typeof oldWinnerId === 'number' ? [oldWinnerId] : [];
+      delete state.winnerId;
+      if (state.clockLimitMs === undefined) state.clockLimitMs = null;
+      if (state.elapsedMs === undefined) state.elapsedMs = 0;
+      if (state.roundLimit === undefined) state.roundLimit = null;
+      if (state.pendingGameEnd === undefined) state.pendingGameEnd = false;
+    }
+    save.version = 3;
   }
   return { migrated: save };
 }

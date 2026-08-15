@@ -21,6 +21,8 @@ describe('resetToMenu', () => {
     session.armySelections = [emptySelection(), emptySelection()];
     session.combatMode = 'single-defender';
     session.randomizedTurnOrder = true;
+    session.clockLimitMs = 30 * 60_000;
+    session.roundLimit = 8;
     session.testMode = true;
     session.gameState = fakeGameState();
   });
@@ -41,11 +43,14 @@ describe('resetToMenu', () => {
     expect(session.armySelections).toEqual([]);
   });
 
-  it('does not touch playerNames, combatMode, or randomizedTurnOrder — Menu-chosen preferences meant to persist', () => {
+  it('does not touch playerNames, combatMode, randomizedTurnOrder, clockLimitMs, or roundLimit — ' +
+      'Menu-chosen preferences meant to persist', () => {
     resetToMenu();
     expect(session.playerNames).toEqual(['Alice', 'Bob']);
     expect(session.combatMode).toBe('single-defender');
     expect(session.randomizedTurnOrder).toBe(true);
+    expect(session.clockLimitMs).toBe(30 * 60_000);
+    expect(session.roundLimit).toBe(8);
   });
 
   it('leaves playerCount and edges alone — resetSession re-derives both the moment a player count is picked', () => {

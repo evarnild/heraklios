@@ -26,6 +26,18 @@ export interface SessionState {
    */
   randomizedTurnOrder: boolean;
   /**
+   * Mode A of plan.md §9.2.1's endgame options, chosen on the Menu screen
+   * before starting a game and carried into `createInitialState`: the whole
+   * game's wall-clock budget in milliseconds, or `null` for no clock limit.
+   * See `engine/gameEndSettings.ts` for the presets `MenuScene`'s cycling
+   * button walks through.
+   */
+  clockLimitMs: number | null;
+  /** Mode B: the number of full rounds after which the game ends, or `null`
+   * for no round limit. Same Menu/`createInitialState` wiring as
+   * `clockLimitMs`. */
+  roundLimit: number | null;
+  /**
    * Who plays each seat — human, or one of the three AI difficulty tiers
    * (plan.md §6.4's Stage 4). Chosen on the Menu screen before starting a
    * game and read by `ArmyBuilderScene`/`PlacementScene` (which skip an AI
@@ -57,6 +69,8 @@ export const session: SessionState = {
   armySelections: [],
   combatMode: 'multi-defender',
   randomizedTurnOrder: false,
+  clockLimitMs: null,
+  roundLimit: null,
   seatControls: Array.from({ length: MAX_PLAYERS }, (): SeatControl => 'human'),
   testMode: false,
   gameState: null,
@@ -145,11 +159,12 @@ function assignEdgesRandomly(playerCount: number): void {
  * assert against, not because it was a reachable bug on its own.
  *
  * Deliberately does NOT touch `playerNames`, `combatMode`,
- * `randomizedTurnOrder`, or `seatControls`: these are meant to persist across games as the
- * Menu's own sticky preferences (see `MenuScene`, which never resets them
- * either) — NOT necessarily "chosen on the Menu" for the game just
- * abandoned specifically, since `applySavedGame` also overwrites
- * `combatMode`/`randomizedTurnOrder` from whatever a *loaded* save carried.
+ * `randomizedTurnOrder`, `clockLimitMs`, `roundLimit`, or `seatControls`:
+ * these are meant to persist across games as the Menu's own sticky
+ * preferences (see `MenuScene`, which never resets them either) — NOT
+ * necessarily "chosen on the Menu" for the game just abandoned specifically,
+ * since `applySavedGame` also overwrites `combatMode`/`randomizedTurnOrder`/
+ * `clockLimitMs`/`roundLimit` from whatever a *loaded* save carried.
  * So abandoning a loaded single-defender-rule game, say, does leave
  * single-defender as the Menu's preference for the next game too — a
  * genuine carry-over, but not a silent one: it's the same toggle visible

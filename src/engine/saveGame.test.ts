@@ -242,6 +242,113 @@ describe('migrateSavedGame', () => {
     const result = parseSavedGame(JSON.stringify({ ...version1Save(), version: 0 }));
     expect('error' in result && result.error).toMatch(/isn't supported/);
   });
+
+  /**
+   * A version-2 file: exactly today's shape, except `gameState` still has the
+   * OLD `winnerId: PlayerId | null` in place of `winnerIds`, and none of the
+   * four clock/round-limit fields plan.md §9.2 added. Built by hand rather
+   * than from `sampleSave()` (which already produces the current shape via
+   * `createInitialState`), so this fixture is a genuine pre-migration shape,
+   * not today's shape with a version number lied about.
+   */
+  function version2Save(winnerId: number | null = null): Record<string, unknown> {
+    const save = sampleSave() as unknown as Record<string, unknown>;
+    const gameState = save.gameState as Record<string, unknown>;
+    delete gameState.winnerIds;
+    gameState.winnerId = winnerId;
+    delete gameState.clockLimitMs;
+    delete gameState.elapsedMs;
+    delete gameState.roundLimit;
+    delete gameState.pendingGameEnd;
+    save.version = 2;
+    return save;
+  }
+
+  it('translates a version-2 file with no winner into empty winnerIds', () => {
+    const result = parseSavedGame(JSON.stringify(version2Save(null)));
+    if (!('save' in result)) throw new Error(`expected a valid save, got ${JSON.stringify(result)}`);
+    expect(result.save.version).toBe(SAVE_VERSION);
+    expect(result.save.gameState.winnerIds).toEqual([]);
+    expect('winnerId' in result.save.gameState).toBe(false);
+  });
+
+  it('translates a version-2 file with a single winner into a one-element winnerIds', () => {
+    const result = parseSavedGame(JSON.stringify(version2Save(1)));
+    if (!('save' in result)) throw new Error(`expected a valid save, got ${JSON.stringify(result)}`);
+    expect(result.save.gameState.winnerIds).toEqual([1]);
+  });
+
+  it('backfills the clock/round-limit fields as "off, nothing elapsed, nothing pending"', () => {
+    const result = parseSavedGame(JSON.stringify(version2Save(0)));
+    if (!('save' in result)) throw new Error(`expected a valid save, got ${JSON.stringify(result)}`);
+    expect(result.save.gameState.clockLimitMs).toBeNull();
+    expect(result.save.gameState.elapsedMs).toBe(0);
+    expect(result.save.gameState.roundLimit).toBeNull();
+    expect(result.save.gameState.pendingGameEnd).toBe(false);
+  });
+
+  it('chains a version-1 file through both migrations to the current version', () => {
+    const save = version1Save();
+    const gameState = save.gameState as Record<string, unknown>;
+    delete gameState.winnerIds;
+    gameState.winnerId = 0;
+    delete gameState.clockLimitMs;
+    delete gameState.elapsedMs;
+    delete gameState.roundLimit;
+    delete gameState.pendingGameEnd;
+
+    const result = parseSavedGame(JSON.stringify(save));
+    if (!('save' in result)) throw new Error(`expected a valid save, got ${JSON.stringify(result)}`);
+    expect(result.save.version).toBe(SAVE_VERSION);
+    expect(result.save.seatControls).toEqual(['human', 'human']); // the 1 -> 2 step
+    expect(result.save.gameState.winnerIds).toEqual([0]); // the 2 -> 3 step
+    expect(result.save.gameState.clockLimitMs).toBeNull();
+  });
+});
+
+describe('draws and clock/round-limit round-trip', () => {
+  it('round-trips a two-way draw', () => {
+    const save = sampleSave();
+    save.gameState.winnerIds = [0, 1];
+    save.gameState.gameOver = true;
+    const result = parseSavedGame(JSON.stringify(save));
+    if (!('save' in result)) throw new Error('expected a valid save');
+    expect(result.save.gameState.winnerIds).toEqual([0, 1]);
+  });
+
+  it('round-trips a clock limit and its elapsed time', () => {
+    const save = sampleSave();
+    save.gameState.clockLimitMs = 60 * 60_000;
+    save.gameState.elapsedMs = 12_345;
+    const result = parseSavedGame(JSON.stringify(save));
+    if (!('save' in result)) throw new Error('expected a valid save');
+    // Elapsed time survives exactly — a game saved mid-clock and reloaded
+    // must not read as instantly expired (plan.md §9.2.2 point 3).
+    expect(result.save.gameState.clockLimitMs).toBe(60 * 60_000);
+    expect(result.save.gameState.elapsedMs).toBe(12_345);
+  });
+
+  it('round-trips a round limit and the pending-end flag', () => {
+    const save = sampleSave();
+    save.gameState.roundLimit = 8;
+    save.gameState.pendingGameEnd = true;
+    const result = parseSavedGame(JSON.stringify(save));
+    if (!('save' in result)) throw new Error('expected a valid save');
+    expect(result.save.gameState.roundLimit).toBe(8);
+    expect(result.save.gameState.pendingGameEnd).toBe(true);
+  });
+
+  it('rejects a save whose winnerIds is missing at the current version', () => {
+    const save = sampleSave() as unknown as Record<string, unknown>;
+    delete (save.gameState as Record<string, unknown>).winnerIds;
+    expect(isValidSavedGame(save)).toBe(false);
+  });
+
+  it('rejects a save whose elapsedMs is missing at the current version', () => {
+    const save = sampleSave() as unknown as Record<string, unknown>;
+    delete (save.gameState as Record<string, unknown>).elapsedMs;
+    expect(isValidSavedGame(save)).toBe(false);
+  });
 });
 
 describe('parseSavedGame', () => {
