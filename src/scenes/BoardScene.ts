@@ -10,7 +10,13 @@ import {
   writeSlot,
 } from '../ui/saveStorage';
 import type { SavedGame } from '../engine/saveGame';
-import { resetMovementForActivePlayer } from '../engine/turnManager';
+import {
+  advanceGameClock,
+  remainingClockMs,
+  requestGameEnd,
+  resetMovementForActivePlayer,
+} from '../engine/turnManager';
+import { formatRemainingClock } from '../engine/gameEndSettings';
 import { applyAction, legalActions, type Action } from '../engine/actions';
 import type { PlayerAgent, ActionObserver, DrivingAgent } from '../engine/agent';
 import { createSeatAgent, isAiSeat, seatControlLabel } from '../engine/seatControl';
@@ -259,6 +265,16 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * settles. */
   private advanceEligibleAttackers: Unit[] = [];
   private statusText!: Phaser.GameObjects.Text;
+  /** Mode A's remaining-time readout (plan.md §9.2.2 #6) — refreshed every
+   * frame by `update`, separately from `statusText`/`refreshStatus` (which
+   * only run on discrete state changes), since "you have 2 hours left" needs
+   * to actually count down for the player to be able to act on it. */
+  private clockText!: Phaser.GameObjects.Text;
+  /** The whole-seconds value `clockText` last showed — `update` only calls
+   * `setText` when this changes, rather than every frame, since a Phaser
+   * `Text` re-render isn't free and the display only has second resolution
+   * anyway. */
+  private lastClockDisplaySeconds: number | null = null;
   private logText!: Phaser.GameObjects.Text;
   private resolveBtn!: Phaser.GameObjects.Text;
   private rotateCCWBtn!: Phaser.GameObjects.Text;
@@ -266,6 +282,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   private ramNowBtn!: Phaser.GameObjects.Text;
   private undoBtn!: Phaser.GameObjects.Text;
   private redoBtn!: Phaser.GameObjects.Text;
+  private endGameBtn!: Phaser.GameObjects.Text;
   private abandonBtn!: Phaser.GameObjects.Text;
   /** Undo/redo history, scoped to the current phase — `endPhase` clears it,
    * and so does any die roll outside test mode (see `rollDie`). */
@@ -403,6 +420,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.aiRunning = false;
     this.resolutionDone = null;
     this.seatAgents.clear();
+    this.lastClockDisplaySeconds = null;
   }
 
   /** (Re)builds the per-seat agents from `session.seatControls`. Called after
@@ -556,6 +574,22 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       .setInteractive({ useHandCursor: true });
     this.abandonBtn.on('pointerdown', () => this.confirmAbandon());
 
+    // Mode C (plan.md §9.2.1): irreversible, so it goes through the same
+    // confirm dialog as Abandon — but unlike Abandon it does NOT end the game
+    // on the spot; see `confirmEndGame`.
+    this.endGameBtn = this.add
+      .text(16, height - 168, '⚑ End game', {
+        fontSize: '12px',
+        color: '#fff',
+        backgroundColor: '#5a4a1a',
+        padding: { x: 8, y: 4 },
+        wordWrap: { width: PANEL_WIDTH - 48 },
+      })
+      .setScrollFactor(0)
+      .setDepth(30)
+      .setInteractive({ useHandCursor: true });
+    this.endGameBtn.on('pointerdown', () => this.confirmEndGame());
+
     this.input.keyboard?.on('keydown-Z', (event: KeyboardEvent) => {
       if (!event.ctrlKey && !event.metaKey) return;
       if (event.shiftKey) this.redo();
@@ -574,8 +608,21 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       .setScrollFactor(0)
       .setDepth(30);
 
+    // Mode A's remaining-time readout — a separate object from `statusText`
+    // so `update` can refresh it every second without rebuilding (and
+    // re-wrapping) the whole status line. Empty text (nothing shown) when
+    // the clock is off, set the first time `update` runs.
+    this.clockText = this.add
+      .text(16, 140, '', {
+        fontSize: '13px',
+        color: '#c9b98a',
+        wordWrap: { width: PANEL_WIDTH - 32 },
+      })
+      .setScrollFactor(0)
+      .setDepth(30);
+
     this.logText = this.add
-      .text(16, 156, '', {
+      .text(16, 178, '', {
         fontSize: '13px',
         color: '#a89878',
         wordWrap: { width: PANEL_WIDTH - 32 },
@@ -601,7 +648,9 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       this.redoBtn,
       saveLoadBtn,
       this.abandonBtn,
+      this.endGameBtn,
       this.statusText,
+      this.clockText,
       this.logText,
     ]);
 
@@ -806,6 +855,54 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     });
   }
 
+  /**
+   * Mode C (plan.md §9.2.1): the Board's own "End game" trigger. Guarded the
+   * same way `endPhase`/`undo`/`openSaveLoad` already are — not during an AI
+   * seat's turn, and not while a retreat/drift/advance/exchange choice is
+   * pending — per plan.md §9.2.2 #5.
+   *
+   * Deliberately does NOT end the game on the spot: `requestGameEnd` only
+   * sets `GameState.pendingGameEnd`, and every remaining seat still finishes
+   * the round in progress (see that field's doc comment) — this control's
+   * own irreversibility is about the DECISION, not about ending play
+   * immediately.
+   */
+  private confirmEndGame(): void {
+    const state = this.state();
+    if (this.aiRunning) {
+      this.log("Wait for the computer's turn to finish before ending the game.");
+      return;
+    }
+    if (this.retreatChoice || this.driftState || this.decisionPending) {
+      this.log('Resolve the pending retreat/drift before ending the game.');
+      return;
+    }
+    if (state.pendingGameEnd) {
+      this.log('The game is already ending after this round.');
+      return;
+    }
+    showConfirmDialog({
+      scene: this,
+      message:
+        'End the game now?\nEvery player still finishes their current round — the highest remaining army value wins, and a tie is a draw.',
+      confirmLabel: 'End game',
+      cancelLabel: 'Keep playing',
+      excludeFromMainCamera: (objects) => this.mapView.excludeFromMainCamera(objects),
+      onConfirm: () => {
+        requestGameEnd(this.state());
+        // Irreversible, unconditionally — unlike `clearHistoryOnRoll`, this
+        // is NOT relaxed in test mode: the whole point of this control is a
+        // decision the player cannot walk back, so undoing past it would
+        // defeat it even during development.
+        this.history.clear();
+        this.refreshUndoRedoButtons();
+        this.refreshStatus();
+        this.log('The game will end once every player has finished this round.');
+        this.autosave();
+      },
+    });
+  }
+
   // ---------------------------------------------------------------------------
   // Undo / redo
   //
@@ -834,7 +931,20 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   }
 
   private restoreSnapshot(snapshot: BoardSnapshot): void {
+    // The wall clock reflects REAL time having passed — undo rewinds the
+    // BOARD to an earlier point, but must not also rewind `elapsedMs`
+    // backwards (or un-set `pendingGameEnd` once a trigger has genuinely
+    // fired), or a player could spam undo to claw back time against Mode A's
+    // whole-game limit. `clockLimitMs`/`roundLimit` are settings chosen
+    // before the game started and never change mid-game, so only these two
+    // fields — the ones `advanceGameClock`/`requestGameEnd` actually mutate
+    // — need preserving across a restore.
+    const liveElapsedMs = this.state().elapsedMs;
+    const livePendingGameEnd = this.state().pendingGameEnd;
+
     const restored = structuredClone(snapshot.state);
+    restored.elapsedMs = liveElapsedMs;
+    restored.pendingGameEnd = restored.pendingGameEnd || livePendingGameEnd;
     session.gameState = restored;
     const byId = new Map(restored.units.map((u) => [u.id, u]));
 
@@ -997,10 +1107,62 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // itself is indistinguishable from a bug.
     const control = seatControlFor(activeId);
     const who = isAiSeat(control) ? `${player.name} [${seatControlLabel(control)}]` : player.name;
+    // plan.md §9.2.2 #6: tell the player when a trigger (clock, round limit,
+    // or the button below) has fired, since the game does NOT end on the
+    // spot — every seat still finishes this round (see `pendingGameEnd`'s
+    // doc comment on `GameState`).
+    const finalRoundSuffix = state.pendingGameEnd ? ' — FINAL ROUND' : '';
     this.statusText.setText(
-      `Turn ${state.turnNumber} — ${who} — ${state.phase.toUpperCase()} phase`,
+      `Turn ${state.turnNumber} — ${who} — ${state.phase.toUpperCase()} phase${finalRoundSuffix}`,
     );
     this.resolveBtn.setVisible(state.phase === 'combat' && !this.aiRunning);
+    this.endGameBtn.setText(state.pendingGameEnd ? '⚑ Ending after this round' : '⚑ End game');
+    this.endGameBtn.setAlpha(state.pendingGameEnd ? 0.6 : 1);
+    this.refreshClockText();
+  }
+
+  /** Mode A's live countdown — see `clockText`'s doc comment for why this is
+   * separate from the rest of `refreshStatus`. Called both from
+   * `refreshStatus` (so every discrete state change repaints it too) and
+   * every frame from `update` (so it actually counts down between them). */
+  private refreshClockText(): void {
+    const state = session.gameState;
+    if (!state) return;
+    const remaining = remainingClockMs(state);
+    if (remaining === null) {
+      this.clockText.setText('');
+      this.lastClockDisplaySeconds = null;
+      return;
+    }
+    const seconds = Math.ceil(remaining / 1000);
+    if (seconds === this.lastClockDisplaySeconds) return;
+    this.lastClockDisplaySeconds = seconds;
+    this.clockText.setText(`Clock: ${formatRemainingClock(remaining)} remaining`);
+  }
+
+  /**
+   * Phaser's per-frame hook (auto-called every render frame once defined —
+   * nothing schedules this manually). Drives Mode A's clock: `advanceGameClock`
+   * deliberately keeps running through AI turns and any open retreat/drift/
+   * advance/exchange prompt (see its doc comment on why there's no pause
+   * state), so this has no guard beyond "a real game is loaded and not yet
+   * over."
+   */
+  update(_time: number, delta: number): void {
+    const state = session.gameState;
+    if (!state || state.gameOver) return;
+    const wasPending = state.pendingGameEnd;
+    advanceGameClock(state, delta);
+    this.refreshClockText();
+    if (!wasPending && state.pendingGameEnd) {
+      // Only `refreshStatus` — not `log`/`appendLine`, which REPLACE the
+      // panel (see `appendLine`'s doc comment) and would otherwise clobber
+      // whatever combat report or drift narration happens to be on screen at
+      // the exact moment the clock runs out. The status line's own "FINAL
+      // ROUND" suffix, wired through `refreshStatus` above, is feedback
+      // enough on its own.
+      this.refreshStatus();
+    }
   }
 
   private log(message: string): void {
