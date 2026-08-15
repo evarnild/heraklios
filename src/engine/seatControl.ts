@@ -2,12 +2,12 @@ import type { DrivingAgent } from './agent';
 import { HeuristicAgent, type Difficulty } from './heuristicAgent';
 
 /**
- * Who plays a seat: the player at the keyboard, or one of the three
+ * Who plays a seat: the player at the keyboard, or one of the four
  * `HeuristicAgent` difficulty tiers (plan.md §6.4's Stage 4).
  *
  * Deliberately a FLAT string union rather than `'human' | { ai: Difficulty }`.
  * Three things read this value and each is simpler for it: the Menu cycles
- * through the four options with `nextSeatControl`, the save file stores it as
+ * through the options with `nextSeatControl`, the save file stores it as
  * a plain JSON string that `isSeatControl` validates in one comparison (see
  * `saveGame.ts`'s `SAVE_VERSION` 2 note), and `BoardScene` asks nothing more
  * of it than "is this seat a bot, and if so which agent." An object shape
@@ -18,10 +18,10 @@ import { HeuristicAgent, type Difficulty } from './heuristicAgent';
  * Menu's setup) for the same reason `saveGame.ts` does: the save file has to
  * validate it, and `engine/` may not import from `ui/`.
  */
-export type SeatControl = 'human' | 'ai-random' | 'ai-greedy' | 'ai-ev';
+export type SeatControl = 'human' | 'ai-random' | 'ai-greedy' | 'ai-ev' | 'ai-lookahead';
 
 /** Every `SeatControl`, in the order the Menu cycles through them. */
-export const SEAT_CONTROLS: readonly SeatControl[] = ['human', 'ai-random', 'ai-greedy', 'ai-ev'];
+export const SEAT_CONTROLS: readonly SeatControl[] = ['human', 'ai-random', 'ai-greedy', 'ai-ev', 'ai-lookahead'];
 
 export function isSeatControl(value: unknown): value is SeatControl {
   return typeof value === 'string' && (SEAT_CONTROLS as readonly string[]).includes(value);
@@ -39,6 +39,8 @@ export function aiDifficultyOf(control: SeatControl): Difficulty | null {
       return 'greedy';
     case 'ai-ev':
       return 'ev';
+    case 'ai-lookahead':
+      return 'lookahead';
   }
 }
 
@@ -61,6 +63,8 @@ export function seatControlLabel(control: SeatControl): string {
       return 'AI — normal';
     case 'ai-ev':
       return 'AI — hard';
+    case 'ai-lookahead':
+      return 'AI — expert';
   }
 }
 

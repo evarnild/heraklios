@@ -178,7 +178,7 @@ describe('isValidSavedGame', () => {
 
   it('rejects an unknown seat control', () => {
     const save = sampleSave();
-    (save.seatControls as string[])[1] = 'ai-lookahead';
+    (save.seatControls as string[])[1] = 'ai-expert';
     expect(isValidSavedGame(save)).toBe(false);
   });
 });
@@ -193,10 +193,10 @@ describe('seatControls round-trip', () => {
   it('keeps every difficulty tier distinguishable, not just "is AI"', () => {
     const save = sampleSave();
     save.playerNames = ['A', 'B', 'C', 'D'];
-    save.seatControls = ['human', 'ai-random', 'ai-greedy', 'ai-ev'];
+    save.seatControls = ['ai-lookahead', 'ai-random', 'ai-greedy', 'ai-ev'];
     const result = parseSavedGame(JSON.stringify(save));
     if (!('save' in result)) throw new Error('expected a valid save');
-    expect(result.save.seatControls).toEqual(['human', 'ai-random', 'ai-greedy', 'ai-ev']);
+    expect(result.save.seatControls).toEqual(['ai-lookahead', 'ai-random', 'ai-greedy', 'ai-ev']);
   });
 });
 

@@ -373,6 +373,34 @@ describe('HeuristicAgent: movement phase', () => {
     expect(legalActions(state, {}).some((action) => action.kind === 'navalRotate')).toBe(true);
     expect(choose(new HeuristicAgent(), state).kind).not.toBe('navalRotate');
   });
+
+  it('the lookahead tier avoids a move whose best enemy reply is too strong', () => {
+    const archer = makeUnit({ id: 'archer', typeId: 'archers', position: landRow(0), owner: 0, movementLeft: 3 });
+    const heavy = makeUnit({ id: 'heavy', typeId: 'fantassins-lourds', position: landRow(4), owner: 1 });
+    const state = makeGame([archer, heavy], 'movement');
+    const weights = { approach: 0.5, terrainDefense: 0, zocPenalty: 0, strike: 0 };
+
+    const evAction = choose(new HeuristicAgent({ difficulty: 'ev', weights }), state);
+    expect(evAction.kind).toBe('landMove');
+    if (evAction.kind !== 'landMove') throw new Error('unreachable');
+    expect(hexDistance(evAction.to, heavy.position)).toBe(1);
+
+    const lookaheadAction = choose(new HeuristicAgent({ difficulty: 'lookahead', weights }), state);
+    expect(lookaheadAction.kind).toBe('landMove');
+    if (lookaheadAction.kind !== 'landMove') throw new Error('unreachable');
+    expect(hexDistance(lookaheadAction.to, heavy.position)).toBeGreaterThan(1);
+  });
+
+  it('lookahead probes cloned states without mutating the real position', () => {
+    const archer = makeUnit({ id: 'archer', typeId: 'archers', position: landRow(0), owner: 0, movementLeft: 3 });
+    const heavy = makeUnit({ id: 'heavy', typeId: 'fantassins-lourds', position: landRow(4), owner: 1 });
+    const state = makeGame([archer, heavy], 'movement');
+    const before = structuredClone(state);
+
+    choose(new HeuristicAgent({ difficulty: 'lookahead' }), state);
+
+    expect(state).toEqual(before);
+  });
 });
 
 describe('HeuristicAgent: mid-resolution decisions', () => {

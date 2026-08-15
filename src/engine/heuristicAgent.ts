@@ -1,7 +1,7 @@
 import type { HexCoord } from '../data/map';
 import { MAP_TERRAIN, hexKey as mapHexKey } from '../data/map';
 import { TERRAIN_EFFECTS } from '../data/terrain';
-import type { Action } from './actions';
+import { applyAction, legalActions, type Action } from './actions';
 import type { ActionChooser, PlayerAgent } from './agent';
 import {
   attackerCanJoin,
@@ -16,7 +16,7 @@ import { hexDistance, neighbors } from './hex';
 import { evaluateCharge } from './movement';
 import { findRammingContacts, type RammingContact } from './navalMovement';
 import { RandomAgent } from './randomAgent';
-import { currentDefense, livingUnits, unitType, type GameState, type Unit } from './state';
+import { currentDefense, livingUnits, unitType, type GameState, type PlayerId, type Unit } from './state';
 
 /**
  * Stage 3 of plan.md §6 — an agent that actually tries to win, built on the
@@ -27,13 +27,14 @@ import { currentDefense, livingUnits, unitType, type GameState, type Unit } from
  * decides which of the legal options it prefers.
  *
  * DIFFICULTY TIERS (plan.md §6.4: "random -> greedy -> EV-weighted ->
- * shallow lookahead"). Three of the four ship here:
+ * shallow lookahead"):
  *
  * | Tier | Combat | Movement |
  * | --- | --- | --- |
  * | `'random'` | delegates to `RandomAgent` | delegates to `RandomAgent` |
  * | `'greedy'` | maximizes expected ENEMY loss, blind to its own risk | closes distance; walks toward whatever it could hurt |
  * | `'ev'` | maximizes expected material SWING, and combines attackers | as above, plus terrain, ZOC, retreat-trap and charge value |
+ * | `'lookahead'` | same exact-EV combat model | EV movement plus a bounded enemy-reply threat check |
  *
  * `'random'` is a genuine delegation, not a reimplementation — the tier
  * exists so a caller can select difficulty uniformly without special-casing
@@ -46,17 +47,16 @@ import { currentDefense, livingUnits, unitType, type GameState, type Unit } from
  * therefore happily trade a phalanx for an archer, which is exactly the
  * mistake that makes it the easier opponent.
  *
- * THE FOURTH TIER IS DELIBERATELY NOT HERE. plan.md §6.4 calls shallow
- * lookahead "nearly free"; it is not, and recording why is more useful than
- * a stub. A ply of lookahead needs (a) a cloned `GameState` to apply a
- * candidate action against, (b) an answer for every mid-resolution decision
- * that clone provokes, and (c) an opponent model to reply with — and
+ * THE FOURTH TIER IS BOUNDED, NOT A ROLLOUT. plan.md §6.4 called shallow
+ * lookahead "nearly free"; §6.9 records why that was wrong. This tier keeps
+ * the tractable slice: deterministic movement candidates are applied to a
+ * structured-cloned `GameState`, then an EV opponent model asks what the
+ * strongest immediate combat reply would be from that resulting board. The
+ * search is deliberately capped to the best few baseline moves, because
  * `legalActions` recomputes a full `reachableHexes` BFS per unit per call
- * (see `fuzzHarness.ts`'s note on why its armies are kept small), so a naive
- * 1-ply search multiplies an already-dominant cost by the branching factor.
- * It is a separate piece of work with its own performance budget, not a
- * variant of this file. The three tiers here are what "difficulty tiers fall
- * out nearly free" actually bought.
+ * (see `fuzzHarness.ts`'s note on why its armies are kept small). Stochastic
+ * combat remains valued by `combatOdds.ts`'s exact six-face EV model rather
+ * than by sampling one imagined die roll and pretending it was the future.
  *
  * DETERMINISM. In the two SCORED tiers every choice is a pure function of
  * `state` and the options offered, with ties broken by the order
@@ -69,8 +69,8 @@ import { currentDefense, livingUnits, unitType, type GameState, type Unit } from
  * `HeuristicAgentOptions.rng`.
  */
 
-/** Which of the three tiers described above an agent plays at. */
-export type Difficulty = 'random' | 'greedy' | 'ev';
+/** Which of the four tiers described above an agent plays at. */
+export type Difficulty = 'random' | 'greedy' | 'ev' | 'lookahead';
 
 /**
  * The tunable half of the agent. Every field is in PURCHASE POINTS — the
@@ -151,6 +151,20 @@ interface Scored {
   order: number;
 }
 
+type CombatScoringMode = 'greedy' | 'ev';
+
+/** How many movement candidates the lookahead tier is allowed to clone and
+ * probe on one action choice. This is the tier's performance budget: large
+ * enough to compare the plausible moves, small enough that a ship's huge
+ * destination list does not multiply the already-expensive `legalActions`
+ * BFS across the whole board. */
+const LOOKAHEAD_CANDIDATE_LIMIT = 8;
+
+/** How much of the opponent's best immediate combat reply is charged against
+ * a candidate move. Kept below 1 so the tier still takes tactically valuable
+ * ground instead of freezing whenever any counterattack exists. */
+const LOOKAHEAD_REPLY_WEIGHT = 0.75;
+
 export class HeuristicAgent implements PlayerAgent, ActionChooser {
   private readonly difficulty: Difficulty;
   private readonly weights: HeuristicWeights;
@@ -199,6 +213,21 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
    */
   private chooseCombatAction(state: GameState, legal: Action[]): Action {
     const endPhase = legal.find((a) => a.kind === 'endPhase');
+    const candidates = this.combatCandidates(state, legal, this.combatScoringMode());
+
+    const best = this.pickBest(candidates);
+    if (!best || best.score <= this.weights.minAttackValue) {
+      if (!endPhase) throw new Error('HeuristicAgent: no attack worth making and no endPhase action offered');
+      return endPhase;
+    }
+    return best.action;
+  }
+
+  /** The single attacker with the best solo expected value against
+   * `defender` — the whole answer for the `'greedy'` tier, and the seed the
+   * `'ev'` tier grows a group from. `attackers` must already be filtered by
+   * `attackerCanJoin` (see `chooseCombatAction`). */
+  private combatCandidates(state: GameState, legal: Action[], mode: CombatScoringMode): Scored[] {
     const candidates: Scored[] = [];
 
     // Attackers available against each defender, taken from the legal set so
@@ -238,12 +267,11 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
         .filter((attacker) => attackerCanJoin(state, attacker, [defender], state.combatMode));
       if (eligible.length === 0) continue;
 
-      const group = this.difficulty === 'ev' ? this.buildAttackGroup(state, defender, eligible) : [this.bestSoloAttacker(state, defender, eligible)];
+      const group = mode === 'ev' ? this.buildAttackGroup(state, defender, eligible) : [this.bestSoloAttacker(state, defender, eligible, mode)];
       const evaluation = evaluateAttack(state, group, [defender]);
-      const score = this.difficulty === 'greedy' ? evaluation.expectedDefenderLoss : evaluation.expectedValue;
       candidates.push({
         action: { kind: 'landAttack', attackerIds: group.map((u) => u.id), defenderIds: [defender.id] },
-        score,
+        score: mode === 'greedy' ? evaluation.expectedDefenderLoss : evaluation.expectedValue,
         order: orderByDefender.get(defenderId)!,
       });
     }
@@ -253,28 +281,19 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
       const attacker = this.requireUnit(state, action.attackerId);
       const defender = this.requireUnit(state, action.defenderId);
       const evaluation = evaluateBoarding(attacker, defender);
-      const score = this.difficulty === 'greedy' ? evaluation.expectedDefenderLoss : evaluation.expectedValue;
+      const score = mode === 'greedy' ? evaluation.expectedDefenderLoss : evaluation.expectedValue;
       candidates.push({ action, score, order: index });
     });
 
-    const best = this.pickBest(candidates);
-    if (!best || best.score <= this.weights.minAttackValue) {
-      if (!endPhase) throw new Error('HeuristicAgent: no attack worth making and no endPhase action offered');
-      return endPhase;
-    }
-    return best.action;
+    return candidates;
   }
 
-  /** The single attacker with the best solo expected value against
-   * `defender` — the whole answer for the `'greedy'` tier, and the seed the
-   * `'ev'` tier grows a group from. `attackers` must already be filtered by
-   * `attackerCanJoin` (see `chooseCombatAction`). */
-  private bestSoloAttacker(state: GameState, defender: Unit, attackers: Unit[]): Unit {
+  private bestSoloAttacker(state: GameState, defender: Unit, attackers: Unit[], mode: CombatScoringMode): Unit {
     let best: Unit | undefined;
     let bestScore = -Infinity;
     for (const attacker of attackers) {
       const evaluation = evaluateAttack(state, [attacker], [defender]);
-      const score = this.difficulty === 'greedy' ? evaluation.expectedDefenderLoss : evaluation.expectedValue;
+      const score = mode === 'greedy' ? evaluation.expectedDefenderLoss : evaluation.expectedValue;
       if (score > bestScore) {
         bestScore = score;
         best = attacker;
@@ -302,7 +321,7 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
    * unit added below.
    */
   private buildAttackGroup(state: GameState, defender: Unit, attackers: Unit[]): Unit[] {
-    const seed = this.bestSoloAttacker(state, defender, attackers);
+    const seed = this.bestSoloAttacker(state, defender, attackers, 'ev');
     const group = [seed];
     let bestValue = evaluateAttack(state, group, [defender]).expectedValue;
     const remaining = attackers.filter((attacker) => attacker.id !== seed.id);
@@ -406,7 +425,8 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
       }
     });
 
-    const best = this.pickBest(candidates);
+    const scored = this.difficulty === 'lookahead' ? this.applyMovementLookahead(state, candidates) : candidates;
+    const best = this.pickBest(scored);
     if (!best || best.score < this.weights.minMoveScore) {
       if (!endPhase) throw new Error('HeuristicAgent: no move worth making and no endPhase action offered');
       return endPhase;
@@ -456,7 +476,7 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
     enemies: Unit[],
     enemyZoc: ReadonlySet<string>,
   ): number {
-    const riskAware = this.difficulty === 'ev';
+    const riskAware = this.difficulty === 'ev' || this.difficulty === 'lookahead';
     let score = this.weights.approach * (nearestDistance(unit.position, enemies) - nearestDistance(to, enemies));
 
     if (withinStrikeRange(to, enemies)) {
@@ -511,7 +531,7 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
       let best = 0;
       for (const target of validTargets(state, unit)) {
         const value = evaluateAttack(state, [unit], [target]);
-        const score = this.difficulty === 'greedy' ? value.expectedDefenderLoss : value.expectedValue;
+        const score = this.combatScoringMode() === 'greedy' ? value.expectedDefenderLoss : value.expectedValue;
         if (score > best) best = score;
       }
       return best;
@@ -637,9 +657,7 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
    * a uniform pick among the tied options when an `rng` was supplied. */
   private pickBest(candidates: Scored[]): Scored | undefined {
     if (candidates.length === 0) return undefined;
-    let bestScore = -Infinity;
-    for (const candidate of candidates) bestScore = Math.max(bestScore, candidate.score);
-    const tied = candidates.filter((c) => c.score >= bestScore - TIE_EPSILON);
+    const tied = this.bestTied(candidates);
     if (!this.rng || tied.length === 1) {
       return tied.reduce((a, b) => (a.order <= b.order ? a : b));
     }
@@ -647,7 +665,66 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
     return tied[index]!;
   }
 
-  private activeOwner(state: GameState): number {
+  private pickBestDeterministic(candidates: Scored[]): Scored | undefined {
+    const tied = this.bestTied(candidates);
+    return tied.length === 0 ? undefined : tied.reduce((a, b) => (a.order <= b.order ? a : b));
+  }
+
+  private bestTied(candidates: Scored[]): Scored[] {
+    if (candidates.length === 0) return [];
+    let bestScore = -Infinity;
+    for (const candidate of candidates) bestScore = Math.max(bestScore, candidate.score);
+    return candidates.filter((c) => c.score >= bestScore - TIE_EPSILON);
+  }
+
+  private combatScoringMode(): CombatScoringMode {
+    return this.difficulty === 'greedy' ? 'greedy' : 'ev';
+  }
+
+  private applyMovementLookahead(state: GameState, candidates: Scored[]): Scored[] {
+    return [...candidates]
+      .sort((a, b) => b.score - a.score || a.order - b.order)
+      .slice(0, LOOKAHEAD_CANDIDATE_LIMIT)
+      .map((candidate) => ({
+        ...candidate,
+        score: candidate.score - LOOKAHEAD_REPLY_WEIGHT * this.enemyCombatThreatAfter(state, candidate.action),
+      }));
+  }
+
+  private enemyCombatThreatAfter(state: GameState, action: Action): number {
+    const clone = this.cloneAfterDeterministicMovementAction(state, action);
+    if (!clone) return 0;
+
+    const movingOwner = this.activeOwner(clone);
+    let worstReply = 0;
+    for (const owner of enemyOwners(clone, movingOwner)) {
+      const index = clone.seatOrder.indexOf(owner);
+      if (index < 0) continue;
+      clone.activePlayerIndex = index;
+      clone.phase = 'combat';
+      const reply = this.pickBestDeterministic(this.combatCandidates(clone, legalActions(clone, {}), 'ev'));
+      if (reply && reply.score > this.weights.minAttackValue) {
+        worstReply = Math.max(worstReply, reply.score);
+      }
+    }
+    return worstReply;
+  }
+
+  private cloneAfterDeterministicMovementAction(state: GameState, action: Action): GameState | null {
+    switch (action.kind) {
+      case 'landMove':
+      case 'navalMove':
+      case 'navalRotate': {
+        const clone = structuredClone(state) as GameState;
+        applyAction(clone, action);
+        return clone;
+      }
+      default:
+        return null;
+    }
+  }
+
+  private activeOwner(state: GameState): PlayerId {
     return state.seatOrder[state.activePlayerIndex]!;
   }
 
@@ -715,4 +792,8 @@ function countAdjacentEnemies(state: GameState, hex: HexCoord, owner: number): n
     if (occupant && occupant.owner !== owner) count++;
   }
   return count;
+}
+
+function enemyOwners(state: GameState, owner: PlayerId): PlayerId[] {
+  return [...new Set(livingUnits(state).filter((unit) => unit.owner !== owner).map((unit) => unit.owner))];
 }

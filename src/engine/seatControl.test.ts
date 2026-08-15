@@ -15,7 +15,7 @@ import { HeuristicAgent } from './heuristicAgent';
 describe('isSeatControl', () => {
   it('accepts every declared control and nothing else', () => {
     for (const control of SEAT_CONTROLS) expect(isSeatControl(control)).toBe(true);
-    for (const bogus of ['ai', 'AI-EV', 'ai-lookahead', '', 0, null, undefined, {}, ['human']]) {
+    for (const bogus of ['ai', 'AI-EV', 'ai-expert', '', 0, null, undefined, {}, ['human']]) {
       expect(isSeatControl(bogus)).toBe(false);
     }
   });
@@ -27,6 +27,7 @@ describe('aiDifficultyOf / isAiSeat', () => {
     expect(aiDifficultyOf('ai-random')).toBe('random');
     expect(aiDifficultyOf('ai-greedy')).toBe('greedy');
     expect(aiDifficultyOf('ai-ev')).toBe('ev');
+    expect(aiDifficultyOf('ai-lookahead')).toBe('lookahead');
   });
 
   it('treats exactly the non-human controls as AI seats', () => {
@@ -94,7 +95,7 @@ describe('normalizeSeatControls', () => {
   });
 
   it('replaces individual junk entries with human rather than rejecting the whole array', () => {
-    expect(normalizeSeatControls(['ai-ev', 'ai-lookahead', null, 7], 4)).toEqual([
+    expect(normalizeSeatControls(['ai-ev', 'ai-expert', null, 7], 4)).toEqual([
       'ai-ev',
       'human',
       'human',
