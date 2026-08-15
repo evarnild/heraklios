@@ -215,3 +215,22 @@ export function remainingClockMs(state: GameState): number | null {
   if (state.clockLimitMs === null) return null;
   return Math.max(0, state.clockLimitMs - state.elapsedMs);
 }
+
+/**
+ * Mutates `restored` in place so undo/redo (a whole-`GameState` restore from
+ * a snapshot, see `history.ts`) can't be used to claw back real elapsed time
+ * against Mode A's whole-game limit, or to un-fire a `pendingGameEnd` trigger
+ * that had genuinely already gone off. `elapsedMs` reflects the wall clock,
+ * not board state, so a restore must keep the LIVE value rather than
+ * rewinding it; `pendingGameEnd` must never flip back to `false` once either
+ * side has set it. `clockLimitMs`/`roundLimit` are pre-game settings that
+ * never change mid-game, so they need no such handling — only the two fields
+ * `advanceGameClock`/`requestGameEnd` actually mutate do.
+ */
+export function carryLiveGameClock(
+  restored: GameState,
+  live: { elapsedMs: number; pendingGameEnd: boolean },
+): void {
+  restored.elapsedMs = live.elapsedMs;
+  restored.pendingGameEnd = restored.pendingGameEnd || live.pendingGameEnd;
+}

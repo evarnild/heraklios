@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   advanceGameClock,
   advancePhase,
+  carryLiveGameClock,
   createInitialState,
   endGameByTimeLimit,
   remainingClockMs,
@@ -331,6 +332,38 @@ function buildThreePlayerState(): GameState {
   return state;
 }
 
+describe('createInitialState — clock/round limit parameters (plan.md §9.2.2 #4)', () => {
+  // The Menu's cycling buttons pass a chosen clockLimitMs/roundLimit through
+  // to createInitialState; nothing else in the engine sets these two fields
+  // on a fresh game. Without this test a transposed argument order, or the
+  // parameters being silently ignored, would ship with every other test in
+  // the suite still green — those all set clockLimitMs/roundLimit by
+  // mutating the state *after* creation, never through the constructor.
+  function twoPlayers(): Player[] {
+    return [0, 1].map((id) => ({
+      id: id as PlayerId,
+      name: `P${id}`,
+      edge: id === 0 ? 'W' : 'E',
+      purchasePoints: 400,
+      eliminated: false,
+    }));
+  }
+
+  it('threads a chosen clock limit and round limit into GameState', () => {
+    const state = createInitialState(twoPlayers(), 'multi-defender', false, 30 * 60_000, 8);
+    expect(state.clockLimitMs).toBe(30 * 60_000);
+    expect(state.roundLimit).toBe(8);
+  });
+
+  it('defaults both limits off, with a fresh clock and no pending end', () => {
+    const state = createInitialState(twoPlayers());
+    expect(state.clockLimitMs).toBeNull();
+    expect(state.roundLimit).toBeNull();
+    expect(state.elapsedMs).toBe(0);
+    expect(state.pendingGameEnd).toBe(false);
+  });
+});
+
 describe('advancePhase — round limit and pendingGameEnd (plan.md §9.2.2 #1)', () => {
   it('does not end the game mid-round when the round limit is reached', () => {
     const state = buildThreePlayerState();
@@ -463,6 +496,36 @@ describe('advanceGameClock and remainingClockMs (Mode A: the clock)', () => {
     expect(remainingClockMs(state)).toBe(6_000);
     state.elapsedMs = 15_000;
     expect(remainingClockMs(state)).toBe(0);
+  });
+});
+
+describe('carryLiveGameClock (undo must not rewind the wall clock)', () => {
+  it('overwrites the restored elapsedMs with the live value', () => {
+    const restored = buildThreePlayerState();
+    restored.elapsedMs = 3_000; // the snapshot's older, smaller elapsed time
+    carryLiveGameClock(restored, { elapsedMs: 9_000, pendingGameEnd: false });
+    expect(restored.elapsedMs).toBe(9_000);
+  });
+
+  it('keeps pendingGameEnd true if the restored snapshot already had it set', () => {
+    const restored = buildThreePlayerState();
+    restored.pendingGameEnd = true;
+    carryLiveGameClock(restored, { elapsedMs: 0, pendingGameEnd: false });
+    expect(restored.pendingGameEnd).toBe(true);
+  });
+
+  it('sets pendingGameEnd true if the live game had it set even though the older snapshot did not', () => {
+    const restored = buildThreePlayerState();
+    restored.pendingGameEnd = false;
+    carryLiveGameClock(restored, { elapsedMs: 0, pendingGameEnd: true });
+    expect(restored.pendingGameEnd).toBe(true);
+  });
+
+  it('leaves pendingGameEnd false when neither side had it set', () => {
+    const restored = buildThreePlayerState();
+    restored.pendingGameEnd = false;
+    carryLiveGameClock(restored, { elapsedMs: 0, pendingGameEnd: false });
+    expect(restored.pendingGameEnd).toBe(false);
   });
 });
 

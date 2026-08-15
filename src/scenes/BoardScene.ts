@@ -12,6 +12,7 @@ import {
 import type { SavedGame } from '../engine/saveGame';
 import {
   advanceGameClock,
+  carryLiveGameClock,
   remainingClockMs,
   requestGameEnd,
   resetMovementForActivePlayer,
@@ -275,6 +276,10 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * `Text` re-render isn't free and the display only has second resolution
    * anyway. */
   private lastClockDisplaySeconds: number | null = null;
+  /** Wall-clock (`Date.now()`) timestamp of the last `update` tick, or `null`
+   * before the first one — see `update`'s doc comment for why Mode A's clock
+   * is driven off this rather than Phaser's own per-frame `delta`. */
+  private lastTickAtMs: number | null = null;
   private logText!: Phaser.GameObjects.Text;
   private resolveBtn!: Phaser.GameObjects.Text;
   private rotateCCWBtn!: Phaser.GameObjects.Text;
@@ -421,6 +426,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.resolutionDone = null;
     this.seatAgents.clear();
     this.lastClockDisplaySeconds = null;
+    this.lastTickAtMs = null;
   }
 
   /** (Re)builds the per-seat agents from `session.seatControls`. Called after
@@ -931,20 +937,13 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   }
 
   private restoreSnapshot(snapshot: BoardSnapshot): void {
-    // The wall clock reflects REAL time having passed — undo rewinds the
-    // BOARD to an earlier point, but must not also rewind `elapsedMs`
-    // backwards (or un-set `pendingGameEnd` once a trigger has genuinely
-    // fired), or a player could spam undo to claw back time against Mode A's
-    // whole-game limit. `clockLimitMs`/`roundLimit` are settings chosen
-    // before the game started and never change mid-game, so only these two
-    // fields — the ones `advanceGameClock`/`requestGameEnd` actually mutate
-    // — need preserving across a restore.
-    const liveElapsedMs = this.state().elapsedMs;
-    const livePendingGameEnd = this.state().pendingGameEnd;
+    // Undo rewinds the BOARD to an earlier point but must not also rewind
+    // the wall clock or un-fire an already-genuine pendingGameEnd — see
+    // `carryLiveGameClock`'s doc comment.
+    const live = { elapsedMs: this.state().elapsedMs, pendingGameEnd: this.state().pendingGameEnd };
 
     const restored = structuredClone(snapshot.state);
-    restored.elapsedMs = liveElapsedMs;
-    restored.pendingGameEnd = restored.pendingGameEnd || livePendingGameEnd;
+    carryLiveGameClock(restored, live);
     session.gameState = restored;
     const byId = new Map(restored.units.map((u) => [u.id, u]));
 
@@ -1147,12 +1146,24 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * advance/exchange prompt (see its doc comment on why there's no pause
    * state), so this has no guard beyond "a real game is loaded and not yet
    * over."
+   *
+   * Uses `Date.now()` rather than Phaser's own per-frame `delta` argument:
+   * Phaser pauses its render loop when the browser tab/window is hidden and
+   * resets its delta on resume (`TimeStep.resetDelta`), discarding however
+   * long the tab was hidden. Trusting `delta` would let a player stop Mode
+   * A's clock just by switching tabs — silently contradicting the "no way to
+   * pause it" design (see `elapsedMs`'s doc comment and README's "Ending the
+   * game" section). Wall-clock time elapses regardless of tab visibility, so
+   * measuring it directly closes that gap.
    */
-  update(_time: number, delta: number): void {
+  update(): void {
     const state = session.gameState;
     if (!state || state.gameOver) return;
+    const now = Date.now();
+    const wallDeltaMs = this.lastTickAtMs === null ? 0 : now - this.lastTickAtMs;
+    this.lastTickAtMs = now;
     const wasPending = state.pendingGameEnd;
-    advanceGameClock(state, delta);
+    advanceGameClock(state, wallDeltaMs);
     this.refreshClockText();
     if (!wasPending && state.pendingGameEnd) {
       // Only `refreshStatus` — not `log`/`appendLine`, which REPLACE the

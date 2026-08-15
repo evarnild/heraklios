@@ -246,10 +246,12 @@ describe('migrateSavedGame', () => {
   /**
    * A version-2 file: exactly today's shape, except `gameState` still has the
    * OLD `winnerId: PlayerId | null` in place of `winnerIds`, and none of the
-   * four clock/round-limit fields plan.md §9.2 added. Built by hand rather
-   * than from `sampleSave()` (which already produces the current shape via
-   * `createInitialState`), so this fixture is a genuine pre-migration shape,
-   * not today's shape with a version number lied about.
+   * four clock/round-limit fields plan.md §9.2 added. Derived from
+   * `sampleSave()` (today's shape) with those fields stripped/renamed back to
+   * the version-2 shape, following this file's existing `version1Save()`
+   * convention rather than a frozen hand-written JSON blob — so it will not
+   * catch future drift in `sampleSave()` itself, but it does exercise the
+   * real migration path end to end via `parseSavedGame`.
    */
   function version2Save(winnerId: number | null = null): Record<string, unknown> {
     const save = sampleSave() as unknown as Record<string, unknown>;
