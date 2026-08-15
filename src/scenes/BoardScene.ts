@@ -2014,16 +2014,21 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         .setScrollFactor(0)
         .setDepth(21);
 
+      // plan.md §16: a combined attack of same-type units otherwise produces
+      // identical rows with nothing tying any of them to a hex.
+      this.mapView.setChoiceLabels(candidates.map((unit, i) => ({ hex: unit.position, text: choiceLetter(i) })));
+
       const buttons: Phaser.GameObjects.Text[] = [];
       const cleanup = () => {
         panel.destroy();
         title.destroy();
         for (const b of buttons) b.destroy();
+        this.mapView.clearChoiceLabels();
       };
 
       candidates.forEach((unit, i) => {
         const btn = this.add
-          .text(width / 2, top + 48 + i * rowHeight, `Advance ${unitType(unit).name}`, {
+          .text(width / 2, top + 48 + i * rowHeight, `${choiceLetter(i)} — Advance ${unitType(unit).name}`, {
             fontSize: '13px',
             color: '#fff',
             backgroundColor: '#553',
@@ -2291,9 +2296,15 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         .setDepth(21)
         .setInteractive({ useHandCursor: true });
 
+      // plan.md §16: an exchange's own selection is doubly ambiguous without
+      // this — not just "which row is which unit" but "which of MY units am
+      // I choosing to lose."
+      const letters = new Map(attackers.map((unit, i) => [unit.id, choiceLetter(i)]));
+      this.mapView.setChoiceLabels(attackers.map((unit) => ({ hex: unit.position, text: letters.get(unit.id)! })));
+
       const selected = new Set<string>();
       const label = (u: Unit) =>
-        `${selected.has(u.id) ? '☒' : '☐'} ${unitType(u).name} (atk ${exchangeSacrificeForce(u)})`;
+        `${selected.has(u.id) ? '☒' : '☐'} ${letters.get(u.id)} — ${unitType(u).name} (atk ${exchangeSacrificeForce(u)})`;
       const updateTotal = () => {
         const chosen = attackers.filter((u) => selected.has(u.id));
         const sum = chosen.reduce((s, u) => s + exchangeSacrificeForce(u), 0);
@@ -2336,6 +2347,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         totalText.destroy();
         confirmBtn.destroy();
         for (const t of rowTexts) t.destroy();
+        this.mapView.clearChoiceLabels();
         resolve(chosen);
       });
     });
@@ -2704,4 +2716,16 @@ function requireAiActionUnit(unit: Unit | undefined, action: Action, id: string)
 function parseKey(key: string): HexCoord {
   const [q, r] = key.split(',').map(Number);
   return { q: q!, r: r! };
+}
+
+/** `A`, `B`, `C`, ... for `chooseAdvance`/`chooseExchangeSacrifice`'s per-unit
+ * labels (plan.md §16) — index order of the candidates/attackers array the
+ * caller already iterates, so the same board produces the same lettering
+ * twice. Wraps past `Z` (`AA`-style would need base-26 carrying) rather than
+ * throwing: neither prompt's candidate count is bounded by a hard game rule,
+ * and a wrapped, momentarily-reused letter is a smaller usability defect
+ * than a crash — 26+ candidates in one prompt has never been reached in
+ * practice on this game's roster and map sizes. */
+function choiceLetter(index: number): string {
+  return String.fromCharCode(65 + (index % 26));
 }

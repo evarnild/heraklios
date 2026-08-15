@@ -28,6 +28,10 @@ export class MapView {
   private facingGraphics: Phaser.GameObjects.Graphics;
   private unitLabels = new Map<string, Phaser.GameObjects.GameObject>();
   private movementLabel: Phaser.GameObjects.Text | null = null;
+  /** Per-hex "A"/"B"/"C" badges drawn during a choice prompt — see
+   * `setChoiceLabels`. Its own list, deliberately separate from `unitLabels`
+   * (which `clearAllUnitLabels` wipes on every `renderAllUnits`, mid-prompt). */
+  private choiceLabels: Phaser.GameObjects.Text[] = [];
   /** Set once `pinUIObjects` has added the fixed HUD camera — used so newly
    * created world objects (unit markers) get excluded from it too. */
   private uiCamera: Phaser.Cameras.Scene2D.Camera | null = null;
@@ -379,6 +383,48 @@ export class MapView {
 
   clearFacingIndicators(): void {
     this.facingGraphics.clear();
+  }
+
+  /**
+   * Draws a short per-hex badge (e.g. "A", "B", "C") over each candidate
+   * unit's hex during a choice prompt (`chooseAdvance`/`chooseExchangeSacrifice`
+   * — plan.md §16) — the dialog's rows show the same letters, so a combined
+   * attack of several identical-type units no longer reads as indistinguishable
+   * rows with nothing tying any of them to a hex. Redraws the whole set each
+   * call, same "batch, redrawn together" pattern as `setFacingIndicators` —
+   * but text can't be batched into one `Graphics` object the way vector
+   * shapes can, so this keeps its own destroyable list instead.
+   *
+   * Offset up-left from the hex center (not centered, unlike `movementLabel`)
+   * so the badge doesn't sit directly on top of the unit marker it's
+   * labeling — both would otherwise occupy the same point.
+   */
+  setChoiceLabels(labels: readonly { hex: HexCoord; text: string }[]): void {
+    this.clearChoiceLabels();
+    for (const { hex, text } of labels) {
+      const center = this.toScreen(hex);
+      const badge = this.scene.add
+        .text(center.x - HEX_SIZE * 0.5, center.y - HEX_SIZE * 0.5, text, {
+          fontSize: '15px',
+          fontStyle: 'bold',
+          color: '#1a1408',
+          backgroundColor: '#ffcc44',
+          padding: { x: 4, y: 1 },
+        })
+        .setOrigin(0.5)
+        .setDepth(13);
+      if (this.uiCamera) this.uiCamera.ignore(badge);
+      this.choiceLabels.push(badge);
+    }
+  }
+
+  /** Clears whatever `setChoiceLabels` last drew. Must be called on every
+   * exit path of a choice prompt (decline, confirm, or otherwise) — a
+   * leftover badge would point at a hex whose unit has since moved, advanced,
+   * or died. */
+  clearChoiceLabels(): void {
+    for (const badge of this.choiceLabels) badge.destroy();
+    this.choiceLabels = [];
   }
 
   /**
