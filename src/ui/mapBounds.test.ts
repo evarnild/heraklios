@@ -28,13 +28,6 @@ describe('deploymentBand', () => {
   });
 });
 
-function landHexes(): HexCoord[] {
-  return allHexes().filter((h) => {
-    const t = MAP_TERRAIN.get(`${h.q},${h.r}`);
-    return t !== undefined && !isSeaLike(t) && t !== 'coast';
-  });
-}
-
 describe('deploymentBand goes exactly 3 hexes deep per along-edge bucket', () => {
   // Independently re-derives every bucket's full membership straight from the
   // raw terrain data, using the same bucket definition depthBand uses
@@ -46,16 +39,19 @@ describe('deploymentBand goes exactly 3 hexes deep per along-edge bucket', () =>
   // shorter than 3 only where the map's hand-drawn boundary genuinely has
   // fewer than 3 land hexes there — never a measurement quirk (the
   // historical bugs this guards: a pixel-distance cutoff that caught 2 deep
-  // in some N/S columns and 3 in others; and, on E/W, using the raw
-  // un-merged 2r+q bucket, which skipped every other depth layer and made
-  // the band twice as deep as intended).
+  // in some N/S columns and 3 in others; on E/W, using the raw un-merged
+  // 2r+q bucket, which skipped every other depth layer and made the band
+  // twice as deep as intended; and a live defect where a bucket whose
+  // nearest hexes were coast/sea let the walk tunnel past them at no cost
+  // and reach land far past the true 3-hex-deep strip — see depthBand's
+  // doc comment).
   function bucketOf(edge: Edge, h: HexCoord): number {
     return edge === 'N' || edge === 'S' ? h.q : Math.floor((2 * h.r + h.q) / 2);
   }
 
-  function landBuckets(edge: Edge): Map<number, HexCoord[]> {
+  function allBuckets(edge: Edge): Map<number, HexCoord[]> {
     const buckets = new Map<number, HexCoord[]>();
-    for (const h of landHexes()) {
+    for (const h of allHexes()) {
       const bucket = bucketOf(edge, h);
       const list = buckets.get(bucket);
       if (list) list.push(h);
@@ -67,31 +63,37 @@ describe('deploymentBand goes exactly 3 hexes deep per along-edge bucket', () =>
   // The map's coastline isn't convex (it's built around a central bay with 4
   // named inlets), so a bucket can hold a short strip near the edge, open
   // water, and then more land beyond the gap on the far shore. The expected
-  // count below only counts hexes contiguous with the edge-nearest end of
-  // the bucket, capped at 3 — matching depthBand's "stop at the first gap"
-  // rule rather than naively taking `min(3, everything in the bucket)`.
+  // count below examines up to 3 hexes outward from the edge — land, coast,
+  // or sea alike — stopping at the first coordinate gap, and counts only the
+  // land ones among those examined: it must NOT keep examining past 3 just
+  // because the near hexes are non-land, or it degenerates back into the bug
+  // this test guards (walking clear across a bay to reach unrelated land).
   function depthOf(edge: Edge, h: HexCoord): number {
     if (edge === 'N') return h.r;
     if (edge === 'S') return -h.r;
     return edge === 'W' ? h.q : -h.q;
   }
 
-  function expectedContiguousCount(edge: Edge, bucketHexes: HexCoord[]): number {
-    const depths = bucketHexes.map((h) => depthOf(edge, h)).sort((a, b) => a - b);
-    let count = 0;
+  function expectedLandCount(edge: Edge, bucketHexes: HexCoord[]): number {
+    const sorted = [...bucketHexes].sort((a, b) => depthOf(edge, a) - depthOf(edge, b));
+    let examined = 0;
+    let landCount = 0;
     let previous: number | null = null;
-    for (const d of depths) {
-      if (count >= 3) break;
+    for (const h of sorted) {
+      if (examined >= 3) break;
+      const d = depthOf(edge, h);
       if (previous !== null && d - previous > 1) break;
-      count++;
+      const t = MAP_TERRAIN.get(`${h.q},${h.r}`);
+      if (t !== undefined && !isSeaLike(t) && t !== 'coast') landCount++;
       previous = d;
+      examined++;
     }
-    return count;
+    return landCount;
   }
 
   it('every bucket has the nearest contiguous hexes (capped at 3), never leaping a water gap', () => {
     for (const edge of EDGES) {
-      const buckets = landBuckets(edge);
+      const buckets = allBuckets(edge);
       const band = deploymentBand(edge);
       const bandByBucket = new Map<number, HexCoord[]>();
       for (const h of band) {
@@ -102,7 +104,7 @@ describe('deploymentBand goes exactly 3 hexes deep per along-edge bucket', () =>
       }
 
       for (const [bucket, list] of buckets) {
-        const expected = expectedContiguousCount(edge, list);
+        const expected = expectedLandCount(edge, list);
         const actual = bandByBucket.get(bucket)?.length ?? 0;
         expect(actual).toBe(expected);
       }
@@ -128,6 +130,37 @@ describe('deploymentBand goes exactly 3 hexes deep per along-edge bucket', () =>
         expect(Math.max(...values) - Math.min(...values)).toBeLessThanOrEqual(2);
       }
     }
+  });
+});
+
+describe('deploymentBand does not tunnel across a bay to reach unrelated land', () => {
+  // Live defect: a player deploying on the east edge could be offered hexes
+  // as far away as column 22, because rows whose nearest 1-3 hexes were
+  // coast/sea (the fringe of the Cap Zénon and Pointe d'Eole bays) let the
+  // walk pass through them for free and keep going until it found land. The
+  // map's actual east edge is columns 40-42.
+  it('the east band only ever uses columns 40-42', () => {
+    const band = deploymentBand('E');
+    for (const h of band) expect(h.q).toBeGreaterThanOrEqual(40);
+  });
+
+  it('none of the specific far-inland hexes from the bug report are offered', () => {
+    const band = deploymentBand('E');
+    const keys = new Set(band.map((h) => `${h.q},${h.r}`));
+    const reportedBad: HexCoord[] = [
+      { q: 39, r: 1 },
+      { q: 38, r: 1 },
+      { q: 38, r: 2 },
+      { q: 39, r: 2 },
+      { q: 38, r: 3 },
+      { q: 37, r: 3 },
+      { q: 36, r: 4 },
+      { q: 37, r: 4 },
+      { q: 36, r: 5 },
+      { q: 22, r: 13 },
+    ];
+    for (const h of reportedBad) expect(keys.has(`${h.q},${h.r}`)).toBe(false);
+    expect(keys.has('40,0')).toBe(true);
   });
 });
 

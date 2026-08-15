@@ -122,10 +122,16 @@ describe('autoPlaceSeat', () => {
     // the western band, which is what the first version of this test did and
     // which **survived deleting the filter it was named for**. Only 4 of the
     // W band's 90 hexes are barred to a chariot (4.4%), so eight draws
-    // missed all of them and the test passed either way. The S band is 39 of
-    // 126 (31%), and 400 draws across it make a missing filter a certainty,
-    // not a coin flip. Re-verified by mutation: deleting the filter fails
-    // this test on the first seed.
+    // missed all of them and the test passed either way. The S band is 12 of
+    // 78 (15%) — the highest share of any edge — and 400 draws across it
+    // make a missing filter a certainty, not a coin flip. Re-verified by
+    // mutation: deleting the filter fails this test on the first seed.
+    //
+    // (These band sizes shrank from 126/90 after a `depthBand` fix — a live
+    // defect where a bucket whose nearest hexes were coast/sea let the walk
+    // tunnel past them and reach land far outside the true 3-hex-deep edge
+    // strip, which is what had inflated the S band's barred share to begin
+    // with. See `mapBounds.ts`'s `depthBand` doc comment.)
     const barredShare = (edge: 'N' | 'S' | 'E' | 'W') => {
       const band = legalDeploymentHexes(edge, []);
       const barred = band.filter((h) => {
@@ -136,7 +142,7 @@ describe('autoPlaceSeat', () => {
     };
     // Control: this probe is only meaningful while the chosen band really
     // does contain a lot of hexes a chariot may not stand on.
-    expect(barredShare('S')).toBeGreaterThan(0.2);
+    expect(barredShare('S')).toBeGreaterThan(0.1);
 
     for (let seed = 1; seed <= 20; seed++) {
       const state = singleSeatState('S');

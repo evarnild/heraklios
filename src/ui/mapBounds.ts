@@ -48,14 +48,25 @@ const DEPTH = 3; // "a strip no more than 3 hexes wide" (docs/research/02-rules-
  * nearest 3 by sort order alone would leap across that gap and include the
  * unconnected far strip as if it were part of the deployable coastal band.
  * Each bucket is walked outward from the edge instead, stopping either at
- * `DEPTH` hexes taken or as soon as the depth coordinate skips (a gap of
+ * `DEPTH` hexes *examined* or as soon as the depth coordinate skips (a gap of
  * more than 1), whichever comes first.
+ *
+ * **The walk counts every hex it passes, not just land ones.** An earlier
+ * version filtered sea/coast/naval-zone hexes out before bucketing, so the
+ * `DEPTH` budget was only spent on land — a bucket whose nearest 1-3 hexes
+ * were coast or open water (the fringe of a bay) let the walk tunnel straight
+ * through them at no cost and keep going until it found land, however far
+ * inland that was. On the shipped map this reached clean across the Cap
+ * Zénon and Pointe d'Eole bays to unrelated land on the far shore — a live
+ * defect, reported by a player deploying on the east edge and getting hexes
+ * as far away as column 22 (the map's east edge is columns 40-42). Counting
+ * every examined hex, land or not, toward `DEPTH` keeps the walk within the
+ * true 3-hex-deep strip from the edge; a row whose first `DEPTH` hexes are
+ * all coast/sea simply contributes no deployable hexes, rather than reaching
+ * past them.
  */
 function depthBand(edge: Edge): HexCoord[] {
-  const hexes = allHexes().filter((h) => {
-    const terrain = MAP_TERRAIN.get(`${h.q},${h.r}`);
-    return terrain !== undefined && !isSeaLike(terrain) && terrain !== 'coast';
-  });
+  const hexes = allHexes();
 
   const isVertical = edge === 'N' || edge === 'S';
   const buckets = new Map<number, HexCoord[]>();
@@ -78,14 +89,15 @@ function depthBand(edge: Edge): HexCoord[] {
   for (const bucket of [...buckets.keys()].sort((a, b) => a - b)) {
     const sorted = buckets.get(bucket)!.sort((a, b) => signedDepth(a) - signedDepth(b));
     let previousDepth: number | null = null;
-    let taken = 0;
+    let examined = 0;
     for (const h of sorted) {
-      if (taken >= DEPTH) break;
+      if (examined >= DEPTH) break;
       const depth = signedDepth(h);
       if (previousDepth !== null && depth - previousDepth > 1) break; // open water — stop here
-      result.push(h);
+      const terrain = MAP_TERRAIN.get(`${h.q},${h.r}`)!;
+      if (!isSeaLike(terrain) && terrain !== 'coast') result.push(h);
       previousDepth = depth;
-      taken++;
+      examined++;
     }
   }
   return result;
