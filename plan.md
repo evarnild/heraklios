@@ -105,6 +105,7 @@ sync when something merges** — it went stale once and the user caught it.
 | ~~0c~~ | ~~Combat groups not revalidated after a removal~~ | — | **✅ Shipped `9f99b1a`.** See [§15.7](#157-the-two-follow-ups). |
 | 1 | [§9.2](#92-endgamebytimelimit-is-never-called) turn-limit ending | design + scenes | **Live gap, and the only open one.** Needs a design decision first (what sets the limit, how the player is told). **Skipped by the user on 2026-08-14** when it came up as the next task; still queued. Stage 3 added a second reason to care: `endGameByTimeLimit` breaks a tied army value in favour of the lower seat, silently (§6.9). |
 | ~~2~~ | ~~[§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 4 — AI seat UI + save format~~ | — | **✅ Shipped `556fbf8`.** See [§6.12](#612-stage-4-outcome) — including the one check it shipped without. |
+| 2 | [§16](#16-identify-which-unit-a-choice-dialog-means) label the units a choice dialog means | `ui/MapView.ts`, scenes | Requested 2026-08-15. The advance and exchange prompts name units by TYPE only, so a combined attack of three identical units gives three identical rows and the player picks blind — on an exchange, blind about which of their own units dies. Presentation only. **Placed here because #1 is blocked on a design decision and this isn't**, so it's the first item actually startable. |
 | 3 | [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 3b — shallow lookahead tier | `engine/` | The fourth difficulty tier, deliberately not shipped with the other three. Needs state cloning + an opponent model + a performance budget; see `heuristicAgent.ts`'s header. |
 
 **Standing hazard:** almost everything queued touches `BoardScene.ts`, so
@@ -120,6 +121,9 @@ these mostly cannot run in parallel with each other.
   Before anything else, though: Stage 4 shipped without its manual browser
   pass ([§6.12](#612-stage-4-outcome)), so the first person to open the game
   should give a computer seat a turn and confirm it behaves.
+- **First item that can actually be started:** #2,
+  [§16](#16-identify-which-unit-a-choice-dialog-means) — #1 is blocked on a
+  design decision the user has now declined twice, and §16 needs none.
 - **Live defects:** [§9.2](#92-endgamebytimelimit-is-never-called) (needs a
   design decision) is the only one left open.
 - **Larger future work:** [§6.4](#64-stage-3-shipped-stage-4-deferred)'s
@@ -2491,3 +2495,96 @@ be overridden in the launch brief, along with its "plan.md must not be
 edited" and "move the item out of Known simplifications" rules, neither of
 which applied. **The agent file should be fixed so the next run doesn't need
 the same four corrections.**
+
+
+---
+
+<a id="16-identify-which-unit-a-choice-dialog-means"></a>
+
+## 16. Identify which unit a choice dialog means
+
+**Status: queued** (#2). Requested 2026-08-15. A usability defect in two
+existing prompts, not a rules defect — nothing resolves incorrectly, the
+player just cannot always tell *which* of their units a button refers to.
+
+### 16.1 The defect
+
+Both post-combat choice dialogs label their rows by unit **type name** only:
+
+- `BoardScene.chooseAdvance` (`:1779`) builds one button per candidate with
+  the text `` `Advance ${unitType(unit).name}` `` (`:1811`).
+- `BoardScene.chooseExchangeSacrifice` (`:2040`) builds one row per attacker
+  reading `` `${selected...} ${unitType(u).name} (atk ${exchangeSacrificeForce(u)})` ``
+  (`:2081`).
+
+A combined attack of three `Cavalerie légère` therefore produces three
+identical rows — "Advance Cavalerie légère" three times — with nothing on
+screen tying any of them to a hex. The player picks blind, and on an
+exchange that means choosing which of their own units dies without knowing
+which one it is.
+
+**This is reachable in ordinary play and is getting more common, not less.**
+Combining attacks is not an edge case — the rulebook calls it "fortement
+recommandé" (`05-rules-french-original.md:191-193`) — and the exchange
+prompt only appears when an attack has **more than one** attacker, i.e.
+exactly when duplicates are likely. `attack force` in the exchange row
+partly disambiguates (a damaged unit differs from a fresh one), but two
+identical healthy units of the same type are indistinguishable.
+
+### 16.2 The task
+
+Give each unit the dialog is asking about a short label — `A`, `B`, `C` … —
+drawn **on the map over that unit's hex**, and show the same label in the
+dialog row. So the exchange panel reads `☐ A — Cavalerie légère (atk 6)`
+while an `A` sits on the map over the unit in question.
+
+Applies to both prompts, which is the point of doing them together: they
+have the same shape (a list of the player's own units, chosen by clicking a
+row) and want the same affordance.
+
+### 16.3 Implementation notes
+
+- **`MapView` already has the right pattern to copy, twice over.**
+  `setFacingIndicators` (`MapView.ts:347`) is the model for "draw a whole
+  set of per-hex overlays, redrawn as a set" and `showMovementPoints`
+  (`:313`) is the model for a single styled text overlay pinned to a hex
+  (note its `uiCamera.ignore` call — a new overlay needs the same, or it
+  will also draw on the fixed HUD camera). A `setChoiceLabels(labels:
+  readonly { hex: HexCoord; text: string }[])` / `clearChoiceLabels()` pair
+  in `MapView` is the natural shape.
+- **Do not reuse `unitLabels`** (`MapView.ts:265-307`). That map is the unit
+  *marker* layer, keyed by hex and wiped wholesale by `clearAllUnitLabels`
+  on every `renderAllUnits` (`BoardScene.ts:631`) — a choice label put in
+  there would be destroyed by the next redraw, which happens mid-prompt.
+  Keep the new overlay in its own field with its own lifecycle.
+- **Clear on every exit path.** Both prompts already have a `cleanup()` that
+  destroys their panel objects; the labels must be cleared there too,
+  including the decline path and the exchange confirm path. A leaked label
+  is worse than no label: it points at a hex whose unit has since moved,
+  advanced or died.
+- **Labels must survive a camera pan/zoom** the same way markers do (they
+  are positioned via `toScreen`, in world space, not screen space).
+- Assigning letters: index order of the `candidates`/`attackers` array is
+  fine and is what the dialog already iterates. Worth ordering the array
+  itself deterministically if it isn't already, so the same board produces
+  the same lettering twice.
+
+### 16.4 Scope and boundaries
+
+- **Presentation only.** No `GameState` change, no save-format change, no
+  rules change, and no change to what either prompt *resolves* to. The
+  engine already identifies units by `id`; this is about showing the player
+  what the engine already knows.
+- Per this repo's engine/presentation split, this lands in `src/ui/MapView.ts`
+  and `src/scenes/BoardScene.ts` and is **not** unit-testable there — which
+  makes it a good candidate for a manual pass, and a reason to keep the
+  diff small.
+- **Touches `BoardScene.ts`**, so it collides with anything else in flight
+  there (the standing hazard in the queue).
+- Related but deliberately out of scope: the same ambiguity exists in the
+  *retreat* prompt only in reverse (the map highlights the hexes and the
+  panel names the unit), and there the map highlight already does the job.
+- Worth checking while in there: an AI seat answers both of these prompts
+  without ever drawing a panel (see [§6.12](#612-stage-4-outcome)), so the
+  labels must be created by the **prompt**, not by the decision, or an AI
+  turn will litter the map with labels nobody asked for.
