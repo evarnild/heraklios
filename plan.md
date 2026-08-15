@@ -61,7 +61,8 @@ the user skipped once already and which needs a design decision first.
 **Carried over from the merge:** Stage 4's manual browser pass was never
 run — see [§6.12](#612-stage-4-outcome).
 **Live defects still open:**
-[§9.2](#92-endgamebytimelimit-is-never-called).
+[§9.2](#92-endgamebytimelimit-is-never-called) — design now settled
+([§9.2.1](#921-the-agreed-design)), implementation not started.
 
 <a id="10-sequenced-queue"></a>
 
@@ -91,10 +92,11 @@ sync when something merges** — it went stale once and the user caught it.
 
 ### In flight
 
-- *Nothing.* Next up is #1 below, the turn-limit ending — the only open
-  live defect, and the one queue item that needs a design decision before
-  any code is written. It was skipped once already (2026-08-14), which is
-  why Stage 4 was taken out of queue order ahead of it.
+- *Nothing.* Next up is #1 below, the endgame work — the only open live
+  defect. It was skipped twice for want of a design decision (2026-08-14 and
+  again when Stage 4 was taken out of queue order ahead of it); that
+  decision was made on 2026-08-15 and is recorded in
+  [§9.2.1](#921-the-agreed-design), so it is now ready to build.
 
 ### Queued
 
@@ -103,9 +105,9 @@ sync when something merges** — it went stale once and the user caught it.
 | ~~0~~ | ~~[§12](#12-cascading-push-when-a-unit-cannot-retreat) follow-ups~~ | — | **✅ Shipped `c23648c`.** All three closed; see [§12.6](#126-the-three-follow-ups). |
 | ~~0b~~ | ~~Reviewer-agent file corrections~~ | — | **✅ Shipped `9f99b1a`.** See [§15.7](#157-the-two-follow-ups). |
 | ~~0c~~ | ~~Combat groups not revalidated after a removal~~ | — | **✅ Shipped `9f99b1a`.** See [§15.7](#157-the-two-follow-ups). |
-| 1 | [§9.2](#92-endgamebytimelimit-is-never-called) turn-limit ending | design + scenes | **Live gap, and the only open one.** Needs a design decision first (what sets the limit, how the player is told). **Skipped by the user on 2026-08-14** when it came up as the next task; still queued. Stage 3 added a second reason to care: `endGameByTimeLimit` breaks a tied army value in favour of the lower seat, silently (§6.9). |
+| 1 | [§9.2](#92-endgamebytimelimit-is-never-called) endgame: clock, round limit, and an "End game" button | `turnManager.ts`, `state.ts`, `saveGame.ts`, scenes | **Live gap, and the only open one. No longer blocked — the design was settled on 2026-08-15, see [§9.2.1](#921-the-agreed-design).** Three triggers, all ending at the next round boundary so every player has played equally; highest army value wins; ties are draws. **`SAVE_VERSION` 2 -> 3**, because expressing a draw changes `GameState.winnerId`'s shape — which also removes the silent lower-seat tiebreak §6.9 flagged. |
 | ~~2~~ | ~~[§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 4 — AI seat UI + save format~~ | — | **✅ Shipped `556fbf8`.** See [§6.12](#612-stage-4-outcome) — including the one check it shipped without. |
-| 2 | [§16](#16-identify-which-unit-a-choice-dialog-means) label the units a choice dialog means | `ui/MapView.ts`, scenes | Requested 2026-08-15. The advance and exchange prompts name units by TYPE only, so a combined attack of three identical units gives three identical rows and the player picks blind — on an exchange, blind about which of their own units dies. Presentation only. **Placed here because #1 is blocked on a design decision and this isn't**, so it's the first item actually startable. |
+| 2 | [§16](#16-identify-which-unit-a-choice-dialog-means) label the units a choice dialog means | `ui/MapView.ts`, scenes | Requested 2026-08-15. The advance and exchange prompts name units by TYPE only, so a combined attack of three identical units gives three identical rows and the player picks blind — on an exchange, blind about which of their own units dies. Presentation only. Placed here on 2026-08-15, when #1 was still blocked on a design decision; that decision has since been made, so #1 is startable again and this sits behind it. |
 | 3 | [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 3b — shallow lookahead tier | `engine/` | The fourth difficulty tier, deliberately not shipped with the other three. Needs state cloning + an opponent model + a performance budget; see `heuristicAgent.ts`'s header. |
 
 **Standing hazard:** almost everything queued touches `BoardScene.ts`, so
@@ -115,17 +117,19 @@ these mostly cannot run in parallel with each other.
 
 - **Start here:** [Current Queue](#10-sequenced-queue).
 - **Current next task:** #1, [§9.2](#92-endgamebytimelimit-is-never-called)'s
-  turn-limit ending. **Read §9.2 before launching anything** — it needs a
-  design decision (what sets the limit, how the player is told) that no
-  implementer should make alone, and the user skipped it once already.
+  endgame work. **Read §9.2 before launching anything** — the design is
+  settled and written down in [§9.2.1](#921-the-agreed-design), so an
+  implementer should follow it rather than re-deciding it. Note the
+  `SAVE_VERSION` bump and the `GameState.winnerId` shape change it implies.
   Before anything else, though: Stage 4 shipped without its manual browser
   pass ([§6.12](#612-stage-4-outcome)), so the first person to open the game
   should give a computer seat a turn and confirm it behaves.
-- **First item that can actually be started:** #2,
-  [§16](#16-identify-which-unit-a-choice-dialog-means) — #1 is blocked on a
-  design decision the user has now declined twice, and §16 needs none.
-- **Live defects:** [§9.2](#92-endgamebytimelimit-is-never-called) (needs a
-  design decision) is the only one left open.
+- **Also ready to start, and independent of #1:** #2,
+  [§16](#16-identify-which-unit-a-choice-dialog-means), a self-contained
+  presentation fix.
+- **Live defects:** [§9.2](#92-endgamebytimelimit-is-never-called) is the only
+  one left open. It no longer needs a design decision — that was settled on
+  2026-08-15 ([§9.2.1](#921-the-agreed-design)); it needs building.
 - **Larger future work:** [§6.4](#64-stage-3-shipped-stage-4-deferred)'s
   Stage 3b and [§14](#14-decomposing-boardscenets-for-parallel-work).
 
@@ -1567,9 +1571,97 @@ turn-limit ending, and the rulebook's `on se fixera des temps limites pour la
 partie entière` (`05-rules-french-original.md:41`) is unreachable outside the
 fuzzer. Games can only end by elimination.
 
-Needs a decision, not just a fix: what sets the limit (a Menu option? a fixed
-count?) and how the player is told it's the final turn. Until then it belongs
-in the README's "Known simplifications".
+**Design settled 2026-08-15** (see [§9.2.1](#921-the-agreed-design)), after
+the item was twice deferred for want of it. It is no longer blocked; what
+follows is an implementable brief. Note it was never added to the README's
+"Known simplifications" either, as the old version of this section said it
+should be — a grep finds no such bullet, so the gap is currently undocumented
+for players as well as unfixed.
+
+<a id="921-the-agreed-design"></a>
+
+#### 9.2.1 The agreed design
+
+Two independent ways to end a game, **both** offered, plus one rule that
+applies to both and one that decides the winner.
+
+| Piece | Decision |
+| --- | --- |
+| **Mode A — clock** | A wall-clock limit for the whole game, chosen before it starts. The rulebook's own framing (`par exemple 2 heures`). |
+| **Mode B — round limit** | A number of complete rounds, chosen before it starts. Maps directly onto `GameState.turnNumber`, which already counts exactly this. |
+| **Mode C — the button** | A dedicated **"End game"** control on the Board, available at any time regardless of A/B. |
+| **Fairness rule (all modes)** | Whatever fires the trigger, **every player must have played the same number of turns.** The game does not stop on the spot: the players who have not yet acted in the current round still take their turn, and the game ends at the round boundary. |
+| **Winner** | Highest remaining army value in purchase points, which `endGameByTimeLimit` already computes via `armyValue`. |
+| **Ties** | **A draw.** Two or more players on the same highest value share the result; nobody is declared the winner. |
+
+The clock and the round limit are separate options, not one setting with two
+units — a player picks one, the other, or neither, and the button is always
+there.
+
+#### 9.2.2 What this actually requires
+
+Working outward from the smallest change, since about half of this already
+exists:
+
+1. **The fairness rule is nearly free, and it is the crux.** `advancePhase`
+   already detects the round boundary: `const wrapped = nextIndex <=
+   state.activePlayerIndex` (`turnManager.ts:74`), which is where
+   `turnNumber` increments. So a trigger should NOT end the game where it
+   fires — it should set a *pending* flag, and `advancePhase` should end the
+   game at the next `wrapped`. That gives "everyone has played an equal
+   number of turns" by construction, for all three triggers at once, rather
+   than three separate pieces of bookkeeping. It also handles the two cases
+   that would otherwise need special-casing: eliminated seats (the wrap loop
+   already skips them) and the re-randomised turn order house rule (which
+   only reshuffles *at* the wrap).
+2. **Draws need a `GameState` shape change**, and this is the one piece with
+   real ripple. `winnerId: PlayerId | null` (`state.ts:175`) cannot express
+   "these two drew" — `null` already means "nobody left." Adding
+   `winnerIds: PlayerId[]` (or widening the existing field) touches:
+   `endGameByTimeLimit` and `advancePhase` (`turnManager.ts:63`, `:143`),
+   `GameOverScene.ts:13`, `fuzzHarness.ts`'s `HarnessStats.winnerId`
+   (`:802`, `:1166`) and its tests, and **`SAVE_VERSION`, which would go
+   2 -> 3**. Worth checking `heuristicSoak.test.ts:111` while there, though
+   it should be unaffected: §6.9 already established that the strength tests
+   compare surviving army value with the seat held constant precisely
+   *because* `winnerId` was a bad metric — and the reason it was bad is
+   exactly the silent lower-seat tiebreak this change removes.
+3. **The clock needs to survive save/load, and must store elapsed time, not
+   a start timestamp.** A game saved on Monday and resumed on Friday must not
+   be instantly over. Also decide (and write down) whether it keeps running
+   during AI turns and while a retreat prompt is open — recommended: **yes,
+   it does**, because it is a limit on the length of the game, not a
+   per-decision chess clock, and pausing it introduces a second piece of
+   state that has to be correct across every prompt and every scene
+   transition. The rulebook's separate per-turn thinking limit (`3 minutes`,
+   same sentence) is explicitly **out of scope**.
+4. **The Menu has no text input**, and building one for this would be the
+   largest single piece of work in the task. Recommended instead: follow the
+   existing cycling-button idiom the combat rule, turn order and seat
+   controls all use (`MenuScene.ts`) — one button cycling `Off / 30 min /
+   1 h / 2 h`, another cycling `Off / 6 / 8 / 12 rounds`. Presets are also
+   easier to persist and validate than free text.
+5. **The "End game" button is irreversible**, so it takes a confirm dialog,
+   the same as Abandon (`showConfirmDialog`, see `confirmDialog.ts`). It
+   needs the same guards as the other Board controls — not while a
+   retreat/drift/advance choice is pending, and not during an AI seat's turn
+   (`aiRunning`, [§6.12](#612-stage-4-outcome)).
+6. **Telling the player.** The status line should say when the game is in its
+   final round (the pending flag is set), and the clock mode needs the
+   remaining time visible somewhere — otherwise "you have 2 hours" is
+   information the player cannot act on.
+
+#### 9.2.3 Already done, and deliberately not in scope
+
+- **Counting the remaining points is already implemented.**
+  `GameOverScene.ts:21-28` already lists `${p.name}: ${armyValue(...)} points
+  remaining` for every player. The scoring half of the request needs nothing
+  beyond the draw display.
+- `endGameByTimeLimit` itself already picks the highest army value; only its
+  tie behaviour changes.
+- Out of scope: the rulebook's per-turn thinking limit, and any change to how
+  elimination endings work (`advancePhase`'s `remainingPlayers.length <= 1`
+  path stays exactly as it is).
 
 ### 9.3 Occupancy checks that don't filter destroyed units (latent)
 
