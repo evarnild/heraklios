@@ -101,8 +101,12 @@ sync when something merges** — it went stale once and the user caught it.
 
 ### In flight
 
-- *Nothing.* Queue is down to Stage 3b, a larger deferred piece of work —
-  see Queued below. No live defects remain open.
+- [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 3b — shallow lookahead
+  tier, on branch `codex-stage-3b-lookahead` (initial commit `f7bb8e2`). Went
+  through adversarial review before merge (this repo's usual gate) and did
+  **not** pass on the first commit — 4 HIGH findings, since fixed on the same
+  branch; not yet re-reviewed or merged. Outcome and fixes:
+  [§6.13](#613-stage-3b-outcome). No other live defects remain open.
 
 ### Queued
 
@@ -114,19 +118,20 @@ sync when something merges** — it went stale once and the user caught it.
 | ~~1~~ | ~~[§9.2](#92-endgamebytimelimit-is-never-called) endgame: clock, round limit, and an "End game" button~~ | — | **✅ Shipped `836c70f`.** See [§9.2.4](#924-outcome) — including the mid-merge pause-behavior revision. |
 | ~~2~~ | ~~[§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 4 — AI seat UI + save format~~ | — | **✅ Shipped `556fbf8`.** See [§6.12](#612-stage-4-outcome) — including the one check it shipped without. |
 | ~~2~~ | ~~[§16](#16-identify-which-unit-a-choice-dialog-means) label the units a choice dialog means~~ | — | **✅ Shipped `ceb106a`.** Implemented directly (no agent pair), verified by `tsc`/`vitest`/`build` and code review — the manual browser pass is still owed, Chrome automation wasn't available in that session. |
-| 3 | [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 3b — shallow lookahead tier | `engine/` | The fourth difficulty tier, deliberately not shipped with the other three. Needs state cloning + an opponent model + a performance budget; see `heuristicAgent.ts`'s header. |
+| ~~3~~ | ~~[§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 3b — shallow lookahead tier~~ | `engine/` | **In flight, not queued** — see In flight above and [§6.13](#613-stage-3b-outcome). |
 
 ## Backlog Map
 
 - **Start here:** [Current Queue](#10-sequenced-queue).
-- **Current next task:** #3, Stage 3b — the only thing left queued, and a
-  larger piece of work than anything shipped recently. Needs a scoping pass
-  before launching (state cloning, an opponent model, a performance budget —
-  see `heuristicAgent.ts`'s header and [§6.9](#69-stage-3-outcome)).
+- **Current next task:** none queued. [§6.13](#613-stage-3b-outcome)'s
+  fixes need a second (re-)review pass and a merge decision before anything
+  new gets picked up.
 - **Live defects:** none open.
 - **Owed:** a manual browser pass over §16's per-hex choice labels (and
   Stage 4's still-outstanding one, [§6.12](#612-stage-4-outcome)) — next
-  person with a working browser session should give both a look.
+  person with a working browser session should give both a look. Stage 3b
+  ([§6.13](#613-stage-3b-outcome)) still needs its fixes re-reviewed before
+  merge.
 
 ## History Map
 
@@ -743,7 +748,9 @@ load before any strategy code depends on it.
 
 - **Stage 3b — shallow lookahead**: the fourth tier, queued separately (#6)
   rather than folded back into stage 3. Reasoning in
-  `heuristicAgent.ts`'s header, summarized in §6.9.
+  `heuristicAgent.ts`'s header, summarized in §6.9. **In flight** on
+  `codex-stage-3b-lookahead`, not yet merged — see
+  [§6.13](#613-stage-3b-outcome).
 
 ### 6.5 Decisions to make before starting
 
@@ -1369,6 +1376,121 @@ would have caught.
 > place to start looking. The check itself is small: Menu -> set a seat to
 > "AI — hard" -> 2 players -> confirm the computer builds, deploys and plays
 > a turn. §4's port-pinning warning applies.
+
+### 6.13 Stage 3b outcome
+
+**Status: in flight, not merged.** Branch `codex-stage-3b-lookahead`, initial
+commit `f7bb8e2` ("heuristic AI from codex"). §6.9's postmortem said the
+fourth tier needed "a cloned `GameState`, an answer for every mid-resolution
+decision that clone provokes, an opponent model, and a performance budget" —
+what actually landed is narrower than that, and deliberately so: no
+mid-resolution decisions, because the tier never explores past its own one
+candidate move into a state where one could be asked. It clones the board,
+applies a single deterministic movement action to the clone (`landMove`/
+`navalMove`/`navalRotate` only — `'ram'` is a die roll and isn't
+clone-probed), then hand-sets the clone's `phase`/`activePlayerIndex` to ask
+`combatCandidates` (the same function `'ev'` combat already uses) what the
+strongest enemy reply would be. `tsc`/`vitest` clean, 476 tests, adding
+`'ai-lookahead'` to `SeatControl` and `'AI — expert'` as its label.
+
+**Adversarial review (2026-08-15) failed the first commit — 4 HIGH, 4
+MEDIUM, 4 LOW.** Recorded here because the failure modes are the instructive
+part, not just that they got fixed:
+
+- **HIGH — the threat probe hand-sets `phase = 'combat'` without going
+  through `turnManager.advancePhase`, so it skipped that function's reset of
+  `defendedThisPhase` (and, less consequentially, `charged`).** A unit
+  attacked earlier in the SAME round (by an earlier seat in `seatOrder`, so
+  only reachable at 3-4 seats) kept a stale `defendedThisPhase: true` into
+  the hypothetical combat phase, where `combat.ts`'s `validTargets` then
+  excluded it as a target — silently and one-sidedly UNDER-counting the
+  threat against exactly the units the tier exists to protect. Measured
+  reviewer-side over 12 seeded games: 14% of lookahead movement decisions
+  had at least one candidate scored wrong, 1.9% picked a different move than
+  the flag-corrected model would have. Fixed: `heuristicAgent.ts`'s
+  `normalizedThreatProbeClone` resets both flags on every unit before the
+  probe runs, with a comment naming `turnManager.ts`'s reset as the reason
+  it's needed.
+- **HIGH — "AI — expert" was not measurably stronger than "AI — hard."**
+  Measured seat-controlled over the project's own metric (surviving army
+  value): `'lookahead'` came in dead-even with `'ev'` on wins and slightly
+  *behind* it on material, at 2-3x the decision cost — and `heuristicSoak.test.ts`
+  had no test that would have caught it, unlike every earlier tier. Root
+  cause turned out to be the same design gap as the MEDIUM below: an
+  absolute threat penalty. Fixed by making the penalty marginal (see below);
+  re-measured after the fix at **555 vs 530 total** (seat-held-constant, the
+  same 12 seeds), i.e. a real but modest edge, now pinned by a new soak test
+  ("the lookahead tier ends with more material than the ev tier, seat for
+  seat").
+- **HIGH — six mutation survivors** on behaviour this commit introduced:
+  candidate truncation/sort order, the movement `riskAware` flag actually
+  gaining `'lookahead'`, `enemyOwners` excluding the mover itself, the
+  `reply.score > minAttackValue` gate, and `Math.max` over multiple enemies
+  (the 3-4 player path, which had zero coverage). Fixed for the ones with a
+  reasonably targeted test: `enemyOwners` is now exported and unit-tested
+  directly; a `minAttackValue`-gate test and a risk-aware-with-nonzero-weights
+  test were added (the original lookahead tests zeroed those weights, which
+  is exactly what let the mutant hide). The candidate truncation/sort-order
+  and the `Math.max`-over-enemies ordering survivors were **not** individually
+  killed — see the MEDIUM below and the note at the end of this section.
+- **HIGH — README.md was left actively contradicting the shipped code**
+  ("Three difficulty levels... a fourth... is not implemented", and the
+  Menu's button-cycle description missing the fifth option). Fixed; see the
+  "Computer opponent" section.
+- **MEDIUM — the threat penalty was absolute, not marginal, so a threat
+  existing ANYWHERE on the board (unrelated to the candidate move) was
+  charged against every candidate equally** — including `endPhase`'s
+  implicit "do nothing" once every scored candidate fell below
+  `minMoveScore`, which could freeze a unit's movement over a danger it had
+  no power to change. This is what was actually behind the HIGH-2 strength
+  gap above, not a fundamentally weak model. Fixed: `applyMovementLookahead`
+  now computes a `baselineThreat` on the board before the move and only
+  charges the increase over it (clamped at 0).
+- **MEDIUM — truncating to `LOOKAHEAD_CANDIDATE_LIMIT` (8) baseline-best
+  candidates BEFORE applying the threat penalty is disclosed in the header
+  but unsound in principle:** a discarded 9th-or-later candidate could in
+  theory outscore a kept one once the penalty is applied. The reviewer's own
+  measurement never found this changing an actual choice (re-scoring all
+  candidates on 270 sampled decisions never picked differently), so it was
+  left as a documented performance/soundness tradeoff rather than reworked —
+  reworking it (e.g. a per-unit cap, or scoring by margin-to-cutoff instead
+  of a flat count) is real design work, not a bug fix, and belongs in its
+  own pass if the soak numbers ever show it mattering.
+- **MEDIUM — three stale doc comments** (one displaced onto the wrong
+  function during the `chooseCombatAction`/`combatCandidates` split, "two
+  SCORED tiers" after a third was added, "terrain/ZOC — `'ev'` only" after
+  `'lookahead'` gained the same risk-aware branch). Fixed.
+- **MEDIUM — `plan.md` itself was stale** (Stage 3b still listed Queued,
+  and §6.9's promised latency check was never recorded). Fixed by this
+  section; the latency check the reviewer ran: `chooseNextAction` 4ms at
+  `'ev'` vs 15ms at `'lookahead'` on the same two-full-45-unit-army scenario
+  §6.12 measured at 47ms/action total — comfortably inside that budget.
+- **LOW — a new `SeatControl` string widens what a version-3 save file
+  accepts with no note in `saveGame.ts`.** No `SAVE_VERSION` bump needed (an
+  old build rejects the new value loudly rather than misreading it, matching
+  this file's established precedent — see §6.12's first forced decision),
+  but the decision itself wasn't recorded there. Fixed with a note in
+  `saveGame.ts`.
+- **LOW — `charged` went stale for the same reason `defendedThisPhase`
+  did** (same fix, `normalizedThreatProbeClone`). Measured impact was
+  negligible (1 of 270 sampled decisions, zero score change), but it shares
+  a root cause with the HIGH above so it was fixed in the same place.
+- **LOW — `'ram'` candidates are never clone-probed, so they escape the
+  threat penalty entirely** while a competing `navalMove` doesn't — a
+  structural bias toward ramming in naval positions. Not fixed: pricing a
+  ram's threat properly means committing to a hit-or-miss outcome to clone
+  past a die roll, which is a real modeling question, not a one-line
+  correction. Documented instead, in `cloneAfterDeterministicMovementAction`'s
+  doc comment, per the reviewer's own suggestion.
+
+**What this section does NOT claim:** the fixes above were verified by
+`tsc`/`vitest` (481 tests passing after the fixes, up from 476) and by re-measuring the
+specific numbers the review cited, but the branch has **not** been through a
+second adversarial review pass. Per this file's own verification-style
+default ("adversarial — reviewer hunts for defects, does not trust the
+implementer's self-report"), the person who reports fixing a review's
+findings is the least reliable source on whether they're actually fixed.
+Re-review before merge.
 
 ---
 

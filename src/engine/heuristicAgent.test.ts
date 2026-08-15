@@ -6,7 +6,7 @@ import { getUnitType } from '../data/units';
 import { legalActions, type Action } from './actions';
 import { hexesUnderZoc } from './combat';
 import { DIRECTIONS, hexAdd, hexDistance } from './hex';
-import { HeuristicAgent } from './heuristicAgent';
+import { enemyOwners, HeuristicAgent } from './heuristicAgent';
 import { evaluateCharge } from './movement';
 import { createSeededRng } from './rng';
 import { maxEquipmentPointsForType, type GameState, type Phase, type Player, type Unit } from './state';
@@ -400,6 +400,58 @@ describe('HeuristicAgent: movement phase', () => {
     choose(new HeuristicAgent({ difficulty: 'lookahead' }), state);
 
     expect(state).toEqual(before);
+  });
+
+  it('the lookahead tier gates a reply below minAttackValue out of the threat penalty', () => {
+    // Same position as "avoids a move whose best enemy reply is too strong",
+    // but with minAttackValue raised well above the heavy infantry's actual
+    // attack EV — so every possible reply is gated out, the threat penalty
+    // never fires, and lookahead should make the exact move ev does.
+    const archer = makeUnit({ id: 'archer', typeId: 'archers', position: landRow(0), owner: 0, movementLeft: 3 });
+    const heavy = makeUnit({ id: 'heavy', typeId: 'fantassins-lourds', position: landRow(4), owner: 1 });
+    const state = makeGame([archer, heavy], 'movement');
+    const weights = { approach: 0.5, terrainDefense: 0, zocPenalty: 0, strike: 0, minAttackValue: 100 };
+
+    const evAction = choose(new HeuristicAgent({ difficulty: 'ev', weights }), state);
+    const lookaheadAction = choose(new HeuristicAgent({ difficulty: 'lookahead', weights }), state);
+
+    expect(lookaheadAction).toEqual(evAction);
+  });
+
+  it('the lookahead tier is risk-aware like ev: will not walk into an enemy zone of control for nothing', () => {
+    // Mirrors "will not walk into an enemy zone of control for nothing"
+    // above, but for the lookahead tier — with non-zero terrain/zoc weights,
+    // unlike the tier's other dedicated tests, which zero them out and so
+    // can't tell `riskAware` apart from always-false.
+    const phalanx = makeUnit({ id: 'phalanx', typeId: 'phalanges', position: CENTER, owner: 1 });
+    const cavalry = makeUnit({
+      id: 'cav',
+      typeId: 'cavalerie-legere',
+      position: hexAdd(CENTER, { q: 2, r: 0 }),
+      owner: 0,
+      movementLeft: 1,
+    });
+    const state = makeGame([cavalry, phalanx], 'movement');
+
+    expect(choose(new HeuristicAgent({ difficulty: 'lookahead' }), state).kind).toBe('endPhase');
+  });
+});
+
+describe('enemyOwners', () => {
+  it('excludes the given owner even when it is the only one with living units', () => {
+    const own = makeUnit({ id: 'own', typeId: 'archers', position: CENTER, owner: 0 });
+    const state = makeGame([own], 'movement');
+
+    expect(enemyOwners(state, 0)).toEqual([]);
+  });
+
+  it('lists every other owner with a living unit, and only those', () => {
+    const own = makeUnit({ id: 'own', typeId: 'archers', position: CENTER, owner: 0 });
+    const enemy = makeUnit({ id: 'enemy', typeId: 'archers', position: landRow(4), owner: 1 });
+    const dead = makeUnit({ id: 'dead', typeId: 'archers', position: landRow(6), owner: 1, destroyed: true });
+    const state = makeGame([own, enemy, dead], 'movement');
+
+    expect(enemyOwners(state, 0)).toEqual([1]);
   });
 });
 

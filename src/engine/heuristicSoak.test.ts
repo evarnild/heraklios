@@ -197,4 +197,42 @@ describe('HeuristicAgent: difficulty tiers are ordered by strength', () => {
     expect(evInSeat0).toBeGreaterThan(greedyInSeat0);
     expect(evInSeat1).toBeGreaterThan(greedyInSeat1);
   });
+
+  /**
+   * plan.md §6.4's fourth tier — `'lookahead'`, labelled "AI — expert" in
+   * `seatControl.ts` — is only worth that name if it actually beats the tier
+   * below it. It shipped once (commit `f7bb8e2`) WITHOUT this test and
+   * without beating `'ev'`: the opponent-reply threat it charges against a
+   * candidate move was priced as the board's absolute worst threat rather
+   * than the MARGINAL threat that move itself creates, which meant a threat
+   * elsewhere on the board — one this move had no power to change — was
+   * charged against every candidate equally, including doing nothing.
+   * Fixed by `applyMovementLookahead` subtracting a `baselineThreat`
+   * computed on the board before the move.
+   *
+   * Measured over these exact 12 seeds, seat held constant, as surviving
+   * army value:
+   *
+   * ```
+   * lookahead as seat 0: 290 vs ev: 270
+   * lookahead as seat 1: 265 vs ev: 260
+   * ```
+   *
+   * A real but modest edge — the extra ply only fires when a move's
+   * destination is itself within `LOOKAHEAD_CANDIDATE_LIMIT` reach of
+   * mattering, and both tiers share the same exact-EV combat model, so most
+   * of a game plays out identically between them.
+   */
+  it('the lookahead tier ends with more material than the ev tier, seat for seat', async () => {
+    const lookaheadFirst = await playSeries('lookahead', 'ev');
+    const evFirst = await playSeries('ev', 'lookahead');
+
+    const lookaheadInSeat0 = lookaheadFirst.material[0];
+    const evInSeat0 = evFirst.material[0];
+    const lookaheadInSeat1 = evFirst.material[1];
+    const evInSeat1 = lookaheadFirst.material[1];
+
+    expect(lookaheadInSeat0).toBeGreaterThan(evInSeat0);
+    expect(lookaheadInSeat1).toBeGreaterThan(evInSeat1);
+  });
 });

@@ -79,6 +79,20 @@ export const MIN_SUPPORTED_SAVE_VERSION = 1;
 // branch was still in development pre-merge — still version 2 -> 3, not a
 // second bump, since no version-3 file with `paused` missing has ever
 // shipped.)
+//
+// `'ai-lookahead'` (plan.md §6.4's Stage 3b, the fourth `HeuristicAgent`
+// difficulty tier) widened `SeatControl`'s domain without a version bump,
+// and that's the right call by the SAME forwards-only reasoning `seatControls`
+// itself got a bump for above: `isSeatControl`/`isValidSavedGame` validate
+// against the live `SEAT_CONTROLS` array, not a version-pinned list, so a
+// build that knows `'ai-lookahead'` reads an old file with none of it fine
+// (the value simply never appears), and a build that PREDATES it rejects a
+// save containing it outright via `parseSavedGame`'s version/shape check
+// rather than silently misreading it as some other seat — the same loud
+// failure the version-2 bump exists to guarantee, just reached through
+// `isSeatControl`'s strict comparison instead of `SAVE_VERSION` itself. No
+// migration path is needed either: there is no version this value is
+// "backfilled" into, since a save either names it explicitly or doesn't.
 
 export type EdgeCode = 'N' | 'S' | 'E' | 'W';
 

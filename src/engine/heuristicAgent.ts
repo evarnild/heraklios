@@ -58,7 +58,7 @@ import { currentDefense, livingUnits, unitType, type GameState, type PlayerId, t
  * combat remains valued by `combatOdds.ts`'s exact six-face EV model rather
  * than by sampling one imagined die roll and pretending it was the future.
  *
- * DETERMINISM. In the two SCORED tiers every choice is a pure function of
+ * DETERMINISM. In the three SCORED tiers every choice is a pure function of
  * `state` and the options offered, with ties broken by the order
  * `legalActions` produced them in, so the same position always yields the
  * same move and a seeded self-play game replays identically (see
@@ -223,10 +223,15 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
     return best.action;
   }
 
-  /** The single attacker with the best solo expected value against
-   * `defender` — the whole answer for the `'greedy'` tier, and the seed the
-   * `'ev'` tier grows a group from. `attackers` must already be filtered by
-   * `attackerCanJoin` (see `chooseCombatAction`). */
+  /** Every land-attack and boarding candidate the position offers, scored
+   * under `mode` (`'greedy'`: `expectedDefenderLoss`; `'ev'`: `expectedValue`)
+   * — one candidate per defender, its attacker group built by
+   * `buildAttackGroup` (`'ev'`) or reduced to `bestSoloAttacker` (`'greedy'`,
+   * and the `'ev'` opponent-reply probe when scoring under that same mode).
+   * `chooseCombatAction` picks the best of these for a real turn;
+   * `enemyCombatThreatOnBoard` calls this same function against a cloned
+   * board to price a hypothetical enemy reply — the one place this file
+   * scores combat outside the active player's own turn. */
   private combatCandidates(state: GameState, legal: Action[], mode: CombatScoringMode): Scored[] {
     const candidates: Scored[] = [];
 
@@ -288,6 +293,13 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
     return candidates;
   }
 
+  /** The single attacker with the best solo score against `defender` under
+   * `mode` — the whole answer for `'greedy'` (and for scoring an enemy's
+   * hypothetical reply, which always uses `'ev'` regardless of this agent's
+   * own difficulty — see `enemyCombatThreatOnBoard`), and the seed
+   * `buildAttackGroup` grows an `'ev'` group from. `attackers` must already
+   * be filtered by `attackerCanJoin` (see `combatCandidates`'s eligibility
+   * gate). */
   private bestSoloAttacker(state: GameState, defender: Unit, attackers: Unit[], mode: CombatScoringMode): Unit {
     let best: Unit | undefined;
     let bestScore = -Infinity;
@@ -449,8 +461,8 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
    *   actually threatens — which is the difference between a charge into a
    *   phalanx (worth nothing; cavalry may not attack one at all) and a
    *   charge into an archer.
-   * - **terrain / ZOC** — `'ev'` only: the positional terms a risk-blind
-   *   greedy agent skips.
+   * - **terrain / ZOC** — `'ev'` and `'lookahead'` only: the positional terms
+   *   a risk-blind greedy agent skips.
    *
    * There is deliberately NO "don't move somewhere a forced retreat would
    * kill you" term, though an earlier version of this file had one and
@@ -681,28 +693,59 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
     return this.difficulty === 'greedy' ? 'greedy' : 'ev';
   }
 
+  /**
+   * Penalizes each candidate by the MARGINAL enemy threat it creates, not the
+   * board's total threat: `baselineThreat` is what the strongest enemy reply
+   * is worth right now, before this unit moves at all, and only the increase
+   * over that gets charged against a candidate (clamped at 0, since a move
+   * that reduces exposure below the baseline shouldn't earn a bonus it
+   * didn't ask for). Without the baseline subtraction, a threat that exists
+   * regardless of this move — a different unit already in danger, an enemy
+   * that can already reach the board's best target — would have been charged
+   * against EVERY candidate equally, including `endPhase`'s implicit "do
+   * nothing" option once every scored candidate dropped below
+   * `minMoveScore`, which could freeze the whole army's movement over a
+   * threat this move had no power to change.
+   */
   private applyMovementLookahead(state: GameState, candidates: Scored[]): Scored[] {
+    const baselineThreat = this.enemyCombatThreatOnBoard(this.normalizedThreatProbeClone(state));
     return [...candidates]
       .sort((a, b) => b.score - a.score || a.order - b.order)
       .slice(0, LOOKAHEAD_CANDIDATE_LIMIT)
-      .map((candidate) => ({
-        ...candidate,
-        score: candidate.score - LOOKAHEAD_REPLY_WEIGHT * this.enemyCombatThreatAfter(state, candidate.action),
-      }));
+      .map((candidate) => {
+        const marginalThreat = Math.max(0, this.enemyCombatThreatAfter(state, candidate.action) - baselineThreat);
+        return { ...candidate, score: candidate.score - LOOKAHEAD_REPLY_WEIGHT * marginalThreat };
+      });
   }
 
+  /** The strongest immediate combat reply any living enemy could make against
+   * `state` if `action` were taken — 0 if `action` isn't one this tier
+   * clone-probes at all (see `cloneAfterDeterministicMovementAction`). */
   private enemyCombatThreatAfter(state: GameState, action: Action): number {
     const clone = this.cloneAfterDeterministicMovementAction(state, action);
-    if (!clone) return 0;
+    return clone ? this.enemyCombatThreatOnBoard(clone) : 0;
+  }
 
-    const movingOwner = this.activeOwner(clone);
+  /**
+   * Worst-case combat reply any living enemy of `board`'s active player could
+   * make against `board` — the max over enemies, not the sum, since only one
+   * of them actually gets the next combat phase. Reaches that phase by
+   * hand-setting `phase`/`activePlayerIndex` rather than by walking
+   * `turnManager.advancePhase`'s real sequence, so this is a threat PROBE,
+   * not a real transition: `board` must already have `defendedThisPhase`/
+   * `charged` normalized the way a real transition into combat would leave
+   * them (see `normalizedThreatProbeClone`, which every caller routes
+   * through — directly, or via `cloneAfterDeterministicMovementAction`).
+   */
+  private enemyCombatThreatOnBoard(board: GameState): number {
+    const movingOwner = this.activeOwner(board);
     let worstReply = 0;
-    for (const owner of enemyOwners(clone, movingOwner)) {
-      const index = clone.seatOrder.indexOf(owner);
+    for (const owner of enemyOwners(board, movingOwner)) {
+      const index = board.seatOrder.indexOf(owner);
       if (index < 0) continue;
-      clone.activePlayerIndex = index;
-      clone.phase = 'combat';
-      const reply = this.pickBestDeterministic(this.combatCandidates(clone, legalActions(clone, {}), 'ev'));
+      board.activePlayerIndex = index;
+      board.phase = 'combat';
+      const reply = this.pickBestDeterministic(this.combatCandidates(board, legalActions(board, {}), 'ev'));
       if (reply && reply.score > this.weights.minAttackValue) {
         worstReply = Math.max(worstReply, reply.score);
       }
@@ -710,18 +753,47 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
     return worstReply;
   }
 
+  /** Clones `state`, normalized for the threat probe, and applies `action` —
+   * `null` for actions this tier doesn't clone-probe. Notably `'ram'`: its
+   * outcome is a die roll `combatOdds.ts` prices as a distribution rather
+   * than a single resulting board, so cloning "after" it would mean picking
+   * a hit or a miss to commit to; it's left unpenalized here rather than
+   * arbitrarily choosing one. */
   private cloneAfterDeterministicMovementAction(state: GameState, action: Action): GameState | null {
     switch (action.kind) {
       case 'landMove':
       case 'navalMove':
       case 'navalRotate': {
-        const clone = structuredClone(state) as GameState;
+        const clone = this.normalizedThreatProbeClone(state);
         applyAction(clone, action);
         return clone;
       }
       default:
         return null;
     }
+  }
+
+  /**
+   * A `structuredClone` with `defendedThisPhase` and `charged` reset on every
+   * unit — what a real transition into a combat phase would leave behind
+   * (`turnManager.advancePhase`'s movement->combat case resets the former;
+   * `resetMovementForActivePlayer`, run at a unit's own next movement phase,
+   * clears the latter). The threat probe above reaches its hypothetical
+   * combat phase WITHOUT calling either, so without this reset a unit
+   * attacked or charged earlier in the SAME round (by an earlier seat in
+   * `seatOrder`, reachable whenever 3+ seats are still alive) would carry a
+   * stale flag into a hypothetical phase that, in every real game, has at
+   * least one intervening reset before it's actually reached — silently
+   * hiding a real counter-attack behind `defendedThisPhase`, or overpricing
+   * a charge bonus that would already have expired.
+   */
+  private normalizedThreatProbeClone(state: GameState): GameState {
+    const clone = structuredClone(state) as GameState;
+    for (const u of clone.units) {
+      u.defendedThisPhase = false;
+      u.charged = false;
+    }
+    return clone;
   }
 
   private activeOwner(state: GameState): PlayerId {
@@ -794,6 +866,10 @@ function countAdjacentEnemies(state: GameState, hex: HexCoord, owner: number): n
   return count;
 }
 
-function enemyOwners(state: GameState, owner: PlayerId): PlayerId[] {
+/** Every distinct owner with at least one living unit, other than `owner`
+ * itself — exported for direct testing, since it's the one thing standing
+ * between the lookahead tier's threat probe (`enemyCombatThreatOnBoard`) and
+ * treating the moving player's own best attack as a threat against itself. */
+export function enemyOwners(state: GameState, owner: PlayerId): PlayerId[] {
   return [...new Set(livingUnits(state).filter((unit) => unit.owner !== owner).map((unit) => unit.owner))];
 }

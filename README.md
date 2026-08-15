@@ -579,9 +579,10 @@ what the game will use — see `src/map-editor/`.
 ## Computer opponent
 
 Any seat can be played by the computer. On the menu screen, each of the four
-seats has its own button cycling **Human → AI easy → AI normal → AI hard**;
-pick the ones you want before choosing the number of players (which is also
-what starts the game — seats beyond the count you pick are ignored).
+seats has its own button cycling **Human → AI easy → AI normal → AI hard →
+AI expert**; pick the ones you want before choosing the number of players
+(which is also what starts the game — seats beyond the count you pick are
+ignored).
 
 A computer seat sets itself up: it takes the ready-made 400-point army and
 deploys it into its own edge's zone, so the army-building and placement
@@ -608,17 +609,18 @@ and above all the value of the attack the destination makes possible — which
 is how it finds cavalry charges, since a charge is simply a move whose
 attack is worth twice as much.
 
-**Three difficulty levels**, in increasing strength:
+**Four difficulty levels**, in increasing strength:
 
 | Level | How it plays |
 | --- | --- |
 | Random | Picks uniformly among the legal options. |
 | Greedy | Goes for the biggest expected damage to you, and ignores what the attempt might cost it. |
 | Expected value | Weighs damage against its own risk, declines attacks that aren't worth making, and concentrates several units into one attack when that pushes the force ratio into a better column. |
+| Expert | Everything expected value does, plus a bounded look at your best reply: before committing to a move, it clones the board, plays the move out, and prices the strongest attack you could make against the result — discounting a move for handing you a strong counter, not just for what it buys outright. |
 
-A fourth level — looking a move ahead — is not implemented; see
-`heuristicAgent.ts` for why that turned out to be a much larger job than the
-other three.
+The fourth level does not simulate your movement or search more than one ply
+— see `heuristicAgent.ts` for why a genuine rollout turned out to be a much
+larger job than the other three tiers, and what stayed in scope instead.
 
 ## Known simplifications
 
