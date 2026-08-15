@@ -1260,6 +1260,31 @@ strategy problems of a different kind from the ones `heuristicAgent.ts`
 solves, and picking the *same* army a hurried human picks keeps the
 difficulty comparisons in §6.9 meaning what they say.
 
+**One tactical preference was added to deployment on request
+(2026-08-15):** cavalry, chariots and heavy infantry are kept off plateaux.
+Worth recording precisely, because it is the kind of thing a later reader
+will go looking for a rulebook basis for and not find one. **There is no
+such rule.** The rulebook's terrain prohibitions are exactly three
+(`05-rules-french-original.md:186-188`) and none of them mentions plateaux —
+which are legal ground for every land unit, and stay that way in
+`canEnterTerrain`. This is deployment *judgement* and lives only in
+`ui/aiSetup.ts`: a plateau's benefit is defensive and conditional (+2 only
+when attacked from below), so it is wasted on the arms you deploy to move,
+and better spent on the archers/phalanxes/elephants that hold. It is a soft
+preference — a band with no room left will still put a chariot on a plateau
+rather than fail to field the army — and it deploys the constrained units
+first for margin. Phalanxes are excluded despite being heavy foot: they are
+precisely the unit that wants the ground.
+
+Measured while building it, since the arithmetic is tight enough to matter:
+the southern band is the worst case at 44 plateau + 37 steep-flank hexes of
+126, leaving 43 plain for the default army's 22 plateau-avoiding units. Three
+mutations (preference not applied, ordering removed, preference hardened
+into a ban) each killed by their own test. The most-constrained-first
+ordering turned out **not** to be strictly required at today's army and band
+— recorded in the code as margin rather than necessity, rather than leaving
+a comment claiming more than the measurement supports.
+
 **Verification gap, stated plainly.** The engine and setup halves are
 unit-tested; the `BoardScene` half is not, per this repo's engine/
 presentation boundary, and it could **not** be exercised in a browser during

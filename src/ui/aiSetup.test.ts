@@ -12,6 +12,20 @@ import { canEnterTerrain, isSeaLike } from '../data/terrain';
 import { MAP_TERRAIN, hexKey } from '../data/map';
 import { getUnitType } from '../data/units';
 
+/** The unit types `aiSetup`'s deployment preference keeps off plateaux —
+ * cavalry (both), chariots (both), and heavy infantry. Spelled out here
+ * rather than imported so the test states the intended list independently
+ * of the predicate it is checking; a change to one has to be a deliberate
+ * change to the other. Phalanxes are deliberately absent: they are heavy
+ * foot that WANTS defensive ground. */
+const KEEPS_OFF_PLATEAUX = new Set([
+  'cavalerie-legere',
+  'cavalerie-lourde',
+  'chars-legers',
+  'chars-lourds',
+  'fantassins-lourds',
+]);
+
 function setUpSession(controls: SeatControl[]): void {
   session.playerCount = controls.length;
   session.playerNames = ['Athènes', 'Perse', 'Macédoine', 'Sparte'];
@@ -181,6 +195,84 @@ describe('autoPlaceSeat', () => {
 
     const keys = state.units.map((u) => hexKey(u.position.q, u.position.r));
     expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it('keeps cavalry, chariots and heavy infantry off plateaux', () => {
+    // The SOUTHERN band is the worst case on this map and therefore the only
+    // honest place to test this: 44 of its 126 hexes are plateau (34.9%) and
+    // another 37 are steep flanks a chariot may not enter at all, leaving 43
+    // plain hexes for a default army's 22 plateau-avoiding units. A band with
+    // room to spare would pass whether or not the preference existed.
+    for (let seed = 1; seed <= 20; seed++) {
+      const state = singleSeatState('S');
+      session.armySelections[0] = defaultArmySelection();
+      autoPlaceSeat(state, 0, createSeededRng(seed));
+
+      for (const unit of state.units) {
+        if (!KEEPS_OFF_PLATEAUX.has(unit.typeId)) continue;
+        const terrain = MAP_TERRAIN.get(hexKey(unit.position.q, unit.position.r))!;
+        expect(terrain, `seed ${seed}: ${unit.typeId} at (${unit.position.q}, ${unit.position.r})`).not.toBe(
+          'plateau',
+        );
+      }
+    }
+  });
+
+  it('still puts the units that hold ground on plateaux — this is a preference, not a ban', () => {
+    // Control for the test above: if `autoPlaceSeat` had simply stopped using
+    // plateaux altogether, that test would pass for the wrong reason. Archers,
+    // phalanxes and elephants are exactly the units that should be getting
+    // the defensive ground the others give up.
+    let usedPlateau = 0;
+    for (let seed = 1; seed <= 20; seed++) {
+      const state = singleSeatState('S');
+      session.armySelections[0] = defaultArmySelection();
+      autoPlaceSeat(state, 0, createSeededRng(seed));
+      usedPlateau += state.units.filter(
+        (u) => MAP_TERRAIN.get(hexKey(u.position.q, u.position.r)) === 'plateau',
+      ).length;
+    }
+    expect(usedPlateau).toBeGreaterThan(0);
+  });
+
+  it('takes a plateau rather than failing when nothing else is left', () => {
+    // The preference must not become a hard constraint that can starve a
+    // deployment: 40 chariots on the southern band need more hexes than its
+    // 43 plain ones comfortably provide once the draw scatters them, and a
+    // ban would throw instead of falling back.
+    const state = singleSeatState('S');
+    session.armySelections[0] = { ...emptySelection(), 'chars-lourds': 60 };
+    expect(() => autoPlaceSeat(state, 0, createSeededRng(7))).not.toThrow();
+    expect(state.units).toHaveLength(60);
+    // And the fallback really was exercised — some had to take plateaux.
+    const onPlateau = state.units.filter(
+      (u) => MAP_TERRAIN.get(hexKey(u.position.q, u.position.r)) === 'plateau',
+    );
+    expect(onPlateau.length).toBeGreaterThan(0);
+    // Legality is still absolute, however crowded it gets.
+    for (const unit of state.units) {
+      const terrain = MAP_TERRAIN.get(hexKey(unit.position.q, unit.position.r))!;
+      expect(canEnterTerrain(terrain, unitCategory(unit.typeId))).toBe(true);
+    }
+  });
+
+  it('deploys the plateau-avoiding units first, so the others cannot take their ground', () => {
+    // Most-constrained-first is what makes the preference survive a crowded
+    // band (see `unitsInPlacementOrder`). Ids are handed out in placement
+    // order, so the ordering is observable from the finished board.
+    const state = singleSeatState('S');
+    session.armySelections[0] = defaultArmySelection();
+    autoPlaceSeat(state, 0, createSeededRng(3));
+
+    const landUnits = state.units.filter((u) => getUnitType(u.typeId).domain === 'land');
+    const indexOf = (u: (typeof landUnits)[number]) => Number(u.id.split('u')[1]);
+    const lastRestricted = Math.max(
+      ...landUnits.filter((u) => KEEPS_OFF_PLATEAUX.has(u.typeId)).map(indexOf),
+    );
+    const firstUnrestricted = Math.min(
+      ...landUnits.filter((u) => !KEEPS_OFF_PLATEAUX.has(u.typeId)).map(indexOf),
+    );
+    expect(lastRestricted).toBeLessThan(firstUnrestricted);
   });
 
   it('throws rather than deploying a short army when the zone runs out of room', () => {

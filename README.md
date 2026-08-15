@@ -576,13 +576,20 @@ other three.
 A few places trade a little rules fidelity for a shippable scope — flagged
 here rather than silently:
 
-- **A computer seat's army is the default one, deployed at random within its
-  zone.** It doesn't choose a composition to suit the map or the opponents,
-  and it doesn't arrange its line — it takes the same ready-made 400-point
-  army the army-builder's own "default army" button offers, and scatters it
-  over legal hexes in its deployment band (respecting terrain, so no cavalry
-  on marsh). Everything after deployment is played properly; only the setup
-  is arbitrary.
+- **A computer seat's army is the default one, deployed almost at random
+  within its zone.** It doesn't choose a composition to suit the map or the
+  opponents, and it doesn't arrange a line — it takes the same ready-made
+  400-point army the army-builder's own "default army" button offers, and
+  scatters it over legal hexes in its deployment band (respecting terrain, so
+  no cavalry on marsh). It follows exactly one piece of tactical judgement:
+  cavalry, chariots and heavy infantry are kept off plateaux where there's
+  room, since a plateau's only benefit is defensive and conditional (+2
+  against attacks from below) and those are the units you want free to
+  advance and charge — the archers, phalanxes and elephants that hold ground
+  get the high ground instead. That is a preference, not a rule: plateaux are
+  legal for every land unit, and a crowded band will still put a chariot on
+  one rather than fail to field the army. Everything after deployment is
+  played properly.
 - **The computer opponent doesn't predict where a drifting elephant ends
   up.** It commands them perfectly well — the self-play armies its tests are
   built from now include one per side, so the AI moves and fights with

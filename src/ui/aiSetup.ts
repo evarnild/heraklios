@@ -20,15 +20,74 @@ import { seatControlFor, session } from './session';
  * `create()`.
  */
 
-/** Every unit an army selection contains, one entry per individual unit, in
- * the selection's own order (land units first only insofar as the selection
- * lists them first — nothing here depends on the order). */
+/** Every unit an army selection contains, one entry per individual unit,
+ * ordered so the ones with the tightest choice of hex come first — see
+ * `keepsOffPlateauxAtDeployment` and `unitsInPlacementOrder`. */
 function unitsOf(selection: ArmySelection): string[] {
   const list: string[] = [];
   for (const [typeId, count] of Object.entries(selection)) {
     for (let i = 0; i < (count ?? 0); i++) list.push(typeId);
   }
   return list;
+}
+
+/**
+ * Whether the AI keeps this unit type off plateaux when it deploys.
+ *
+ * **This is a tactical preference, NOT a rule.** The rulebook's terrain
+ * prohibitions are only the three in `05-rules-french-original.md:186-188`
+ * (chariots and cavalry off steep flanks; chariots, cavalry and elephants
+ * out of marsh; land units out of the sea), and those live where they
+ * belong, in `data/terrain.ts`'s `canEnterTerrain`. A plateau is legal
+ * ground for every land unit and stays that way — nothing here changes what
+ * a *player* may do, what a unit may move onto, or where a retreat may land.
+ * It only changes where the computer chooses to stand at turn zero.
+ *
+ * The reasoning, recorded because a future reader will otherwise look for a
+ * rule that isn't there: a plateau's whole value is defensive, and it is
+ * conditional — `+2` to the attacker's die only when the attack comes from
+ * below (`data/terrain.ts`, and the same table row the rulebook prints). It
+ * is worth having under a unit that intends to be attacked where it stands.
+ * Cavalry, chariots and heavy infantry are the arms you deploy to move: a
+ * cavalry charge needs a straight run at full movement allowance
+ * (`engine/movement.ts`'s `straightLineMoveCost`), so parking them on
+ * ground chosen for standing still spends their opening position on a bonus
+ * they are meant to leave behind. The units that hold — archers shooting at
+ * range, phalanxes, elephants — are the ones that should have the plateaux.
+ *
+ * Phalanxes are deliberately NOT included, even though they are heavy foot:
+ * this covers `fantassins-lourds` specifically, and a phalanx is exactly the
+ * unit that does want to stand on defensive ground.
+ */
+function keepsOffPlateauxAtDeployment(typeId: string): boolean {
+  const category = unitCategory(typeId);
+  return category === 'cavalry' || category === 'chariot' || typeId === 'fantassins-lourds';
+}
+
+/**
+ * The order units are deployed in: everything that avoids plateaux first,
+ * then the rest.
+ *
+ * Most-constrained-first, for margin rather than out of tidiness. On the
+ * southern band — the worst case on this map — 44 of 126 hexes are plateau
+ * and 37 more are steep flanks a chariot may not enter at all, leaving 43
+ * plain hexes against a default army's 22 units that want them. In selection
+ * order the 10 archers (listed first, and happy anywhere) would draw from the
+ * full 87-hex legal set and take some of that plain ground first.
+ *
+ * **Measured, so the comment doesn't overclaim:** with today's default army
+ * this ordering is not strictly necessary — removing it leaves the plateau
+ * preference intact across all 20 tested seeds, because the archers only
+ * land on plain about half the time and 43 hexes is enough slack to absorb
+ * it. It is the margin that stops that from being luck: a heavier cavalry
+ * army, a hand-built one, or a tighter band moves the arithmetic, and the
+ * failure would be silent (a few chariots on plateaux, indistinguishable
+ * from chance). The ordering has its own test for that reason; the plateau
+ * test does not depend on it.
+ */
+function unitsInPlacementOrder(selection: ArmySelection): string[] {
+  const all = unitsOf(selection);
+  return [...all.filter(keepsOffPlateauxAtDeployment), ...all.filter((t) => !keepsOffPlateauxAtDeployment(t))];
 }
 
 /**
@@ -65,6 +124,14 @@ export function skipAiArmySeats(fromIndex: number): number | null {
  * random too — a ship's facing only matters for ramming geometry, which
  * nothing at deployment time can predict.
  *
+ * One tactical preference rides on top of the legality rules: cavalry,
+ * chariots and heavy infantry are kept off plateaux where possible — see
+ * `keepsOffPlateauxAtDeployment` for why, and for why that is a preference
+ * and not a rule. It is a PREFERENCE in the code as well as in the comment:
+ * if the band has no non-plateau hex left, the unit takes a plateau rather
+ * than the deployment failing, since standing somewhere merely suboptimal
+ * beats not fielding the army.
+ *
  * Throws if the zone runs out of room before the army is placed, rather than
  * silently deploying a short army: that would hand the human a free win and
  * look like a rules bug from the board.
@@ -76,16 +143,24 @@ export function autoPlaceSeat(state: GameState, playerIndex: number, rng: () => 
   const seaHexes = legalNavalDeploymentHexes(player.edge, enemyHexes);
   const taken = new Set(state.units.filter((u) => !u.destroyed).map((u) => hexKey(u.position.q, u.position.r)));
 
-  const pick = (candidates: HexCoord[]): HexCoord => {
-    const free = candidates.filter((h) => !taken.has(hexKey(h.q, h.r)));
-    if (free.length === 0) {
+  /**
+   * Draws a hex, preferring `preferred` and falling back to the full legal
+   * `candidates` when none of the preferred ones are free. Exactly one
+   * `rng()` call either way, so the fallback doesn't shift the random
+   * sequence relative to a run that never needs it.
+   */
+  const pick = (candidates: HexCoord[], preferred?: HexCoord[]): HexCoord => {
+    const free = (hexes: HexCoord[]) => hexes.filter((h) => !taken.has(hexKey(h.q, h.r)));
+    const freePreferred = preferred ? free(preferred) : [];
+    const pool = freePreferred.length > 0 ? freePreferred : free(candidates);
+    if (pool.length === 0) {
       throw new Error(`autoPlaceSeat: seat ${playerIndex} has no legal hex left to deploy on`);
     }
-    return free[Math.floor(rng() * free.length)]!;
+    return pool[Math.floor(rng() * pool.length)]!;
   };
 
   let counter = 0;
-  for (const typeId of unitsOf(session.armySelections[playerIndex] ?? {})) {
+  for (const typeId of unitsInPlacementOrder(session.armySelections[playerIndex] ?? {})) {
     const type = getUnitType(typeId);
     const naval = type.domain === 'naval';
     const candidates = naval
@@ -94,7 +169,11 @@ export function autoPlaceSeat(state: GameState, playerIndex: number, rng: () => 
           const terrain = MAP_TERRAIN.get(hexKey(h.q, h.r));
           return terrain !== undefined && canEnterTerrain(terrain, unitCategory(typeId));
         });
-    const hex = pick(candidates);
+    const preferred =
+      !naval && keepsOffPlateauxAtDeployment(typeId)
+        ? candidates.filter((h) => MAP_TERRAIN.get(hexKey(h.q, h.r)) !== 'plateau')
+        : undefined;
+    const hex = pick(candidates, preferred);
     taken.add(hexKey(hex.q, hex.r));
     const unit: Unit = {
       id: `p${playerIndex}u${counter++}`,
