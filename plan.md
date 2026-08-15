@@ -52,17 +52,19 @@ attack force (merged `272bcf0`), Stage 2c — elephants in the harness
 completes Stage 2 and fixed a live defect in hotseat play on the way (a
 drifting elephant could enter marsh), and
 [§13](#13-hex-coordinate-tooltip)'s hex coordinate tooltip (merged
-`62892c3`), and **Stage 4 — the AI's seat UI and save format v2 (merged
+`62892c3`), **Stage 4 — the AI's seat UI and save format v2 (merged
 `556fbf8`), which finally gives the computer opponent a seat**
-([§6.12](#612-stage-4-outcome)).
-**In flight:** nothing. Next is queue item #1,
-[§9.2](#92-endgamebytimelimit-is-never-called)'s turn-limit ending, which
-the user skipped once already and which needs a design decision first.
+([§6.12](#612-stage-4-outcome)), and **[§9.2](#92-endgamebytimelimit-is-never-called) —
+the endgame: clock limit, round limit, and the Board's "End game" button
+(merged `836c70f`, +4 MEDIUM review findings fixed, +a mid-merge design
+revision — see [§9.2.4](#924-outcome))**, which closes the plan's last open
+live defect.
+**In flight:** nothing. Next is queue item #2,
+[§16](#16-identify-which-unit-a-choice-dialog-means)'s choice-dialog
+labeling — self-contained, no design decision blocking it.
 **Carried over from the merge:** Stage 4's manual browser pass was never
 run — see [§6.12](#612-stage-4-outcome).
-**Live defects still open:**
-[§9.2](#92-endgamebytimelimit-is-never-called) — design now settled
-([§9.2.1](#921-the-agreed-design)), implementation not started.
+**Live defects still open:** none.
 
 <a id="10-sequenced-queue"></a>
 
@@ -89,14 +91,12 @@ sync when something merges** — it went stale once and the user caught it.
 | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2c — elephants in the harness (+1 live marsh defect, +1 HIGH/3 MEDIUM review findings) | `0e54b59` |
 | [§13](#13-hex-coordinate-tooltip) hex coordinate tooltip | `62892c3` |
 | [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 4 — AI seat UI + save format v2 (+3 review defects) | `556fbf8` |
+| [§9.2](#92-endgamebytimelimit-is-never-called) endgame: clock, round limit, End game button (+4 MEDIUM review defects, +a mid-merge design revision) | `836c70f` |
 
 ### In flight
 
-- *Nothing.* Next up is #1 below, the endgame work — the only open live
-  defect. It was skipped twice for want of a design decision (2026-08-14 and
-  again when Stage 4 was taken out of queue order ahead of it); that
-  decision was made on 2026-08-15 and is recorded in
-  [§9.2.1](#921-the-agreed-design), so it is now ready to build.
+- *Nothing.* Next up is #2 below, [§16](#16-identify-which-unit-a-choice-dialog-means) —
+  self-contained, no design decision blocking it. No live defects remain open.
 
 ### Queued
 
@@ -105,9 +105,9 @@ sync when something merges** — it went stale once and the user caught it.
 | ~~0~~ | ~~[§12](#12-cascading-push-when-a-unit-cannot-retreat) follow-ups~~ | — | **✅ Shipped `c23648c`.** All three closed; see [§12.6](#126-the-three-follow-ups). |
 | ~~0b~~ | ~~Reviewer-agent file corrections~~ | — | **✅ Shipped `9f99b1a`.** See [§15.7](#157-the-two-follow-ups). |
 | ~~0c~~ | ~~Combat groups not revalidated after a removal~~ | — | **✅ Shipped `9f99b1a`.** See [§15.7](#157-the-two-follow-ups). |
-| 1 | [§9.2](#92-endgamebytimelimit-is-never-called) endgame: clock, round limit, and an "End game" button | `turnManager.ts`, `state.ts`, `saveGame.ts`, scenes | **Live gap, and the only open one. No longer blocked — the design was settled on 2026-08-15, see [§9.2.1](#921-the-agreed-design).** Three triggers, all ending at the next round boundary so every player has played equally; highest army value wins; ties are draws. **`SAVE_VERSION` 2 -> 3**, because expressing a draw changes `GameState.winnerId`'s shape — which also removes the silent lower-seat tiebreak §6.9 flagged. |
+| ~~1~~ | ~~[§9.2](#92-endgamebytimelimit-is-never-called) endgame: clock, round limit, and an "End game" button~~ | — | **✅ Shipped `836c70f`.** See [§9.2.4](#924-outcome) — including the mid-merge pause-behavior revision. |
 | ~~2~~ | ~~[§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 4 — AI seat UI + save format~~ | — | **✅ Shipped `556fbf8`.** See [§6.12](#612-stage-4-outcome) — including the one check it shipped without. |
-| 2 | [§16](#16-identify-which-unit-a-choice-dialog-means) label the units a choice dialog means | `ui/MapView.ts`, scenes | Requested 2026-08-15. The advance and exchange prompts name units by TYPE only, so a combined attack of three identical units gives three identical rows and the player picks blind — on an exchange, blind about which of their own units dies. Presentation only. Placed here on 2026-08-15, when #1 was still blocked on a design decision; that decision has since been made, so #1 is startable again and this sits behind it. |
+| 2 | [§16](#16-identify-which-unit-a-choice-dialog-means) label the units a choice dialog means | `ui/MapView.ts`, scenes | Requested 2026-08-15. The advance and exchange prompts name units by TYPE only, so a combined attack of three identical units gives three identical rows and the player picks blind — on an exchange, blind about which of their own units dies. Presentation only. Ready to start now — #1 shipped, nothing blocks it. |
 | 3 | [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 3b — shallow lookahead tier | `engine/` | The fourth difficulty tier, deliberately not shipped with the other three. Needs state cloning + an opponent model + a performance budget; see `heuristicAgent.ts`'s header. |
 
 **Standing hazard:** almost everything queued touches `BoardScene.ts`, so
@@ -116,20 +116,9 @@ these mostly cannot run in parallel with each other.
 ## Backlog Map
 
 - **Start here:** [Current Queue](#10-sequenced-queue).
-- **Current next task:** #1, [§9.2](#92-endgamebytimelimit-is-never-called)'s
-  endgame work. **Read §9.2 before launching anything** — the design is
-  settled and written down in [§9.2.1](#921-the-agreed-design), so an
-  implementer should follow it rather than re-deciding it. Note the
-  `SAVE_VERSION` bump and the `GameState.winnerId` shape change it implies.
-  Before anything else, though: Stage 4 shipped without its manual browser
-  pass ([§6.12](#612-stage-4-outcome)), so the first person to open the game
-  should give a computer seat a turn and confirm it behaves.
-- **Also ready to start, and independent of #1:** #2,
-  [§16](#16-identify-which-unit-a-choice-dialog-means), a self-contained
-  presentation fix.
-- **Live defects:** [§9.2](#92-endgamebytimelimit-is-never-called) is the only
-  one left open. It no longer needs a design decision — that was settled on
-  2026-08-15 ([§9.2.1](#921-the-agreed-design)); it needs building.
+- **Current next task:** #2, [§16](#16-identify-which-unit-a-choice-dialog-means) —
+  self-contained presentation fix, nothing blocking it.
+- **Live defects:** none open.
 - **Larger future work:** [§6.4](#64-stage-3-shipped-stage-4-deferred)'s
   Stage 3b and [§14](#14-decomposing-boardscenets-for-parallel-work).
 
@@ -1662,6 +1651,65 @@ exists:
 - Out of scope: the rulebook's per-turn thinking limit, and any change to how
   elimination endings work (`advancePhase`'s `remainingPlayers.length <= 1`
   path stays exactly as it is).
+
+<a id="924-outcome"></a>
+
+#### 9.2.4 Outcome
+
+**Status: ✅ Shipped, merged `836c70f` on 2026-08-15.** Implemented directly
+(no implementer/reviewer agent pair for this one — the user ran the
+implement → review loop themselves in the same session), landing
+`engine/gameEndSettings.ts` (Menu preset/cycling/label/format helpers),
+`turnManager.ts`'s `carryLiveGameClock`/`advanceGameClock`/`requestGameEnd`/
+`setClockPaused`, the `winnerIds`/`clockLimitMs`/`elapsedMs`/`roundLimit`/
+`paused`/`pendingGameEnd` fields on `GameState`, `SAVE_VERSION` 2 -> 3 with a
+migration, and the Board's clock readout / "FINAL ROUND" status / End game
+button / Pause button. 474 tests, `tsc`/`build` clean.
+
+**Adversarial review: PASS, no HIGH, 4 MEDIUM (mutation-tested — 37 mutants
+against the diff, 29 killed).** The reviewer independently probed the
+fairness rule headlessly (eliminated-seat skipping, reshuffle-only-at-the-
+wrap, clock-expiring-mid-round) and confirmed all three hold, matching
+§9.2.2 point 1's claim that they'd fall out for free. All four MEDIUMs were
+fixed before merge:
+
+1. The clock silently stopped charging `elapsedMs` while the browser tab
+   was hidden (Phaser pauses its render loop and resets its per-frame delta
+   on resume) — at the time this contradicted the design's "no way to pause
+   it." See the design revision below for how this was actually resolved.
+2. Nothing tested that a chosen clock/round limit reached `GameState` at
+   all — a mutant that made `createInitialState` ignore both new parameters
+   passed the whole suite. Fixed with a direct test.
+3. The undo-vs-clock preserve rule (§9.2.2 didn't ask for this explicitly;
+   it's the natural consequence of "the clock survives save/load" plus
+   "undo restores a whole snapshotted `GameState`") lived untested inside
+   `BoardScene.restoreSnapshot`. Extracted to `turnManager.ts`'s
+   `carryLiveGameClock`, now unit-tested directly.
+4. A test comment on the version-2 save fixture falsely claimed it was
+   hand-built rather than derived from `sampleSave()` — corrected; the
+   fixture itself was already correct.
+
+**Mid-merge design revision: §9.2.1's "no way to pause it" was overridden by
+the user, after the review's MEDIUM-1 fix had just made that claim actually
+true.** The user's ask, once the tab-hide behavior was visible as a real
+design fork rather than a bug: tab-hide *should* pause the clock (not be
+patched around with a `Date.now()`-based delta), and there should also be an
+explicit manual Pause/Resume button on the Board. This is a genuine reversal
+of the original settled design, not an extension of it — recorded here per
+this plan's own rule about preserving wrong assumptions. What shipped
+instead: `advanceGameClock` is driven by Phaser's own per-frame `delta`
+again (so `update` simply doesn't fire while the tab is hidden, and
+`elapsedMs` stops accumulating for free), plus a new `GameState.paused`
+boolean toggled by the Board's Pause button, gating `advanceGameClock`
+exactly like `gameOver` does. `paused` is carried live across undo/redo
+and survives save/load the same way `elapsedMs`/`pendingGameEnd` do
+(`carryLiveGameClock`, extended rather than duplicated). Folded into the
+same `SAVE_VERSION` 2 -> 3 migration as the other four fields rather than
+earning a fifth bump, since the branch was still unmerged when `paused` was
+added — no version-3 file without it has ever shipped. This does **not**
+reopen §9.2.3's "per-turn thinking limit is out of scope" — pausing is a
+whole-game control (a table break, or nobody looking at the screen), not a
+per-turn clock.
 
 ### 9.3 Occupancy checks that don't filter destroyed units (latent)
 
