@@ -86,7 +86,13 @@ export class PlacementScene extends Phaser.Scene {
 
   create(): void {
     if (this.playerIndex === 0 || !session.gameState) {
-      session.gameState = createInitialState(buildPlayers(), session.combatMode, session.randomizedTurnOrder);
+      session.gameState = createInitialState(
+        buildPlayers(),
+        session.combatMode,
+        session.randomizedTurnOrder,
+        session.clockLimitMs,
+        session.roundLimit,
+      );
     }
     // An AI seat deploys itself (ui/aiSetup.ts) — same legal hexes, same
     // terrain rule, same unit shape a human's clicks would produce. Done here,

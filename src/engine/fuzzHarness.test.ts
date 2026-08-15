@@ -371,7 +371,7 @@ describe('processRetreats', () => {
     const stats: HarnessStats = {
       seed: 0,
       gameOver: false,
-      winnerId: null,
+      winnerIds: [],
       endedByTimeLimit: false,
       turnsReached: 1,
       totalActions: 0,
@@ -447,7 +447,7 @@ describe('processDrifts', () => {
     const stats: HarnessStats = {
       seed: 0,
       gameOver: false,
-      winnerId: null,
+      winnerIds: [],
       endedByTimeLimit: false,
       turnsReached: 1,
       totalActions: 0,
@@ -485,7 +485,7 @@ describe('processDrifts', () => {
     const stats: HarnessStats = {
       seed: 0,
       gameOver: false,
-      winnerId: null,
+      winnerIds: [],
       endedByTimeLimit: false,
       turnsReached: 1,
       totalActions: 0,
@@ -536,7 +536,7 @@ describe('processDrifts', () => {
     const stats: HarnessStats = {
       seed: 0,
       gameOver: false,
-      winnerId: null,
+      winnerIds: [],
       endedByTimeLimit: false,
       turnsReached: 1,
       totalActions: 0,
@@ -599,7 +599,7 @@ describe('processDrifts', () => {
     const stats: HarnessStats = {
       seed: 0,
       gameOver: false,
-      winnerId: null,
+      winnerIds: [],
       endedByTimeLimit: false,
       turnsReached: 1,
       totalActions: 0,
@@ -722,7 +722,7 @@ describe('fuzz harness: seeded self-play soak', () => {
     // Always 0 for THIS soak, and printed anyway — see the report line below.
     const totalMultiAttacker = allStats.reduce((sum, g) => sum + g.multiAttackerAttacks, 0);
     const turns = allStats.map((g) => g.turnsReached);
-    const wins = allStats.filter((g) => g.winnerId !== null).length;
+    const wins = allStats.filter((g) => g.winnerIds.length === 1).length;
     const draws = allStats.length - wins;
     const endedByTimeLimit = allStats.filter((g) => g.endedByTimeLimit).length;
     const endedByElimination = allStats.length - endedByTimeLimit;

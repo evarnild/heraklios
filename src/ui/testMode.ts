@@ -55,7 +55,13 @@ export function startTestGame(): void {
     { id: 0 as PlayerId, name: session.playerNames[0]!, edge: 'W', purchasePoints: 400, eliminated: false },
     { id: 1 as PlayerId, name: session.playerNames[1]!, edge: 'E', purchasePoints: 400, eliminated: false },
   ];
-  const state = createInitialState(players, session.combatMode, session.randomizedTurnOrder);
+  const state = createInitialState(
+    players,
+    session.combatMode,
+    session.randomizedTurnOrder,
+    session.clockLimitMs,
+    session.roundLimit,
+  );
 
   players.forEach((player) => {
     // The test-mode shortcuts skip the interactive placement UI entirely,
@@ -119,7 +125,13 @@ export function startCloseCombatTestGame(): void {
     { id: 0 as PlayerId, name: session.playerNames[0]!, edge: 'W', purchasePoints: 400, eliminated: false },
     { id: 1 as PlayerId, name: session.playerNames[1]!, edge: 'E', purchasePoints: 400, eliminated: false },
   ];
-  const state = createInitialState(players, session.combatMode, session.randomizedTurnOrder);
+  const state = createInitialState(
+    players,
+    session.combatMode,
+    session.randomizedTurnOrder,
+    session.clockLimitMs,
+    session.roundLimit,
+  );
 
   const landTypeIds = UNIT_TYPES.filter((t) => t.domain === 'land').map((t) => t.id);
   const baseQ = 10;

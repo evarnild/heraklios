@@ -799,7 +799,11 @@ export async function processDrifts(
 export interface HarnessStats {
   seed: number;
   gameOver: boolean;
-  winnerId: PlayerId | null;
+  /** Everyone tied at the highest surviving army value when the game ended —
+   * length 1 for an outright win, 2+ for a draw, 0 for "nobody left" (see
+   * `GameState.winnerIds`'s doc comment; this is that same field, copied out
+   * once the game is over). */
+  winnerIds: PlayerId[];
   /** True when the game reached `turnCap` and was ended by
    * `endGameByTimeLimit` (highest army value wins) rather than by mutual
    * elimination — see `playRandomGame`'s doc comment for why this is a
@@ -837,14 +841,18 @@ export interface HarnessStats {
    * `state.armyValue`) — the quantity `endGameByTimeLimit` actually decides a
    * timed game on.
    *
-   * Reported alongside `winnerId` rather than left to be inferred from it,
-   * because `winnerId` alone is a misleading measure of how well an agent
-   * played: `endGameByTimeLimit` awards a tie to whichever tied player comes
-   * first in `state.players`, so two agents that finish dead level are
-   * recorded as a clean win for the lower seat. That is not hypothetical —
-   * it is what a mirror match between two `HeuristicAgent`s mostly produces
-   * (they decline the same bad attacks), and reading only `winnerId` there
-   * would suggest a seat advantage that is really a tiebreak artefact.
+   * Reported alongside `winnerIds` rather than left to be inferred from it,
+   * because `winnerIds` alone is still a coarser measure of how well an agent
+   * played than the underlying army value: `winnerIds.length > 1` says two
+   * agents finished dead level, but not by how much either side dominated the
+   * other on the way there, which is what a strength comparison actually
+   * wants (see `heuristicSoak.test.ts`). Before plan.md §9.2's draw support,
+   * this field's own doc comment used to warn that `endGameByTimeLimit`
+   * awarded a tie to the lower seat and that reading `winnerId` alone would
+   * suggest a seat advantage that was really a tiebreak artefact — that
+   * artefact is gone now that a tie is `winnerIds.length > 1` rather than a
+   * single id, but the underlying "value, not just win/loss" reasoning for
+   * keeping this field still holds.
    */
   finalArmyValues: Partial<Record<PlayerId, number>>;
 }
@@ -1114,7 +1122,7 @@ export async function playRandomGame(seed: number, options: PlayRandomGameOption
   const stats: HarnessStats = {
     seed,
     gameOver: false,
-    winnerId: null,
+    winnerIds: [],
     endedByTimeLimit: false,
     turnsReached: state.turnNumber,
     totalActions: 0,
@@ -1163,7 +1171,7 @@ export async function playRandomGame(seed: number, options: PlayRandomGameOption
   }
 
   stats.gameOver = true;
-  stats.winnerId = state.winnerId;
+  stats.winnerIds = state.winnerIds;
   for (const player of state.players) stats.finalArmyValues[player.id] = armyValue(state, player.id);
   return stats;
 }

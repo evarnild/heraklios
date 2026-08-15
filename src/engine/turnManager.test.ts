@@ -1,5 +1,16 @@
 import { describe, it, expect, vi } from 'vitest';
-import { advancePhase, createInitialState, resetMovementForActivePlayer, shuffleSeatOrder } from './turnManager';
+import {
+  advanceGameClock,
+  advancePhase,
+  carryLiveGameClock,
+  createInitialState,
+  endGameByTimeLimit,
+  remainingClockMs,
+  requestGameEnd,
+  resetMovementForActivePlayer,
+  setClockPaused,
+  shuffleSeatOrder,
+} from './turnManager';
 import type { GameState, Player, PlayerId, Unit } from './state';
 
 /** Deterministic stand-in for `Math.random`: cycles through a fixed sequence
@@ -280,5 +291,349 @@ describe('advancePhase — randomized turn order reshuffle', () => {
 
     expect(state.turnNumber).toBe(2); // still wrapped
     expect(state.seatOrder).toEqual(before); // but order is untouched
+  });
+});
+
+// -----------------------------------------------------------------------
+// plan.md §9.2: the endgame triggers (clock, round limit, the "End game"
+// button) and the fairness rule that ties them together.
+// -----------------------------------------------------------------------
+
+function buildUnit(id: string, owner: PlayerId, typeId: string, q: number): Unit {
+  return {
+    id,
+    owner,
+    typeId,
+    position: { q, r: 0 },
+    movementLeft: 0,
+    facing: 0,
+    defendedThisPhase: false,
+    charged: false,
+    destroyed: false,
+  };
+}
+
+/** 3 players, each with one living `fantassins` (5 points), so nobody is
+ * eliminated and every seat has equal army value unless a test overrides it —
+ * exactly the shape needed to exercise the round-wrap fairness rule without
+ * the mutual-elimination path short-circuiting it. */
+function buildThreePlayerState(): GameState {
+  const players: Player[] = [0, 1, 2].map((id) => ({
+    id: id as PlayerId,
+    name: `P${id}`,
+    edge: (['W', 'E', 'N'] as const)[id]!,
+    purchasePoints: 400,
+    eliminated: false,
+  }));
+  const state = createInitialState(players, 'multi-defender');
+  for (const id of [0, 1, 2]) {
+    state.units.push(buildUnit(`u${id}`, id as PlayerId, 'fantassins', id));
+  }
+  state.phase = 'combat';
+  return state;
+}
+
+describe('createInitialState — clock/round limit parameters (plan.md §9.2.2 #4)', () => {
+  // The Menu's cycling buttons pass a chosen clockLimitMs/roundLimit through
+  // to createInitialState; nothing else in the engine sets these two fields
+  // on a fresh game. Without this test a transposed argument order, or the
+  // parameters being silently ignored, would ship with every other test in
+  // the suite still green — those all set clockLimitMs/roundLimit by
+  // mutating the state *after* creation, never through the constructor.
+  function twoPlayers(): Player[] {
+    return [0, 1].map((id) => ({
+      id: id as PlayerId,
+      name: `P${id}`,
+      edge: id === 0 ? 'W' : 'E',
+      purchasePoints: 400,
+      eliminated: false,
+    }));
+  }
+
+  it('threads a chosen clock limit and round limit into GameState', () => {
+    const state = createInitialState(twoPlayers(), 'multi-defender', false, 30 * 60_000, 8);
+    expect(state.clockLimitMs).toBe(30 * 60_000);
+    expect(state.roundLimit).toBe(8);
+  });
+
+  it('defaults both limits off, with a fresh, unpaused clock and no pending end', () => {
+    const state = createInitialState(twoPlayers());
+    expect(state.clockLimitMs).toBeNull();
+    expect(state.roundLimit).toBeNull();
+    expect(state.elapsedMs).toBe(0);
+    expect(state.paused).toBe(false);
+    expect(state.pendingGameEnd).toBe(false);
+  });
+});
+
+describe('advancePhase — round limit and pendingGameEnd (plan.md §9.2.2 #1)', () => {
+  it('does not end the game mid-round when the round limit is reached', () => {
+    const state = buildThreePlayerState();
+    state.roundLimit = 3;
+    state.turnNumber = 3;
+    state.activePlayerIndex = 0; // seat 0 finishing combat — not the last seat this round
+
+    advancePhase(state);
+
+    expect(state.pendingGameEnd).toBe(true); // trigger fired...
+    expect(state.gameOver).toBe(false); // ...but the round isn't over yet
+    expect(state.activePlayerIndex).toBe(1); // seat 1 still gets its turn
+  });
+
+  it('ends the game at the wrap once every seat has played the round the limit was reached in', () => {
+    const state = buildThreePlayerState();
+    state.roundLimit = 3;
+    state.turnNumber = 3;
+    state.activePlayerIndex = 0;
+
+    advancePhase(state); // seat 0 -> seat 1 (movement); pendingGameEnd set
+    advancePhase(state); // seat 1 movement -> combat
+    advancePhase(state); // seat 1 -> seat 2 (movement)
+    advancePhase(state); // seat 2 movement -> combat
+    advancePhase(state); // seat 2's combat ends the round -> wrap -> game ends
+
+    expect(state.gameOver).toBe(true);
+    expect(state.winnerIds).toEqual([0, 1, 2]); // every seat holds equal army value
+    // turnNumber must NOT have advanced past the round that was actually
+    // finished — every seat played round 3, and only round 3.
+    expect(state.turnNumber).toBe(3);
+  });
+
+  it('is unaffected by round limits that have not been reached yet', () => {
+    const state = buildThreePlayerState();
+    state.roundLimit = 8;
+    state.turnNumber = 3;
+    state.activePlayerIndex = 2; // last seat — finishing combat wraps
+
+    advancePhase(state);
+
+    expect(state.pendingGameEnd).toBe(false);
+    expect(state.gameOver).toBe(false);
+    expect(state.turnNumber).toBe(4);
+  });
+
+  it('leaves round-limit games alone when roundLimit is off (null)', () => {
+    const state = buildThreePlayerState();
+    state.roundLimit = null;
+    state.turnNumber = 500;
+    state.activePlayerIndex = 2;
+
+    advancePhase(state);
+
+    expect(state.pendingGameEnd).toBe(false);
+    expect(state.gameOver).toBe(false);
+  });
+});
+
+describe('requestGameEnd (Mode C: the Board\'s "End game" button)', () => {
+  it('sets pendingGameEnd without ending the game on the spot', () => {
+    const state = buildThreePlayerState();
+    requestGameEnd(state);
+    expect(state.pendingGameEnd).toBe(true);
+    expect(state.gameOver).toBe(false);
+  });
+
+  it('every remaining seat still finishes the round it was pressed in, exactly like the round limit', () => {
+    const state = buildThreePlayerState();
+    state.activePlayerIndex = 0;
+    requestGameEnd(state); // pressed mid-round, during seat 0's combat phase
+
+    advancePhase(state); // seat 0 -> seat 1 movement
+    expect(state.gameOver).toBe(false);
+    advancePhase(state); // seat 1 movement -> combat
+    advancePhase(state); // seat 1 -> seat 2 movement
+    expect(state.gameOver).toBe(false);
+    advancePhase(state); // seat 2 movement -> combat
+    advancePhase(state); // seat 2's combat ends the round -> game ends
+
+    expect(state.gameOver).toBe(true);
+  });
+
+  it('is a no-op once the game is already over', () => {
+    const state = buildThreePlayerState();
+    state.gameOver = true;
+    state.winnerIds = [1];
+    requestGameEnd(state);
+    expect(state.pendingGameEnd).toBe(false);
+    expect(state.winnerIds).toEqual([1]);
+  });
+});
+
+describe('advanceGameClock and remainingClockMs (Mode A: the clock)', () => {
+  it('accumulates elapsed time rather than tracking a start timestamp', () => {
+    const state = buildThreePlayerState();
+    state.clockLimitMs = 10_000;
+    advanceGameClock(state, 3_000);
+    advanceGameClock(state, 4_000);
+    expect(state.elapsedMs).toBe(7_000);
+    expect(state.pendingGameEnd).toBe(false);
+  });
+
+  it('sets pendingGameEnd once elapsed time reaches the limit', () => {
+    const state = buildThreePlayerState();
+    state.clockLimitMs = 10_000;
+    advanceGameClock(state, 10_000);
+    expect(state.pendingGameEnd).toBe(true);
+  });
+
+  it('is a no-op once the game is over, so a resumed-but-finished game cannot re-trigger anything', () => {
+    const state = buildThreePlayerState();
+    state.gameOver = true;
+    state.clockLimitMs = 1;
+    advanceGameClock(state, 1_000);
+    expect(state.elapsedMs).toBe(0);
+    expect(state.pendingGameEnd).toBe(false);
+  });
+
+  it('remainingClockMs is null when the clock is off', () => {
+    const state = buildThreePlayerState();
+    state.clockLimitMs = null;
+    expect(remainingClockMs(state)).toBeNull();
+  });
+
+  it('remainingClockMs counts down and never goes negative', () => {
+    const state = buildThreePlayerState();
+    state.clockLimitMs = 10_000;
+    state.elapsedMs = 4_000;
+    expect(remainingClockMs(state)).toBe(6_000);
+    state.elapsedMs = 15_000;
+    expect(remainingClockMs(state)).toBe(0);
+  });
+});
+
+describe('carryLiveGameClock (undo must not rewind the wall clock)', () => {
+  it('overwrites the restored elapsedMs with the live value', () => {
+    const restored = buildThreePlayerState();
+    restored.elapsedMs = 3_000; // the snapshot's older, smaller elapsed time
+    carryLiveGameClock(restored, { elapsedMs: 9_000, pendingGameEnd: false, paused: false });
+    expect(restored.elapsedMs).toBe(9_000);
+  });
+
+  it('keeps pendingGameEnd true if the restored snapshot already had it set', () => {
+    const restored = buildThreePlayerState();
+    restored.pendingGameEnd = true;
+    carryLiveGameClock(restored, { elapsedMs: 0, pendingGameEnd: false, paused: false });
+    expect(restored.pendingGameEnd).toBe(true);
+  });
+
+  it('sets pendingGameEnd true if the live game had it set even though the older snapshot did not', () => {
+    const restored = buildThreePlayerState();
+    restored.pendingGameEnd = false;
+    carryLiveGameClock(restored, { elapsedMs: 0, pendingGameEnd: true, paused: false });
+    expect(restored.pendingGameEnd).toBe(true);
+  });
+
+  it('leaves pendingGameEnd false when neither side had it set', () => {
+    const restored = buildThreePlayerState();
+    restored.pendingGameEnd = false;
+    carryLiveGameClock(restored, { elapsedMs: 0, pendingGameEnd: false, paused: false });
+    expect(restored.pendingGameEnd).toBe(false);
+  });
+
+  it('overwrites the restored paused flag with the live value in both directions', () => {
+    const pausedInSnapshot = buildThreePlayerState();
+    pausedInSnapshot.paused = true;
+    carryLiveGameClock(pausedInSnapshot, { elapsedMs: 0, pendingGameEnd: false, paused: false });
+    expect(pausedInSnapshot.paused).toBe(false); // live game had resumed since the snapshot
+
+    const runningInSnapshot = buildThreePlayerState();
+    runningInSnapshot.paused = false;
+    carryLiveGameClock(runningInSnapshot, { elapsedMs: 0, pendingGameEnd: false, paused: true });
+    expect(runningInSnapshot.paused).toBe(true); // live game had paused since the snapshot
+  });
+});
+
+describe('setClockPaused', () => {
+  it('sets and clears paused', () => {
+    const state = buildThreePlayerState();
+    setClockPaused(state, true);
+    expect(state.paused).toBe(true);
+    setClockPaused(state, false);
+    expect(state.paused).toBe(false);
+  });
+
+  it('is a no-op once the game is already over', () => {
+    const state = buildThreePlayerState();
+    state.gameOver = true;
+    setClockPaused(state, true);
+    expect(state.paused).toBe(false);
+  });
+});
+
+describe('advanceGameClock respects paused', () => {
+  it('does not accumulate elapsed time while paused', () => {
+    const state = buildThreePlayerState();
+    state.clockLimitMs = 10_000;
+    state.paused = true;
+    advanceGameClock(state, 5_000);
+    expect(state.elapsedMs).toBe(0);
+  });
+
+  it('resumes accumulating once unpaused', () => {
+    const state = buildThreePlayerState();
+    state.clockLimitMs = 10_000;
+    state.paused = true;
+    advanceGameClock(state, 5_000);
+    state.paused = false;
+    advanceGameClock(state, 3_000);
+    expect(state.elapsedMs).toBe(3_000);
+  });
+});
+
+describe('endGameByTimeLimit — draws (plan.md §9.2.2 #2)', () => {
+  it('declares a single winner when one player strictly leads on army value', () => {
+    const state = buildThreePlayerState();
+    // Give seat 1 a second unit so it strictly leads.
+    state.units.push(buildUnit('u1b', 1 as PlayerId, 'fantassins', 10));
+
+    endGameByTimeLimit(state);
+
+    expect(state.gameOver).toBe(true);
+    expect(state.winnerIds).toEqual([1]);
+  });
+
+  it('declares a draw between every player tied at the highest value — no lower-seat tiebreak', () => {
+    const state = buildThreePlayerState(); // all three seats hold equal army value
+
+    endGameByTimeLimit(state);
+
+    expect(state.winnerIds).toEqual([0, 1, 2]);
+  });
+
+  it('declares a two-way draw, excluding a strictly lower third player', () => {
+    const state = buildThreePlayerState();
+    state.units.push(buildUnit('u1b', 1 as PlayerId, 'fantassins', 10)); // seat 1 now leads...
+    state.units.push(buildUnit('u2b', 2 as PlayerId, 'fantassins', 11)); // ...tied with seat 2
+
+    endGameByTimeLimit(state);
+
+    expect(state.winnerIds).toEqual([1, 2]);
+  });
+
+  it('excludes eliminated players from winning or drawing', () => {
+    const state = buildThreePlayerState();
+    state.players[0]!.eliminated = true;
+
+    endGameByTimeLimit(state);
+
+    expect(state.winnerIds).toEqual([1, 2]);
+  });
+
+  it('produces no winner when every player is eliminated', () => {
+    const state = buildThreePlayerState();
+    for (const p of state.players) p.eliminated = true;
+
+    endGameByTimeLimit(state);
+
+    expect(state.winnerIds).toEqual([]);
+  });
+
+  it('clears pendingGameEnd as part of actually ending the game', () => {
+    const state = buildThreePlayerState();
+    state.pendingGameEnd = true;
+
+    endGameByTimeLimit(state);
+
+    expect(state.pendingGameEnd).toBe(false);
   });
 });

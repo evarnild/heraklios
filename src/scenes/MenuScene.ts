@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { session, resetSession, seatControlFor, MAX_PLAYERS } from '../ui/session';
 import { nextSeatControl, seatControlLabel } from '../engine/seatControl';
+import { clockLimitLabel, nextClockLimitMs, nextRoundLimit, roundLimitLabel } from '../engine/gameEndSettings';
 import { startTestGame, startCloseCombatTestGame } from '../ui/testMode';
 import { SaveLoadPanel } from '../ui/saveLoadPanel';
 import { stagePendingLoad } from '../ui/saveStorage';
@@ -98,15 +99,59 @@ export class MenuScene extends Phaser.Scene {
     turnOrderBtn.on('pointerover', () => turnOrderBtn.setStyle({ backgroundColor: '#6a5a3a' }));
     turnOrderBtn.on('pointerout', () => turnOrderBtn.setStyle({ backgroundColor: '#4a3f2a' }));
 
+    // Endgame (plan.md §9.2.1): two independent, optional triggers, each its
+    // own cycling button (no free text — see `gameEndSettings.ts`'s doc
+    // comment) — a player can set one, the other, both, or neither. A
+    // dedicated in-game "End game" button (Mode C) is always available on the
+    // Board regardless of what's set here.
+    this.add.text(width / 2, 402, 'Game length limit (optional)', { fontSize: '16px', color: '#a89878' }).setOrigin(0.5);
+    const clockLabel = () => `Clock: ${clockLimitLabel(session.clockLimitMs)}`;
+    const clockBtn = this.add
+      .text(width / 2 - 100, 429, clockLabel(), {
+        fontSize: '13px',
+        color: '#ffffff',
+        backgroundColor: '#4a3f2a',
+        padding: { x: 12, y: 6 },
+        fixedWidth: 160,
+        align: 'center',
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+    clockBtn.on('pointerdown', () => {
+      session.clockLimitMs = nextClockLimitMs(session.clockLimitMs);
+      clockBtn.setText(clockLabel());
+    });
+    clockBtn.on('pointerover', () => clockBtn.setStyle({ backgroundColor: '#6a5a3a' }));
+    clockBtn.on('pointerout', () => clockBtn.setStyle({ backgroundColor: '#4a3f2a' }));
+
+    const roundLabel = () => `Rounds: ${roundLimitLabel(session.roundLimit)}`;
+    const roundBtn = this.add
+      .text(width / 2 + 100, 429, roundLabel(), {
+        fontSize: '13px',
+        color: '#ffffff',
+        backgroundColor: '#4a3f2a',
+        padding: { x: 12, y: 6 },
+        fixedWidth: 160,
+        align: 'center',
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+    roundBtn.on('pointerdown', () => {
+      session.roundLimit = nextRoundLimit(session.roundLimit);
+      roundBtn.setText(roundLabel());
+    });
+    roundBtn.on('pointerover', () => roundBtn.setStyle({ backgroundColor: '#6a5a3a' }));
+    roundBtn.on('pointerout', () => roundBtn.setStyle({ backgroundColor: '#4a3f2a' }));
+
     // Per-seat Human/AI (plan.md §6.4's Stage 4). All four seats are offered
     // even though only the first `playerCount` of them will exist: the count
     // isn't chosen until the button above is clicked, which also STARTS the
     // game, so there is no later moment to configure this in. Seats past the
     // chosen count are simply ignored (see `seatControlFor`'s callers), and
     // the hint below says so rather than leaving it to be discovered.
-    this.add.text(width / 2, 411, 'Who plays each seat', { fontSize: '16px', color: '#a89878' }).setOrigin(0.5);
+    this.add.text(width / 2, 471, 'Who plays each seat', { fontSize: '16px', color: '#a89878' }).setOrigin(0.5);
     this.add
-      .text(width / 2, 431, 'Seats beyond the player count you pick are ignored.', {
+      .text(width / 2, 491, 'Seats beyond the player count you pick are ignored.', {
         fontSize: '11px',
         color: '#7a6c52',
       })
@@ -116,7 +161,7 @@ export class MenuScene extends Phaser.Scene {
     for (let i = 0; i < MAX_PLAYERS; i++) {
       const seatLabel = () => `${session.playerNames[i]}: ${seatControlLabel(seatControlFor(i))}`;
       const btn = this.add
-        .text(width / 2 - 240 + i * 160, 458, seatLabel(), {
+        .text(width / 2 - 240 + i * 160, 518, seatLabel(), {
           fontSize: '12px',
           color: '#ffffff',
           backgroundColor: seatButtonColor(i),
@@ -136,7 +181,7 @@ export class MenuScene extends Phaser.Scene {
     }
 
     const testBtn = this.add
-      .text(width / 2, 510, 'Mode test (2 joueurs, armées prêtes)', {
+      .text(width / 2, 570, 'Mode test (2 joueurs, armées prêtes)', {
         fontSize: '16px',
         color: '#cfcfcf',
         backgroundColor: '#333',
@@ -153,7 +198,7 @@ export class MenuScene extends Phaser.Scene {
     testBtn.on('pointerout', () => testBtn.setStyle({ backgroundColor: '#333' }));
 
     const combatTestBtn = this.add
-      .text(width / 2, 552, 'Mode test combat (unités face à face, 2 cases)', {
+      .text(width / 2, 612, 'Mode test combat (unités face à face, 2 cases)', {
         fontSize: '16px',
         color: '#cfcfcf',
         backgroundColor: '#333',
@@ -172,7 +217,7 @@ export class MenuScene extends Phaser.Scene {
     // Always offered, even with every slot empty, since the panel can also
     // import a save from a .json file.
     const loadBtn = this.add
-      .text(width / 2, 610, 'Charger une partie', {
+      .text(width / 2, 670, 'Charger une partie', {
         fontSize: '18px',
         color: '#ffffff',
         backgroundColor: '#3a3a55',

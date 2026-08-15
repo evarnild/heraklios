@@ -10,10 +10,19 @@ export class GameOverScene extends Phaser.Scene {
   create(): void {
     const { width, height } = this.scale;
     const state = session.gameState!;
-    const winner = state.players.find((p) => p.id === state.winnerId);
+    // `winnerIds` is 0 (nobody left — full mutual elimination), 1 (an
+    // outright win) or 2+ (a draw between that many tied players) — see its
+    // doc comment on `GameState`. Only the middle case names a single winner.
+    const winners = state.players.filter((p) => state.winnerIds.includes(p.id));
+    const headline =
+      winners.length === 1
+        ? `${winners[0]!.name} wins!`
+        : winners.length > 1
+          ? `Draw between ${joinNames(winners.map((p) => p.name))}!`
+          : 'Game over';
 
     this.add
-      .text(width / 2, height / 2 - 60, winner ? `${winner.name} wins!` : 'Game over', {
+      .text(width / 2, height / 2 - 60, headline, {
         fontSize: '36px',
         color: '#e8d9b0',
       })
@@ -48,4 +57,12 @@ export class GameOverScene extends Phaser.Scene {
       this.scene.start('Menu');
     });
   }
+}
+
+/** "A and B" for two names, "A, B and C" for three or more — purely a
+ * display nicety for the draw headline above, so it isn't pure/tested
+ * elsewhere the way engine formatting helpers are. */
+function joinNames(names: string[]): string {
+  if (names.length <= 1) return names.join('');
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 }
