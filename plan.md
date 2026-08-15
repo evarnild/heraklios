@@ -1269,6 +1269,73 @@ further. The scene wiring has been read line by line but not *run*. A
 manual pass — 2 players, seat 2 set to AI hard — is the outstanding check
 before this should be considered done.
 
+#### Review pass (2026-08-15)
+
+Adversarial review of the branch, checks re-run independently. **Three real
+defects, all fixed on the branch; no rule-fidelity defects.** The two probes
+that could have blocked the feature both came back clean and are worth
+recording so nobody re-derives them:
+
+- **Four AI armies deploy fine.** 25 randomized four-seat runs, 180 units,
+  no exhaustion. The `excludeTooClose` fallback (`clear.length > 0 ? clear :
+  band`) plus the terrain filter leave enough room on every edge.
+- **AI decision latency is ~47ms per action** on two full 45-unit armies
+  (`legalActions` 52ms cold / ~33ms warm, `chooseNextAction` 14ms, 1020 legal
+  actions). That is a main-thread hitch per action, not a freeze; a full AI
+  turn lands around 10-15 seconds at the shipped pacing. Acceptable, but it
+  is the number to check first if Stage 3b's lookahead ever lands.
+
+**D1 — MEDIUM, and the one worth remembering: the terrain test was
+vacuous.** `aiSetup.test.ts`'s "never deploys a unit onto terrain it may not
+enter" **passed with the terrain filter deleted**. It probed the WESTERN
+band, where only 4 of 90 hexes (4.4%) are barred to a chariot, with eight
+draws — so it missed every barred hex by luck. Its "control" assertion
+(barred hexes exist in the band) proved the hexes were there, not that the
+draw could ever land on one, which is a control that looks like the real
+thing and isn't. Now: southern band (39 of 126, 31%), 20 chariots, 20 seeds,
+400 draws, and re-verified by mutation. **This is the third time on this
+project a guard test has failed its own mutation** (§6.6's charge test,
+§6.9's `attackerCanJoin` gate) — the pattern each time is a probe aimed at
+the easy case.
+
+**D2 — MEDIUM: the pacing paused before the action, not after.** The whole
+point of `AI_COMBAT_DELAY_MS` is that a combat report is worth reading, but
+`log` REPLACES the panel, so dwelling *before* an attack showed the previous
+action's text for 700ms and the combat's own for however long until the next
+action overwrote it — 160ms, or immediately for the last attack of a phase,
+since `commitEndPhase` ends with `log('')`. The feature would have shipped
+with the combat log effectively invisible. Fixed by pausing after applying,
+sized by the action just applied.
+
+**D3 — LOW, but the failure mode is bad: silent returns could livelock the
+driver.** `applyAiAction`'s `'ram'`/`'board'` cases returned quietly if a
+named unit or contact couldn't be found. Unreachable (the look-ups re-derive
+exactly what `legalActions` used), but had it ever happened the board would
+be unchanged, the same action would be re-chosen, and the AI would spin
+forever looking like a hung turn with nothing in the console. Now throws,
+which the driver's rejection handler already reports. This is the only
+livelock the scene loop had that the fuzz harness's `actionCap` doesn't
+already cover.
+
+Also tightened: "End phase" now says why it's refused during an AI turn
+instead of ignoring the press (board clicks stay silent on purpose — logging
+there would wipe the combat report the player is reading).
+
+**Checked and found sound:** the consequence-chain terminals (every path out
+of `executeLandAttack` reaches `settleResolution` exactly once, enumerated
+branch by branch); `aiRunToken` covers all three ways the board can be
+replaced under a running turn; the occupancy check in `autoPlaceSeat`
+(3 tests killed by mutation); the seat-agent map's live-read contract; the
+save migration (killed by mutation); and hotseat equivalence — the only
+changes on the human path are a `void`-ed promise, a status-line label that
+only appears for AI seats, and guards on a flag that is always false without
+an AI seat.
+
+**Still outstanding: the manual browser pass.** Unchanged by this review —
+it could not be run, and no amount of reading substitutes for it. D2 in
+particular is exactly the class of defect only a human watching the screen
+would have caught, which is the argument for doing it before merge.
+
 ---
 
 ## 7. Start a new game at any time

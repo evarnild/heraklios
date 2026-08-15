@@ -2250,7 +2250,15 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   }
 
   private endPhase(): void {
-    if (this.aiRunning) return;
+    if (this.aiRunning) {
+      // Says so, rather than ignoring the press: this is a deliberate click
+      // on a visible button, and silence reads as a broken control. (Ordinary
+      // BOARD clicks stay silent by contrast — see `onHexClick` — because
+      // `log` replaces the panel, and wiping the computer's combat report
+      // every time the player taps the map would be worse than no feedback.)
+      this.log("Wait for the computer's turn to finish before ending the phase.");
+      return;
+    }
     if (this.retreatChoice || this.driftState || this.decisionPending) {
       this.log('Resolve the pending retreat/drift before ending the phase.');
       return;
@@ -2365,13 +2373,21 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         rammedThisTurn: this.rammedThisTurn,
       });
       const action = agent.chooseNextAction(state, legal);
-      await this.pause(this.delayFor(action));
-      if (token !== this.aiRunToken) return;
       await this.applyAiAction(action);
+      if (token !== this.aiRunToken) return;
+      // AFTER the action, not before. The pause exists so the player can read
+      // what just happened, and `log` REPLACES the panel rather than
+      // appending — pausing beforehand would leave a combat's whole report
+      // (forces, ratio, die, result) on screen only until the next action
+      // overwrote it, which for the last attack of a phase is the 160ms until
+      // `commitEndPhase`'s `log('')` wipes it. Dwelling on the action just
+      // applied is the only ordering that shows a combat for as long as it
+      // claims to.
+      await this.pause(this.delayFor(action));
     }
   }
 
-  /** How long to dwell on `action` before committing it — see
+  /** How long to dwell on `action` AFTER committing it — see
    * `AI_MOVE_DELAY_MS`/`AI_COMBAT_DELAY_MS`. */
   private delayFor(action: Action): number {
     switch (action.kind) {
@@ -2427,20 +2443,29 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       }
 
       case 'ram': {
-        const ship = findUnit(action.unitId);
         // `legalActions` only offers a ram when a zero-cost contact exists,
         // and `applyAction` re-derives the same one; this look-up is purely
-        // to name the target in the log.
-        const contact = ship ? findRammingContacts(state, ship).find((c) => c.cost === 0) : undefined;
-        if (!ship || !contact) return;
+        // to name the target in the log, so it cannot legitimately fail.
+        //
+        // It THROWS rather than returning quietly if it does, because a
+        // silent return here is the one way this loop can livelock: the board
+        // would be unchanged, `legalActions` would offer the same action
+        // again, and the AI would sit picking it forever, several hundred
+        // milliseconds at a time, looking like a hung turn with no error
+        // anywhere. A throw stops the run and says so (see
+        // `maybeStartAiTurn`'s rejection handler).
+        const ship = requireAiActionUnit(findUnit(action.unitId), action, action.unitId);
+        const contact = findRammingContacts(state, ship).find((c) => c.cost === 0);
+        if (!contact) {
+          throw new Error(`applyAiAction: 'ram' chosen for "${ship.id}" but it has no immediate contact`);
+        }
         this.commitRam(ship, contact.target);
         return;
       }
 
       case 'board': {
-        const attacker = findUnit(action.attackerId);
-        const defender = findUnit(action.defenderId);
-        if (!attacker || !defender) return;
+        const attacker = requireAiActionUnit(findUnit(action.attackerId), action, action.attackerId);
+        const defender = requireAiActionUnit(findUnit(action.defenderId), action, action.defenderId);
         this.commitBoarding(attacker, defender);
         return;
       }
@@ -2450,6 +2475,15 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         return;
     }
   }
+}
+
+/** Asserts that a unit an AI's chosen `Action` names actually exists — see
+ * the `'ram'` case's comment for why this must throw rather than skip. */
+function requireAiActionUnit(unit: Unit | undefined, action: Action, id: string): Unit {
+  if (!unit) {
+    throw new Error(`applyAiAction: '${action.kind}' names unit "${id}", which isn't on the board`);
+  }
+  return unit;
 }
 
 function parseKey(key: string): HexCoord {

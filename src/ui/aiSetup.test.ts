@@ -5,6 +5,7 @@ import { session } from './session';
 import { defaultArmySelection, emptySelection } from '../engine/army';
 import { unitCategory } from '../engine/movement';
 import { createInitialState } from '../engine/turnManager';
+import { createSeededRng } from '../engine/rng';
 import type { GameState, Player, PlayerId } from '../engine/state';
 import type { SeatControl } from '../engine/seatControl';
 import { canEnterTerrain, isSeaLike } from '../data/terrain';
@@ -25,6 +26,13 @@ function twoPlayerState(): GameState {
     { id: 0 as PlayerId, name: 'Athènes', edge: 'W', purchasePoints: 400, eliminated: false },
     { id: 1 as PlayerId, name: 'Perse', edge: 'E', purchasePoints: 400, eliminated: false },
   ];
+  return createInitialState(players, 'multi-defender');
+}
+
+/** One seat on a chosen edge — lets a test aim at the band whose terrain
+ * makes the sharpest probe, rather than always at the western one. */
+function singleSeatState(edge: 'N' | 'S' | 'E' | 'W'): GameState {
+  const players: Player[] = [{ id: 0 as PlayerId, name: 'Athènes', edge, purchasePoints: 400, eliminated: false }];
   return createInitialState(players, 'multi-defender');
 }
 
@@ -95,24 +103,41 @@ describe('autoPlaceSeat', () => {
   it('never deploys a unit onto terrain it may not enter', () => {
     // Chariots are barred from BOTH flanc-abrupt and marais, so an army of
     // nothing but chariots is the sharpest probe of the terrain filter.
-    const state = twoPlayerState();
-    session.armySelections[0] = { ...emptySelection(), 'chars-lourds': 8 };
-    autoPlaceSeat(state, 0, cyclingRng([0.05, 0.95, 0.45, 0.6, 0.22, 0.77]));
+    //
+    // The SOUTHERN band, 20 chariots, 20 seeds — not one small placement on
+    // the western band, which is what the first version of this test did and
+    // which **survived deleting the filter it was named for**. Only 4 of the
+    // W band's 90 hexes are barred to a chariot (4.4%), so eight draws
+    // missed all of them and the test passed either way. The S band is 39 of
+    // 126 (31%), and 400 draws across it make a missing filter a certainty,
+    // not a coin flip. Re-verified by mutation: deleting the filter fails
+    // this test on the first seed.
+    const barredShare = (edge: 'N' | 'S' | 'E' | 'W') => {
+      const band = legalDeploymentHexes(edge, []);
+      const barred = band.filter((h) => {
+        const terrain = MAP_TERRAIN.get(hexKey(h.q, h.r));
+        return terrain !== undefined && !canEnterTerrain(terrain, unitCategory('chars-lourds'));
+      });
+      return barred.length / band.length;
+    };
+    // Control: this probe is only meaningful while the chosen band really
+    // does contain a lot of hexes a chariot may not stand on.
+    expect(barredShare('S')).toBeGreaterThan(0.2);
 
-    for (const unit of state.units) {
-      const terrain = MAP_TERRAIN.get(hexKey(unit.position.q, unit.position.r))!;
-      expect(canEnterTerrain(terrain, unitCategory(unit.typeId))).toBe(true);
+    for (let seed = 1; seed <= 20; seed++) {
+      const state = singleSeatState('S');
+      session.armySelections[0] = { ...emptySelection(), 'chars-lourds': 20 };
+      autoPlaceSeat(state, 0, createSeededRng(seed));
+
+      expect(state.units).toHaveLength(20);
+      for (const unit of state.units) {
+        const terrain = MAP_TERRAIN.get(hexKey(unit.position.q, unit.position.r))!;
+        expect(
+          canEnterTerrain(terrain, unitCategory(unit.typeId)),
+          `seed ${seed}: ${unit.typeId} on ${terrain} at (${unit.position.q}, ${unit.position.r})`,
+        ).toBe(true);
+      }
     }
-
-    // Control: the unfiltered band really does contain hexes this unit can't
-    // stand on, so the assertion above could actually have failed. Without
-    // this, deleting the filter in `autoPlaceSeat` might leave the test green.
-    const band = legalDeploymentHexes('W', []);
-    const barred = band.filter((h) => {
-      const terrain = MAP_TERRAIN.get(hexKey(h.q, h.r));
-      return terrain !== undefined && !canEnterTerrain(terrain, unitCategory('chars-lourds'));
-    });
-    expect(barred.length).toBeGreaterThan(0);
   });
 
   it('deploys land units in the seat\'s own band and ships in its sea zone', () => {
