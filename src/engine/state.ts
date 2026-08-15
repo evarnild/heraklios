@@ -172,7 +172,57 @@ export interface GameState {
    */
   randomizedTurnOrder: boolean;
   gameOver: boolean;
-  winnerId: PlayerId | null;
+  /**
+   * Everyone still standing when the game ended, at the highest surviving
+   * army value (`armyValue`) — length 1 for an outright win, 2+ for a draw
+   * between that many tied players, and 0 only for "nobody left" (every
+   * player eliminated, or the game hasn't ended yet). Replaced the earlier
+   * `winnerId: PlayerId | null`, which could not distinguish a genuine draw
+   * from "no winner": `null` meant both "nobody left" AND, via
+   * `endGameByTimeLimit`'s old tiebreak, silently picked the lower-seat
+   * player out of an actual tie (plan.md §9.2.2) — that tiebreak is gone now
+   * that a tie has its own representation. See `engine/saveGame.ts`'s
+   * `SAVE_VERSION` 2 -> 3 note for the save-format side of this change.
+   */
+  winnerIds: PlayerId[];
+  /**
+   * Mode A of plan.md §9.2.1's three endgame triggers: the whole game's
+   * wall-clock budget in milliseconds, chosen before the game starts (the
+   * Menu's cycling button), or `null` for "no clock limit." Compared against
+   * `elapsedMs` by `engine/turnManager.ts`'s `advanceGameClock`.
+   */
+  clockLimitMs: number | null;
+  /**
+   * Milliseconds of real time the game has been played for, accumulated by
+   * `advanceGameClock` (driven by `BoardScene`'s per-frame `update`) rather
+   * than derived from a start timestamp — so a game saved Monday and resumed
+   * Friday resumes with exactly the clock it had, not one that reads as
+   * instantly expired. Deliberately keeps advancing through AI turns and any
+   * open retreat/drift/advance/exchange prompt: this is a limit on the whole
+   * game's length, not a per-decision chess clock (the rulebook's separate
+   * 3-minute per-turn limit, same sentence, is out of scope — see plan.md
+   * §9.2.2 point 3), so there is no paused/running flag to keep correct
+   * across every scene transition.
+   */
+  elapsedMs: number;
+  /**
+   * Mode B: the number of full rounds (`turnNumber`) after which the game
+   * ends, chosen before the game starts, or `null` for "no round limit."
+   */
+  roundLimit: number | null;
+  /**
+   * True once ANY of the three endgame triggers (clock, round limit, or the
+   * Board's "End game" button — Modes A/B/C) has fired, but the game has not
+   * actually ended yet. Sharing one flag for all three triggers is what makes
+   * plan.md §9.2.2 point 1's fairness rule ("every player finishes their
+   * current round") a single piece of bookkeeping instead of three: whichever
+   * trigger sets this, `advancePhase` only consults it at the round boundary
+   * it already detects (`wrapped`), so every seat still gets its turn in the
+   * round that was in progress when the trigger fired, and `endGameByTimeLimit`
+   * runs exactly once, right there, to actually end the game and settle
+   * `winnerIds`.
+   */
+  pendingGameEnd: boolean;
 }
 
 export function livingUnits(state: GameState, owner?: PlayerId): Unit[] {

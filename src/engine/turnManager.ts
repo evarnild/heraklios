@@ -5,6 +5,10 @@ export function createInitialState(
   players: Player[],
   combatMode: CombatMode = 'multi-defender',
   randomizedTurnOrder = false,
+  /** Mode A (plan.md §9.2.1): `null` (the default) means no clock limit. */
+  clockLimitMs: number | null = null,
+  /** Mode B: `null` (the default) means no round limit. */
+  roundLimit: number | null = null,
 ): GameState {
   return {
     players,
@@ -16,7 +20,11 @@ export function createInitialState(
     combatMode,
     randomizedTurnOrder,
     gameOver: false,
-    winnerId: null,
+    winnerIds: [],
+    clockLimitMs,
+    elapsedMs: 0,
+    roundLimit,
+    pendingGameEnd: false,
   };
 }
 
@@ -60,8 +68,19 @@ export function advancePhase(state: GameState): void {
   }
   if (remainingPlayers.length <= 1) {
     state.gameOver = true;
-    state.winnerId = remainingPlayers[0]?.id ?? null;
+    state.winnerIds = remainingPlayers.length === 1 ? [remainingPlayers[0]!.id] : [];
     return;
+  }
+
+  // Mode B (round limit): once the round currently in progress has reached
+  // the configured cap, mark the pending flag rather than ending here — the
+  // wrap check below is where every trigger actually ends the game, so this
+  // round still finishes for every seat exactly like the clock and the
+  // button do (see `GameState.pendingGameEnd`'s doc comment). Idempotent:
+  // this re-fires every combat phase for the rest of the round, which is
+  // harmless since it only ever sets the flag, never clears it early.
+  if (state.roundLimit !== null && state.turnNumber >= state.roundLimit) {
+    state.pendingGameEnd = true;
   }
 
   // Advance to the next living player's movement phase.
@@ -72,6 +91,15 @@ export function advancePhase(state: GameState): void {
     if (candidate && !candidate.eliminated) break;
   }
   const wrapped = nextIndex <= state.activePlayerIndex;
+
+  // Every player has now acted this round (that's what `wrapped` means), so
+  // this is the one fair moment for ANY of the three triggers (clock, round
+  // limit, or the button) to actually end the game — see
+  // `GameState.pendingGameEnd`'s doc comment.
+  if (wrapped && state.pendingGameEnd) {
+    endGameByTimeLimit(state);
+    return;
+  }
 
   if (wrapped) {
     state.turnNumber += 1;
@@ -128,17 +156,62 @@ export function resetMovementForActivePlayer(state: GameState): void {
   }
 }
 
+/**
+ * Ends the game by whichever of the three triggers set `pendingGameEnd`
+ * (`advancePhase` calls this itself at the next round wrap — see its doc
+ * comment) or, in the fuzz harness, by a bare turn cap reached between
+ * rounds. Winner: highest surviving army value in purchase points among
+ * players not already eliminated; two or more tied at that value are a draw
+ * (`winnerIds` holds all of them — see its doc comment on `GameState` for why
+ * this replaced a silent lower-seat tiebreak).
+ */
 export function endGameByTimeLimit(state: GameState): void {
   state.gameOver = true;
-  let best: PlayerId | null = null;
+  state.pendingGameEnd = false;
   let bestValue = -1;
   for (const p of state.players) {
     if (p.eliminated) continue;
     const value = armyValue(state, p.id);
-    if (value > bestValue) {
-      bestValue = value;
-      best = p.id;
-    }
+    if (value > bestValue) bestValue = value;
   }
-  state.winnerId = best;
+  state.winnerIds =
+    bestValue < 0
+      ? []
+      : state.players.filter((p) => !p.eliminated && armyValue(state, p.id) === bestValue).map((p) => p.id);
+}
+
+/**
+ * Mode C: the Board's "End game" button. Sets the same pending flag the
+ * clock and the round limit use, so the button doesn't end the game on the
+ * spot either — every player still finishes their current round (see
+ * `GameState.pendingGameEnd`'s doc comment). A no-op once the game is
+ * already over.
+ */
+export function requestGameEnd(state: GameState): void {
+  if (state.gameOver) return;
+  state.pendingGameEnd = true;
+}
+
+/**
+ * Mode A: advances the whole-game elapsed-time counter by `deltaMs` and, once
+ * it reaches `clockLimitMs`, sets `pendingGameEnd` — see that field's doc
+ * comment on `GameState`, and `elapsedMs`'s for why this accumulates rather
+ * than comparing against a start timestamp. Deliberately keeps running
+ * through AI turns and any open prompt (no pause/resume state — see
+ * `elapsedMs`'s doc comment). A no-op once the game is over, so a caller
+ * driving this from a per-frame scene `update` doesn't need its own guard.
+ */
+export function advanceGameClock(state: GameState, deltaMs: number): void {
+  if (state.gameOver) return;
+  state.elapsedMs += deltaMs;
+  if (state.clockLimitMs !== null && state.elapsedMs >= state.clockLimitMs) {
+    state.pendingGameEnd = true;
+  }
+}
+
+/** Milliseconds left on the clock, or `null` if Mode A isn't in use — never
+ * negative, so a caller can format this directly without clamping first. */
+export function remainingClockMs(state: GameState): number | null {
+  if (state.clockLimitMs === null) return null;
+  return Math.max(0, state.clockLimitMs - state.elapsedMs);
 }
