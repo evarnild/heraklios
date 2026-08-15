@@ -26,8 +26,10 @@ npm run build   # production build
 1. **Menu** — pick 2, 3, or 4 players, the land-combat rule variant
    (see "Combining attacks" below; defaults to several-vs-several),
    whether turn order should be re-randomized each turn (see "Turn order"
-   below; defaults to off), and which seats the computer should play (see
-   "Computer opponent" below; defaults to all human).
+   below; defaults to off), an optional whole-game clock and/or round limit
+   (see "Ending the game" below; both off by default), and which seats the
+   computer should play (see "Computer opponent" below; defaults to all
+   human).
 2. **Army Builder** — each player spends 400 purchase points on units from
    the shared roster (archers, infantry, cavalry, chariots, elephants,
    phalanxes, and four tiers of warships), subject to per-unit quantity
@@ -73,7 +75,9 @@ npm run build   # production build
    [Shooting](#shooting-melee-force-vs-projectile-force) for why a unit that
    shot from range doesn't get the offer). "End phase" advances movement →
    combat → the next player's
-   movement. The game ends when only one army remains on the board.
+   movement. The game ends when only one army remains on the board, or by
+   whichever of the clock, round limit, or "End game" button the table
+   agreed to (see "Ending the game" below).
 
 On both the Placement and Board screens, hovering any hex shows a small
 tooltip with its coordinate and terrain type (e.g. "(4, 9) — Plateaux") —
@@ -368,6 +372,46 @@ optional house rule, chosen once at the Menu screen before a game starts
   time, it doesn't avoid picking the same player who just finished last —
   about 1 time in *n* (for *n* surviving players), whoever went last in one
   round also goes first in the next, giving them two turns back to back.
+
+### Ending the game
+
+The rulebook lets the table agree on time and turn limits for the whole
+game before it starts, alongside mutual elimination down to one surviving
+army: *"à la fin de la partie est désigné vainqueur, le joueur dont l'armée
+a la plus grande valeur (comptée en « points d'achats »)... On se fixera des
+temps limites pour la partie entière (par exemple 2 heures)"*
+(`docs/research/05-rules-french-original.md`). This edition offers three
+ways to end a game, chosen once at the Menu screen before it starts (the
+clock and round limit are independent — off by default, either, or both):
+
+- **Clock limit**: Off, 30 minutes, 1 hour, or 2 hours, for the whole game.
+  It's a whole-game limit, not a per-turn chess clock — the rulebook's
+  separate *"3 minutes"*-per-turn suggestion, same sentence, isn't
+  implemented — so the clock keeps running through every seat's turn
+  (including the computer's) and through any open retreat/drift/advance/
+  exchange-sacrifice prompt, with no way to pause it. It also survives
+  save/load: a game saved Monday and reloaded Friday resumes with exactly
+  the time it had left, not an instantly-expired one. Once a limit is set,
+  the Board's HUD shows the time remaining, counting down live.
+- **Round limit**: Off, 6, 8, or 12 full rounds (every player's Movement and
+  Combat phases once).
+- **"End game" button**: on the Board at any time, regardless of the two
+  settings above — for a table that simply agrees a game is over. It asks
+  for confirmation first, the same as Abandon, since it can't be undone.
+
+Whichever of the three fires first, the game does **not** end on the spot:
+every player still finishes the round already in progress, so nobody is
+shorted a turn the others got to take. The status line reads **"FINAL
+ROUND"** once that's happened, and the End game button relabels itself to
+say so too. Once that final round completes, the winner is whoever holds
+the highest surviving army value in purchase points — the same figure the
+Game Over screen already lists for every player. Two or more players tied
+at that value is a **draw**: nobody is declared the winner, and the Game
+Over screen names everyone who tied instead of picking one by seat order.
+
+Elimination remains the other way a game can end, and it isn't affected by
+any of the above: the moment only one player still has any units on the
+board, that player wins immediately.
 
 ### Naval movement and combat
 

@@ -108,11 +108,12 @@ describe('HeuristicAgent: difficulty tiers are ordered by strength', () => {
    * Strength is measured as SURVIVING ARMY VALUE, not as wins, and always
    * from both seats.
    *
-   * Both parts of that matter. `winnerId` alone would be measuring the wrong
-   * thing twice over: `endGameByTimeLimit` breaks a tie in favour of the
-   * lower seat (see `HarnessStats.finalArmyValues`), and — measured on this
-   * scenario — moving first is worth real material once a side plays well at
-   * all.
+   * Both parts of that matter. `winnerIds` alone would still be a coarser
+   * measure than the value itself (see `HarnessStats.finalArmyValues`'s doc
+   * comment — before plan.md §9.2 added draws, `winnerId` was worse still,
+   * since `endGameByTimeLimit` broke a tie in favour of the lower seat), and
+   * — measured on this scenario — moving first is worth real material once a
+   * side plays well at all.
    *
    * Measured over these exact 12 seeds, as average surviving army value:
    *
