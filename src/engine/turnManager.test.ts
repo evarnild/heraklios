@@ -356,11 +356,12 @@ describe('createInitialState — clock/round limit parameters (plan.md §9.2.2 #
     expect(state.roundLimit).toBe(8);
   });
 
-  it('defaults both limits off, with a fresh clock and no pending end', () => {
+  it('defaults both limits off, with a fresh, unpaused clock and no pending end', () => {
     const state = createInitialState(twoPlayers());
     expect(state.clockLimitMs).toBeNull();
     expect(state.roundLimit).toBeNull();
     expect(state.elapsedMs).toBe(0);
+    expect(state.paused).toBe(false);
     expect(state.pendingGameEnd).toBe(false);
   });
 });

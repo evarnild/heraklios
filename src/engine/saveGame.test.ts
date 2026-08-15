@@ -354,6 +354,24 @@ describe('draws and clock/round-limit round-trip', () => {
     delete (save.gameState as Record<string, unknown>).elapsedMs;
     expect(isValidSavedGame(save)).toBe(false);
   });
+
+  it('round-trips a paused clock', () => {
+    // Not just the default `false` — `sampleSave()` already produces that.
+    // A table pausing before a save must reload still paused, not silently
+    // resumed.
+    const save = sampleSave();
+    save.gameState.clockLimitMs = 60 * 60_000;
+    save.gameState.paused = true;
+    const result = parseSavedGame(JSON.stringify(save));
+    if (!('save' in result)) throw new Error('expected a valid save');
+    expect(result.save.gameState.paused).toBe(true);
+  });
+
+  it('rejects a save whose paused flag is missing at the current version', () => {
+    const save = sampleSave() as unknown as Record<string, unknown>;
+    delete (save.gameState as Record<string, unknown>).paused;
+    expect(isValidSavedGame(save)).toBe(false);
+  });
 });
 
 describe('parseSavedGame', () => {
