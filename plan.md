@@ -47,15 +47,19 @@ terrain (merged `6172f2f`), Stage 2b drift extraction
 Stage 3 — the `HeuristicAgent`
 ([§6.4](#64-stage-3-shipped-stage-4-deferred), merged `a2a1329`),
 [§15](#15-live-defect-ranged-attacks-resolve-at-zero-attack-force)'s ranged
-attack force (merged `272bcf0`), and Stage 2c — elephants in the harness
+attack force (merged `272bcf0`), Stage 2c — elephants in the harness
 ([§6.7](#67-the-elephant-problem-stage-2-split), merged `0e54b59`), which
 completes Stage 2 and fixed a live defect in hotseat play on the way (a
 drifting elephant could enter marsh), and
 [§13](#13-hex-coordinate-tooltip)'s hex coordinate tooltip (merged
-`62892c3`).
-**In flight:** nothing — [Current Queue](#10-sequenced-queue) is next, and
-its first item is now [§9.2](#92-endgamebytimelimit-is-never-called)'s
-turn-limit ending, which needs a design decision before implementation.
+`62892c3`). **Stage 4 — the AI's seat UI and save format
+([§6.12](#612-stage-4-outcome)) — is implemented but NOT yet merged.**
+**In flight:** `feat/ai-seats` — [§6.4](#64-stage-3-shipped-stage-4-deferred)'s
+Stage 4 (per-seat Human/AI, `SAVE_VERSION` 2, the `BoardScene` driver loop),
+green but unmerged and not yet run in a browser; see
+[§6.12](#612-stage-4-outcome). Queue item #1,
+[§9.2](#92-endgamebytimelimit-is-never-called)'s turn-limit ending, was
+skipped by the user and remains queued.
 **Live defects still open:**
 [§9.2](#92-endgamebytimelimit-is-never-called).
 
@@ -83,12 +87,16 @@ sync when something merges** — it went stale once and the user caught it.
 | [§15](#15-live-defect-ranged-attacks-resolve-at-zero-attack-force) ranged attack force (+1 wedged-board defect, +2 review findings) | `272bcf0` |
 | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2c — elephants in the harness (+1 live marsh defect, +1 HIGH/3 MEDIUM review findings) | `0e54b59` |
 | [§13](#13-hex-coordinate-tooltip) hex coordinate tooltip | `62892c3` |
+| [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 4 — AI seat UI + save format v2 | `feat/ai-seats`, awaiting merge |
 
 ### In flight
 
-- *Nothing.* Next up is #1 below, the turn-limit ending — the only open
-  live defect, and the one queue item that needs a design decision before
-  any code is written.
+- **`feat/ai-seats`** — [§6.4](#64-stage-3-shipped-stage-4-deferred)'s
+  Stage 4, complete and green (417 tests, `tsc` and `npm run build` clean),
+  **not yet merged and not yet exercised in a browser** — see
+  [§6.12](#612-stage-4-outcome)'s verification gap. It was taken up out of
+  queue order: #1 (the turn-limit ending) was explicitly skipped by the user
+  on 2026-08-14 and stays queued below.
 
 ### Queued
 
@@ -97,8 +105,8 @@ sync when something merges** — it went stale once and the user caught it.
 | ~~0~~ | ~~[§12](#12-cascading-push-when-a-unit-cannot-retreat) follow-ups~~ | — | **✅ Shipped `c23648c`.** All three closed; see [§12.6](#126-the-three-follow-ups). |
 | ~~0b~~ | ~~Reviewer-agent file corrections~~ | — | **✅ Shipped `9f99b1a`.** See [§15.7](#157-the-two-follow-ups). |
 | ~~0c~~ | ~~Combat groups not revalidated after a removal~~ | — | **✅ Shipped `9f99b1a`.** See [§15.7](#157-the-two-follow-ups). |
-| 1 | [§9.2](#92-endgamebytimelimit-is-never-called) turn-limit ending | design + scenes | **Live gap, and now the only open one.** Needs a design decision first (what sets the limit, how the player is told). Stage 3 added a second reason to care: `endGameByTimeLimit` breaks a tied army value in favour of the lower seat, silently (§6.9). |
-| 2 | [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 4 — AI seat UI + save format | scenes, `saveGame.ts` | `SAVE_VERSION` bump. The engine half is done and idle: nothing can reach the AI from the UI. |
+| 1 | [§9.2](#92-endgamebytimelimit-is-never-called) turn-limit ending | design + scenes | **Live gap, and the only open one.** Needs a design decision first (what sets the limit, how the player is told). **Skipped by the user on 2026-08-14** when it came up as the next task; still queued. Stage 3 added a second reason to care: `endGameByTimeLimit` breaks a tied army value in favour of the lower seat, silently (§6.9). |
+| ~~2~~ | ~~[§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 4 — AI seat UI + save format~~ | — | **Implemented on `feat/ai-seats`, awaiting review + merge.** See [§6.12](#612-stage-4-outcome). |
 | 3 | [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 3b — shallow lookahead tier | `engine/` | The fourth difficulty tier, deliberately not shipped with the other three. Needs state cloning + an opponent model + a performance budget; see `heuristicAgent.ts`'s header. |
 
 **Standing hazard:** almost everything queued touches `BoardScene.ts`, so
@@ -107,15 +115,17 @@ these mostly cannot run in parallel with each other.
 ## Backlog Map
 
 - **Start here:** [Current Queue](#10-sequenced-queue).
-- **Current next task:** #1, [§9.2](#92-endgamebytimelimit-is-never-called)'s
-  turn-limit ending. **Read §9.2 before launching anything** — it needs a
-  design decision (what sets the limit, how the player is told) that no
-  implementer should make alone.
+- **Current next task:** review and merge `feat/ai-seats`
+  ([§6.12](#612-stage-4-outcome)), whose one outstanding check is a manual
+  browser pass. After that, #1,
+  [§9.2](#92-endgamebytimelimit-is-never-called)'s turn-limit ending —
+  **read §9.2 before launching anything**, it needs a design decision (what
+  sets the limit, how the player is told) that no implementer should make
+  alone, and the user skipped it once already.
 - **Live defects:** [§9.2](#92-endgamebytimelimit-is-never-called) (needs a
   design decision) is the only one left open.
 - **Larger future work:** [§6.4](#64-stage-3-shipped-stage-4-deferred)'s
-  Stage 4, its Stage 3b, and
-  [§14](#14-decomposing-boardscenets-for-parallel-work).
+  Stage 3b and [§14](#14-decomposing-boardscenets-for-parallel-work).
 
 ## History Map
 
@@ -566,15 +576,17 @@ pushed to `origin/main`. Branch and worktree cleaned up after merge.
 
 **Status:** stages 1, 2a, 2b, 2c and 3 **✅ shipped** (merged `9cb7ed7`,
 `469f84a`, `7544a96`, `0e54b59` and `a2a1329`). **Stage 2 is complete.**
-Only **stage 4** (the player-facing half) and the optional **stage 3b**
-(shallow lookahead) remain open.
+**Stage 4 is implemented on `feat/ai-seats`** and awaiting review/merge
+([§6.12](#612-stage-4-outcome)). Only the optional **stage 3b** (shallow
+lookahead) is still unstarted.
 
 The original scope note said stages 3–4 were deferred "until the foundation
-is proven." The foundation was proven, stage 3 came in on it, and the
-position now is that **the AI exists, plays well, and is reachable from
-nothing but the test suite** — see
+is proven." The foundation was proven, stage 3 came in on it, and for six
+days the position was that **the AI existed, played well, and was reachable
+from nothing but the test suite** — see
 [§6.4](#64-stage-3-shipped-stage-4-deferred) and
-[§6.9](#69-stage-3-outcome).
+[§6.9](#69-stage-3-outcome). Stage 4 is what closes that gap: any seat can
+now be given to the computer from the Menu.
 
 > **Stages 2b and 3 shipped in parallel and were merged together on
 > 2026-08-08.** They were queued as sequential items and developed against
@@ -717,12 +729,16 @@ load before any strategy code depends on it.
   avoidance shipped and is tested; *retreat* traps were implemented, found
   unreachable, and removed.
 
-- **Stage 4 — player-facing**: per-seat Human/AI + difficulty config on the
-  Menu screen (`ui/session.ts`), turn pacing/animation so AI moves are
-  legible rather than instant, and save-format support. **Still deferred**,
-  and now the only thing between this project and a playable computer
-  opponent — the strategy code is done, tested, and reachable by nothing but
-  the test suite.
+- **Stage 4 — player-facing. ✅ Shipped** on `feat/ai-seats`. Landed
+  `engine/seatControl.ts` (the `'human' | 'ai-random' | 'ai-greedy' |
+  'ai-ev'` union + `createSeatAgent`), `engine/seatRouter.ts`'s
+  `routeBySeat`, `ui/aiSetup.ts` (an AI seat's army and deployment),
+  `session.seatControls` + the Menu's per-seat button, `SAVE_VERSION` 2 with
+  a version-1 migration, and `BoardScene`'s driver loop. Outcome and the
+  three decisions it forced: [§6.12](#612-stage-4-outcome). Original spec:
+  "per-seat Human/AI + difficulty config on the Menu screen
+  (`ui/session.ts`), turn pacing/animation so AI moves are legible rather
+  than instant, and save-format support."
 
 - **Stage 3b — shallow lookahead**: the fourth tier, queued separately (#6)
   rather than folded back into stage 3. Reasoning in
@@ -737,11 +753,20 @@ load before any strategy code depends on it.
 - **Undo/redo semantics with an AI seat.** A die roll clears the history
   stack, and an AI turn contains many rolls. Likely resolution: undo rewinds
   past the AI's *entire* turn rather than into the middle of it — but this
-  needs deciding, not defaulting. **Still open**; a Stage 3/4 decision.
+  needs deciding, not defaulting. **Settled in Stage 4, and neither option
+  was the answer**: undo has always been *phase*-scoped (`endPhase` clears
+  the stack), so it has never crossed a seat handoff in the first place. An
+  AI turn needed no new rule — only a guard making undo/redo unavailable
+  *during* it, which is what `BoardScene.undo` now says in place of this
+  question.
 - **Save format.** Which seats are AI must persist or loading a game silently
   turns them human; that implies a `SAVE_VERSION` bump and updates to
-  `engine/saveGame.ts` + `ui/saveStorage.ts`. **Still open**, deferred to
-  stage 4. Stage 1 left this unforeclosed: `GameState`'s shape is unchanged,
+  `engine/saveGame.ts` + `ui/saveStorage.ts`. **Settled in Stage 4**, with a
+  correction to the reasoning: the bump is NOT needed to read the field
+  (an absent `seatControls` is exactly an all-human game, so version 1 files
+  migrate cleanly and still load). It is needed for the *forward* direction —
+  an older build must refuse a version-2 file rather than half-read it and
+  hand the computer's army to the player. Stage 1 left this unforeclosed: `GameState`'s shape is unchanged,
   and `ActionContext` mirrors the existing `SavedGame`/`GameState` split
   rather than creating a new one.
 
@@ -1171,6 +1196,170 @@ What actually cost time was exactly what §14.1 said would:
 than serializing the two branches would have been, which supports §14.1 —
 but only because the collision was caught deliberately rather than by
 whoever next read the README.
+
+---
+
+<a id="612-stage-4-outcome"></a>
+
+### 6.12 Stage 4 outcome
+
+Shipped on `feat/ai-seats`. 417 tests (was 411 — six new files' worth of
+assertions across `seatControl`, `seatRouter`, `aiSetup` and the save
+migration), `tsc --noEmit` clean, `npm run build` clean. **The AI is now
+reachable from the UI**, which was the entire point: the strategy layer had
+been done and idle since `a2a1329`.
+
+**What landed.** `engine/seatControl.ts` (a flat `'human' | 'ai-random' |
+'ai-greedy' | 'ai-ev'` union, `createSeatAgent`, `normalizeSeatControls`);
+`engine/seatRouter.ts`'s `routeBySeat`; `ui/aiSetup.ts` (an AI seat's army
+and deployment); `session.seatControls` plus the Menu's per-seat button;
+`SAVE_VERSION` 2 with `migrateSavedGame`; and in `BoardScene`, the driver
+loop (`maybeStartAiTurn`/`runAiSeats`/`applyAiAction`) with `commitRam`,
+`commitBoarding`, `commitEndPhase` and `executeLandAttack` split out of the
+click handlers so an AI action and a click go through *the same* code.
+
+**Three decisions the stage forced, all of which moved off §6.5's guesses:**
+
+1. **The save bump is for the forward direction, not the backward one.**
+   §6.5 assumed persisting AI seats "implies a `SAVE_VERSION` bump" because
+   the field is new. By this file's own established precedent
+   (`randomizedTurnOrder`, `Unit.charged`) it does *not*: an absent
+   `seatControls` is behaviourally identical to all-`'human'`, which is
+   exactly what a version-1 file was. So version 1 migrates and still loads.
+   The bump earns its keep the other way round — an older build reading a
+   version-2 file would silently turn the computer's seats into the
+   player's, and the version number is the only thing that can stop it.
+2. **Undo needed no new rule at all.** §6.5 expected to choose between
+   rewinding into an AI turn and rewinding past it. Neither: undo is
+   phase-scoped (`endPhase` clears the stack), so it has never crossed a
+   seat handoff, and an AI turn is just another seat's phase. All that was
+   needed was a guard while it runs.
+3. **Mid-resolution decisions are NOT the active player's.** The one piece
+   of genuinely new dispatch logic. `applyLandCombatResult` hands the
+   *defender* a retreat while the *attacker* is on turn, so a human
+   defending against a computer must still click their own retreat hex, and
+   a computer defending against a human must answer for itself. Answering
+   either with the active seat's agent would have one side playing both —
+   and it is **invisible in a hotseat game**, where the same human answers
+   everything regardless. That is why it was extracted into
+   `engine/seatRouter.ts` rather than left inline in the scene: it is
+   exactly the shape of rule this project keeps finding untested. Its tests
+   kill 6 of 6 on mutating the seat lookup to the fallback.
+
+**A hazard worth remembering:** `routeBySeat` reads the seat-agent map
+*live*, so `BoardScene` refills that map rather than replacing it. Replacing
+it (the obvious `this.seatAgents = new Map()`) would leave the router
+pointing at the previous game's agents after a load — silently, and only for
+a game loaded over another one. There is a test for exactly that.
+
+**Setup for an AI seat is deliberately crude** and is the one thing this
+stage added to the README's "Known simplifications": the computer takes the
+default 400-point army and scatters it over legal hexes in its own band
+(terrain-respecting, so no cavalry on marsh). Composition and formation are
+strategy problems of a different kind from the ones `heuristicAgent.ts`
+solves, and picking the *same* army a hurried human picks keeps the
+difficulty comparisons in §6.9 meaning what they say.
+
+**One tactical preference was added to deployment on request
+(2026-08-15):** cavalry, chariots and heavy infantry are kept off plateaux.
+Worth recording precisely, because it is the kind of thing a later reader
+will go looking for a rulebook basis for and not find one. **There is no
+such rule.** The rulebook's terrain prohibitions are exactly three
+(`05-rules-french-original.md:186-188`) and none of them mentions plateaux —
+which are legal ground for every land unit, and stay that way in
+`canEnterTerrain`. This is deployment *judgement* and lives only in
+`ui/aiSetup.ts`: a plateau's benefit is defensive and conditional (+2 only
+when attacked from below), so it is wasted on the arms you deploy to move,
+and better spent on the archers/phalanxes/elephants that hold. It is a soft
+preference — a band with no room left will still put a chariot on a plateau
+rather than fail to field the army — and it deploys the constrained units
+first for margin. Phalanxes are excluded despite being heavy foot: they are
+precisely the unit that wants the ground.
+
+Measured while building it, since the arithmetic is tight enough to matter:
+the southern band is the worst case at 44 plateau + 37 steep-flank hexes of
+126, leaving 43 plain for the default army's 22 plateau-avoiding units. Three
+mutations (preference not applied, ordering removed, preference hardened
+into a ban) each killed by their own test. The most-constrained-first
+ordering turned out **not** to be strictly required at today's army and band
+— recorded in the code as margin rather than necessity, rather than leaving
+a comment claiming more than the measurement supports.
+
+**Verification gap, stated plainly.** The engine and setup halves are
+unit-tested; the `BoardScene` half is not, per this repo's engine/
+presentation boundary, and it could **not** be exercised in a browser during
+this run — the Chrome extension wasn't connected, so the §4 "pin the port"
+procedure got as far as proving the dev server served the new code and no
+further. The scene wiring has been read line by line but not *run*. A
+manual pass — 2 players, seat 2 set to AI hard — is the outstanding check
+before this should be considered done.
+
+#### Review pass (2026-08-15)
+
+Adversarial review of the branch, checks re-run independently. **Three real
+defects, all fixed on the branch; no rule-fidelity defects.** The two probes
+that could have blocked the feature both came back clean and are worth
+recording so nobody re-derives them:
+
+- **Four AI armies deploy fine.** 25 randomized four-seat runs, 180 units,
+  no exhaustion. The `excludeTooClose` fallback (`clear.length > 0 ? clear :
+  band`) plus the terrain filter leave enough room on every edge.
+- **AI decision latency is ~47ms per action** on two full 45-unit armies
+  (`legalActions` 52ms cold / ~33ms warm, `chooseNextAction` 14ms, 1020 legal
+  actions). That is a main-thread hitch per action, not a freeze; a full AI
+  turn lands around 10-15 seconds at the shipped pacing. Acceptable, but it
+  is the number to check first if Stage 3b's lookahead ever lands.
+
+**D1 — MEDIUM, and the one worth remembering: the terrain test was
+vacuous.** `aiSetup.test.ts`'s "never deploys a unit onto terrain it may not
+enter" **passed with the terrain filter deleted**. It probed the WESTERN
+band, where only 4 of 90 hexes (4.4%) are barred to a chariot, with eight
+draws — so it missed every barred hex by luck. Its "control" assertion
+(barred hexes exist in the band) proved the hexes were there, not that the
+draw could ever land on one, which is a control that looks like the real
+thing and isn't. Now: southern band (39 of 126, 31%), 20 chariots, 20 seeds,
+400 draws, and re-verified by mutation. **This is the third time on this
+project a guard test has failed its own mutation** (§6.6's charge test,
+§6.9's `attackerCanJoin` gate) — the pattern each time is a probe aimed at
+the easy case.
+
+**D2 — MEDIUM: the pacing paused before the action, not after.** The whole
+point of `AI_COMBAT_DELAY_MS` is that a combat report is worth reading, but
+`log` REPLACES the panel, so dwelling *before* an attack showed the previous
+action's text for 700ms and the combat's own for however long until the next
+action overwrote it — 160ms, or immediately for the last attack of a phase,
+since `commitEndPhase` ends with `log('')`. The feature would have shipped
+with the combat log effectively invisible. Fixed by pausing after applying,
+sized by the action just applied.
+
+**D3 — LOW, but the failure mode is bad: silent returns could livelock the
+driver.** `applyAiAction`'s `'ram'`/`'board'` cases returned quietly if a
+named unit or contact couldn't be found. Unreachable (the look-ups re-derive
+exactly what `legalActions` used), but had it ever happened the board would
+be unchanged, the same action would be re-chosen, and the AI would spin
+forever looking like a hung turn with nothing in the console. Now throws,
+which the driver's rejection handler already reports. This is the only
+livelock the scene loop had that the fuzz harness's `actionCap` doesn't
+already cover.
+
+Also tightened: "End phase" now says why it's refused during an AI turn
+instead of ignoring the press (board clicks stay silent on purpose — logging
+there would wipe the combat report the player is reading).
+
+**Checked and found sound:** the consequence-chain terminals (every path out
+of `executeLandAttack` reaches `settleResolution` exactly once, enumerated
+branch by branch); `aiRunToken` covers all three ways the board can be
+replaced under a running turn; the occupancy check in `autoPlaceSeat`
+(3 tests killed by mutation); the seat-agent map's live-read contract; the
+save migration (killed by mutation); and hotseat equivalence — the only
+changes on the human path are a `void`-ed promise, a status-line label that
+only appears for AI seats, and guards on a flag that is always false without
+an AI seat.
+
+**Still outstanding: the manual browser pass.** Unchanged by this review —
+it could not be run, and no amount of reading substitutes for it. D2 in
+particular is exactly the class of defect only a human watching the screen
+would have caught, which is the argument for doing it before merge.
 
 ---
 

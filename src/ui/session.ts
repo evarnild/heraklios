@@ -1,8 +1,13 @@
 import type { ArmySelection } from '../engine/army';
 import { emptySelection } from '../engine/army';
+import { normalizeSeatControls, type SeatControl } from '../engine/seatControl';
 import type { CombatMode, GameState, Player, PlayerId } from '../engine/state';
 
 export type Edge = 'N' | 'S' | 'E' | 'W';
+
+/** Seats the Menu can configure. `playerCount` selects the first N of them,
+ * exactly as it already does for `playerNames`. */
+export const MAX_PLAYERS = 4;
 
 export interface SessionState {
   playerCount: number;
@@ -21,6 +26,21 @@ export interface SessionState {
    */
   randomizedTurnOrder: boolean;
   /**
+   * Who plays each seat — human, or one of the three AI difficulty tiers
+   * (plan.md §6.4's Stage 4). Chosen on the Menu screen before starting a
+   * game and read by `ArmyBuilderScene`/`PlacementScene` (which skip an AI
+   * seat's setup) and `BoardScene` (which drives it).
+   *
+   * ALWAYS `MAX_PLAYERS` long, regardless of `playerCount`, so the Menu can
+   * offer all four before the player has picked a count — `seatControls[i]`
+   * is meaningful only for `i < playerCount`, same convention `playerNames`
+   * already uses. Like `combatMode`/`randomizedTurnOrder` (and unlike
+   * `armySelections`), it's a sticky Menu preference: neither `resetSession`
+   * nor `resetToMenu` clears it, so setting up "me vs. a hard AI" once
+   * survives into the next game.
+   */
+  seatControls: SeatControl[];
+  /**
    * True when the game was launched via one of the Menu's test-mode
    * shortcuts. Relaxes the undo rule that a die roll is a commit point (see
    * BoardScene's `rollDie`), so the naval/drift code paths can be replayed
@@ -37,9 +57,23 @@ export const session: SessionState = {
   armySelections: [],
   combatMode: 'multi-defender',
   randomizedTurnOrder: false,
+  seatControls: Array.from({ length: MAX_PLAYERS }, (): SeatControl => 'human'),
   testMode: false,
   gameState: null,
 };
+
+/** Reads a seat's control defensively — a loaded save can carry a shorter
+ * `seatControls` than the current `playerCount` if it was hand-edited, and an
+ * unconfigured seat is a human one. */
+export function seatControlFor(playerIndex: number): SeatControl {
+  return session.seatControls[playerIndex] ?? 'human';
+}
+
+/** Overwrites `seatControls` from an untrusted source (a loaded save), padded
+ * to `MAX_PLAYERS` so the Menu always has all four to offer afterwards. */
+export function setSeatControls(controls: unknown): void {
+  session.seatControls = normalizeSeatControls(controls, MAX_PLAYERS);
+}
 
 export function resetSession(playerCount: number): void {
   session.playerCount = playerCount;
@@ -110,8 +144,8 @@ function assignEdgesRandomly(playerCount: number): void {
  * test (`session.test.ts`) made the mismatch newly visible and easy to
  * assert against, not because it was a reachable bug on its own.
  *
- * Deliberately does NOT touch `playerNames`, `combatMode`, or
- * `randomizedTurnOrder`: these are meant to persist across games as the
+ * Deliberately does NOT touch `playerNames`, `combatMode`,
+ * `randomizedTurnOrder`, or `seatControls`: these are meant to persist across games as the
  * Menu's own sticky preferences (see `MenuScene`, which never resets them
  * either) — NOT necessarily "chosen on the Menu" for the game just
  * abandoned specifically, since `applySavedGame` also overwrites
@@ -120,7 +154,9 @@ function assignEdgesRandomly(playerCount: number): void {
  * single-defender as the Menu's preference for the next game too — a
  * genuine carry-over, but not a silent one: it's the same toggle visible
  * (and changeable) right there on the Menu screen, not a value some other
- * game's leftover state quietly overrides underneath the player. `playerCount`
+ * game's leftover state quietly overrides underneath the player —
+ * `seatControls` joins them on exactly that footing, and is likewise
+ * overwritten by a loaded save (see `applySavedGame`). `playerCount`
  * and `edges` are also left alone — both are fully re-derived by
  * `resetSession` the moment a player picks a player count on the Menu, and
  * nothing reads them before that pick happens.

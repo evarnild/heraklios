@@ -1,4 +1,5 @@
 import type { ArmySelection } from './army';
+import { isSeatControl, normalizeSeatControls, type SeatControl } from './seatControl';
 import type { CombatMode, GameState, Phase, PlayerId } from './state';
 
 /**
@@ -6,7 +7,13 @@ import type { CombatMode, GameState, Phase, PlayerId } from './state';
  * `isValidSavedGame` rejects anything it doesn't recognise, so an old file
  * fails with a clear message instead of loading into a half-broken game.
  */
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
+
+/**
+ * The oldest version `migrateSavedGame` below can bring forward. Files older
+ * than this are rejected rather than guessed at.
+ */
+export const MIN_SUPPORTED_SAVE_VERSION = 1;
 
 // `GameState.randomizedTurnOrder` (added for the re-randomised-turn-order
 // house rule) deliberately did NOT bump `SAVE_VERSION`: it's read only via
@@ -27,6 +34,23 @@ export const SAVE_VERSION = 1;
 // exactly like every other `Unit` field (verified in `saveGame.test.ts`) —
 // a save made mid-Combat-phase, after a charge but before that unit has
 // attacked, reloads with the charge (and its doubled attack) intact.
+//
+// `seatControls` (Stage 4's per-seat Human/AI configuration, plan.md §6.4) is
+// where that reasoning STOPS applying, and version 1 -> 2 is the bump it
+// forced. Read BACKWARDS the field looks exactly like the two above: a
+// version-1 file has no `seatControls`, and a version-1 file was necessarily
+// an all-human hotseat game, so defaulting the absent field to all-`'human'`
+// reproduces that game exactly — which is why `migrateSavedGame` below can
+// load one rather than rejecting it. The danger is FORWARDS: a version-2 file
+// with an AI seat, opened by a build that predates this field, would load as
+// a fully human game and silently hand a bot's army to the player (or, in a
+// 2-player game against the computer, present a board where nothing ever
+// moves for the opponent). Nothing in a save can make an OLD build read a
+// field it doesn't know about — the only thing that can protect that player
+// is the version number itself, which makes the old build refuse the file
+// outright with `parseSavedGame`'s clear message. Hence the bump: not because
+// this build can't read version 1 (it can), but because older builds must not
+// half-read version 2.
 
 export type EdgeCode = 'N' | 'S' | 'E' | 'W';
 
@@ -52,6 +76,9 @@ export interface SavedGame {
   edges: EdgeCode[];
   armySelections: ArmySelection[];
   combatMode: CombatMode;
+  /** Who plays each seat, indexed like `playerNames`. Added in version 2; a
+   * migrated version-1 file gets all-`'human'` (see `migrateSavedGame`). */
+  seatControls: SeatControl[];
   testMode: boolean;
   gameState: GameState;
   attackedThisPhase: string[];
@@ -101,6 +128,11 @@ export function isValidSavedGame(data: unknown): data is SavedGame {
   if (!isStringArray(save.edges)) return false;
   if (!Array.isArray(save.armySelections)) return false;
   if (save.combatMode !== 'single-defender' && save.combatMode !== 'multi-defender') return false;
+  // Checked strictly (rather than normalized here) because everything reaching
+  // this point has already been through `migrateSavedGame`, which is the one
+  // place allowed to invent a missing or unreadable value — a version-2 file
+  // whose `seatControls` still don't validate is corrupt, not merely old.
+  if (!Array.isArray(save.seatControls) || !save.seatControls.every(isSeatControl)) return false;
   if (typeof save.testMode !== 'boolean') return false;
   if (!isStringArray(save.attackedThisPhase)) return false;
   if (!isStringArray(save.rammedThisTurn)) return false;
@@ -130,8 +162,43 @@ export function isValidSavedGame(data: unknown): data is SavedGame {
 }
 
 /**
- * Parses and validates raw JSON text. Returns the game or an error message
- * suitable for showing the player, rather than throwing.
+ * Brings an older-but-supported file up to `SAVE_VERSION`, in place on the
+ * parsed object, and reports whether the version is one this build can use at
+ * all. Anything already at `SAVE_VERSION` passes straight through untouched.
+ *
+ * Deliberately does NOT validate: it only fills in what a newer field's
+ * absence means, leaving `isValidSavedGame` as the single gate on shape. So a
+ * corrupt version-1 file is still rejected — just by the structural check
+ * after this rather than by the version check before it.
+ */
+export function migrateSavedGame(data: unknown): { migrated: unknown } | { error: string } {
+  if (typeof data !== 'object' || data === null) return { migrated: data };
+  const save = data as Partial<SavedGame> & Record<string, unknown>;
+  const version = save.version;
+  if (typeof version !== 'number') return { migrated: data };
+  if (version === SAVE_VERSION) return { migrated: data };
+  if (version < MIN_SUPPORTED_SAVE_VERSION || version > SAVE_VERSION) {
+    return { error: `Save file version ${version} isn't supported (expected ${SAVE_VERSION}).` };
+  }
+
+  // 1 -> 2: `seatControls` didn't exist, and a game saved without it was
+  // necessarily all-human (nothing could configure an AI seat), so filling
+  // it that way reproduces the saved game exactly rather than guessing.
+  // `playerNames` is the length `seatControls` is indexed against everywhere
+  // else; `playerCount` can be shorter (test-mode games), and padding to the
+  // longer of the two costs nothing and can't leave a seat unconfigured.
+  if (version < 2) {
+    const named = Array.isArray(save.playerNames) ? save.playerNames.length : 0;
+    const counted = typeof save.playerCount === 'number' ? save.playerCount : 0;
+    save.seatControls = normalizeSeatControls(save.seatControls, Math.max(named, counted));
+    save.version = 2;
+  }
+  return { migrated: save };
+}
+
+/**
+ * Parses, migrates and validates raw JSON text. Returns the game or an error
+ * message suitable for showing the player, rather than throwing.
  */
 export function parseSavedGame(text: string): { save: SavedGame } | { error: string } {
   let data: unknown;
@@ -140,14 +207,10 @@ export function parseSavedGame(text: string): { save: SavedGame } | { error: str
   } catch {
     return { error: "That file isn't valid JSON." };
   }
-  if (typeof data === 'object' && data !== null) {
-    const version = (data as Partial<SavedGame>).version;
-    if (typeof version === 'number' && version !== SAVE_VERSION) {
-      return { error: `Save file version ${version} isn't supported (expected ${SAVE_VERSION}).` };
-    }
-  }
-  if (!isValidSavedGame(data)) return { error: "That file isn't a Héraklios save." };
-  return { save: data };
+  const migration = migrateSavedGame(data);
+  if ('error' in migration) return migration;
+  if (!isValidSavedGame(migration.migrated)) return { error: "That file isn't a Héraklios save." };
+  return { save: migration.migrated };
 }
 
 /** Assembles a save file from its parts. Callers clone as needed; this does
@@ -159,6 +222,7 @@ export function buildSavedGame(parts: {
   edges: EdgeCode[];
   armySelections: ArmySelection[];
   combatMode: CombatMode;
+  seatControls: SeatControl[];
   testMode: boolean;
   gameState: GameState;
   attackedThisPhase: string[];

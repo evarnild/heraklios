@@ -47,6 +47,7 @@ function sampleSave(): SavedGame {
     edges: ['W', 'E'],
     armySelections: [emptySelection(), emptySelection()],
     combatMode: 'multi-defender',
+    seatControls: ['human', 'ai-ev'],
     testMode: false,
     gameState,
     attackedThisPhase: ['p0u0'],
@@ -164,6 +165,82 @@ describe('isValidSavedGame', () => {
     const save = sampleSave();
     delete (save.gameState.units[0] as Partial<Unit>).id;
     expect(isValidSavedGame(save)).toBe(false);
+  });
+
+  it('rejects missing seatControls at the current version', () => {
+    // NOT the same case as a version-1 file, which legitimately has no such
+    // field and is filled in by `migrateSavedGame`: a file already claiming
+    // version 2 without it is corrupt.
+    const save = sampleSave() as Partial<SavedGame>;
+    delete save.seatControls;
+    expect(isValidSavedGame(save)).toBe(false);
+  });
+
+  it('rejects an unknown seat control', () => {
+    const save = sampleSave();
+    (save.seatControls as string[])[1] = 'ai-lookahead';
+    expect(isValidSavedGame(save)).toBe(false);
+  });
+});
+
+describe('seatControls round-trip', () => {
+  it('preserves which seats are AI, and at which difficulty', () => {
+    const result = parseSavedGame(JSON.stringify(sampleSave()));
+    if (!('save' in result)) throw new Error('expected a valid save');
+    expect(result.save.seatControls).toEqual(['human', 'ai-ev']);
+  });
+
+  it('keeps every difficulty tier distinguishable, not just "is AI"', () => {
+    const save = sampleSave();
+    save.playerNames = ['A', 'B', 'C', 'D'];
+    save.seatControls = ['human', 'ai-random', 'ai-greedy', 'ai-ev'];
+    const result = parseSavedGame(JSON.stringify(save));
+    if (!('save' in result)) throw new Error('expected a valid save');
+    expect(result.save.seatControls).toEqual(['human', 'ai-random', 'ai-greedy', 'ai-ev']);
+  });
+});
+
+describe('migrateSavedGame', () => {
+  /** A version-1 file: exactly today's shape minus the field version 2 added. */
+  function version1Save(): Record<string, unknown> {
+    const save = sampleSave() as unknown as Record<string, unknown>;
+    delete save.seatControls;
+    save.version = 1;
+    return save;
+  }
+
+  it('loads a version-1 save as an all-human game', () => {
+    const result = parseSavedGame(JSON.stringify(version1Save()));
+    if (!('save' in result)) throw new Error(`expected a valid save, got ${JSON.stringify(result)}`);
+    expect(result.save.version).toBe(SAVE_VERSION);
+    expect(result.save.seatControls).toEqual(['human', 'human']);
+  });
+
+  it('leaves the rest of a version-1 save untouched', () => {
+    const result = parseSavedGame(JSON.stringify(version1Save()));
+    if (!('save' in result)) throw new Error('expected a valid save');
+    expect(result.save.gameState.turnNumber).toBe(3);
+    expect(result.save.attackedThisPhase).toEqual(['p0u0']);
+    expect(describeSave(result.save)).toBe('Turn 3 — Athènes (combat)');
+  });
+
+  it('still rejects a version-1 file that is structurally broken', () => {
+    // The version check no longer gates these — `isValidSavedGame` does, and
+    // it must still run after the migration rather than being skipped by it.
+    const save = version1Save();
+    delete save.gameState;
+    const result = parseSavedGame(JSON.stringify(save));
+    expect('error' in result && result.error).toMatch(/isn't a Héraklios save/);
+  });
+
+  it('rejects a version from the future', () => {
+    const result = parseSavedGame(JSON.stringify({ ...sampleSave(), version: SAVE_VERSION + 1 }));
+    expect('error' in result && result.error).toContain(`${SAVE_VERSION + 1}`);
+  });
+
+  it('rejects a version older than anything it can migrate', () => {
+    const result = parseSavedGame(JSON.stringify({ ...version1Save(), version: 0 }));
+    expect('error' in result && result.error).toMatch(/isn't supported/);
   });
 });
 

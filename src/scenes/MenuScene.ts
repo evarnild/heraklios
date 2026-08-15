@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { session, resetSession } from '../ui/session';
+import { session, resetSession, seatControlFor, MAX_PLAYERS } from '../ui/session';
+import { nextSeatControl, seatControlLabel } from '../engine/seatControl';
 import { startTestGame, startCloseCombatTestGame } from '../ui/testMode';
 import { SaveLoadPanel } from '../ui/saveLoadPanel';
 import { stagePendingLoad } from '../ui/saveStorage';
@@ -34,11 +35,11 @@ export class MenuScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    this.add.text(width / 2, 220, 'Number of players', { fontSize: '20px', color: '#ffffff' }).setOrigin(0.5);
+    this.add.text(width / 2, 195, 'Number of players', { fontSize: '20px', color: '#ffffff' }).setOrigin(0.5);
 
     [2, 3, 4].forEach((count, i) => {
       const btn = this.add
-        .text(width / 2 - 100 + i * 100, 270, String(count), {
+        .text(width / 2 - 100 + i * 100, 240, String(count), {
           fontSize: '28px',
           color: '#ffffff',
           backgroundColor: '#4a3f2a',
@@ -55,13 +56,13 @@ export class MenuScene extends Phaser.Scene {
       btn.on('pointerout', () => btn.setStyle({ backgroundColor: '#4a3f2a' }));
     });
 
-    this.add.text(width / 2, 310, 'Combat rule', { fontSize: '16px', color: '#a89878' }).setOrigin(0.5);
+    this.add.text(width / 2, 285, 'Combat rule', { fontSize: '16px', color: '#a89878' }).setOrigin(0.5);
     const combatModeLabel = () =>
       session.combatMode === 'multi-defender'
         ? 'Group attacks: several units vs. several units'
         : 'Group attacks: several units vs. one unit (rulebook)';
     const combatModeBtn = this.add
-      .text(width / 2, 340, combatModeLabel(), {
+      .text(width / 2, 312, combatModeLabel(), {
         fontSize: '14px',
         color: '#ffffff',
         backgroundColor: '#4a3f2a',
@@ -76,13 +77,13 @@ export class MenuScene extends Phaser.Scene {
     combatModeBtn.on('pointerover', () => combatModeBtn.setStyle({ backgroundColor: '#6a5a3a' }));
     combatModeBtn.on('pointerout', () => combatModeBtn.setStyle({ backgroundColor: '#4a3f2a' }));
 
-    this.add.text(width / 2, 370, 'Turn order', { fontSize: '16px', color: '#a89878' }).setOrigin(0.5);
+    this.add.text(width / 2, 348, 'Turn order', { fontSize: '16px', color: '#a89878' }).setOrigin(0.5);
     const turnOrderLabel = () =>
       session.randomizedTurnOrder
         ? 'Re-randomized each turn'
         : 'Fixed (initial draw)';
     const turnOrderBtn = this.add
-      .text(width / 2, 400, turnOrderLabel(), {
+      .text(width / 2, 375, turnOrderLabel(), {
         fontSize: '14px',
         color: '#ffffff',
         backgroundColor: '#4a3f2a',
@@ -97,8 +98,45 @@ export class MenuScene extends Phaser.Scene {
     turnOrderBtn.on('pointerover', () => turnOrderBtn.setStyle({ backgroundColor: '#6a5a3a' }));
     turnOrderBtn.on('pointerout', () => turnOrderBtn.setStyle({ backgroundColor: '#4a3f2a' }));
 
+    // Per-seat Human/AI (plan.md §6.4's Stage 4). All four seats are offered
+    // even though only the first `playerCount` of them will exist: the count
+    // isn't chosen until the button above is clicked, which also STARTS the
+    // game, so there is no later moment to configure this in. Seats past the
+    // chosen count are simply ignored (see `seatControlFor`'s callers), and
+    // the hint below says so rather than leaving it to be discovered.
+    this.add.text(width / 2, 411, 'Who plays each seat', { fontSize: '16px', color: '#a89878' }).setOrigin(0.5);
+    this.add
+      .text(width / 2, 431, 'Seats beyond the player count you pick are ignored.', {
+        fontSize: '11px',
+        color: '#7a6c52',
+      })
+      .setOrigin(0.5);
+    const seatButtonColor = (index: number) =>
+      seatControlFor(index) === 'human' ? '#4a3f2a' : '#3a4a5a';
+    for (let i = 0; i < MAX_PLAYERS; i++) {
+      const seatLabel = () => `${session.playerNames[i]}: ${seatControlLabel(seatControlFor(i))}`;
+      const btn = this.add
+        .text(width / 2 - 240 + i * 160, 458, seatLabel(), {
+          fontSize: '12px',
+          color: '#ffffff',
+          backgroundColor: seatButtonColor(i),
+          padding: { x: 10, y: 6 },
+          fixedWidth: 150,
+          align: 'center',
+        })
+        .setOrigin(0.5)
+        .setInteractive({ useHandCursor: true });
+      btn.on('pointerdown', () => {
+        session.seatControls[i] = nextSeatControl(seatControlFor(i));
+        btn.setText(seatLabel());
+        btn.setStyle({ backgroundColor: seatButtonColor(i) });
+      });
+      btn.on('pointerover', () => btn.setStyle({ backgroundColor: '#6a5a3a' }));
+      btn.on('pointerout', () => btn.setStyle({ backgroundColor: seatButtonColor(i) }));
+    }
+
     const testBtn = this.add
-      .text(width / 2, 440, 'Mode test (2 joueurs, armées prêtes)', {
+      .text(width / 2, 510, 'Mode test (2 joueurs, armées prêtes)', {
         fontSize: '16px',
         color: '#cfcfcf',
         backgroundColor: '#333',
@@ -115,7 +153,7 @@ export class MenuScene extends Phaser.Scene {
     testBtn.on('pointerout', () => testBtn.setStyle({ backgroundColor: '#333' }));
 
     const combatTestBtn = this.add
-      .text(width / 2, 480, 'Mode test combat (unités face à face, 2 cases)', {
+      .text(width / 2, 552, 'Mode test combat (unités face à face, 2 cases)', {
         fontSize: '16px',
         color: '#cfcfcf',
         backgroundColor: '#333',
@@ -134,7 +172,7 @@ export class MenuScene extends Phaser.Scene {
     // Always offered, even with every slot empty, since the panel can also
     // import a save from a .json file.
     const loadBtn = this.add
-      .text(width / 2, 540, 'Charger une partie', {
+      .text(width / 2, 610, 'Charger une partie', {
         fontSize: '18px',
         color: '#ffffff',
         backgroundColor: '#3a3a55',

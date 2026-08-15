@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { UNIT_TYPES } from '../data/units';
 import { validateArmy, defaultArmySelection, ARMY_BUDGET } from '../engine/army';
 import { session, resetToMenu } from '../ui/session';
+import { skipAiArmySeats } from '../ui/aiSetup';
 import { showConfirmDialog } from '../ui/confirmDialog';
 
 export class ArmyBuilderScene extends Phaser.Scene {
@@ -19,6 +20,17 @@ export class ArmyBuilderScene extends Phaser.Scene {
   }
 
   create(): void {
+    // AI seats build no army by hand: `skipAiArmySeats` fills each one in
+    // with the ready-made default and reports the first seat that still needs
+    // a human, so the skipping happens here rather than by restarting this
+    // scene from inside its own `create` (see ui/aiSetup.ts).
+    const firstHumanSeat = skipAiArmySeats(this.playerIndex);
+    if (firstHumanSeat === null) {
+      this.scene.start('Placement', { playerIndex: 0 });
+      return;
+    }
+    this.playerIndex = firstHumanSeat;
+
     const { width } = this.scale;
     const playerName = session.playerNames[this.playerIndex]!;
     const edge = session.edges[this.playerIndex]!;

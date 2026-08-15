@@ -24,9 +24,10 @@ npm run build   # production build
 ## How to play
 
 1. **Menu** — pick 2, 3, or 4 players, the land-combat rule variant
-   (see "Combining attacks" below; defaults to several-vs-several), and
+   (see "Combining attacks" below; defaults to several-vs-several),
    whether turn order should be re-randomized each turn (see "Turn order"
-   below; defaults to off).
+   below; defaults to off), and which seats the computer should play (see
+   "Computer opponent" below; defaults to all human).
 2. **Army Builder** — each player spends 400 purchase points on units from
    the shared roster (archers, infantry, cavalry, chariots, elephants,
    phalanxes, and four tiers of warships), subject to per-unit quantity
@@ -39,7 +40,8 @@ npm run build   # production build
    randomly assigned edge's 3-hex-deep band (green highlight; see
    "Deployment zone position" below). Ships also let the placing player pick
    an initial facing (see "Naval movement and combat" below) instead of
-   always starting bow-first in a fixed direction.
+   always starting bow-first in a fixed direction. Steps 2 and 3 are skipped
+   for any seat the computer is playing — it buys and deploys its own army.
 4. **Board** — turns proceed player by player, each running a Movement
    phase (click a unit, then a highlighted reachable hex) followed by a
    Combat phase. In the Combat phase: click friendly units to build an
@@ -92,12 +94,18 @@ The game **autosaves at the start of each player's movement phase**, into its
 own slot that manual saves never touch — so a closed tab or a browser crash
 costs at most one turn. Saving is refused while a retreat or elephant drift is
 still awaiting a choice: those sequences hold callbacks that can't be
-serialized, so a save always lands on a stable position.
+serialized, so a save always lands on a stable position. It's also refused
+mid-way through a computer seat's turn, which would otherwise capture a
+half-finished position.
 
-A save carries the whole session — the players and their assigned edges, the
+A save carries the whole session — the players and their assigned edges,
+which seats are played by the computer and at what difficulty, the
 combat-rule variant, every unit's position, facing, movement and damage, and
-the per-phase record of which units have already attacked or rammed. Loading
-a game clears the undo history, since undoing into a previous game's actions
+the per-phase record of which units have already attacked or rammed. Save
+files made before computer seats existed still load, as the all-human games
+they were; files made *since* won't open in an older build, which refuses
+them rather than silently turning the computer's seats back into yours.
+Loading a game clears the undo history, since undoing into a previous game's actions
 would be meaningless.
 
 ### Undo and redo
@@ -118,7 +126,9 @@ Two boundaries deliberately limit how far back it reaches:
   replayed while developing without starting a fresh game.)
 - **Undo stops at the end of a phase**, so no player can rewind into another
   player's committed turn. During placement it's likewise scoped to the
-  player currently deploying.
+  player currently deploying. A computer seat's turn is another player's
+  turn by this rule: undo is unavailable while it plays, and picks up again
+  from an empty history when your own phase begins.
 
 Undo is also refused while a retreat, elephant drift, post-combat advance
 offer, or exchange-sacrifice choice is still awaiting an answer — resolve it
@@ -492,7 +502,9 @@ what the game will use — see `src/map-editor/`.
   move/attack/end-phase a player can take, plus the `PlayerAgent` interface
   in `agent.ts` for the retreat/push/advance/exchange decisions a human or a
   bot answers), the computer opponent described below (`combatOdds.ts`'s
-  exact CRT odds, `heuristicAgent.ts`, `randomAgent.ts`) and the headless
+  exact CRT odds, `heuristicAgent.ts`, `randomAgent.ts`, plus
+  `seatControl.ts`/`seatRouter.ts` for which seat is played by whom and
+  which agent answers each decision) and the headless
   self-play harness that soaks it (`fuzzHarness.ts`), and the save-file
   format and its validation. Fully
   unit-tested and independent of Phaser (the browser-side half of saving —
@@ -515,13 +527,22 @@ what the game will use — see `src/map-editor/`.
   every table, and a list of sources. Start at
   [`docs/research/README.md`](docs/research/README.md).
 
-## Computer opponent (engine only, not yet playable)
+## Computer opponent
 
-There is a working AI in `src/engine/`, but **no way to give it a seat from
-the UI yet** — every seat in a real game is still a human at the shared
-screen. It exists today to play thousands of headless self-play games in the
-test suite, and as the strategy layer a future "this seat is the computer"
-menu option will use.
+Any seat can be played by the computer. On the menu screen, each of the four
+seats has its own button cycling **Human → AI easy → AI normal → AI hard**;
+pick the ones you want before choosing the number of players (which is also
+what starts the game — seats beyond the count you pick are ignored).
+
+A computer seat sets itself up: it takes the ready-made 400-point army and
+deploys it into its own edge's zone, so the army-building and placement
+screens only appear for seats a human actually plays. On the board its turn
+runs on its own, one action at a time with a short pause between them so you
+can follow it, and the status line names the seat as the computer's. While
+it's playing, undo/redo and save/load are unavailable — but if one of *your*
+units is forced to retreat by its attack, it still asks you where to go.
+The choice of seats is saved with the game, so loading a save resumes
+against the same opponents.
 
 It plays through the same `legalActions`/`applyAction` layer the board scene
 does, so it is bound by exactly the same rules as a player — it cannot make
@@ -555,11 +576,20 @@ other three.
 A few places trade a little rules fidelity for a shippable scope — flagged
 here rather than silently:
 
-- **The computer opponent cannot be given a seat.** See above: the AI is
-  fully implemented in the engine and exercised by the test suite, but the
-  menu has no Human/Computer choice per player, there is no pacing or
-  animation to make its moves legible, and the save format does not record
-  which seats were AI.
+- **A computer seat's army is the default one, deployed almost at random
+  within its zone.** It doesn't choose a composition to suit the map or the
+  opponents, and it doesn't arrange a line — it takes the same ready-made
+  400-point army the army-builder's own "default army" button offers, and
+  scatters it over legal hexes in its deployment band (respecting terrain, so
+  no cavalry on marsh). It follows exactly one piece of tactical judgement:
+  cavalry, chariots and heavy infantry are kept off plateaux where there's
+  room, since a plateau's only benefit is defensive and conditional (+2
+  against attacks from below) and those are the units you want free to
+  advance and charge — the archers, phalanxes and elephants that hold ground
+  get the high ground instead. That is a preference, not a rule: plateaux are
+  legal for every land unit, and a crowded band will still put a chariot on
+  one rather than fail to field the army. Everything after deployment is
+  played properly.
 - **The computer opponent doesn't predict where a drifting elephant ends
   up.** It commands them perfectly well — the self-play armies its tests are
   built from now include one per side, so the AI moves and fights with

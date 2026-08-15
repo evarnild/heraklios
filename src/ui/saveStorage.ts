@@ -1,4 +1,4 @@
-import { session } from './session';
+import { session, setSeatControls } from './session';
 import {
   buildSavedGame,
   parseSavedGame,
@@ -35,6 +35,10 @@ export function captureCurrentGame(bookkeeping: {
     edges: [...session.edges] as EdgeCode[],
     armySelections: structuredClone(session.armySelections),
     combatMode: session.combatMode,
+    // Sliced to the seats this game actually has: `session.seatControls` is
+    // always MAX_PLAYERS long so the Menu can offer all four, but a save
+    // describing a 2-player game shouldn't claim four seats.
+    seatControls: session.seatControls.slice(0, session.playerCount),
     testMode: session.testMode,
     gameState: structuredClone(session.gameState!),
     attackedThisPhase: [...bookkeeping.attackedThisPhase],
@@ -56,6 +60,7 @@ export function applySavedGame(save: SavedGame): {
   session.edges = [...save.edges];
   session.armySelections = structuredClone(save.armySelections);
   session.combatMode = save.combatMode;
+  setSeatControls(save.seatControls);
   session.randomizedTurnOrder = save.gameState.randomizedTurnOrder;
   session.testMode = save.testMode;
   session.gameState = structuredClone(save.gameState);
