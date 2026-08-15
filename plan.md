@@ -52,14 +52,14 @@ attack force (merged `272bcf0`), Stage 2c — elephants in the harness
 completes Stage 2 and fixed a live defect in hotseat play on the way (a
 drifting elephant could enter marsh), and
 [§13](#13-hex-coordinate-tooltip)'s hex coordinate tooltip (merged
-`62892c3`). **Stage 4 — the AI's seat UI and save format
-([§6.12](#612-stage-4-outcome)) — is implemented but NOT yet merged.**
-**In flight:** `feat/ai-seats` — [§6.4](#64-stage-3-shipped-stage-4-deferred)'s
-Stage 4 (per-seat Human/AI, `SAVE_VERSION` 2, the `BoardScene` driver loop),
-green but unmerged and not yet run in a browser; see
-[§6.12](#612-stage-4-outcome). Queue item #1,
-[§9.2](#92-endgamebytimelimit-is-never-called)'s turn-limit ending, was
-skipped by the user and remains queued.
+`62892c3`), and **Stage 4 — the AI's seat UI and save format v2 (merged
+`556fbf8`), which finally gives the computer opponent a seat**
+([§6.12](#612-stage-4-outcome)).
+**In flight:** nothing. Next is queue item #1,
+[§9.2](#92-endgamebytimelimit-is-never-called)'s turn-limit ending, which
+the user skipped once already and which needs a design decision first.
+**Carried over from the merge:** Stage 4's manual browser pass was never
+run — see [§6.12](#612-stage-4-outcome).
 **Live defects still open:**
 [§9.2](#92-endgamebytimelimit-is-never-called).
 
@@ -87,16 +87,14 @@ sync when something merges** — it went stale once and the user caught it.
 | [§15](#15-live-defect-ranged-attacks-resolve-at-zero-attack-force) ranged attack force (+1 wedged-board defect, +2 review findings) | `272bcf0` |
 | [§6.7](#67-the-elephant-problem-stage-2-split) Stage 2c — elephants in the harness (+1 live marsh defect, +1 HIGH/3 MEDIUM review findings) | `0e54b59` |
 | [§13](#13-hex-coordinate-tooltip) hex coordinate tooltip | `62892c3` |
-| [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 4 — AI seat UI + save format v2 | `feat/ai-seats`, awaiting merge |
+| [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 4 — AI seat UI + save format v2 (+3 review defects) | `556fbf8` |
 
 ### In flight
 
-- **`feat/ai-seats`** — [§6.4](#64-stage-3-shipped-stage-4-deferred)'s
-  Stage 4, complete and green (417 tests, `tsc` and `npm run build` clean),
-  **not yet merged and not yet exercised in a browser** — see
-  [§6.12](#612-stage-4-outcome)'s verification gap. It was taken up out of
-  queue order: #1 (the turn-limit ending) was explicitly skipped by the user
-  on 2026-08-14 and stays queued below.
+- *Nothing.* Next up is #1 below, the turn-limit ending — the only open
+  live defect, and the one queue item that needs a design decision before
+  any code is written. It was skipped once already (2026-08-14), which is
+  why Stage 4 was taken out of queue order ahead of it.
 
 ### Queued
 
@@ -106,7 +104,7 @@ sync when something merges** — it went stale once and the user caught it.
 | ~~0b~~ | ~~Reviewer-agent file corrections~~ | — | **✅ Shipped `9f99b1a`.** See [§15.7](#157-the-two-follow-ups). |
 | ~~0c~~ | ~~Combat groups not revalidated after a removal~~ | — | **✅ Shipped `9f99b1a`.** See [§15.7](#157-the-two-follow-ups). |
 | 1 | [§9.2](#92-endgamebytimelimit-is-never-called) turn-limit ending | design + scenes | **Live gap, and the only open one.** Needs a design decision first (what sets the limit, how the player is told). **Skipped by the user on 2026-08-14** when it came up as the next task; still queued. Stage 3 added a second reason to care: `endGameByTimeLimit` breaks a tied army value in favour of the lower seat, silently (§6.9). |
-| ~~2~~ | ~~[§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 4 — AI seat UI + save format~~ | — | **Implemented on `feat/ai-seats`, awaiting review + merge.** See [§6.12](#612-stage-4-outcome). |
+| ~~2~~ | ~~[§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 4 — AI seat UI + save format~~ | — | **✅ Shipped `556fbf8`.** See [§6.12](#612-stage-4-outcome) — including the one check it shipped without. |
 | 3 | [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 3b — shallow lookahead tier | `engine/` | The fourth difficulty tier, deliberately not shipped with the other three. Needs state cloning + an opponent model + a performance budget; see `heuristicAgent.ts`'s header. |
 
 **Standing hazard:** almost everything queued touches `BoardScene.ts`, so
@@ -115,13 +113,13 @@ these mostly cannot run in parallel with each other.
 ## Backlog Map
 
 - **Start here:** [Current Queue](#10-sequenced-queue).
-- **Current next task:** review and merge `feat/ai-seats`
-  ([§6.12](#612-stage-4-outcome)), whose one outstanding check is a manual
-  browser pass. After that, #1,
-  [§9.2](#92-endgamebytimelimit-is-never-called)'s turn-limit ending —
-  **read §9.2 before launching anything**, it needs a design decision (what
-  sets the limit, how the player is told) that no implementer should make
-  alone, and the user skipped it once already.
+- **Current next task:** #1, [§9.2](#92-endgamebytimelimit-is-never-called)'s
+  turn-limit ending. **Read §9.2 before launching anything** — it needs a
+  design decision (what sets the limit, how the player is told) that no
+  implementer should make alone, and the user skipped it once already.
+  Before anything else, though: Stage 4 shipped without its manual browser
+  pass ([§6.12](#612-stage-4-outcome)), so the first person to open the game
+  should give a computer seat a turn and confirm it behaves.
 - **Live defects:** [§9.2](#92-endgamebytimelimit-is-never-called) (needs a
   design decision) is the only one left open.
 - **Larger future work:** [§6.4](#64-stage-3-shipped-stage-4-deferred)'s
@@ -576,8 +574,8 @@ pushed to `origin/main`. Branch and worktree cleaned up after merge.
 
 **Status:** stages 1, 2a, 2b, 2c and 3 **✅ shipped** (merged `9cb7ed7`,
 `469f84a`, `7544a96`, `0e54b59` and `a2a1329`). **Stage 2 is complete.**
-**Stage 4 is implemented on `feat/ai-seats`** and awaiting review/merge
-([§6.12](#612-stage-4-outcome)). Only the optional **stage 3b** (shallow
+**Stage 4 is ✅ shipped** (merged `556fbf8`,
+[§6.12](#612-stage-4-outcome)). Only the optional **stage 3b** (shallow
 lookahead) is still unstarted.
 
 The original scope note said stages 3–4 were deferred "until the foundation
@@ -729,7 +727,7 @@ load before any strategy code depends on it.
   avoidance shipped and is tested; *retreat* traps were implemented, found
   unreachable, and removed.
 
-- **Stage 4 — player-facing. ✅ Shipped** on `feat/ai-seats`. Landed
+- **Stage 4 — player-facing. ✅ Shipped** as `556fbf8`. Landed
   `engine/seatControl.ts` (the `'human' | 'ai-random' | 'ai-greedy' |
   'ai-ev'` union + `createSeatAgent`), `engine/seatRouter.ts`'s
   `routeBySeat`, `ui/aiSetup.ts` (an AI seat's army and deployment),
@@ -1203,7 +1201,7 @@ whoever next read the README.
 
 ### 6.12 Stage 4 outcome
 
-Shipped on `feat/ai-seats`. 417 tests (was 411 — six new files' worth of
+Merged as `556fbf8`. 421 tests (was 411 — six new files' worth of
 assertions across `seatControl`, `seatRouter`, `aiSetup` and the save
 migration), `tsc --noEmit` clean, `npm run build` clean. **The AI is now
 reachable from the UI**, which was the entire point: the strategy layer had
@@ -1359,7 +1357,15 @@ an AI seat.
 **Still outstanding: the manual browser pass.** Unchanged by this review —
 it could not be run, and no amount of reading substitutes for it. D2 in
 particular is exactly the class of defect only a human watching the screen
-would have caught, which is the argument for doing it before merge.
+would have caught.
+
+> **It shipped without that pass.** Merged on the user's instruction on
+> 2026-08-15 with the gap open and stated. This is the first feature in this
+> plan to reach `main` without anyone having watched it run, so if something
+> is wrong with the AI's turn in the actual game, this is the reason and the
+> place to start looking. The check itself is small: Menu -> set a seat to
+> "AI — hard" -> 2 players -> confirm the computer builds, deploys and plays
+> a turn. §4's port-pinning warning applies.
 
 ---
 
