@@ -6,7 +6,7 @@ import { getUnitType } from '../data/units';
 import { legalActions, type Action } from './actions';
 import { hexesUnderZoc } from './combat';
 import { DIRECTIONS, hexAdd, hexDistance } from './hex';
-import { enemyOwners, HeuristicAgent } from './heuristicAgent';
+import { enemyOwners, HeuristicAgent, movingUnitId } from './heuristicAgent';
 import { evaluateCharge } from './movement';
 import { createSeededRng } from './rng';
 import { maxEquipmentPointsForType, type GameState, type Phase, type Player, type Unit } from './state';
@@ -453,26 +453,31 @@ describe('HeuristicAgent: movement phase', () => {
   });
 
   it('does not reward a move for dropping BELOW its baseline threat', () => {
-    // `mover` starts equidistant (2 hexes) from `watcher` (a range-2
-    // attacker, so this is a real threat without the ZOC-lock a melee
-    // threat would need adjacency for) to the east and `decoy` (harmless —
-    // `strike: 0` — only there to give the westward move an approach
-    // score) to the west, so moving one hex toward EITHER gives the same
-    // +1 approach delta. Moving east stays within watcher's range
-    // (afterThreat == baseline, marginal threat 0, no penalty). Moving
-    // west leaves watcher's range entirely (afterThreat 0 < baseline),
-    // which is exactly the case `Math.max(0, afterThreat - baselineFor(...))`
-    // exists for: without the clamp this scores NEGATIVE and gets
-    // SUBTRACTED, i.e. moving west earns a bonus for "becoming safer" that
-    // moving east never had a matching risk for in the first place. A
-    // correctly-clamped lookahead has no reason to prefer one +1 approach
-    // move over the other, so it must land on the exact same tie-break ev
-    // does — ev never sees threat at all, so this is the sharpest possible
+    // `decoy` is NOT harmless — it's load-bearing. `mover` starts within
+    // reach of a COMBINED attack from `watcher` and `decoy` together
+    // (`buildAttackGroup` assembles them into one group under 'ev'
+    // scoring): baseline = 1.5, not either unit's solo EV (watcher alone
+    // is 0.333). Moving one hex toward EITHER breaks up that group and
+    // leaves both destinations threatened by at most `watcher` alone —
+    // east (toward watcher) keeps afterThreat at 0.333, west (toward
+    // decoy, leaving watcher's range 2 entirely) drops it to 0 — so BOTH
+    // are already below the 1.5 baseline and a correct, clamped
+    // `Math.max(0, afterThreat - baselineFor(...))` scores marginal
+    // threat 0 for both: no reason to prefer one +1-approach move over
+    // the other (both destinations have identical +1 raw approach —
+    // `decoy` being the same distance from `mover` as `watcher` is what
+    // makes that true, its own `strike` irrelevant since `strike: 0`).
+    // WITHOUT the clamp, "further below baseline" pays out as a bonus
+    // instead of clamping to zero, and west's is 0.75*(0.333-0) = 0.25
+    // bigger than east's — enough to break the raw-score tie in west's
+    // favor even though nothing about west is actually safer than east.
+    // A correctly-clamped lookahead therefore has no reason to prefer
+    // either move, so it must land on the exact same tie-break ev does —
+    // ev never sees threat at all, so this is the sharpest possible
     // check: any daylight between them here is the bonus firing.
     // Mutation-verified: dropping the `Math.max(0, ...)` clamp switches
     // the chosen destination from east (toward watcher) to west (toward
-    // decoy, fleeing watcher's range) even though its raw score is no
-    // better.
+    // decoy) even though its raw score is no better.
     const weights = { approach: 0.1, terrainDefense: 0, zocPenalty: 0, strike: 0 };
     const watcher = makeUnit({ id: 'watcher', typeId: 'fantassins-archers', position: { q: 10, r: 5 }, owner: 1 });
     const mover = makeUnit({ id: 'mover', typeId: 'fantassins', position: { q: 8, r: 5 }, owner: 0, movementLeft: 4 });
@@ -483,6 +488,82 @@ describe('HeuristicAgent: movement phase', () => {
     const lookaheadAction = choose(new HeuristicAgent({ difficulty: 'lookahead', weights }), state);
 
     expect(lookaheadAction).toEqual(evAction);
+  });
+
+  it("prices the enemy's hypothetical reply under EV scoring, not greedy", () => {
+    // `bestSoloAttacker`'s doc comment says the threat probe "always uses
+    // 'ev' regardless of this agent's own difficulty" — nothing pinned
+    // that claim. `phalanges` (5 defense) is the case where the two
+    // scoring modes disagree about which reply is scariest: EV weighs the
+    // attacker's own expected loss and prefers a safer, smaller-EV attack;
+    // greedy is blind to that and prefers whichever attack deals the most
+    // raw damage, ignoring what the reply costs the enemy. That difference
+    // in which reply gets priced changes which destination mover backs off
+    // to. Mutation-verified: changing `enemyThreatAgainstUnit`'s
+    // `combatCandidates(..., 'ev')` to `'greedy'` moves the chosen
+    // destination from (13,3) to (12,3) — one hex more cautious, because
+    // the greedy-priced reply looks (wrongly) scarier.
+    const mover = makeUnit({ id: 'mover', typeId: 'archers', position: landRow(0), owner: 0, movementLeft: 3 });
+    const enemy = makeUnit({ id: 'enemy', typeId: 'phalanges', position: landRow(4), owner: 1 });
+    const state = makeGame([mover, enemy], 'movement');
+    const weights = { approach: 0.5, terrainDefense: 0, zocPenalty: 0, strike: 0 };
+
+    const action = choose(new HeuristicAgent({ difficulty: 'lookahead', weights }), state);
+
+    expect(action.kind).toBe('landMove');
+    if (action.kind !== 'landMove') throw new Error('unreachable');
+    expect(action.to).toEqual({ q: 13, r: 3 });
+  });
+
+  it("caches each mover's baseline threat under its OWN id, not a shared key", () => {
+    // Every weight is zero, so every candidate's RAW score is exactly 0 and
+    // `legalActions` order alone decides which of `P`'s and `M`'s one legal
+    // move gets scored first — the only thing that can make one candidate
+    // beat the other is the threat penalty. `P` and `M` are each boxed in
+    // by five friendly, `movementLeft: 0` blockers so each has exactly ONE
+    // reachable hex (no other candidate could win on raw score and mask a
+    // caching bug). `P` starts safe (baseline 0) but its one move exposes
+    // it to `WP`+`E2` combining into a real attack — a genuine, CORRECTLY
+    // self-priced penalty in every version of this code, since `P` is
+    // always the first unit `baselineFor` computes (a per-unit cache and a
+    // shared one agree on whoever goes first). `M` starts already exposed
+    // to `WM` (baseline > 0) and its one move keeps it similarly exposed
+    // (marginal ~0, correctly) — so a CORRECT per-unit cache lets `M`'s
+    // move win (nothing to price against it), while a cache SHARED across
+    // units would instead charge `M`'s move against `P`'s baseline (0),
+    // pricing the same real exposure as if `M` had never been threatened
+    // at all and flipping the winner back to `P`. Mutation-verified:
+    // keying `baselineCache` by a constant instead of `unitId` changes the
+    // chosen action from `M`'s move to `P`'s.
+    const weights = { approach: 0, terrainDefense: 0, zocPenalty: 0, strike: 0, minMoveScore: -100 };
+    const P = makeUnit({ id: 'P', typeId: 'fantassins-archers', position: { q: 1, r: 1 }, owner: 0, movementLeft: 1 });
+    const blockersP = [
+      { q: 2, r: 0 },
+      { q: 1, r: 0 },
+      { q: 0, r: 1 },
+      { q: 0, r: 2 },
+      { q: 1, r: 2 },
+    ].map((pos, i) => makeUnit({ id: `bp${i}`, typeId: 'fantassins', position: pos, owner: 0, movementLeft: 0 }));
+    const WP = makeUnit({ id: 'WP', typeId: 'archers', position: { q: 4, r: 1 }, owner: 1 });
+    const E2 = makeUnit({ id: 'E2', typeId: 'fantassins', position: { q: 3, r: 1 }, owner: 1 });
+
+    const M = makeUnit({ id: 'M', typeId: 'archers', position: { q: 1, r: 12 }, owner: 0, movementLeft: 1 });
+    const blockersM = [
+      { q: 2, r: 11 },
+      { q: 1, r: 11 },
+      { q: 0, r: 12 },
+      { q: 0, r: 13 },
+      { q: 1, r: 13 },
+    ].map((pos, i) => makeUnit({ id: `bm${i}`, typeId: 'fantassins', position: pos, owner: 0, movementLeft: 0 }));
+    const WM = makeUnit({ id: 'WM', typeId: 'fantassins-archers', position: { q: 3, r: 12 }, owner: 1 });
+
+    const state = makeGame([P, M, ...blockersP, ...blockersM, WP, E2, WM], 'movement');
+
+    const action = choose(new HeuristicAgent({ difficulty: 'lookahead', weights }), state);
+
+    expect(action.kind).toBe('landMove');
+    if (action.kind !== 'landMove') throw new Error('unreachable');
+    expect(action.unitId).toBe('M');
   });
 
   it('the lookahead tier resets a stale defendedThisPhase flag before probing an enemy reply', () => {
@@ -586,6 +667,19 @@ describe('enemyOwners', () => {
     const state = makeGame([own, enemy, dead], 'movement');
 
     expect(enemyOwners(state, 0)).toEqual([1]);
+  });
+});
+
+describe('movingUnitId', () => {
+  it('returns the unitId for every movement-phase candidate action kind', () => {
+    expect(movingUnitId({ kind: 'landMove', unitId: 'u1', to: { q: 0, r: 0 } })).toBe('u1');
+    expect(movingUnitId({ kind: 'navalMove', unitId: 'u2', to: { q: 0, r: 0 } })).toBe('u2');
+    expect(movingUnitId({ kind: 'navalRotate', unitId: 'u3', direction: 1 })).toBe('u3');
+    expect(movingUnitId({ kind: 'ram', unitId: 'u4' })).toBe('u4');
+  });
+
+  it('throws rather than silently misreporting a non-movement action', () => {
+    expect(() => movingUnitId({ kind: 'endPhase' })).toThrow('"endPhase" is not a movement-phase candidate action');
   });
 });
 

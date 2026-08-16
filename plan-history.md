@@ -1273,13 +1273,31 @@ about the fix itself being wrong.
   (`LOOKAHEAD_CANDIDATE_LIMIT`, `LOOKAHEAD_REPLY_WEIGHT`) found ~0 aggregate
   effect: the redesign's entire discriminating power runs through a
   flooring operation. **Fixed:** constructed a position where a mover
-  starts equidistant from a real range-2 threat (east) and a harmless decoy
-  (west), so a 1-hex move toward either scores the same raw approach value;
-  moving east stays inside the threat's range (marginal 0, correctly);
-  moving west leaves it entirely (afterThreat 0 below baseline), which
-  without the clamp scores NEGATIVE and gets subtracted, i.e. SUBSIDIZED —
-  an unearned bonus for "becoming safer" that the eastward move never had a
-  matching risk for. Added as "does not reward a move for dropping BELOW
+  starts within reach of a COMBINED attack (`buildAttackGroup` assembles
+  two enemies into one group under 'ev' scoring: baseline 1.5, not either
+  enemy's solo EV of 0.333) and has two 1-hex candidates of identical raw
+  approach score, one toward each enemy — moving toward EITHER breaks up
+  the group and drops afterThreat to something still below the 1.5
+  baseline (0.333 one way, 0 the other), so a correct clamp scores BOTH
+  candidates' marginal threat at 0. Without the clamp, "further below
+  baseline" pays out as a bonus instead of clamping to zero, and the
+  bigger drop earns the bigger bonus — enough to break the tie in its
+  favor even though neither destination is actually less safe than the
+  other in any way the raw score already didn't capture.
+  **Correction (round 4):** the first version of this entry described the
+  mechanism as "moving east stays inside a range-2 threat's range,
+  marginal 0" vs. "moving west leaves it entirely, scores a bonus" — that
+  was wrong; a fourth review's own instrumentation of the real code showed
+  BOTH candidates score below baseline (0.333 and 0, both under 1.5), not
+  one at parity and one below, and it was the second enemy's contribution
+  to a COMBINED baseline attack — not "a harmless decoy just there for
+  approach symmetry," which is what the test's own comment called it —
+  that the whole test depends on. A maintainer who believed the original
+  comment and simplified the decoy away would have silently turned the
+  test into a no-op, which is exactly what a from-scratch mutant reproduced
+  (decoy removed → clamp-removal mutant survives). Both the code comment
+  and this entry were corrected to describe the group-attack mechanism
+  actually operating. Added as "does not reward a move for dropping BELOW
   its baseline threat," asserting `lookaheadAction` exactly matches
   `evAction` (ev never sees threat at all, so any daylight between them is
   the bonus firing) — mutation-verified: removing the clamp switches the
@@ -1336,10 +1354,16 @@ about the fix itself being wrong.
   you could make against the result"). Both described the pre-§6.14 model.
   **Fixed:** both reworded to say "against the specific unit that just
   moved."
-- **LOW — three more disclosed, not fixed:** naval moves are never
-  clone-probed by the threat check at all (extending the `'ram'` bias
-  §6.13 already logged to `navalMove` too — no lookahead test involves a
-  ship); the probe's use of `pickBestDeterministic` over `pickBest` isn't
+- **LOW — three more disclosed, not fixed:** `navalMove`/`navalRotate` ARE
+  handled in `cloneAfterDeterministicMovementAction`'s switch (unlike
+  `'ram'`, which is genuinely unhandled — §6.13's already-logged bias), but
+  no lookahead test involves a ship, so that handling is entirely
+  UNTESTED — a mutant deleting both cases (falling through to `'ram'`'s
+  `null`) leaves the suite green, and so does one collapsing
+  `targetsUnit`'s `'board'` branch (boarding attacks, the naval
+  equivalent of `landAttack`) to `false`. Both are one gap, not two — a
+  single naval lookahead test would need to close them together; the
+  probe's use of `pickBestDeterministic` over `pickBest` isn't
   pinned by any test (swapping it lets the probe consume `rng` draws);
   and the literal string `'AI — cautious'` isn't pinned either, though
   this is a pre-existing convention across every `SeatControl` label, not
@@ -1357,6 +1381,113 @@ that shipped without an adversarial pass first turned out to have a gap.
 **Verification:** `tsc --noEmit` clean, `vitest run` green at 486 tests (up
 from 484 — the two new mutation-verified targeted tests), `npm run build`
 clean. **Not yet through a fourth adversarial review pass.**
+
+### 6.16 Stage 3b: fourth review outcome
+
+**The FOURTH review was the narrowest yet: 3 MEDIUM, 4 LOW, and — for the
+first time — no correctness defect in the shipped code.** The reviewer's
+own words: "the closest this branch has come to passing." Everything
+found was about the RECORD (a wrong explanation, an undisclosed gap, a
+disclosed gap whose stated reason for being unfixable didn't hold up), not
+about behavior a player would ever see.
+
+- **MEDIUM — the round-3 clamp test's own comment described a mechanism
+  that wasn't the one operating, and called the load-bearing unit
+  "harmless."** The comment said `decoy` was "harmless — only there to
+  give the westward move an approach score" and that moving toward
+  `watcher` "stays within its range (afterThreat == baseline, marginal
+  0)." Instrumenting the real code (independently, before accepting the
+  finding) showed baseline is actually **1.5**, not `watcher`'s solo
+  0.333 — `buildAttackGroup` combines `watcher` and `decoy` into ONE
+  attack group under `'ev'` scoring, and `decoy` is what produces the
+  elevated baseline the whole test depends on. BOTH destinations
+  (afterThreat 0.333 and 0) sit below that 1.5 baseline, not one at parity
+  and one below as the comment claimed. A maintainer who believed the
+  comment and "simplified" the decoy away as decorative would have
+  silently turned the test into a no-op — confirmed by rebuilding the
+  position without `decoy` and reconfirming the clamp-removal mutant
+  survives there. **Fixed:** rewrote the test's comment and this file's
+  matching §6.15 paragraph to describe the group-attack mechanism actually
+  operating. The test's assertions and the fix itself were never wrong —
+  only the explanation was.
+- **MEDIUM — an undisclosed surviving mutant: the threat probe's choice of
+  `'ev'` scoring for the hypothetical enemy reply was asserted in a doc
+  comment but pinned by no test.** Swapping `combatCandidates(..., 'ev')`
+  to `'greedy'` inside `enemyThreatAgainstUnit` left the whole suite green.
+  **Fixed:** independently reproduced the reviewer's example (mover
+  `archers` approaching `phalanges`, real code lands at `(13,3)`, the
+  `'greedy'`-probe mutant at `(12,3)`) before trusting it, then added
+  "prices the enemy's hypothetical reply under EV scoring, not greedy" —
+  mutation-verified against the committed file.
+- **MEDIUM — the shared-baseline-cache-key gap (§6.15's "set aside rather
+  than forced") was closable after all, and for a different reason than
+  §6.15 gave.** §6.15 concluded the achievable attack EVs on this unit
+  roster made the needed numeric window too narrow to hit naturally. The
+  fourth review showed that conclusion was itself wrong: the real blocker
+  isn't EV magnitude, it's that ANY unpenalized alternative candidate
+  wins ties regardless of a shared-vs-per-unit cache bug being present —
+  remove the alternatives (by boxing each of two movers in with
+  `movementLeft: 0` friendly units so each has exactly ONE legal
+  destination) and zero every scoring weight (so raw scores are all
+  exactly 0 and only the threat penalty is observable), and the numeric
+  window disappears entirely — no EV tuning needed. **Fixed:**
+  independently reproduced the reviewer's 14-unit position and confirmed
+  it discriminates against the real committed file (`ev` picks `P`,
+  correct lookahead picks `M`, the shared-key mutant collapses back onto
+  `P`) before adding "caches each mover's baseline threat under its OWN
+  id, not a shared key" — mutation-verified. §6.15's own "abandoned"
+  framing stands as an honest record of what was tried and concluded at
+  the time; this entry is the correction, not a rewrite of that one.
+- **LOW — six code comments added by round 1–3 of this same branch cited
+  `plan.md §N` for sections that had already moved to `plan-history.md` in
+  the same commit that split the files** (`heuristicAgent.ts:50`, `:702`,
+  `:710`; `seatControl.ts:6`, `:61`; `saveGame.ts:83`). An oversight, not a
+  convention violation — the same commit correctly updated
+  `heuristicSoak.test.ts`'s docstring and the reviewer agent's own file.
+  **Fixed:** all six repointed to `plan-history.md`. The ~60 *pre-existing*
+  `plan.md §N` citations elsewhere in `src/` (predating the split) were
+  deliberately left alone, per this session's earlier judgment call that
+  a repo-wide rename is out of scope for a feature branch — plan.md's own
+  archiving convention keeps section numbers stable specifically so those
+  stay findable via the History Map regardless.
+- **LOW — two more undisclosed survivors, folded into the existing naval
+  disclosure rather than left unnamed:** `targetsUnit`'s `'board'` branch
+  (`return false` survives) and `cloneAfterDeterministicMovementAction`'s
+  `navalMove`/`navalRotate` cases (deleting them, falling through to
+  `'ram'`'s `null`, survives) are the SAME gap, not two — both are only
+  reachable through naval clone-probing, which no lookahead test
+  exercises. **Corrected the disclosure** (this file's own LOW-list above
+  had claimed navalMove/navalRotate are "never clone-probed at all," which
+  is imprecise — the code DOES handle them, it's just untested) and added
+  a doc-comment note on `targetsUnit` pointing here. Not fixed — a single
+  naval lookahead test would need to close both branches together, which
+  is real scope, not a one-liner.
+- **LOW — `plan.md` self-contradicted about live defects:** "Live defects
+  still open: none" (Current Snapshot) alongside §18 (the ramming bonus
+  defect, added to the queue on this same branch) listed as a confirmed,
+  unfixed live defect elsewhere in the same file. **Fixed:** Current
+  Snapshot now names §18.
+- **LOW (pre-existing, not this branch's fault, swept up anyway):** the
+  difficulty-tier table still credited `'ev'`'s movement scoring with
+  "retreat-trap … value," a term `scoreLandMove`'s own doc comment records
+  as deliberately removed after an earlier review found it survived
+  deletion. Confirmed via `grep` that the term genuinely doesn't exist in
+  the scoring logic before removing it from the table.
+
+**What this round confirms:** the underlying fix has now survived four
+independent adversarial passes without a single behavioral defect
+surviving to this round — every finding here was about whether the CODE'S
+OWN EXPLANATION of itself was accurate and complete, which is a real bar,
+just a different one than "does it work." Two mutants remain intentionally
+undiscriminated on record — `pickBestDeterministic` vs. `pickBest` inside
+the probe, and the literal `'AI — cautious'` label string (a pre-existing
+convention across every `SeatControl` label, not new to this tier) — both
+named explicitly rather than left as silent gaps.
+
+**Verification:** `tsc --noEmit` clean, `vitest run` green at 490 tests (up
+from 486 — two new mutation-verified targeted tests plus two guard tests
+for `movingUnitId`), `npm run build` clean. **Not yet through a fifth
+adversarial review pass.**
 
 ---
 

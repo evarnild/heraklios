@@ -94,7 +94,9 @@ piece of work, not a quick pickup.
 ([§6.12](plan-history.md#612-stage-4-outcome)) and now §16's too — Chrome automation was
 unavailable in the session that shipped §16, so its per-hex badges have
 been verified by `tsc`/`vitest`/`build` and code review only, not by eye.
-**Live defects still open:** none.
+**Live defects still open:** [§18](#18-live-defect-ramming-bonus-narrows-the-table-instead-of-extending-it)
+— ramming bonus narrows the table instead of extending it. Confirmed, not
+yet fixed.
 
 <a id="10-sequenced-queue"></a>
 
@@ -128,20 +130,25 @@ sync when something merges** — it went stale once and the user caught it.
 
 - [§6.4](plan-history.md#64-stage-3-shipped-stage-4-deferred) Stage 3b — shallow lookahead
   tier, on branch `codex-stage-3b-lookahead` (initial commit `f7bb8e2`). Went
-  through adversarial review before merge (this repo's usual gate) **three
-  times**, and failed all three — 4 HIGH findings on the first pass
+  through adversarial review before merge (this repo's usual gate) **four
+  times**, and failed all four — 4 HIGH findings on the first pass
   ([§6.13](plan-history.md#613-stage-3b-outcome)), 2 more HIGH findings on the second pass
   after that round's own fix didn't hold up ([§6.14](plan-history.md#614-stage-3b-second-review-outcome)),
-  and a narrower 1 HIGH/3 MEDIUM/4 LOW on the third pass — the redesign
-  itself was correct this time, but had no test standing between it and
-  being silently reverted, plus a measurement in §6.14 that didn't
-  reproduce ([§6.15](plan-history.md#615-stage-3b-third-review-outcome)).
+  a narrower 1 HIGH/3 MEDIUM/4 LOW on the third pass — the redesign itself
+  was correct that time, but had no test standing between it and being
+  silently reverted, plus a measurement that didn't reproduce
+  ([§6.15](plan-history.md#615-stage-3b-third-review-outcome)) — and a
+  narrower still 3 MEDIUM/4 LOW on the fourth pass, with **no correctness
+  defect in the shipped code** for the first time: every finding was about
+  the record (a test comment describing the wrong mechanism, two
+  undisclosed mutation survivors, a disclosed gap whose stated reason for
+  being unfixable turned out to be wrong)
+  ([§6.16](plan-history.md#616-stage-3b-fourth-review-outcome)).
   The tier is now relabeled "AI — cautious" rather than "AI — expert" since
   no round of measurement established a reliable aggregate-strength edge
-  over `'ev'`. Not yet re-reviewed a fourth time or merged. One disclosed,
-  not-fixed coverage gap remains open (a shared-baseline-cache mutant with
-  no natural discriminating test found yet — §6.15). No other live defects
-  remain open.
+  over `'ev'`. Not yet re-reviewed a fifth time or merged. No live defects
+  or undisclosed coverage gaps remain open — two mutants remain
+  intentionally undiscriminated on record (§6.16).
 
 ### Queued
 
@@ -153,7 +160,7 @@ sync when something merges** — it went stale once and the user caught it.
 | ~~1~~ | ~~[§9.2](plan-history.md#92-endgamebytimelimit-is-never-called) endgame: clock, round limit, and an "End game" button~~ | — | **✅ Shipped `836c70f`.** See [§9.2.4](plan-history.md#924-outcome) — including the mid-merge pause-behavior revision. |
 | ~~2~~ | ~~[§6.4](plan-history.md#64-stage-3-shipped-stage-4-deferred) Stage 4 — AI seat UI + save format~~ | — | **✅ Shipped `556fbf8`.** See [§6.12](plan-history.md#612-stage-4-outcome) — including the one check it shipped without. |
 | ~~2~~ | ~~[§16](plan-history.md#16-identify-which-unit-a-choice-dialog-means) label the units a choice dialog means~~ | — | **✅ Shipped `ceb106a`.** Implemented directly (no agent pair), verified by `tsc`/`vitest`/`build` and code review — the manual browser pass is still owed, Chrome automation wasn't available in that session. |
-| ~~3~~ | ~~[§6.4](plan-history.md#64-stage-3-shipped-stage-4-deferred) Stage 3b — shallow lookahead tier~~ | `engine/` | **In flight, not queued** — see In flight above, [§6.13](plan-history.md#613-stage-3b-outcome), [§6.14](plan-history.md#614-stage-3b-second-review-outcome), and [§6.15](plan-history.md#615-stage-3b-third-review-outcome). |
+| ~~3~~ | ~~[§6.4](plan-history.md#64-stage-3-shipped-stage-4-deferred) Stage 3b — shallow lookahead tier~~ | `engine/` | **In flight, not queued** — see In flight above, [§6.13](plan-history.md#613-stage-3b-outcome), [§6.14](plan-history.md#614-stage-3b-second-review-outcome), [§6.15](plan-history.md#615-stage-3b-third-review-outcome), and [§6.16](plan-history.md#616-stage-3b-fourth-review-outcome). |
 | 4 | [§18](#18-live-defect-ramming-bonus-narrows-the-table-instead-of-extending-it) ramming bonus narrows the table instead of extending it | `src/data/navalRamming.ts`, its tests, `BoardScene.ts`'s ram log, README | Confirmed live defect (user report, verified against the scanned rulebook page). Also affects AI ramming decisions via `combatOdds.ts`'s `evaluateRam`. |
 | 5 | [§17](#17-manual-step-by-step-naval-movement) manual step-by-step naval movement | `BoardScene.ts` (likely presentation-only) | Replace destination-click naval movement with hex-by-hex manual control; clearer Turn button labels. [§17.4](#174-open-design-question-distant-ramming-contacts) has one open design question to settle with the user before implementation starts. |
 
@@ -162,9 +169,9 @@ sync when something merges** — it went stale once and the user caught it.
 - **Start here:** [Current Queue](#10-sequenced-queue).
 - **Current next task:** #4, [§18](#18-live-defect-ramming-bonus-narrows-the-table-instead-of-extending-it)
   the ramming bonus defect — a confirmed rules bug, ahead of #5 (naval
-  movement) at the user's request. [§6.15](plan-history.md#615-stage-3b-third-review-outcome)'s
-  fixes need a FOURTH (re-)review pass and a merge decision — this branch
-  has failed review three times now; all three items here are independent
+  movement) at the user's request. [§6.16](plan-history.md#616-stage-3b-fourth-review-outcome)'s
+  fixes need a FIFTH (re-)review pass and a merge decision — this branch
+  has failed review four times now; all three items here are independent
   (different files) and can proceed in parallel.
 - **Live defects:** [§18](#18-live-defect-ramming-bonus-narrows-the-table-instead-of-extending-it)
   — ramming bonus narrows the table instead of extending it. Confirmed, not
@@ -172,7 +179,7 @@ sync when something merges** — it went stale once and the user caught it.
 - **Owed:** a manual browser pass over §16's per-hex choice labels (and
   Stage 4's still-outstanding one, [§6.12](plan-history.md#612-stage-4-outcome)) — next
   person with a working browser session should give both a look. Stage 3b
-  ([§6.15](plan-history.md#615-stage-3b-third-review-outcome)) still needs a FOURTH
+  ([§6.16](plan-history.md#616-stage-3b-fourth-review-outcome)) still needs a FIFTH
   review pass before merge.
 
 ## History Map
@@ -188,9 +195,10 @@ This map is just a fast index into it:
   [§6.8](plan-history.md#68-stage-2a-outcome), [§6.9](plan-history.md#69-stage-3-outcome),
   [§6.11](plan-history.md#611-stage-2c-outcome), [§6.12](plan-history.md#612-stage-4-outcome),
   [§6.13](plan-history.md#613-stage-3b-outcome),
-  [§6.14](plan-history.md#614-stage-3b-second-review-outcome), and
-  [§6.15](plan-history.md#615-stage-3b-third-review-outcome) — the last
-  three are Stage 3b's three failed review passes, still open (see In
+  [§6.14](plan-history.md#614-stage-3b-second-review-outcome),
+  [§6.15](plan-history.md#615-stage-3b-third-review-outcome), and
+  [§6.16](plan-history.md#616-stage-3b-fourth-review-outcome) — the last
+  four are Stage 3b's four failed review passes, still open (see In
   flight above).
 - **Shipped feature notes:** [§7](plan-history.md#7-start-a-new-game-at-any-time),
   [§8](plan-history.md#8-bug-units-cannot-move-through-friendly-units),

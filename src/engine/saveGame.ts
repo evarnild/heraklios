@@ -80,7 +80,7 @@ export const MIN_SUPPORTED_SAVE_VERSION = 1;
 // second bump, since no version-3 file with `paused` missing has ever
 // shipped.)
 //
-// `'ai-lookahead'` (plan.md §6.4's Stage 3b, the fourth `HeuristicAgent`
+// `'ai-lookahead'` (plan-history.md §6.4's Stage 3b, the fourth `HeuristicAgent`
 // difficulty tier) widened `SeatControl`'s domain without a version bump,
 // and that's the right call by the SAME forwards-only reasoning `seatControls`
 // itself got a bump for above: `isSeatControl`/`isValidSavedGame` validate

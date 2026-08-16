@@ -3,7 +3,7 @@ import { HeuristicAgent, type Difficulty } from './heuristicAgent';
 
 /**
  * Who plays a seat: the player at the keyboard, or one of the four
- * `HeuristicAgent` difficulty tiers (plan.md §6.4's Stage 4).
+ * `HeuristicAgent` difficulty tiers (plan-history.md §6.4's Stage 4).
  *
  * Deliberately a FLAT string union rather than `'human' | { ai: Difficulty }`.
  * Three things read this value and each is simpler for it: the Menu cycles
@@ -58,7 +58,7 @@ export function isAiSeat(control: SeatControl): boolean {
  * `'ai-lookahead'` is deliberately labelled "cautious," not "expert": it
  * shares `'ai-ev'`'s exact combat logic and only adds a bounded threat check
  * to its movement choices, and measurement (`heuristicSoak.test.ts`,
- * plan.md §6.14) could not establish that this makes it reliably STRONGER
+ * plan-history.md §6.14) could not establish that this makes it reliably STRONGER
  * than `'ai-ev'` in aggregate — the earlier "expert" label asserted an
  * ordering the tier doesn't actually back up. It IS a real, different, more
  * defensively-minded playstyle (verified by targeted tests, not aggregate

@@ -19,21 +19,21 @@ import { RandomAgent } from './randomAgent';
 import { currentDefense, livingUnits, unitType, type GameState, type PlayerId, type Unit } from './state';
 
 /**
- * Stage 3 of plan.md §6 — an agent that actually tries to win, built on the
+ * Stage 3 of plan-history.md §6 — an agent that actually tries to win, built on the
  * exact CRT arithmetic in `engine/combatOdds.ts` and the same
  * `legalActions`/`applyAction` action layer `RandomAgent` and `BoardScene`
  * already use. No Phaser, no scene, no new rules: every legality question is
  * still answered by the engine's existing predicates, and this file only
  * decides which of the legal options it prefers.
  *
- * DIFFICULTY TIERS (plan.md §6.4: "random -> greedy -> EV-weighted ->
+ * DIFFICULTY TIERS (plan-history.md §6.4: "random -> greedy -> EV-weighted ->
  * shallow lookahead"):
  *
  * | Tier | Combat | Movement |
  * | --- | --- | --- |
  * | `'random'` | delegates to `RandomAgent` | delegates to `RandomAgent` |
  * | `'greedy'` | maximizes expected ENEMY loss, blind to its own risk | closes distance; walks toward whatever it could hurt |
- * | `'ev'` | maximizes expected material SWING, and combines attackers | as above, plus terrain, ZOC, retreat-trap and charge value |
+ * | `'ev'` | maximizes expected material SWING, and combines attackers | as above, plus terrain, ZOC and charge value |
  * | `'lookahead'` | same exact-EV combat model | EV movement plus a bounded enemy-reply threat check |
  *
  * `'random'` is a genuine delegation, not a reimplementation — the tier
@@ -47,8 +47,8 @@ import { currentDefense, livingUnits, unitType, type GameState, type PlayerId, t
  * therefore happily trade a phalanx for an archer, which is exactly the
  * mistake that makes it the easier opponent.
  *
- * THE FOURTH TIER IS BOUNDED, NOT A ROLLOUT. plan.md §6.4 called shallow
- * lookahead "nearly free"; §6.9 records why that was wrong. This tier keeps
+ * THE FOURTH TIER IS BOUNDED, NOT A ROLLOUT. plan-history.md §6.4 called
+ * shallow lookahead "nearly free"; §6.9 records why that was wrong. This tier keeps
  * the tractable slice: deterministic movement candidates are applied to a
  * structured-cloned `GameState`, then an EV opponent model asks what the
  * strongest immediate combat reply would be SPECIFICALLY AGAINST THE UNIT
@@ -699,7 +699,7 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
    * Penalizes each candidate by the MARGINAL enemy threat it creates AGAINST
    * THE UNIT BEING MOVED — not the board's overall worst threat.
    *
-   * The first version of this tier (plan.md §6.13) computed a board-WIDE
+   * The first version of this tier (plan-history.md §6.13) computed a board-WIDE
    * max threat as both "before" and "after," and subtracted one from the
    * other. That doesn't discriminate: a board-wide worst-case threat is
    * almost never the specific unit that just moved (with any army bigger
@@ -707,7 +707,7 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
    * `baselineThreat` and `afterThreat` came out equal in nearly every
    * position regardless of what the candidate did — measured at the time as
    * "lookahead" being statistically indistinguishable from `'ev'` over 160
-   * games (plan.md §6.14). Pricing the threat specifically against the
+   * games (plan-history.md §6.14). Pricing the threat specifically against the
    * mover fixes the discrimination problem: `baselineThreat` is what the
    * strongest enemy attack against THIS unit, specifically, is worth before
    * it moves; `afterThreat` is the same question after; only the increase
@@ -904,8 +904,11 @@ export function enemyOwners(state: GameState, owner: PlayerId): PlayerId[] {
  * `unitId` — `landMove`/`navalMove`/`navalRotate`/`ram` — so this throws
  * rather than returning a fallback if that invariant is ever violated,
  * matching this file's usual "loud failure over silent misbehaviour"
- * convention (see `requireUnit`). */
-function movingUnitId(action: Action): string {
+ * convention (see `requireUnit`). Exported for direct testing, same reason
+ * as `enemyOwners`: the throw branch is unreachable through the public
+ * `chooseNextAction` API as this file currently calls it, so a test can
+ * only pin it by calling the function directly. */
+export function movingUnitId(action: Action): string {
   switch (action.kind) {
     case 'landMove':
     case 'navalMove':
@@ -920,7 +923,10 @@ function movingUnitId(action: Action): string {
 /** Whether `action` (a combat candidate — `landAttack` or `board`) targets
  * `unitId` as a defender. Used by `enemyThreatAgainstUnit` to isolate the
  * threat against ONE specific unit out of every attack a hypothetical
- * combat phase offers. */
+ * combat phase offers. The `'board'` branch — a hypothetical boarding
+ * attack, reachable only when `cloneAfterDeterministicMovementAction`
+ * clone-probes a `navalMove`/`navalRotate` — is untested: no lookahead
+ * test involves a ship (plan-history.md §6.15). */
 function targetsUnit(action: Action, unitId: string): boolean {
   if (action.kind === 'landAttack') return action.defenderIds.includes(unitId);
   if (action.kind === 'board') return action.defenderId === unitId;
