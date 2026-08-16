@@ -1564,10 +1564,12 @@ breaks that pattern on purpose by not asserting completeness at the end.
   `'ram'`-clone-probe exclusion (a genuine, already-documented design
   choice, but nothing pins that adding `'ram'` to the probed cases would
   change anything); `enemyThreatAgainstUnit`'s defensive `index < 0`
-  guard (structurally unreachable — `seatOrder` is fixed at game start
-  and never mutated — unlike `movingUnitId`'s structurally similar throw,
-  which WAS pinned once exported, because that one has a direct-call seam
-  and this one doesn't without exporting a function and handing it a
+  guard (structurally unreachable, because `seatOrder` always holds every
+  player id for the life of the game — `turnManager.ts`'s
+  `shuffleSeatOrder` only ever permutes it, never adds or drops one —
+  unlike `movingUnitId`'s structurally similar throw, which WAS pinned
+  once exported, because that one has a direct-call seam and this one
+  doesn't without exporting a function and handing it a
   self-contradictory board); and `LOOKAHEAD_CANDIDATE_LIMIT`/
   `LOOKAHEAD_REPLY_WEIGHT` are only pinned in the direction that matters
   for correctness (lowering either breaks tests; raising either is a
@@ -1603,6 +1605,72 @@ record complete; it names what changed and moves on.
 (up from 490 — one new mutation-verified targeted test; the `enemyOwners`
 fix edited an existing test rather than adding one), `npm run build`
 clean. **Not yet through a sixth adversarial review pass.**
+
+### 6.18 Stage 3b: sixth review outcome — PASS
+
+**The sixth review passed**, the first PASS this branch has received. The
+reviewer enumerated 27 mutants directly from `git diff main...HEAD` — not
+from a description of what changed — and ran all of them against the
+committed file: 19 killed (every behavioral line the branch touches),
+8 survived, and every survivor was already disclosed on the record except
+one, which the reviewer confirmed is a provably EQUIVALENT mutant (a
+secondary sort key that can never be observed, since the primary key is
+already unique and V8's sort is stable) rather than an undisclosed gap.
+Both of round 5's specific mutation claims (the `enemyOwners` fix, the
+multi-owner `Math.max` fix) were independently re-verified against the
+committed file and confirmed to hold, and every measured number in the
+prose — including the 160-seed −2.24% figure and the new 3-player test's
+exact 5x threat understatement — reproduced exactly.
+
+**Three small findings, all prose, none behavioral — fixed directly
+rather than spawning a seventh round:**
+
+- **MEDIUM — round 5's own defensive-guard comment
+  (`heuristicAgent.ts`'s `index < 0` check) gave a FALSE reason for why
+  it's unreachable.** It claimed `seatOrder` is "fixed at game start and
+  never mutated afterward" with "`fuzzHarness.ts`'s seat setup" as "the
+  only writer." Both clauses are wrong: `turnManager.ts` reassigns
+  `state.seatOrder = shuffleSeatOrder(state.seatOrder)` at every round
+  boundary when randomized turn order is on, and `fuzzHarness.ts` never
+  writes `seatOrder` at all, only reads it. The CONCLUSION (unreachable)
+  was still right — `shuffleSeatOrder` only permutes, never adds or drops
+  an id, so `indexOf` on a living unit's owner can't fail — just not for
+  the reason stated. This is the fourth time in three rounds (§6.15's
+  clamp comment, §6.16's own correction of it, §6.17's second correction
+  of the SAME comment, and now this) that a defensive/explanatory comment
+  introduced to satisfy one review round turned out to have its own small
+  error, caught by the next. **Fixed:** corrected both the code comment
+  and this file's matching §6.17 paragraph to state the real invariant.
+- **LOW — "lowering it to 1 fails three tests" undercounted; verified by
+  mutation before correcting.** Actually four: the three targeted
+  lookahead tests plus `heuristicSoak.test.ts`'s ev-comparison soak
+  (deterministic and seeded, not a flake). **Fixed:** corrected the
+  count.
+- **LOW — `plan.md`'s Current Snapshot still said "In flight: nothing"**
+  while the Current Queue a few lines below has documented Stage 3b as
+  in flight, failing review, for five straight rounds — the same
+  self-contradiction class as the "Live defects: none" one §6.16 already
+  fixed once, just a different sentence that never got the same sync.
+  **Fixed:** now points at the In-flight table instead of asserting a
+  stale absolute.
+
+**On whether to keep reviewing:** the reviewer's own recommendation,
+given directly: stop the per-round cycle here. Three consecutive rounds
+found zero behavioral defects, and this round's diff-driven mutation
+sweep is the strongest evidence yet that the disclosure discipline has
+converged — every real survivor is named somewhere on the record. What
+has NOT converged, and predictably won't by re-running the same process,
+is prose accuracy: each round's comment fix creates a new comment, and a
+sufficiently adversarial read will keep finding something small in it.
+That is a property of the process, not a signal about remaining risk.
+The residual gaps (no naval lookahead test, `'ram'` unprobed by design,
+two tuning constants unpinned upward) are real but scoped — each would
+need genuinely new test scenarios to close, which is better done as its
+own future item than as another pass over an already-converged diff.
+
+**Verification:** `tsc --noEmit` clean, `vitest run` green at 491 tests
+(no new tests this round — comment-only fixes), `npm run build` clean.
+**PASSED review. Ready to merge**, pending the operator's decision.
 
 ---
 

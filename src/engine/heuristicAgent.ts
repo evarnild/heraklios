@@ -162,7 +162,8 @@ type CombatScoringMode = 'greedy' | 'ev';
  * BFS across the whole board.
  *
  * Only pinned in the direction that matters for correctness: lowering it
- * to 1 fails three tests (an uncapped search is strictly more accurate, so
+ * to 1 fails four tests, three targeted plus the ev-comparison soak (an
+ * uncapped search is strictly more accurate, so
  * raising it — tried up to 40 during Stage 3b tuning, plan-history.md
  * §6.14 — is not a behavior change a test could object to, just a
  * performance/accuracy tradeoff with no test asserting the CHOSEN value
@@ -778,9 +779,12 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
     for (const owner of enemyOwners(board, movingOwner)) {
       const index = board.seatOrder.indexOf(owner);
       // Defensive only, and genuinely unreachable rather than merely
-      // untested: `enemyOwners` reads its owners from `board.units`, and
-      // `seatOrder` is fixed at game start and never mutated afterward
-      // (`fuzzHarness.ts`'s seat setup is the only writer). Left unpinned,
+      // untested: `seatOrder` always holds every player id for the life of
+      // the game (`turnManager.ts`'s `shuffleSeatOrder` only ever
+      // permutes it, never adds or drops one — see its doc comment), so
+      // `indexOf` on an `owner` drawn from `enemyOwners` (which reads
+      // living units, themselves always owned by one of those ids) cannot
+      // fail. Left unpinned,
       // unlike `movingUnitId`'s structurally similar throw guard, which
       // WAS pinned once exported for direct testing — that one is reachable
       // by calling the function directly with a bogus action; this one has
