@@ -618,7 +618,7 @@ below for why:
 | Random | Picks uniformly among the legal options. |
 | Greedy | Goes for the biggest expected damage to you, and ignores what the attempt might cost it. |
 | Expected value | Weighs damage against its own risk, declines attacks that aren't worth making, and concentrates several units into one attack when that pushes the force ratio into a better column. |
-| Cautious | Everything expected value does, plus a bounded look at your best reply: before committing to a move, it clones the board, plays the move out, and prices the strongest attack you could make against the result — discounting a move for handing you a strong counter, not just for what it buys outright. |
+| Cautious | Everything expected value does, plus a bounded look at your best reply: before committing to a move, it clones the board, plays the move out, and prices the strongest attack you could make against the specific unit that just moved — discounting a move for handing you a strong counter against that unit, not just for what the move buys outright. |
 
 The fourth level does not simulate your movement or search more than one
 ply — see `heuristicAgent.ts` for why a genuine rollout turned out to be a

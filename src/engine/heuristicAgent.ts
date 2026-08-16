@@ -51,7 +51,9 @@ import { currentDefense, livingUnits, unitType, type GameState, type PlayerId, t
  * lookahead "nearly free"; §6.9 records why that was wrong. This tier keeps
  * the tractable slice: deterministic movement candidates are applied to a
  * structured-cloned `GameState`, then an EV opponent model asks what the
- * strongest immediate combat reply would be from that resulting board. The
+ * strongest immediate combat reply would be SPECIFICALLY AGAINST THE UNIT
+ * THAT JUST MOVED, not the board's worst threat anywhere (see
+ * `applyMovementLookahead`'s header for why that distinction matters). The
  * search is deliberately capped to the best few baseline moves, because
  * `legalActions` recomputes a full `reachableHexes` BFS per unit per call
  * (see `fuzzHarness.ts`'s note on why its armies are kept small). Stochastic
@@ -229,7 +231,7 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
    * `buildAttackGroup` (`'ev'`) or reduced to `bestSoloAttacker` (`'greedy'`,
    * and the `'ev'` opponent-reply probe when scoring under that same mode).
    * `chooseCombatAction` picks the best of these for a real turn;
-   * `enemyCombatThreatOnBoard` calls this same function against a cloned
+   * `enemyThreatAgainstUnit` calls this same function against a cloned
    * board to price a hypothetical enemy reply — the one place this file
    * scores combat outside the active player's own turn. */
   private combatCandidates(state: GameState, legal: Action[], mode: CombatScoringMode): Scored[] {
@@ -296,7 +298,7 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
   /** The single attacker with the best solo score against `defender` under
    * `mode` — the whole answer for `'greedy'` (and for scoring an enemy's
    * hypothetical reply, which always uses `'ev'` regardless of this agent's
-   * own difficulty — see `enemyCombatThreatOnBoard`), and the seed
+   * own difficulty — see `enemyThreatAgainstUnit`), and the seed
    * `buildAttackGroup` grows an `'ev'` group from. `attackers` must already
    * be filtered by `attackerCanJoin` (see `combatCandidates`'s eligibility
    * gate). */

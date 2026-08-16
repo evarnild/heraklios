@@ -418,6 +418,73 @@ describe('HeuristicAgent: movement phase', () => {
     expect(lookaheadAction).toEqual(evAction);
   });
 
+  it('prices threat against the specific unit that moved, not the worst threat anywhere on the board', () => {
+    // Every OTHER lookahead test above has exactly one friendly unit, so a
+    // board-wide max and a per-unit threat are numerically identical on
+    // them — they cannot tell the two threat models apart. This position
+    // can: `bait` sits in easy reach of `bruiser` (an elephant) regardless
+    // of what `archer` does, so it dominates any board-wide max; `archer`'s
+    // own best approach move is toward `heavy`, a much weaker threat.
+    // A correct PER-UNIT model prices `archer`'s move against `heavy`
+    // alone and backs off (as the single-unit test above already shows). A
+    // board-wide model would instead price every candidate against
+    // `bruiser`'s huge, constant threat against `bait` — a threat archer's
+    // own move can't change at all — making every candidate look equally
+    // (mis)priced and collapsing lookahead back onto `ev`'s answer.
+    // Mutation-verified: reverting `enemyThreatAgainstUnit`'s `targetsUnit`
+    // filter to accept every attack (i.e. board-wide max again) makes this
+    // assertion fail, with lookahead landing on the exact same hex ev does.
+    const archer = makeUnit({ id: 'archer', typeId: 'archers', position: { q: 10, r: 3 }, owner: 0, movementLeft: 3 });
+    const bait = makeUnit({ id: 'bait', typeId: 'archers', position: { q: 10, r: 6 }, owner: 0, movementLeft: 0 });
+    const bruiser = makeUnit({ id: 'bruiser', typeId: 'elephants', position: { q: 10, r: 7 }, owner: 1 });
+    const heavy = makeUnit({ id: 'heavy', typeId: 'fantassins-lourds', position: { q: 14, r: 3 }, owner: 1 });
+    const state = makeGame([archer, bait, bruiser, heavy], 'movement');
+    const weights = { approach: 0.5, terrainDefense: 0, zocPenalty: 0, strike: 0 };
+
+    const evAction = choose(new HeuristicAgent({ difficulty: 'ev', weights }), state);
+    expect(evAction.kind).toBe('landMove');
+    if (evAction.kind !== 'landMove') throw new Error('unreachable');
+    expect(hexDistance(evAction.to, heavy.position)).toBe(1);
+
+    const lookaheadAction = choose(new HeuristicAgent({ difficulty: 'lookahead', weights }), state);
+    expect(lookaheadAction.kind).toBe('landMove');
+    if (lookaheadAction.kind !== 'landMove') throw new Error('unreachable');
+    expect(hexDistance(lookaheadAction.to, heavy.position)).toBeGreaterThan(1);
+  });
+
+  it('does not reward a move for dropping BELOW its baseline threat', () => {
+    // `mover` starts equidistant (2 hexes) from `watcher` (a range-2
+    // attacker, so this is a real threat without the ZOC-lock a melee
+    // threat would need adjacency for) to the east and `decoy` (harmless —
+    // `strike: 0` — only there to give the westward move an approach
+    // score) to the west, so moving one hex toward EITHER gives the same
+    // +1 approach delta. Moving east stays within watcher's range
+    // (afterThreat == baseline, marginal threat 0, no penalty). Moving
+    // west leaves watcher's range entirely (afterThreat 0 < baseline),
+    // which is exactly the case `Math.max(0, afterThreat - baselineFor(...))`
+    // exists for: without the clamp this scores NEGATIVE and gets
+    // SUBTRACTED, i.e. moving west earns a bonus for "becoming safer" that
+    // moving east never had a matching risk for in the first place. A
+    // correctly-clamped lookahead has no reason to prefer one +1 approach
+    // move over the other, so it must land on the exact same tie-break ev
+    // does — ev never sees threat at all, so this is the sharpest possible
+    // check: any daylight between them here is the bonus firing.
+    // Mutation-verified: dropping the `Math.max(0, ...)` clamp switches
+    // the chosen destination from east (toward watcher) to west (toward
+    // decoy, fleeing watcher's range) even though its raw score is no
+    // better.
+    const weights = { approach: 0.1, terrainDefense: 0, zocPenalty: 0, strike: 0 };
+    const watcher = makeUnit({ id: 'watcher', typeId: 'fantassins-archers', position: { q: 10, r: 5 }, owner: 1 });
+    const mover = makeUnit({ id: 'mover', typeId: 'fantassins', position: { q: 8, r: 5 }, owner: 0, movementLeft: 4 });
+    const decoy = makeUnit({ id: 'decoy', typeId: 'archers', position: { q: 6, r: 5 }, owner: 1 });
+    const state = makeGame([mover, watcher, decoy], 'movement');
+
+    const evAction = choose(new HeuristicAgent({ difficulty: 'ev', weights }), state);
+    const lookaheadAction = choose(new HeuristicAgent({ difficulty: 'lookahead', weights }), state);
+
+    expect(lookaheadAction).toEqual(evAction);
+  });
+
   it('the lookahead tier resets a stale defendedThisPhase flag before probing an enemy reply', () => {
     // Same position as "avoids a move whose best enemy reply is too
     // strong". `defendedThisPhase` matters on whoever is being ATTACKED in

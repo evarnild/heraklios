@@ -21,8 +21,8 @@ Rules:
 5. Update `README.md`: move the implemented item out of "Known
    simplifications" and document the new behavior in place, per the README's
    existing style for finished features.
-6. Do NOT push, do NOT merge, do NOT touch `main`, do NOT edit `plan.md` —
-   that file stays human-owned.
+6. Do NOT push, do NOT merge, do NOT touch `main`, do NOT edit `plan.md` or
+   `plan-history.md` — those files stay human-owned.
 7. If the rulebook (`docs/research/`) is ambiguous, implement the most
    literal reading and record the interpretation in a code comment — see
    `src/data/navalRamming.ts` for the convention already in use.

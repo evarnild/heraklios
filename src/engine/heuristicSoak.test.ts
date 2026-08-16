@@ -199,23 +199,27 @@ describe('HeuristicAgent: difficulty tiers are ordered by strength', () => {
   });
 
   /**
-   * plan.md §6.4's fourth tier, `'lookahead'` — labelled "AI — cautious" in
-   * `seatControl.ts`, deliberately NOT "expert": it shares `'ev'`'s exact
-   * combat-phase logic entirely and only re-ranks MOVEMENT candidates by a
-   * bounded one-ply opponent-reply threat check, so it is a claim about
-   * risk-awareness, not about aggregate strength. Two commits (`f7bb8e2`,
-   * then a fix, plan.md §6.13) tried to claim "ends with more material than
-   * `'ev'`" the same way this file claims it for `'ev'` vs. `'greedy'` below
-   * — and BOTH turned out to be unfounded once measured past these 12 seeds:
-   * a second review (plan.md §6.14) found the fix commit's own "555 vs 530"
-   * result held on only 2 of the 12 seeds, and extending to 160 seeds (4
+   * plan-history.md §6.4's fourth tier, `'lookahead'` — labelled "AI —
+   * cautious" in `seatControl.ts`, deliberately NOT "expert": it shares
+   * `'ev'`'s exact combat-phase logic entirely and only re-ranks MOVEMENT
+   * candidates by a bounded one-ply opponent-reply threat check, so it is a
+   * claim about risk-awareness, not about aggregate strength. Three commits
+   * (`f7bb8e2`, then two fixes, plan-history.md §6.13/§6.14) tried to claim
+   * "ends with more material than `'ev'`" the same way this file claims it
+   * for `'ev'` vs. `'greedy'` below — and ALL THREE turned out to be
+   * unfounded once measured past these 12 seeds: a second review
+   * (plan-history.md §6.14) found the first fix's own "555 vs 530" result
+   * held on only 2 of the 12 seeds, and extending to 160 seeds (4
    * independent blocks of 40) put the edge at +1.0% with the SIGN FLIPPING
-   * in half the blocks — indistinguishable from noise, not a real ordering.
-   * A further redesign (pricing the threat against the SPECIFIC unit being
-   * moved, rather than the board's overall worst threat — see
-   * `applyMovementLookahead`'s current header) and a weight sweep (0.75 up
-   * to 2, nearly 3x) both left the aggregate-material picture unchanged:
-   * ~0-1%, sign still not stable. plan.md §6.14 has the full record.
+   * in half the blocks. A further redesign (pricing the threat against the
+   * SPECIFIC unit being moved, rather than the board's overall worst
+   * threat — see `applyMovementLookahead`'s current header) and a weight
+   * sweep (0.75 up to 2, nearly 3x) both left the aggregate-material
+   * picture just as unstable — and a THIRD review re-ran the SAME 160-seed
+   * protocol against the per-unit redesign and got -2.24% pooled, sign
+   * flipped from what plan-history.md §6.14 had originally claimed
+   * (+0.9%). All of it is indistinguishable from noise, not a real
+   * ordering. plan-history.md §6.14/§6.15 have the full record.
    *
    * This is why the assertion below is a REGRESSION GUARD, not a strength
    * claim: lookahead should not be dramatically worse than `'ev'` (which
