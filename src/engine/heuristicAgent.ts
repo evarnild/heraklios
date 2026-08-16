@@ -694,50 +694,70 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
   }
 
   /**
-   * Penalizes each candidate by the MARGINAL enemy threat it creates, not the
-   * board's total threat: `baselineThreat` is what the strongest enemy reply
-   * is worth right now, before this unit moves at all, and only the increase
-   * over that gets charged against a candidate (clamped at 0, since a move
-   * that reduces exposure below the baseline shouldn't earn a bonus it
-   * didn't ask for). Without the baseline subtraction, a threat that exists
-   * regardless of this move — a different unit already in danger, an enemy
-   * that can already reach the board's best target — would have been charged
-   * against EVERY candidate equally, including `endPhase`'s implicit "do
-   * nothing" option once every scored candidate dropped below
-   * `minMoveScore`, which could freeze the whole army's movement over a
-   * threat this move had no power to change.
+   * Penalizes each candidate by the MARGINAL enemy threat it creates AGAINST
+   * THE UNIT BEING MOVED — not the board's overall worst threat.
+   *
+   * The first version of this tier (plan.md §6.13) computed a board-WIDE
+   * max threat as both "before" and "after," and subtracted one from the
+   * other. That doesn't discriminate: a board-wide worst-case threat is
+   * almost never the specific unit that just moved (with any army bigger
+   * than two units, something else is usually already more exposed), so
+   * `baselineThreat` and `afterThreat` came out equal in nearly every
+   * position regardless of what the candidate did — measured at the time as
+   * "lookahead" being statistically indistinguishable from `'ev'` over 160
+   * games (plan.md §6.14). Pricing the threat specifically against the
+   * mover fixes the discrimination problem: `baselineThreat` is what the
+   * strongest enemy attack against THIS unit, specifically, is worth before
+   * it moves; `afterThreat` is the same question after; only the increase
+   * (clamped at 0, since making the unit SAFER shouldn't earn a bonus it
+   * didn't ask for) is charged against the candidate.
    */
   private applyMovementLookahead(state: GameState, candidates: Scored[]): Scored[] {
-    const baselineThreat = this.enemyCombatThreatOnBoard(this.normalizedThreatProbeClone(state));
+    const baselineCache = new Map<string, number>();
+    const baselineFor = (unitId: string): number => {
+      let value = baselineCache.get(unitId);
+      if (value === undefined) {
+        value = this.enemyThreatAgainstUnit(this.normalizedThreatProbeClone(state), unitId);
+        baselineCache.set(unitId, value);
+      }
+      return value;
+    };
+
     return [...candidates]
       .sort((a, b) => b.score - a.score || a.order - b.order)
       .slice(0, LOOKAHEAD_CANDIDATE_LIMIT)
       .map((candidate) => {
-        const marginalThreat = Math.max(0, this.enemyCombatThreatAfter(state, candidate.action) - baselineThreat);
+        const unitId = movingUnitId(candidate.action);
+        const afterThreat = this.enemyThreatAgainstUnitAfter(state, unitId, candidate.action);
+        const marginalThreat = Math.max(0, afterThreat - baselineFor(unitId));
         return { ...candidate, score: candidate.score - LOOKAHEAD_REPLY_WEIGHT * marginalThreat };
       });
   }
 
-  /** The strongest immediate combat reply any living enemy could make against
-   * `state` if `action` were taken — 0 if `action` isn't one this tier
-   * clone-probes at all (see `cloneAfterDeterministicMovementAction`). */
-  private enemyCombatThreatAfter(state: GameState, action: Action): number {
+  /** The strongest immediate combat reply any living enemy could make
+   * specifically against `unitId` if `action` were taken — 0 if `action`
+   * isn't one this tier clone-probes at all (see
+   * `cloneAfterDeterministicMovementAction`, notably `'ram'`). */
+  private enemyThreatAgainstUnitAfter(state: GameState, unitId: string, action: Action): number {
     const clone = this.cloneAfterDeterministicMovementAction(state, action);
-    return clone ? this.enemyCombatThreatOnBoard(clone) : 0;
+    return clone ? this.enemyThreatAgainstUnit(clone, unitId) : 0;
   }
 
   /**
-   * Worst-case combat reply any living enemy of `board`'s active player could
-   * make against `board` — the max over enemies, not the sum, since only one
-   * of them actually gets the next combat phase. Reaches that phase by
-   * hand-setting `phase`/`activePlayerIndex` rather than by walking
+   * The strongest immediate combat reply any living enemy of `board`'s
+   * active player could make SPECIFICALLY AGAINST `unitId` — the max over
+   * enemies (only one of them actually gets the next combat phase), filtered
+   * down to attacks that actually target this one unit rather than every
+   * attack the position offers (see `applyMovementLookahead`'s header on why
+   * that distinction is the whole fix). Reaches its hypothetical combat
+   * phase by hand-setting `phase`/`activePlayerIndex` rather than by walking
    * `turnManager.advancePhase`'s real sequence, so this is a threat PROBE,
    * not a real transition: `board` must already have `defendedThisPhase`/
    * `charged` normalized the way a real transition into combat would leave
    * them (see `normalizedThreatProbeClone`, which every caller routes
    * through — directly, or via `cloneAfterDeterministicMovementAction`).
    */
-  private enemyCombatThreatOnBoard(board: GameState): number {
+  private enemyThreatAgainstUnit(board: GameState, unitId: string): number {
     const movingOwner = this.activeOwner(board);
     let worstReply = 0;
     for (const owner of enemyOwners(board, movingOwner)) {
@@ -745,7 +765,10 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
       if (index < 0) continue;
       board.activePlayerIndex = index;
       board.phase = 'combat';
-      const reply = this.pickBestDeterministic(this.combatCandidates(board, legalActions(board, {}), 'ev'));
+      const candidatesAgainstUnit = this.combatCandidates(board, legalActions(board, {}), 'ev').filter((c) =>
+        targetsUnit(c.action, unitId),
+      );
+      const reply = this.pickBestDeterministic(candidatesAgainstUnit);
       if (reply && reply.score > this.weights.minAttackValue) {
         worstReply = Math.max(worstReply, reply.score);
       }
@@ -868,8 +891,36 @@ function countAdjacentEnemies(state: GameState, hex: HexCoord, owner: number): n
 
 /** Every distinct owner with at least one living unit, other than `owner`
  * itself — exported for direct testing, since it's the one thing standing
- * between the lookahead tier's threat probe (`enemyCombatThreatOnBoard`) and
+ * between the lookahead tier's threat probe (`enemyThreatAgainstUnit`) and
  * treating the moving player's own best attack as a threat against itself. */
 export function enemyOwners(state: GameState, owner: PlayerId): PlayerId[] {
   return [...new Set(livingUnits(state).filter((unit) => unit.owner !== owner).map((unit) => unit.owner))];
+}
+
+/** The unit a movement-phase candidate action belongs to. Every action kind
+ * `chooseMovementAction` ever builds a `Scored` candidate from carries a
+ * `unitId` — `landMove`/`navalMove`/`navalRotate`/`ram` — so this throws
+ * rather than returning a fallback if that invariant is ever violated,
+ * matching this file's usual "loud failure over silent misbehaviour"
+ * convention (see `requireUnit`). */
+function movingUnitId(action: Action): string {
+  switch (action.kind) {
+    case 'landMove':
+    case 'navalMove':
+    case 'ram':
+    case 'navalRotate':
+      return action.unitId;
+    default:
+      throw new Error(`HeuristicAgent: "${action.kind}" is not a movement-phase candidate action`);
+  }
+}
+
+/** Whether `action` (a combat candidate — `landAttack` or `board`) targets
+ * `unitId` as a defender. Used by `enemyThreatAgainstUnit` to isolate the
+ * threat against ONE specific unit out of every attack a hypothetical
+ * combat phase offers. */
+function targetsUnit(action: Action, unitId: string): boolean {
+  if (action.kind === 'landAttack') return action.defenderIds.includes(unitId);
+  if (action.kind === 'board') return action.defenderId === unitId;
+  return false;
 }

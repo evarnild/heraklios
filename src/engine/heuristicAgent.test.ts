@@ -418,6 +418,73 @@ describe('HeuristicAgent: movement phase', () => {
     expect(lookaheadAction).toEqual(evAction);
   });
 
+  it('the lookahead tier resets a stale defendedThisPhase flag before probing an enemy reply', () => {
+    // Same position as "avoids a move whose best enemy reply is too
+    // strong". `defendedThisPhase` matters on whoever is being ATTACKED in
+    // the hypothetical combat phase — here, the MOVER (`archer`), since the
+    // probe asks "what could the enemy do to the unit I'm about to move."
+    // If `normalizedThreatProbeClone`'s reset were missing, a mover that
+    // already has `defendedThisPhase: true` set (as it would after being
+    // attacked earlier in the same round, in a 3-4 player game) would be
+    // silently excluded from `validTargets` in the threat probe
+    // (`combat.ts`), understating the threat and changing the move chosen.
+    // Asserting the choice is IDENTICAL regardless of the mover's initial
+    // flag proves the probe always normalizes it away.
+    const weights = { approach: 0.5, terrainDefense: 0, zocPenalty: 0, strike: 0 };
+    const freshState = makeGame(
+      [
+        makeUnit({ id: 'archer', typeId: 'archers', position: landRow(0), owner: 0, movementLeft: 3, defendedThisPhase: false }),
+        makeUnit({ id: 'heavy', typeId: 'fantassins-lourds', position: landRow(4), owner: 1 }),
+      ],
+      'movement',
+    );
+    const staleState = makeGame(
+      [
+        makeUnit({ id: 'archer', typeId: 'archers', position: landRow(0), owner: 0, movementLeft: 3, defendedThisPhase: true }),
+        makeUnit({ id: 'heavy', typeId: 'fantassins-lourds', position: landRow(4), owner: 1 }),
+      ],
+      'movement',
+    );
+
+    const freshAction = choose(new HeuristicAgent({ difficulty: 'lookahead', weights }), freshState);
+    const staleAction = choose(new HeuristicAgent({ difficulty: 'lookahead', weights }), staleState);
+
+    expect(staleAction).toEqual(freshAction);
+  });
+
+  it('the lookahead tier resets a stale charged flag before probing an enemy reply', () => {
+    // Same idea, for `charged`: only cavalry doubles its attack when
+    // charged (`state.ts`'s `currentAttack`), so this needs a cavalry enemy
+    // rather than heavy infantry. A stale `charged: true` left over from
+    // before the probe's hypothetical combat phase would double the enemy's
+    // threat and could change which move looks safest. `minAttackValue: 2`
+    // sits between this matchup's uncharged EV (0.67) and charged EV (3.33,
+    // verified by direct `evaluateAttack` computation), so this is not just
+    // "a bigger number" — it's specifically the range where the flag flips
+    // whether the reply clears `enemyThreatAgainstUnit`'s threat gate at
+    // all, which is what makes this test able to fail if the reset breaks.
+    const weights = { approach: 0.5, terrainDefense: 0, zocPenalty: 0, strike: 0, minAttackValue: 2 };
+    const freshState = makeGame(
+      [
+        makeUnit({ id: 'archer', typeId: 'archers', position: landRow(0), owner: 0, movementLeft: 3 }),
+        makeUnit({ id: 'cav', typeId: 'cavalerie-legere', position: landRow(4), owner: 1, charged: false }),
+      ],
+      'movement',
+    );
+    const staleState = makeGame(
+      [
+        makeUnit({ id: 'archer', typeId: 'archers', position: landRow(0), owner: 0, movementLeft: 3 }),
+        makeUnit({ id: 'cav', typeId: 'cavalerie-legere', position: landRow(4), owner: 1, charged: true }),
+      ],
+      'movement',
+    );
+
+    const freshAction = choose(new HeuristicAgent({ difficulty: 'lookahead', weights }), freshState);
+    const staleAction = choose(new HeuristicAgent({ difficulty: 'lookahead', weights }), staleState);
+
+    expect(staleAction).toEqual(freshAction);
+  });
+
   it('the lookahead tier is risk-aware like ev: will not walk into an enemy zone of control for nothing', () => {
     // Mirrors "will not walk into an enemy zone of control for nothing"
     // above, but for the lookahead tier — with non-zero terrain/zoc weights,

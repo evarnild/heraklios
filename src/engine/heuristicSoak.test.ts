@@ -199,31 +199,38 @@ describe('HeuristicAgent: difficulty tiers are ordered by strength', () => {
   });
 
   /**
-   * plan.md §6.4's fourth tier — `'lookahead'`, labelled "AI — expert" in
-   * `seatControl.ts` — is only worth that name if it actually beats the tier
-   * below it. It shipped once (commit `f7bb8e2`) WITHOUT this test and
-   * without beating `'ev'`: the opponent-reply threat it charges against a
-   * candidate move was priced as the board's absolute worst threat rather
-   * than the MARGINAL threat that move itself creates, which meant a threat
-   * elsewhere on the board — one this move had no power to change — was
-   * charged against every candidate equally, including doing nothing.
-   * Fixed by `applyMovementLookahead` subtracting a `baselineThreat`
-   * computed on the board before the move.
+   * plan.md §6.4's fourth tier, `'lookahead'` — labelled "AI — cautious" in
+   * `seatControl.ts`, deliberately NOT "expert": it shares `'ev'`'s exact
+   * combat-phase logic entirely and only re-ranks MOVEMENT candidates by a
+   * bounded one-ply opponent-reply threat check, so it is a claim about
+   * risk-awareness, not about aggregate strength. Two commits (`f7bb8e2`,
+   * then a fix, plan.md §6.13) tried to claim "ends with more material than
+   * `'ev'`" the same way this file claims it for `'ev'` vs. `'greedy'` below
+   * — and BOTH turned out to be unfounded once measured past these 12 seeds:
+   * a second review (plan.md §6.14) found the fix commit's own "555 vs 530"
+   * result held on only 2 of the 12 seeds, and extending to 160 seeds (4
+   * independent blocks of 40) put the edge at +1.0% with the SIGN FLIPPING
+   * in half the blocks — indistinguishable from noise, not a real ordering.
+   * A further redesign (pricing the threat against the SPECIFIC unit being
+   * moved, rather than the board's overall worst threat — see
+   * `applyMovementLookahead`'s current header) and a weight sweep (0.75 up
+   * to 2, nearly 3x) both left the aggregate-material picture unchanged:
+   * ~0-1%, sign still not stable. plan.md §6.14 has the full record.
    *
-   * Measured over these exact 12 seeds, seat held constant, as surviving
-   * army value:
-   *
-   * ```
-   * lookahead as seat 0: 290 vs ev: 270
-   * lookahead as seat 1: 265 vs ev: 260
-   * ```
-   *
-   * A real but modest edge — the extra ply only fires when a move's
-   * destination is itself within `LOOKAHEAD_CANDIDATE_LIMIT` reach of
-   * mattering, and both tiers share the same exact-EV combat model, so most
-   * of a game plays out identically between them.
+   * This is why the assertion below is a REGRESSION GUARD, not a strength
+   * claim: lookahead should not be dramatically worse than `'ev'` (which
+   * would mean the threat penalty is actively sabotaging good moves), so it
+   * checks material stays within a generous band rather than asserting an
+   * ordering the tier cannot reliably back up. The tier's real, PROVEN value
+   * is in specific decisions, not aggregate material — see
+   * `heuristicAgent.test.ts`'s targeted tests (avoiding a move whose best
+   * enemy reply is too strong, and doing so correctly even when
+   * `defendedThisPhase`/`charged` carry stale state from earlier in the
+   * round) — and in beating `'greedy'` exactly as convincingly as `'ev'`
+   * does, checked directly below since lookahead inherits every one of
+   * `'ev'`'s advantages over `'greedy'` and adds to them, never subtracts.
    */
-  it('the lookahead tier ends with more material than the ev tier, seat for seat', async () => {
+  it('the lookahead tier is not measurably worse than the ev tier, seat for seat', async () => {
     const lookaheadFirst = await playSeries('lookahead', 'ev');
     const evFirst = await playSeries('ev', 'lookahead');
 
@@ -232,7 +239,26 @@ describe('HeuristicAgent: difficulty tiers are ordered by strength', () => {
     const lookaheadInSeat1 = evFirst.material[1];
     const evInSeat1 = lookaheadFirst.material[1];
 
-    expect(lookaheadInSeat0).toBeGreaterThan(evInSeat0);
-    expect(lookaheadInSeat1).toBeGreaterThan(evInSeat1);
+    expect(lookaheadInSeat0).toBeGreaterThan(evInSeat0 * 0.85);
+    expect(lookaheadInSeat1).toBeGreaterThan(evInSeat1 * 0.85);
+  });
+
+  it('the lookahead tier ends with more material than the greedy tier, seat for seat', async () => {
+    // Unlike the ev-vs-lookahead comparison above, this one IS a genuine
+    // strength claim, and measures as a large, stable margin (310 vs. 195,
+    // 310 vs. 205 over these 12 seeds) — lookahead's combat phase is
+    // identical to ev's, and ev already beats greedy convincingly (see the
+    // ev-vs-greedy test above), so this is the same margin plus whatever
+    // the threat check adds on top, never minus it.
+    const lookaheadFirst = await playSeries('lookahead', 'greedy');
+    const greedyFirst = await playSeries('greedy', 'lookahead');
+
+    const lookaheadInSeat0 = lookaheadFirst.material[0];
+    const greedyInSeat0 = greedyFirst.material[0];
+    const lookaheadInSeat1 = greedyFirst.material[1];
+    const greedyInSeat1 = lookaheadFirst.material[1];
+
+    expect(lookaheadInSeat0).toBeGreaterThan(greedyInSeat0);
+    expect(lookaheadInSeat1).toBeGreaterThan(greedyInSeat1);
   });
 });

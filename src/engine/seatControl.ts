@@ -48,11 +48,22 @@ export function isAiSeat(control: SeatControl): boolean {
   return aiDifficultyOf(control) !== null;
 }
 
-/** Short label for the Menu button and the Board's status line. The
- * difficulty names describe *strength*, not the implementation tier — a
- * player picking an opponent cares that "easy" is easy, not that it delegates
- * to `RandomAgent` (see `heuristicAgent.ts`'s `'random'` tier, which really is
- * that same agent). */
+/**
+ * Short label for the Menu button and the Board's status line. The first
+ * three difficulty names describe *strength*, not the implementation tier —
+ * a player picking an opponent cares that "easy" is easy, not that it
+ * delegates to `RandomAgent` (see `heuristicAgent.ts`'s `'random'` tier,
+ * which really is that same agent).
+ *
+ * `'ai-lookahead'` is deliberately labelled "cautious," not "expert": it
+ * shares `'ai-ev'`'s exact combat logic and only adds a bounded threat check
+ * to its movement choices, and measurement (`heuristicSoak.test.ts`,
+ * plan.md §6.14) could not establish that this makes it reliably STRONGER
+ * than `'ai-ev'` in aggregate — the earlier "expert" label asserted an
+ * ordering the tier doesn't actually back up. It IS a real, different, more
+ * defensively-minded playstyle (verified by targeted tests, not aggregate
+ * material), which is what the label now claims instead.
+ */
 export function seatControlLabel(control: SeatControl): string {
   switch (control) {
     case 'human':
@@ -64,7 +75,7 @@ export function seatControlLabel(control: SeatControl): string {
     case 'ai-ev':
       return 'AI — hard';
     case 'ai-lookahead':
-      return 'AI — expert';
+      return 'AI — cautious';
   }
 }
 

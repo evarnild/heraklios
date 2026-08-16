@@ -103,10 +103,14 @@ sync when something merges** — it went stale once and the user caught it.
 
 - [§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 3b — shallow lookahead
   tier, on branch `codex-stage-3b-lookahead` (initial commit `f7bb8e2`). Went
-  through adversarial review before merge (this repo's usual gate) and did
-  **not** pass on the first commit — 4 HIGH findings, since fixed on the same
-  branch; not yet re-reviewed or merged. Outcome and fixes:
-  [§6.13](#613-stage-3b-outcome). No other live defects remain open.
+  through adversarial review before merge (this repo's usual gate) **twice**,
+  and failed both times — 4 HIGH findings on the first pass
+  ([§6.13](#613-stage-3b-outcome)), 2 more HIGH findings on the second pass
+  after that round's own fix didn't hold up ([§6.14](#614-stage-3b-second-review-outcome)).
+  The tier is now relabeled "AI — cautious" rather than "AI — expert" since
+  no round of measurement established a reliable aggregate-strength edge
+  over `'ev'`. Not yet re-reviewed a third time or merged. No other live
+  defects remain open.
 
 ### Queued
 
@@ -118,20 +122,28 @@ sync when something merges** — it went stale once and the user caught it.
 | ~~1~~ | ~~[§9.2](#92-endgamebytimelimit-is-never-called) endgame: clock, round limit, and an "End game" button~~ | — | **✅ Shipped `836c70f`.** See [§9.2.4](#924-outcome) — including the mid-merge pause-behavior revision. |
 | ~~2~~ | ~~[§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 4 — AI seat UI + save format~~ | — | **✅ Shipped `556fbf8`.** See [§6.12](#612-stage-4-outcome) — including the one check it shipped without. |
 | ~~2~~ | ~~[§16](#16-identify-which-unit-a-choice-dialog-means) label the units a choice dialog means~~ | — | **✅ Shipped `ceb106a`.** Implemented directly (no agent pair), verified by `tsc`/`vitest`/`build` and code review — the manual browser pass is still owed, Chrome automation wasn't available in that session. |
-| ~~3~~ | ~~[§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 3b — shallow lookahead tier~~ | `engine/` | **In flight, not queued** — see In flight above and [§6.13](#613-stage-3b-outcome). |
+| ~~3~~ | ~~[§6.4](#64-stage-3-shipped-stage-4-deferred) Stage 3b — shallow lookahead tier~~ | `engine/` | **In flight, not queued** — see In flight above, [§6.13](#613-stage-3b-outcome), and [§6.14](#614-stage-3b-second-review-outcome). |
+| 4 | [§18](#18-live-defect-ramming-bonus-narrows-the-table-instead-of-extending-it) ramming bonus narrows the table instead of extending it | `src/data/navalRamming.ts`, its tests, `BoardScene.ts`'s ram log, README | Confirmed live defect (user report, verified against the scanned rulebook page). Also affects AI ramming decisions via `combatOdds.ts`'s `evaluateRam`. |
+| 5 | [§17](#17-manual-step-by-step-naval-movement) manual step-by-step naval movement | `BoardScene.ts` (likely presentation-only) | Replace destination-click naval movement with hex-by-hex manual control; clearer Turn button labels. [§17.4](#174-open-design-question-distant-ramming-contacts) has one open design question to settle with the user before implementation starts. |
 
 ## Backlog Map
 
 - **Start here:** [Current Queue](#10-sequenced-queue).
-- **Current next task:** none queued. [§6.13](#613-stage-3b-outcome)'s
-  fixes need a second (re-)review pass and a merge decision before anything
-  new gets picked up.
-- **Live defects:** none open.
+- **Current next task:** #4, [§18](#18-live-defect-ramming-bonus-narrows-the-table-instead-of-extending-it)
+  the ramming bonus defect — a confirmed rules bug, ahead of #5 (naval
+  movement) at the user's request. [§6.14](#614-stage-3b-second-review-outcome)'s
+  fixes need a THIRD (re-)review pass and a merge decision — this branch has
+  failed review twice already, both times on claims the implementer
+  believed were fixed; all three items here are independent (different
+  files) and can proceed in parallel.
+- **Live defects:** [§18](#18-live-defect-ramming-bonus-narrows-the-table-instead-of-extending-it)
+  — ramming bonus narrows the table instead of extending it. Confirmed, not
+  yet fixed.
 - **Owed:** a manual browser pass over §16's per-hex choice labels (and
   Stage 4's still-outstanding one, [§6.12](#612-stage-4-outcome)) — next
   person with a working browser session should give both a look. Stage 3b
-  ([§6.13](#613-stage-3b-outcome)) still needs its fixes re-reviewed before
-  merge.
+  ([§6.14](#614-stage-3b-second-review-outcome)) still needs a THIRD
+  review pass before merge.
 
 ## History Map
 
@@ -1491,6 +1503,128 @@ default ("adversarial — reviewer hunts for defects, does not trust the
 implementer's self-report"), the person who reports fixing a review's
 findings is the least reliable source on whether they're actually fixed.
 Re-review before merge.
+
+### 6.14 Stage 3b: second review outcome
+
+**The re-review §6.13 asked for came back FAIL too** — the two things that
+mattered most in that round didn't actually hold up:
+
+- **HIGH — the "marginal threat" fix was a no-op.** Reverting
+  `baselineThreat` to a literal `0` (i.e. undoing §6.13's fix and
+  reproducing `f7bb8e2`'s original absolute-penalty bug exactly) left the
+  full suite green. `Math.max(0, x - 0) === x` for any `x ≥ 0`, and
+  `enemyCombatThreatOnBoard` (as it was then) computed a single **board-wide
+  max** threat for both "before" and "after" — so the subtraction only ever
+  did anything when the moving unit's exposure became the single worst
+  thing on the ENTIRE board, which in any army bigger than two or three
+  units is rare. All of the measured 535→555 material recovery in §6.13
+  came from the `defendedThisPhase` reset fix alone; the causal claim in
+  §6.13's own text and in `heuristicSoak.test.ts`'s docstring ("Fixed by
+  `applyMovementLookahead` subtracting a `baselineThreat`") was wrong.
+- **HIGH — "AI — expert" was still not reliably stronger than "AI — hard"
+  after the fix.** The 555-vs-530 result reproduced exactly, but held on
+  only 2 of the 12 seeds the test used. Extended to 160 seeds (4
+  independent blocks of 40), the pooled edge was +1.0% with the **sign
+  flipping in 2 of 4 blocks** — indistinguishable from noise, not a stable
+  ordering.
+- Three MEDIUM findings on test coverage (the `charged` reset, the
+  headline `defendedThisPhase` reset itself, and the `Math.max(0, ...)`
+  clamp were all mutation-survivors with no TARGETED test — only caught, if
+  at all, by the fragile 12-seed soak test) and two LOW findings (README's
+  "increasing strength" claim now provably false; a stale-latency-number
+  mismatch between §6.12's 14ms and §6.13's 4ms citing the same scenario —
+  §6.13's own number reproduced, §6.12's was the stale one, never
+  reconciled).
+
+**What actually got fixed this round, and — as important — what was
+DELIBERATELY NOT force-fixed:**
+
+- **Redesigned the threat model to be per-unit.** The re-review's own
+  MEDIUM-1 named the mechanism: "make the baseline per-moving-unit (threat
+  against *that* unit before vs after) rather than a board-wide max." Done:
+  `enemyThreatAgainstUnit`/`enemyThreatAgainstUnitAfter` (replacing
+  `enemyCombatThreatOnBoard`/`enemyCombatThreatAfter`) now filter a
+  hypothetical enemy's combat candidates down to attacks that specifically
+  target the unit being moved, via a new `targetsUnit` helper, so
+  `baselineThreat` and `afterThreat` are both asking "how exposed is THIS
+  unit," not "what's the worst thing on the board" — the two numbers can
+  now actually differ because of the candidate move, which is the entire
+  point of a marginal comparison.
+- **Three tuning experiments, honestly reported as inconclusive rather than
+  cherry-picked.** (1) The per-unit redesign alone, measured on the
+  original 160-seed protocol: +0.9%, still sign-flipping. (2) Raising
+  `LOOKAHEAD_CANDIDATE_LIMIT` 8→40 (in case truncation before re-scoring
+  was hiding the effect, per §6.13's own MEDIUM-2): +1.0%, no change. (3)
+  Raising `LOOKAHEAD_REPLY_WEIGHT` 0.75→2, nearly 3x: +0.3%, still
+  sign-flipping. None of these levers produced a stable edge, which is
+  informative: the combat phase is byte-identical between `'ev'` and
+  `'lookahead'` (only `combatScoringMode()` differs, and it returns `'ev'`
+  for both), so the ONLY lever this tier has is a bounded, single-ply,
+  movement-time threat check on top of movement scoring that already
+  accounts for terrain and ZOC — and that turns out to be a small,
+  noisy effect on AGGREGATE material over a full game, not a bug to keep
+  chasing with bigger knobs.
+- **Relabeled rather than manufacturing a strength claim.**
+  `seatControl.ts`'s `seatControlLabel('ai-lookahead')` now returns
+  `'AI — cautious'`, not `'AI — expert'` — matching what's actually
+  provable: real, verified, DIFFERENT decisions in specific positions (the
+  targeted tests below), not a proven aggregate edge.
+  `README.md`'s difficulty table and "Computer opponent" section were
+  rewritten to match, explicitly stating the fourth tier is a different
+  playstyle rather than a stronger one, and naming that it shipped once
+  under a label ("Expert") the numbers didn't support.
+- **`heuristicSoak.test.ts` rewritten to assert only what's true.** The
+  false "ends with more material than ev" assertion is gone, replaced by
+  two things that ARE true: a regression guard (lookahead's material stays
+  above 85% of ev's, seat for seat — catching a real sabotage bug without
+  asserting a fake ordering) and a genuine strength claim against
+  `'greedy'` (310 vs 195, 310 vs 205 over the same 12 seeds — a large,
+  stable, one-sided margin, since lookahead inherits every one of `'ev'`'s
+  real advantages over `'greedy'` and only adds to them, never subtracts).
+- **Two of the three test-coverage MEDIUMs got real, mutation-verified
+  targeted tests** in `heuristicAgent.test.ts`: "resets a stale
+  defendedThisPhase flag before probing an enemy reply" and "resets a stale
+  charged flag before probing an enemy reply." Both were built the hard
+  way — constructing a position, then literally deleting the reset line and
+  confirming the test fails, then restoring it and confirming the test
+  passes — rather than trusting that a plausible-looking assertion would
+  catch a plausible-looking mutant. The `charged` test needed a
+  `minAttackValue` set precisely between the matchup's uncharged EV (0.67,
+  computed directly via `evaluateAttack`) and charged EV (3.33) to actually
+  discriminate; the first version of that test passed even with the reset
+  removed, because both charged and uncharged replies already cleared the
+  default threshold either way.
+- **NOT fixed, still an accepted disclosed gap (matching §6.13's posture on
+  `'ram'`):** the `Math.max`-over-multiple-enemies ordering (3-4 player
+  path — reviewer's LOW-3, "confirmed still surviving, as documented") and
+  the `Math.max(0, ...)` clamp on a negative marginal threat (reviewer's
+  MEDIUM-4). Both would need either careful multi-unit EV engineering (same
+  difficulty as the `charged` test above, times two) or exporting more
+  internals purely for testability, and neither showed any EVIDENCE of an
+  actual behavioral bug in three rounds of measurement — unlike the
+  board-wide-max issue, which was a proven, measured defect. Chasing every
+  mutation survivor without a concrete failure mode behind it is how a
+  fourth review round happens; these are named here as known gaps rather
+  than silently dropped.
+
+**Latency, re-measured after the redesign** (a different, smaller scenario
+than §6.12's "two full 45-unit armies" — a real self-play game via
+`playRandomGame`, up to 153 legal actions rather than ~1000, so the
+absolute numbers aren't directly comparable to §6.12's 47ms/action; recorded
+here rather than force-fitting the old scenario, per §6.13's own LOW-2
+finding that citing a number from a DIFFERENT scenario without saying so is
+exactly how the §6.12/§6.13 mismatch happened): `'ev'` averaged 0.69ms per
+`chooseNextAction` call, `'lookahead'` averaged 4.54ms — roughly 6-7x
+slower, consistent in order of magnitude with every prior measurement of
+this tier, and still well under anything a player would perceive as a
+freeze given the existing per-action pacing delay (§6.12).
+
+**Verification:** `tsc --noEmit` clean, `vitest run` green at 484 tests (up
+from 481 — the two new targeted tests plus the greedy-comparison test, minus
+the one false assertion removed), `npm run build` clean. **Not yet through a
+THIRD adversarial review pass** — this branch has now failed review twice
+on the strength claim specifically, so re-review before merge is not
+optional this time.
 
 ---
 
@@ -2856,3 +2990,299 @@ row) and want the same affordance.
   without ever drawing a panel (see [§6.12](#612-stage-4-outcome)), so the
   labels must be created by the **prompt**, not by the decision, or an AI
   turn will litter the map with labels nobody asked for.
+
+## 17. Manual step-by-step naval movement
+
+**Status: queued** (#4). Requested 2026-08-15: the player wants to decide
+each hex-step and each turn of a ship's move by hand, and wants the turn
+buttons themselves to read more clearly. Not a rules defect — the engine
+already computes and applies exactly the rules-legal cost for every hop —
+this is a control-granularity gap, and it is exactly the "Known
+simplifications" bullet already named in `README.md`:611 ("Naval movement is
+destination-click, not path-drawn").
+
+### 17.1 The gap, precisely
+
+Today a ship move is one atomic action from the player's point of view:
+click the ship, click a highlighted destination hex, and `handleNavalMoveClick`
+(`BoardScene.ts:1379-1403`) fires a single `navalMove` action carrying only
+`{ unitId, to }` — no facing, no path. `applyAction`'s `navalMove` case
+(`actions.ts:246-270`) looks the destination up in `reachableNavalHexes`
+(`navalMovement.ts:103-113`, itself a collapse of the full `(hex, facing)`
+Dijkstra graph in `reachableNavalStates`, `:57-94`) and applies whichever
+`{cost, facing}` was cheapest — **silently**. The player never sees or
+chooses the interleaving of rotate-1-point/move-terrain-cost steps that got
+the ship there, and cannot request a costlier alternate facing at a hex that
+also has a cheaper one.
+
+Rotation is the one piece of this that is **already** manual and explicit:
+the `⟲ Turn` / `Turn ⟳` buttons (`BoardScene.ts:493-519`) each fire a single
+`navalRotate` action, one 60° step, 1 movement point, via
+`rotateSelectedShip` (`:1349-1362`). There is no equivalent single-hex
+"step forward" button — forward movement only exists today as "click however
+far away and let the engine solve it."
+
+### 17.2 Design decisions made 2026-08-15
+
+Two things were asked and answered before scoping the rest:
+
+1. **Interaction model: step-by-step, hex by hex.** Click Turn to rotate 60°
+   (unchanged), or click the single hex directly ahead of the bow to move
+   forward one hex, and repeat — building the path one leg at a time,
+   watching `movementLeft` debit as you go. Rejected: full-path-preview
+   (plot the whole route, confirm once) and alternate-paths-to-one-hex (keep
+   destination-click, just let the player pick among tied/costlier routes to
+   the same hex) — both keep some or all of the "click far away" model this
+   request exists to remove.
+2. **Turn buttons: clearer labels/icons showing the resulting direction and
+   the cost.** Not a hover preview and not a full move to a directional
+   hex-grid overlay (both considered, both rejected) — the buttons stay
+   buttons, they just stop reading as generic `⟲`/`⟳` glyphs. Cost is
+   flat (always 1 point per 60°, `navalMovement.ts:24`), so the informative
+   half of this is really the **direction**: the label should show the arrow
+   the ship will be facing *after* the turn, computed live from
+   `unit.facing`, not a static rotate icon. `MapView.setFacingIndicators`
+   (`MapView.ts:347`, cited already in [§16.3](#163-implementation-notes))
+   is the existing arrow-rendering primitive to reuse for the glyph.
+
+### 17.3 What actually needs to change
+
+**Likely no engine change at all, and that is worth confirming rather than
+assuming.** `reachableNavalHexes` already contains an entry for the single
+hex directly ahead of the bow, and — since no rotation is cheaper than
+zero — that entry is necessarily the direct one-hop cost with the facing
+unchanged. So a `navalMove` fired at exactly that hex should already resolve
+to a plain forward step with today's `applyAction`, no new action kind
+needed. **Before writing any UI code, prove this**, e.g. with a focused
+`navalMovement.test.ts` assertion that the bow-adjacent hex's
+`reachableNavalHexes` entry always has `cost === TERRAIN_EFFECTS[terrain]
+.moveCost` and `facing === unit.facing` — if that ever fails (it shouldn't,
+but the Dijkstra graph is general enough that a non-obvious cheaper detour
+should be considered, not assumed away), the plan changes.
+
+If confirmed, this is almost entirely a `BoardScene.ts` presentation change,
+same shape as [§16](#16-identify-which-unit-a-choice-dialog-means):
+
+- `refreshNavalMovementControls` (`:1320-1337`) stops highlighting the full
+  `reachableNavalHexes` set in blue and instead highlights only the single
+  hex directly ahead of the current facing (if reachable at all — i.e. if
+  `movementLeft` covers its terrain cost).
+- `handleNavalMoveClick` (`:1379-1403`) keeps working unmodified for that one
+  hex once the highlight set is narrowed, since it already just fires
+  `navalMove` at whatever was clicked.
+- The Turn buttons get their label/icon rework from §17.2.
+- `legalActions` (`actions.ts:371-397`) is **not** touched — it keeps
+  enumerating every reachable hex, because that is the action surface the AI
+  (`HeuristicAgent`) and the fuzz harness use, and neither goes through
+  `BoardScene`'s highlight logic at all (see [§6.12](#612-stage-4-outcome)'s
+  note that an AI seat never draws a panel). This keeps the AI's play
+  strength and every existing engine test untouched — the redesign is scoped
+  to *how a human clicks*, not to what's legal.
+
+### 17.4 Open design question: distant ramming contacts
+
+`findRammingContacts` (`navalMovement.ts:135-151`) currently reports every
+reachable state whose bow would land pointed at an enemy — including ones
+several hexes and several turns away — and today's orange highlight lets a
+player click straight to one, auto-solving the whole approach exactly like
+the blue destination-click does. Restricting movement to single steps makes
+that inconsistent: the ship would have to be walked there leg by leg like
+everything else, but should the game still show *where* the opportunities
+are (an informational hint) even though clicking one no longer teleports the
+ship? Both readings are defensible — showing nothing means the player has to
+rediscover contacts by manual trial, showing a hint that isn't clickable
+avoids that without reintroducing the auto-navigate shortcut. **Not decided
+yet — settle this before implementing**, and settle it by asking the user
+rather than guessing, since it's the same category of "what does the player
+actually want to see" question §17.2 already needed the user for. The
+zero-cost `Ram!` button (`:521-529`, `attemptImmediateRam`) is unaffected
+either way: it only ever fires once the ship is already bow-on and adjacent.
+
+### 17.5 Scope and dependencies
+
+- **Presentation only, if §17.3's assumption holds** — no `GameState`
+  change, no save-format change, no new engine tests strictly required
+  (though the `reachableNavalHexes` confirmation test from §17.3 is cheap
+  insurance and should be added regardless). Per this repo's engine/presentation
+  split, the `BoardScene.ts` half is not unit-testable and needs a manual
+  browser pass — expect this to join [§16](#16-identify-which-unit-a-choice-dialog-means)
+  and [Stage 4's outstanding check](#612-stage-4-outcome) on the "owed manual
+  pass" list.
+- **Touches `BoardScene.ts`**, so it collides with anything else in flight
+  there — currently nothing (Stage 3b, [§6.13](#613-stage-3b-outcome), is
+  `engine/`-only and doesn't touch this file).
+- **Placement-phase facing selection reuses the same Turn buttons**
+  (`README.md`:426-429) — the label/icon rework from §17.2 lands there too,
+  for free, since it's the same two buttons; worth a placement-phase line in
+  the manual pass rather than assuming it inherited the change correctly.
+- **`README.md`'s "Naval movement and combat" section** (421-467) and the
+  "Naval movement is destination-click, not path-drawn" Known Simplification
+  (~611) both describe the *current* behavior this replaces — per this
+  file's own convention (`CLAUDE.md`: "When a 'Known simplification' ...
+  gets implemented, move its bullet out of that section and document the
+  new behavior in place"), that bullet moves into the "Naval movement and
+  combat" section once this ships, rather than staying as a caveat for
+  behavior that no longer exists.
+
+## 18. Live defect: ramming bonus narrows the table instead of extending it
+
+**Status: confirmed live defect, not yet fixed.** Reported by the user
+2026-08-15 (bireme-vs-galere ramming resolving fewer die faces as
+successful than expected), initially investigated and — wrongly — pushed
+back on twice by this session before being confirmed against the actual
+scanned rulebook page. Recorded here in full, including the mistaken
+pushback, because getting an interpretation call backwards and defending it
+confidently is exactly the failure mode this file's rulebook-citation
+convention (`CLAUDE.md`) exists to catch, and papering over the false starts
+would hide how the correct reading was actually found.
+
+### 18.1 The defect
+
+`src/data/navalRamming.ts`'s `rammingSuccessRange` currently does this:
+
+```ts
+export function rammingSuccessRange(attackerType, defenderType, bonus) {
+  const fullRange = RAMMING_SUCCESS_DICE[attackerType][defenderType];
+  return fullRange.slice(0, Math.min(fullRange.length, 1 + bonus));
+}
+```
+
+— treats the printed per-matchup table row as the success range **at
+maximum bonus**, and a lower bonus reveals fewer of that SAME row's
+entries. For birème (attacker) vs. galère (defender), whose printed row is
+`[1, 2, 3]`: 0 bonus → `[1]`, +1 bonus → `[1, 2]`, +2 (max) bonus →
+`[1, 2, 3]` — capped at the row's own width no matter how much bonus is
+available. This is what the user saw: 1 unused movement point (→ +1 bonus)
+succeeding only on 1-2, not 1-2-3-4.
+
+### 18.2 The correct rule, per the actual rulebook text
+
+Read directly off the scanned page (`docs/Jeux & stratégie 06 - Heraklios -
+Règles 2.jpg`, p.34 — the transcriptions in `docs/research/05-rules-french-original.md:375-386`
+and `docs/research/03-tables-reference.md:60-69` both match the scan
+exactly, so the transcription was never the problem):
+
+> Selon qu'il lui reste 1, 2 (ou davantage encore) points de mouvement
+> lorsque la galère rencontre la quintirème, la galère reçoit 1 ou 2 points
+> de bonification. S'il lui reste un point de mouvement non utilisé, elle
+> obtient 1 point de bonification. **Cette valeur augmente d'une unité pour
+> la borne supérieure du jet de dé à réaliser pour que l'éperonnage soit
+> réussi.** Concrètement, pour que la galère réussisse son éperonnage, le
+> dé doit indiquer 1. Si la galère a un point de bonification, l'éperonnage
+> sera réussi avec l'apparition de 1 ou 2 au dé. Si elle a 2 points de
+> mouvement non utilisés, et donc 2 points de bonification, l'éperonnage
+> sera réussi avec l'apparition de 1, 2 ou 3 au dé. Quelque soit le nombre
+> de points de déplacement non utilisé supérieur à 2, on n'accordera jamais
+> plus de 2 points de bonification.
+
+The sentence in bold is a GENERAL statement, not scoped to the galère-vs-
+quintirème worked example it's illustrated with: **each bonus point raises
+the upper bound of a successful die roll by one**, on top of whatever the
+printed table already gives at zero bonus. It is the bonus itself that caps
+at +2 ("jamais plus de 2 points de bonification") — nothing in the text
+caps the resulting die-range at the printed row's own width. The previous
+interpretation had this backwards: it capped the *range*, when the rule
+caps the *bonus that extends the range*.
+
+Under this reading there is no conflict to paper over — the code's own
+extensive comments in `navalRamming.ts` invented an "edition interpretation"
+to reconcile the worked example against wider rows, and that invention was
+the bug:
+
+- **Galère vs. quintirème (the book's own worked example), row `[1]`:** 0
+  bonus → succeeds on 1 (the printed row, unchanged). +1 bonus → upper bound
+  1+1=2, succeeds on 1-2. +2 bonus → upper bound 3, succeeds on 1-2-3.
+  **Matches the worked example exactly**, with no special-casing needed —
+  the previous code's comment calling this matchup an exception ("this
+  edition succeeds only on a 1 at every bonus level... not the book's
+  '1, 2, or 3'") was describing its own bug, not a real discrepancy in the
+  source material.
+- **Birème vs. galère (the user's report), row `[1, 2, 3]`:** 0 bonus →
+  1-2-3. +1 bonus → upper bound 3+1=4, succeeds on 1-2-3-4. +2 bonus → upper
+  bound 5, succeeds on 1-2-3-4-5. Matches what the user described exactly.
+- **A ceiling the rulebook text doesn't address, but a d6 forces:**
+  quintirème vs. birème, row `[1, 2, 3, 4, 5]` — already 5 of 6 faces at
+  zero bonus. +1 bonus would need upper bound 6 (succeeds on every face,
+  i.e. an automatic hit), and +2 bonus has nowhere further to go (a die
+  only has 6 faces). The fix needs `Math.min(upperBound, 6)`, and this is a
+  genuinely new edge case worth its own test: is a ramming attempt that
+  cannot possibly miss even legal/sensible under the rules, or should the
+  UI say so plainly? (Almost certainly yes it's legal — nothing in the text
+  suggests otherwise — this is just the first matchup+bonus combination
+  where it actually happens.)
+
+### 18.3 What needs to change
+
+- **`src/data/navalRamming.ts`** — `rammingSuccessRange` (the core fix:
+  extend the upper bound by `bonus`, capped at 6, instead of slicing the
+  row to `1 + bonus` entries capped at the row's own length).
+  `maxReachableRammingEntries` and `wholeRowReachableAtMaxBonus` are both
+  built on the OLD premise ("some rows have entries no bonus can ever
+  reach") — under the corrected rule every entry is reachable given enough
+  bonus (mostly; see the die-face-6 ceiling above), so both of these likely
+  become unnecessary rather than needing a new formula; confirm during
+  implementation rather than assuming. `fullRammingSuccessRange` stays
+  useful only as "the printed 0-bonus row," not as a distinct "wider than
+  what bonus can reach" concept. Every doc comment in this file describing
+  the old interpretation (`rammingSuccessRange`'s especially, which is
+  several paragraphs of now-incorrect reasoning) needs rewriting, not
+  patching around.
+- **`src/data/navalRamming.test.ts`** — the `wholeRowReachableAtMaxBonus —
+  exhaustive 16-matchup sweep` describe block (`:114-`) and the
+  `rammingSuccessRange / isRammingHitWithBonus` block (`:47-`, especially
+  "never exposes more entries than the printed table has, even at max
+  bonus" at `:61`) encode the WRONG expected values throughout — this is
+  the bulk of the implementation work, not a side effect of it. Needs a new
+  case for the die-face-6 ceiling (quintirème vs. birème/galère at bonus
+  ≥ 1).
+- **`src/engine/combatOdds.ts`** — no logic change: `rammingHitChance`
+  already delegates to `isRammingHitWithBonus` rather than re-deriving hit
+  probability itself (see its own doc comment, `:427-434`, explaining
+  exactly why — "so a change to it can't leave the odds quietly
+  disagreeing with the resolution"), so fixing `navalRamming.ts` fixes the
+  AI's odds for free. **This is also the reason the fix changes AI
+  behavior**: `HeuristicAgent.scoreNavalMove`/`combatCandidates` price
+  ramming via `evaluateRam`, which now sees higher hit chances for every
+  matchup with any bonus — expect the AI to ram more often and value
+  ramming positioning more highly than it did before. Worth a soak-test
+  glance after the fix (`heuristicSoak.test.ts`), though no test there
+  currently hardcodes ramming-specific numbers.
+- **`src/scenes/BoardScene.ts`'s `commitRam`** (`:1474-1524`) — the
+  `tableNote` sentence-selection logic (`wholeRowReachableAtMaxBonus` /
+  `maxReachableRammingEntries` branches, `:1503-1516`) is built entirely on
+  the old "some entries are unreachable" framing and needs to be rewritten
+  around the new one (there IS still a genuinely new thing worth telling
+  the player about — the die-face-6 "automatic hit" ceiling — just not the
+  old "printed table row wider than what bonus can reach" framing).
+- **`README.md`'s "Naval movement and combat" section** (`421-467`,
+  specifically the "interpretive calls" paragraph at `451-466`) currently
+  documents the OLD interpretation as this edition's deliberate,
+  considered choice, with a worked-through explanation of why it diverges
+  from the book. That entire paragraph is wrong and needs replacing with
+  the corrected rule — this is the rare case where a "known simplification"
+  /interpretation writeup wasn't a defensible judgment call, it was a
+  transcription-adjacent bug that happened to get an elaborate
+  justification written around it.
+
+### 18.4 Why this got missed, and why it took three tries to find
+
+Worth recording plainly rather than smoothing over. The first two responses
+in this session verified the printed table CELL VALUES exhaustively (the
+transcription, the tables-reference doc, and finally the scanned image
+itself all agree on what `RAMMING_SUCCESS_DICE` should contain) and
+concluded "not a bug" — technically correct about the table's cell
+contents, but answering the wrong question. The actual bug is in
+`rammingSuccessRange`'s FORMULA for combining a cell value with a bonus,
+which no amount of re-checking the table itself would ever catch. The user
+supplied the one piece of evidence that actually distinguishes the two
+readings — the galère-vs-quintirème worked example, which the OLD code
+already got right by construction (it's the exact matchup the interpretation
+was built to match) — and asked for the same procedure to be applied
+uniformly elsewhere, which is what exposed the divergence. The lesson for
+next time: when a worked example and a printed table both exist, check
+whether an interpretation was fitted to reproduce the ONE example given
+(narrow evidence) rather than derived from the general sentence the example
+is illustrating (broad evidence) — this file's own existing comments in
+`navalRamming.ts` were transparent about doing the former ("This
+reproduces the worked example's exact numbers... ONLY for the matchups
+whose printed row has EXACTLY 3 entries"), which in hindsight was the tell.

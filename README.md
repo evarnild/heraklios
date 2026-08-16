@@ -580,7 +580,7 @@ what the game will use — see `src/map-editor/`.
 
 Any seat can be played by the computer. On the menu screen, each of the four
 seats has its own button cycling **Human → AI easy → AI normal → AI hard →
-AI expert**; pick the ones you want before choosing the number of players
+AI cautious**; pick the ones you want before choosing the number of players
 (which is also what starts the game — seats beyond the count you pick are
 ignored).
 
@@ -609,18 +609,27 @@ and above all the value of the attack the destination makes possible — which
 is how it finds cavalry charges, since a charge is simply a move whose
 attack is worth twice as much.
 
-**Four difficulty levels**, in increasing strength:
+**Four difficulty levels.** The first three are in increasing strength;
+the fourth is a different playing style rather than a stronger one — see
+below for why:
 
 | Level | How it plays |
 | --- | --- |
 | Random | Picks uniformly among the legal options. |
 | Greedy | Goes for the biggest expected damage to you, and ignores what the attempt might cost it. |
 | Expected value | Weighs damage against its own risk, declines attacks that aren't worth making, and concentrates several units into one attack when that pushes the force ratio into a better column. |
-| Expert | Everything expected value does, plus a bounded look at your best reply: before committing to a move, it clones the board, plays the move out, and prices the strongest attack you could make against the result — discounting a move for handing you a strong counter, not just for what it buys outright. |
+| Cautious | Everything expected value does, plus a bounded look at your best reply: before committing to a move, it clones the board, plays the move out, and prices the strongest attack you could make against the result — discounting a move for handing you a strong counter, not just for what it buys outright. |
 
-The fourth level does not simulate your movement or search more than one ply
-— see `heuristicAgent.ts` for why a genuine rollout turned out to be a much
-larger job than the other three tiers, and what stayed in scope instead.
+The fourth level does not simulate your movement or search more than one
+ply — see `heuristicAgent.ts` for why a genuine rollout turned out to be a
+much larger job than the other three tiers, and what stayed in scope
+instead. It shares expected value's combat logic exactly and only re-scores
+its own movement choices, so — measured over hundreds of self-play games —
+it is **not reliably stronger than expected value** in total army value at
+the end of a game, even though it does provably make different, more
+risk-averse choices in specific positions. It was shipped once under the
+name "Expert," which claimed an ordering the numbers didn't support; this is
+the corrected framing.
 
 ## Known simplifications
 
