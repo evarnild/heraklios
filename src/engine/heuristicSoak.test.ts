@@ -197,4 +197,72 @@ describe('HeuristicAgent: difficulty tiers are ordered by strength', () => {
     expect(evInSeat0).toBeGreaterThan(greedyInSeat0);
     expect(evInSeat1).toBeGreaterThan(greedyInSeat1);
   });
+
+  /**
+   * plan-history.md §6.4's fourth tier, `'lookahead'` — labelled "AI —
+   * cautious" in `seatControl.ts`, deliberately NOT "expert": it shares
+   * `'ev'`'s exact combat-phase logic entirely and only re-ranks MOVEMENT
+   * candidates by a bounded one-ply opponent-reply threat check, so it is a
+   * claim about risk-awareness, not about aggregate strength. Three commits
+   * (`f7bb8e2`, then two fixes, plan-history.md §6.13/§6.14) tried to claim
+   * "ends with more material than `'ev'`" the same way this file claims it
+   * for `'ev'` vs. `'greedy'` below — and ALL THREE turned out to be
+   * unfounded once measured past these 12 seeds: a second review
+   * (plan-history.md §6.14) found the first fix's own "555 vs 530" result
+   * held on only 2 of the 12 seeds, and extending to 160 seeds (4
+   * independent blocks of 40) put the edge at +1.0% with the SIGN FLIPPING
+   * in half the blocks. A further redesign (pricing the threat against the
+   * SPECIFIC unit being moved, rather than the board's overall worst
+   * threat — see `applyMovementLookahead`'s current header) and a weight
+   * sweep (0.75 up to 2, nearly 3x) both left the aggregate-material
+   * picture just as unstable — and a THIRD review re-ran the SAME 160-seed
+   * protocol against the per-unit redesign and got -2.24% pooled, sign
+   * flipped from what plan-history.md §6.14 had originally claimed
+   * (+0.9%). All of it is indistinguishable from noise, not a real
+   * ordering. plan-history.md §6.14/§6.15 have the full record.
+   *
+   * This is why the assertion below is a REGRESSION GUARD, not a strength
+   * claim: lookahead should not be dramatically worse than `'ev'` (which
+   * would mean the threat penalty is actively sabotaging good moves), so it
+   * checks material stays within a generous band rather than asserting an
+   * ordering the tier cannot reliably back up. The tier's real, PROVEN value
+   * is in specific decisions, not aggregate material — see
+   * `heuristicAgent.test.ts`'s targeted tests (avoiding a move whose best
+   * enemy reply is too strong, and doing so correctly even when
+   * `defendedThisPhase`/`charged` carry stale state from earlier in the
+   * round) — and in beating `'greedy'` exactly as convincingly as `'ev'`
+   * does, checked directly below since lookahead inherits every one of
+   * `'ev'`'s advantages over `'greedy'` and adds to them, never subtracts.
+   */
+  it('the lookahead tier is not measurably worse than the ev tier, seat for seat', async () => {
+    const lookaheadFirst = await playSeries('lookahead', 'ev');
+    const evFirst = await playSeries('ev', 'lookahead');
+
+    const lookaheadInSeat0 = lookaheadFirst.material[0];
+    const evInSeat0 = evFirst.material[0];
+    const lookaheadInSeat1 = evFirst.material[1];
+    const evInSeat1 = lookaheadFirst.material[1];
+
+    expect(lookaheadInSeat0).toBeGreaterThan(evInSeat0 * 0.85);
+    expect(lookaheadInSeat1).toBeGreaterThan(evInSeat1 * 0.85);
+  });
+
+  it('the lookahead tier ends with more material than the greedy tier, seat for seat', async () => {
+    // Unlike the ev-vs-lookahead comparison above, this one IS a genuine
+    // strength claim, and measures as a large, stable margin (310 vs. 195,
+    // 310 vs. 205 over these 12 seeds) — lookahead's combat phase is
+    // identical to ev's, and ev already beats greedy convincingly (see the
+    // ev-vs-greedy test above), so this is the same margin plus whatever
+    // the threat check adds on top, never minus it.
+    const lookaheadFirst = await playSeries('lookahead', 'greedy');
+    const greedyFirst = await playSeries('greedy', 'lookahead');
+
+    const lookaheadInSeat0 = lookaheadFirst.material[0];
+    const greedyInSeat0 = greedyFirst.material[0];
+    const lookaheadInSeat1 = greedyFirst.material[1];
+    const greedyInSeat1 = lookaheadFirst.material[1];
+
+    expect(lookaheadInSeat0).toBeGreaterThan(greedyInSeat0);
+    expect(lookaheadInSeat1).toBeGreaterThan(greedyInSeat1);
+  });
 });

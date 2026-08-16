@@ -1,7 +1,7 @@
 import type { HexCoord } from '../data/map';
 import { MAP_TERRAIN, hexKey as mapHexKey } from '../data/map';
 import { TERRAIN_EFFECTS } from '../data/terrain';
-import type { Action } from './actions';
+import { applyAction, legalActions, type Action } from './actions';
 import type { ActionChooser, PlayerAgent } from './agent';
 import {
   attackerCanJoin,
@@ -16,24 +16,25 @@ import { hexDistance, neighbors } from './hex';
 import { evaluateCharge } from './movement';
 import { findRammingContacts, type RammingContact } from './navalMovement';
 import { RandomAgent } from './randomAgent';
-import { currentDefense, livingUnits, unitType, type GameState, type Unit } from './state';
+import { currentDefense, livingUnits, unitType, type GameState, type PlayerId, type Unit } from './state';
 
 /**
- * Stage 3 of plan.md §6 — an agent that actually tries to win, built on the
+ * Stage 3 of plan-history.md §6 — an agent that actually tries to win, built on the
  * exact CRT arithmetic in `engine/combatOdds.ts` and the same
  * `legalActions`/`applyAction` action layer `RandomAgent` and `BoardScene`
  * already use. No Phaser, no scene, no new rules: every legality question is
  * still answered by the engine's existing predicates, and this file only
  * decides which of the legal options it prefers.
  *
- * DIFFICULTY TIERS (plan.md §6.4: "random -> greedy -> EV-weighted ->
- * shallow lookahead"). Three of the four ship here:
+ * DIFFICULTY TIERS (plan-history.md §6.4: "random -> greedy -> EV-weighted ->
+ * shallow lookahead"):
  *
  * | Tier | Combat | Movement |
  * | --- | --- | --- |
  * | `'random'` | delegates to `RandomAgent` | delegates to `RandomAgent` |
  * | `'greedy'` | maximizes expected ENEMY loss, blind to its own risk | closes distance; walks toward whatever it could hurt |
- * | `'ev'` | maximizes expected material SWING, and combines attackers | as above, plus terrain, ZOC, retreat-trap and charge value |
+ * | `'ev'` | maximizes expected material SWING, and combines attackers | as above, plus terrain, ZOC and charge value |
+ * | `'lookahead'` | same exact-EV combat model | EV movement plus a bounded enemy-reply threat check |
  *
  * `'random'` is a genuine delegation, not a reimplementation — the tier
  * exists so a caller can select difficulty uniformly without special-casing
@@ -46,19 +47,20 @@ import { currentDefense, livingUnits, unitType, type GameState, type Unit } from
  * therefore happily trade a phalanx for an archer, which is exactly the
  * mistake that makes it the easier opponent.
  *
- * THE FOURTH TIER IS DELIBERATELY NOT HERE. plan.md §6.4 calls shallow
- * lookahead "nearly free"; it is not, and recording why is more useful than
- * a stub. A ply of lookahead needs (a) a cloned `GameState` to apply a
- * candidate action against, (b) an answer for every mid-resolution decision
- * that clone provokes, and (c) an opponent model to reply with — and
+ * THE FOURTH TIER IS BOUNDED, NOT A ROLLOUT. plan-history.md §6.4 called
+ * shallow lookahead "nearly free"; §6.9 records why that was wrong. This tier keeps
+ * the tractable slice: deterministic movement candidates are applied to a
+ * structured-cloned `GameState`, then an EV opponent model asks what the
+ * strongest immediate combat reply would be SPECIFICALLY AGAINST THE UNIT
+ * THAT JUST MOVED, not the board's worst threat anywhere (see
+ * `applyMovementLookahead`'s header for why that distinction matters). The
+ * search is deliberately capped to the best few baseline moves, because
  * `legalActions` recomputes a full `reachableHexes` BFS per unit per call
- * (see `fuzzHarness.ts`'s note on why its armies are kept small), so a naive
- * 1-ply search multiplies an already-dominant cost by the branching factor.
- * It is a separate piece of work with its own performance budget, not a
- * variant of this file. The three tiers here are what "difficulty tiers fall
- * out nearly free" actually bought.
+ * (see `fuzzHarness.ts`'s note on why its armies are kept small). Stochastic
+ * combat remains valued by `combatOdds.ts`'s exact six-face EV model rather
+ * than by sampling one imagined die roll and pretending it was the future.
  *
- * DETERMINISM. In the two SCORED tiers every choice is a pure function of
+ * DETERMINISM. In the three SCORED tiers every choice is a pure function of
  * `state` and the options offered, with ties broken by the order
  * `legalActions` produced them in, so the same position always yields the
  * same move and a seeded self-play game replays identically (see
@@ -69,8 +71,8 @@ import { currentDefense, livingUnits, unitType, type GameState, type Unit } from
  * `HeuristicAgentOptions.rng`.
  */
 
-/** Which of the three tiers described above an agent plays at. */
-export type Difficulty = 'random' | 'greedy' | 'ev';
+/** Which of the four tiers described above an agent plays at. */
+export type Difficulty = 'random' | 'greedy' | 'ev' | 'lookahead';
 
 /**
  * The tunable half of the agent. Every field is in PURCHASE POINTS — the
@@ -151,6 +153,34 @@ interface Scored {
   order: number;
 }
 
+type CombatScoringMode = 'greedy' | 'ev';
+
+/** How many movement candidates the lookahead tier is allowed to clone and
+ * probe on one action choice. This is the tier's performance budget: large
+ * enough to compare the plausible moves, small enough that a ship's huge
+ * destination list does not multiply the already-expensive `legalActions`
+ * BFS across the whole board.
+ *
+ * Only pinned in the direction that matters for correctness: lowering it
+ * to 1 fails four tests, three targeted plus the ev-comparison soak (an
+ * uncapped search is strictly more accurate, so
+ * raising it — tried up to 40 during Stage 3b tuning, plan-history.md
+ * §6.14 — is not a behavior change a test could object to, just a
+ * performance/accuracy tradeoff with no test asserting the CHOSEN value
+ * specifically). */
+const LOOKAHEAD_CANDIDATE_LIMIT = 8;
+
+/** How much of the opponent's best immediate combat reply is charged against
+ * a candidate move. Kept below 1 so the tier still takes tactically valuable
+ * ground instead of freezing whenever any counterattack exists.
+ *
+ * Like `LOOKAHEAD_CANDIDATE_LIMIT`, only pinned downward: zeroing it fails
+ * the tests that depend on the threat penalty existing at all, but nothing
+ * asserts 0.75 specifically over some other positive value (tried up to 2,
+ * nearly 3x, during the same tuning pass, with no material change to
+ * aggregate strength — plan-history.md §6.14). */
+const LOOKAHEAD_REPLY_WEIGHT = 0.75;
+
 export class HeuristicAgent implements PlayerAgent, ActionChooser {
   private readonly difficulty: Difficulty;
   private readonly weights: HeuristicWeights;
@@ -199,6 +229,26 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
    */
   private chooseCombatAction(state: GameState, legal: Action[]): Action {
     const endPhase = legal.find((a) => a.kind === 'endPhase');
+    const candidates = this.combatCandidates(state, legal, this.combatScoringMode());
+
+    const best = this.pickBest(candidates);
+    if (!best || best.score <= this.weights.minAttackValue) {
+      if (!endPhase) throw new Error('HeuristicAgent: no attack worth making and no endPhase action offered');
+      return endPhase;
+    }
+    return best.action;
+  }
+
+  /** Every land-attack and boarding candidate the position offers, scored
+   * under `mode` (`'greedy'`: `expectedDefenderLoss`; `'ev'`: `expectedValue`)
+   * — one candidate per defender, its attacker group built by
+   * `buildAttackGroup` (`'ev'`) or reduced to `bestSoloAttacker` (`'greedy'`,
+   * and the `'ev'` opponent-reply probe when scoring under that same mode).
+   * `chooseCombatAction` picks the best of these for a real turn;
+   * `enemyThreatAgainstUnit` calls this same function against a cloned
+   * board to price a hypothetical enemy reply — the one place this file
+   * scores combat outside the active player's own turn. */
+  private combatCandidates(state: GameState, legal: Action[], mode: CombatScoringMode): Scored[] {
     const candidates: Scored[] = [];
 
     // Attackers available against each defender, taken from the legal set so
@@ -238,12 +288,11 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
         .filter((attacker) => attackerCanJoin(state, attacker, [defender], state.combatMode));
       if (eligible.length === 0) continue;
 
-      const group = this.difficulty === 'ev' ? this.buildAttackGroup(state, defender, eligible) : [this.bestSoloAttacker(state, defender, eligible)];
+      const group = mode === 'ev' ? this.buildAttackGroup(state, defender, eligible) : [this.bestSoloAttacker(state, defender, eligible, mode)];
       const evaluation = evaluateAttack(state, group, [defender]);
-      const score = this.difficulty === 'greedy' ? evaluation.expectedDefenderLoss : evaluation.expectedValue;
       candidates.push({
         action: { kind: 'landAttack', attackerIds: group.map((u) => u.id), defenderIds: [defender.id] },
-        score,
+        score: mode === 'greedy' ? evaluation.expectedDefenderLoss : evaluation.expectedValue,
         order: orderByDefender.get(defenderId)!,
       });
     }
@@ -253,28 +302,26 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
       const attacker = this.requireUnit(state, action.attackerId);
       const defender = this.requireUnit(state, action.defenderId);
       const evaluation = evaluateBoarding(attacker, defender);
-      const score = this.difficulty === 'greedy' ? evaluation.expectedDefenderLoss : evaluation.expectedValue;
+      const score = mode === 'greedy' ? evaluation.expectedDefenderLoss : evaluation.expectedValue;
       candidates.push({ action, score, order: index });
     });
 
-    const best = this.pickBest(candidates);
-    if (!best || best.score <= this.weights.minAttackValue) {
-      if (!endPhase) throw new Error('HeuristicAgent: no attack worth making and no endPhase action offered');
-      return endPhase;
-    }
-    return best.action;
+    return candidates;
   }
 
-  /** The single attacker with the best solo expected value against
-   * `defender` — the whole answer for the `'greedy'` tier, and the seed the
-   * `'ev'` tier grows a group from. `attackers` must already be filtered by
-   * `attackerCanJoin` (see `chooseCombatAction`). */
-  private bestSoloAttacker(state: GameState, defender: Unit, attackers: Unit[]): Unit {
+  /** The single attacker with the best solo score against `defender` under
+   * `mode` — the whole answer for `'greedy'` (and for scoring an enemy's
+   * hypothetical reply, which always uses `'ev'` regardless of this agent's
+   * own difficulty — see `enemyThreatAgainstUnit`), and the seed
+   * `buildAttackGroup` grows an `'ev'` group from. `attackers` must already
+   * be filtered by `attackerCanJoin` (see `combatCandidates`'s eligibility
+   * gate). */
+  private bestSoloAttacker(state: GameState, defender: Unit, attackers: Unit[], mode: CombatScoringMode): Unit {
     let best: Unit | undefined;
     let bestScore = -Infinity;
     for (const attacker of attackers) {
       const evaluation = evaluateAttack(state, [attacker], [defender]);
-      const score = this.difficulty === 'greedy' ? evaluation.expectedDefenderLoss : evaluation.expectedValue;
+      const score = mode === 'greedy' ? evaluation.expectedDefenderLoss : evaluation.expectedValue;
       if (score > bestScore) {
         bestScore = score;
         best = attacker;
@@ -302,7 +349,7 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
    * unit added below.
    */
   private buildAttackGroup(state: GameState, defender: Unit, attackers: Unit[]): Unit[] {
-    const seed = this.bestSoloAttacker(state, defender, attackers);
+    const seed = this.bestSoloAttacker(state, defender, attackers, 'ev');
     const group = [seed];
     let bestValue = evaluateAttack(state, group, [defender]).expectedValue;
     const remaining = attackers.filter((attacker) => attacker.id !== seed.id);
@@ -406,7 +453,8 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
       }
     });
 
-    const best = this.pickBest(candidates);
+    const scored = this.difficulty === 'lookahead' ? this.applyMovementLookahead(state, candidates) : candidates;
+    const best = this.pickBest(scored);
     if (!best || best.score < this.weights.minMoveScore) {
       if (!endPhase) throw new Error('HeuristicAgent: no move worth making and no endPhase action offered');
       return endPhase;
@@ -429,8 +477,8 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
    *   actually threatens — which is the difference between a charge into a
    *   phalanx (worth nothing; cavalry may not attack one at all) and a
    *   charge into an archer.
-   * - **terrain / ZOC** — `'ev'` only: the positional terms a risk-blind
-   *   greedy agent skips.
+   * - **terrain / ZOC** — `'ev'` and `'lookahead'` only: the positional terms
+   *   a risk-blind greedy agent skips.
    *
    * There is deliberately NO "don't move somewhere a forced retreat would
    * kill you" term, though an earlier version of this file had one and
@@ -456,7 +504,7 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
     enemies: Unit[],
     enemyZoc: ReadonlySet<string>,
   ): number {
-    const riskAware = this.difficulty === 'ev';
+    const riskAware = this.difficulty === 'ev' || this.difficulty === 'lookahead';
     let score = this.weights.approach * (nearestDistance(unit.position, enemies) - nearestDistance(to, enemies));
 
     if (withinStrikeRange(to, enemies)) {
@@ -511,7 +559,7 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
       let best = 0;
       for (const target of validTargets(state, unit)) {
         const value = evaluateAttack(state, [unit], [target]);
-        const score = this.difficulty === 'greedy' ? value.expectedDefenderLoss : value.expectedValue;
+        const score = this.combatScoringMode() === 'greedy' ? value.expectedDefenderLoss : value.expectedValue;
         if (score > best) best = score;
       }
       return best;
@@ -637,9 +685,7 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
    * a uniform pick among the tied options when an `rng` was supplied. */
   private pickBest(candidates: Scored[]): Scored | undefined {
     if (candidates.length === 0) return undefined;
-    let bestScore = -Infinity;
-    for (const candidate of candidates) bestScore = Math.max(bestScore, candidate.score);
-    const tied = candidates.filter((c) => c.score >= bestScore - TIE_EPSILON);
+    const tied = this.bestTied(candidates);
     if (!this.rng || tied.length === 1) {
       return tied.reduce((a, b) => (a.order <= b.order ? a : b));
     }
@@ -647,7 +693,166 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
     return tied[index]!;
   }
 
-  private activeOwner(state: GameState): number {
+  private pickBestDeterministic(candidates: Scored[]): Scored | undefined {
+    const tied = this.bestTied(candidates);
+    return tied.length === 0 ? undefined : tied.reduce((a, b) => (a.order <= b.order ? a : b));
+  }
+
+  private bestTied(candidates: Scored[]): Scored[] {
+    if (candidates.length === 0) return [];
+    let bestScore = -Infinity;
+    for (const candidate of candidates) bestScore = Math.max(bestScore, candidate.score);
+    return candidates.filter((c) => c.score >= bestScore - TIE_EPSILON);
+  }
+
+  private combatScoringMode(): CombatScoringMode {
+    return this.difficulty === 'greedy' ? 'greedy' : 'ev';
+  }
+
+  /**
+   * Penalizes each candidate by the MARGINAL enemy threat it creates AGAINST
+   * THE UNIT BEING MOVED — not the board's overall worst threat.
+   *
+   * The first version of this tier (plan-history.md §6.13) computed a board-WIDE
+   * max threat as both "before" and "after," and subtracted one from the
+   * other. That doesn't discriminate: a board-wide worst-case threat is
+   * almost never the specific unit that just moved (with any army bigger
+   * than two units, something else is usually already more exposed), so
+   * `baselineThreat` and `afterThreat` came out equal in nearly every
+   * position regardless of what the candidate did — measured at the time as
+   * "lookahead" being statistically indistinguishable from `'ev'` over 160
+   * games (plan-history.md §6.14). Pricing the threat specifically against the
+   * mover fixes the discrimination problem: `baselineThreat` is what the
+   * strongest enemy attack against THIS unit, specifically, is worth before
+   * it moves; `afterThreat` is the same question after; only the increase
+   * (clamped at 0, since making the unit SAFER shouldn't earn a bonus it
+   * didn't ask for) is charged against the candidate.
+   */
+  private applyMovementLookahead(state: GameState, candidates: Scored[]): Scored[] {
+    const baselineCache = new Map<string, number>();
+    const baselineFor = (unitId: string): number => {
+      let value = baselineCache.get(unitId);
+      if (value === undefined) {
+        value = this.enemyThreatAgainstUnit(this.normalizedThreatProbeClone(state), unitId);
+        baselineCache.set(unitId, value);
+      }
+      return value;
+    };
+
+    return [...candidates]
+      .sort((a, b) => b.score - a.score || a.order - b.order)
+      .slice(0, LOOKAHEAD_CANDIDATE_LIMIT)
+      .map((candidate) => {
+        const unitId = movingUnitId(candidate.action);
+        const afterThreat = this.enemyThreatAgainstUnitAfter(state, unitId, candidate.action);
+        const marginalThreat = Math.max(0, afterThreat - baselineFor(unitId));
+        return { ...candidate, score: candidate.score - LOOKAHEAD_REPLY_WEIGHT * marginalThreat };
+      });
+  }
+
+  /** The strongest immediate combat reply any living enemy could make
+   * specifically against `unitId` if `action` were taken — 0 if `action`
+   * isn't one this tier clone-probes at all (see
+   * `cloneAfterDeterministicMovementAction`, notably `'ram'`). */
+  private enemyThreatAgainstUnitAfter(state: GameState, unitId: string, action: Action): number {
+    const clone = this.cloneAfterDeterministicMovementAction(state, action);
+    return clone ? this.enemyThreatAgainstUnit(clone, unitId) : 0;
+  }
+
+  /**
+   * The strongest immediate combat reply any living enemy of `board`'s
+   * active player could make SPECIFICALLY AGAINST `unitId` — the max over
+   * enemies (only one of them actually gets the next combat phase), filtered
+   * down to attacks that actually target this one unit rather than every
+   * attack the position offers (see `applyMovementLookahead`'s header on why
+   * that distinction is the whole fix). Reaches its hypothetical combat
+   * phase by hand-setting `phase`/`activePlayerIndex` rather than by walking
+   * `turnManager.advancePhase`'s real sequence, so this is a threat PROBE,
+   * not a real transition: `board` must already have `defendedThisPhase`/
+   * `charged` normalized the way a real transition into combat would leave
+   * them (see `normalizedThreatProbeClone`, which every caller routes
+   * through — directly, or via `cloneAfterDeterministicMovementAction`).
+   */
+  private enemyThreatAgainstUnit(board: GameState, unitId: string): number {
+    const movingOwner = this.activeOwner(board);
+    let worstReply = 0;
+    for (const owner of enemyOwners(board, movingOwner)) {
+      const index = board.seatOrder.indexOf(owner);
+      // Defensive only, and genuinely unreachable rather than merely
+      // untested: `seatOrder` always holds every player id for the life of
+      // the game (`turnManager.ts`'s `shuffleSeatOrder` only ever
+      // permutes it, never adds or drops one — see its doc comment), so
+      // `indexOf` on an `owner` drawn from `enemyOwners` (which reads
+      // living units, themselves always owned by one of those ids) cannot
+      // fail. Left unpinned,
+      // unlike `movingUnitId`'s structurally similar throw guard, which
+      // WAS pinned once exported for direct testing — that one is reachable
+      // by calling the function directly with a bogus action; this one has
+      // no equivalent seam without exporting `enemyThreatAgainstUnit` and
+      // handing it a `board` whose `seatOrder` disagrees with its own
+      // units, which would be testing a state this file never produces.
+      if (index < 0) continue;
+      board.activePlayerIndex = index;
+      board.phase = 'combat';
+      const candidatesAgainstUnit = this.combatCandidates(board, legalActions(board, {}), 'ev').filter((c) =>
+        targetsUnit(c.action, unitId),
+      );
+      const reply = this.pickBestDeterministic(candidatesAgainstUnit);
+      if (reply && reply.score > this.weights.minAttackValue) {
+        worstReply = Math.max(worstReply, reply.score);
+      }
+    }
+    return worstReply;
+  }
+
+  /** Clones `state`, normalized for the threat probe, and applies `action` —
+   * `null` for actions this tier doesn't clone-probe. Notably `'ram'`: its
+   * outcome is a die roll `combatOdds.ts` prices as a distribution rather
+   * than a single resulting board, so cloning "after" it would mean picking
+   * a hit or a miss to commit to; it's left unpenalized here rather than
+   * arbitrarily choosing one. This is a genuine design choice, not an
+   * oversight — but nothing pins it: no test asserts that adding `'ram'`
+   * to the cases below (i.e. clone-probing it anyway, against some
+   * arbitrarily chosen outcome) changes anything. Disclosed rather than
+   * silently left as a gap. */
+  private cloneAfterDeterministicMovementAction(state: GameState, action: Action): GameState | null {
+    switch (action.kind) {
+      case 'landMove':
+      case 'navalMove':
+      case 'navalRotate': {
+        const clone = this.normalizedThreatProbeClone(state);
+        applyAction(clone, action);
+        return clone;
+      }
+      default:
+        return null;
+    }
+  }
+
+  /**
+   * A `structuredClone` with `defendedThisPhase` and `charged` reset on every
+   * unit — what a real transition into a combat phase would leave behind
+   * (`turnManager.advancePhase`'s movement->combat case resets the former;
+   * `resetMovementForActivePlayer`, run at a unit's own next movement phase,
+   * clears the latter). The threat probe above reaches its hypothetical
+   * combat phase WITHOUT calling either, so without this reset a unit
+   * attacked or charged earlier in the SAME round (by an earlier seat in
+   * `seatOrder`, reachable whenever 3+ seats are still alive) would carry a
+   * stale flag into a hypothetical phase that, in every real game, has at
+   * least one intervening reset before it's actually reached — silently
+   * hiding a real counter-attack behind `defendedThisPhase`, or overpricing
+   * a charge bonus that would already have expired.
+   */
+  private normalizedThreatProbeClone(state: GameState): GameState {
+    const clone = structuredClone(state) as GameState;
+    for (const u of clone.units) {
+      u.defendedThisPhase = false;
+      u.charged = false;
+    }
+    return clone;
+  }
+
+  private activeOwner(state: GameState): PlayerId {
     return state.seatOrder[state.activePlayerIndex]!;
   }
 
@@ -715,4 +920,46 @@ function countAdjacentEnemies(state: GameState, hex: HexCoord, owner: number): n
     if (occupant && occupant.owner !== owner) count++;
   }
   return count;
+}
+
+/** Every distinct owner with at least one living unit, other than `owner`
+ * itself — exported for direct testing, since it's the one thing standing
+ * between the lookahead tier's threat probe (`enemyThreatAgainstUnit`) and
+ * treating the moving player's own best attack as a threat against itself. */
+export function enemyOwners(state: GameState, owner: PlayerId): PlayerId[] {
+  return [...new Set(livingUnits(state).filter((unit) => unit.owner !== owner).map((unit) => unit.owner))];
+}
+
+/** The unit a movement-phase candidate action belongs to. Every action kind
+ * `chooseMovementAction` ever builds a `Scored` candidate from carries a
+ * `unitId` — `landMove`/`navalMove`/`navalRotate`/`ram` — so this throws
+ * rather than returning a fallback if that invariant is ever violated,
+ * matching this file's usual "loud failure over silent misbehaviour"
+ * convention (see `requireUnit`). Exported for direct testing, same reason
+ * as `enemyOwners`: the throw branch is unreachable through the public
+ * `chooseNextAction` API as this file currently calls it, so a test can
+ * only pin it by calling the function directly. */
+export function movingUnitId(action: Action): string {
+  switch (action.kind) {
+    case 'landMove':
+    case 'navalMove':
+    case 'ram':
+    case 'navalRotate':
+      return action.unitId;
+    default:
+      throw new Error(`HeuristicAgent: "${action.kind}" is not a movement-phase candidate action`);
+  }
+}
+
+/** Whether `action` (a combat candidate — `landAttack` or `board`) targets
+ * `unitId` as a defender. Used by `enemyThreatAgainstUnit` to isolate the
+ * threat against ONE specific unit out of every attack a hypothetical
+ * combat phase offers. The `'board'` branch — a hypothetical boarding
+ * attack, reachable only when `cloneAfterDeterministicMovementAction`
+ * clone-probes a `navalMove`/`navalRotate` — is untested: no lookahead
+ * test involves a ship (plan-history.md §6.15). */
+function targetsUnit(action: Action, unitId: string): boolean {
+  if (action.kind === 'landAttack') return action.defenderIds.includes(unitId);
+  if (action.kind === 'board') return action.defenderId === unitId;
+  return false;
 }

@@ -80,8 +80,8 @@ Do not accept a reported "green" without seeing it happen yourself.
    disagreement. The transcriptions contain OCR damage; a quote that has been
    silently tidied while being cited is a finding.
 2. **Whether the tests prove the rule, or only pass.** This is the highest-
-   value thing you do, and this project's repeated failure mode (plan.md
-   §6.6, §6.9, §15.6). **Enumerate mutations from `git diff` — one per
+   value thing you do, and this project's repeated failure mode
+   (plan-history.md §6.6, §6.9, §15.6). **Enumerate mutations from `git diff` — one per
    changed behavioural line — not from a mental list of what the feature
    does.** §15.6 shipped a self-review that mutation-tested the feature
    thoroughly and missed two surviving mutants on lines the same diff had
@@ -89,7 +89,7 @@ Do not accept a reported "green" without seeing it happen yourself.
    Guard your own harness — assert the file actually changed (`git diff
    --quiet` returns non-zero) before running, or a patch that failed to apply
    scores as a survivor (or worse, a false kill).
-3. **Every number in the prose.** Measurements in `plan.md`, `README.md` and
+3. **Every number in the prose.** Measurements in `plan.md`, `plan-history.md`, `README.md` and
    test comments should be ones you can reproduce. Stale measurements have
    been a finding twice.
 4. **The engine/presentation boundary.** Rule logic in `src/engine/` or

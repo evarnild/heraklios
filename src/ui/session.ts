@@ -38,8 +38,8 @@ export interface SessionState {
    * `clockLimitMs`. */
   roundLimit: number | null;
   /**
-   * Who plays each seat — human, or one of the three AI difficulty tiers
-   * (plan.md §6.4's Stage 4). Chosen on the Menu screen before starting a
+   * Who plays each seat — human, or one of the AI difficulty tiers
+   * (plan-history.md §6.4's Stage 4). Chosen on the Menu screen before starting a
    * game and read by `ArmyBuilderScene`/`PlacementScene` (which skip an AI
    * seat's setup) and `BoardScene` (which drives it).
    *
