@@ -1410,6 +1410,18 @@ about behavior a player would ever see.
   matching §6.15 paragraph to describe the group-attack mechanism actually
   operating. The test's assertions and the fix itself were never wrong —
   only the explanation was.
+  **Correction (round 5):** this round's own rewrite was still
+  incomplete, not wrong — it said west's afterThreat drops to 0 "leaving
+  watcher's range 2 entirely," which is only half the story. A fifth
+  review checked `validTargets` directly at both destinations: at west,
+  `decoy` (`archers`, `meleeCapable: false`) is now ADJACENT to `mover`
+  but has no valid target from adjacency at all (ranged-only units can't
+  attack from melee range), while `watcher` is the one that left range —
+  so BOTH enemies go silent for different reasons, not one "leaving
+  range" reason covering both. The prior wording would have survived a
+  maintainer swapping `decoy` for a melee-capable type without warning
+  that doing so breaks the test's asymmetry. Reworded again, this time
+  citing the `validTargets` check directly rather than paraphrasing it.
 - **MEDIUM — an undisclosed surviving mutant: the threat probe's choice of
   `'ev'` scoring for the hypothetical enemy reply was asserted in a doc
   comment but pinned by no test.** Swapping `combatCandidates(..., 'ev')`
@@ -1484,10 +1496,113 @@ the probe, and the literal `'AI — cautious'` label string (a pre-existing
 convention across every `SeatControl` label, not new to this tier) — both
 named explicitly rather than left as silent gaps.
 
+**Correction (round 5): this paragraph's own claim was an overclaim.**
+"Two mutants remain intentionally undiscriminated on record" implied that
+was the complete list. A fifth review found it wasn't — `enemyOwners`'s own
+test couldn't discriminate a real mutation (both its living and destroyed
+unit shared an owner), the `Math.max`-over-multiple-enemy-owners path had
+zero coverage at all (every test in the file uses a 2-player board, so the
+loop's second iteration is never reached), and three more design choices
+(the `'ram'` clone-probe exclusion, `enemyThreatAgainstUnit`'s defensive
+`index < 0` guard, and the tuning constants' unpinned-upward direction)
+were equally undisclosed. See
+[§6.17](#617-stage-3b-fifth-review-outcome) for the full, corrected
+accounting. The lesson repeats one level up: a claim of completeness is
+itself a claim that needs verifying, not a natural conclusion to reach
+after fixing everything currently in view.
+
 **Verification:** `tsc --noEmit` clean, `vitest run` green at 490 tests (up
 from 486 — two new mutation-verified targeted tests plus two guard tests
 for `movingUnitId`), `npm run build` clean. **Not yet through a fifth
 adversarial review pass.**
+
+### 6.17 Stage 3b: fifth review outcome
+
+**The FIFTH review was narrow again — 3 MEDIUM, 5 LOW — and, for the
+second round running, found no correctness defect in shipped behaviour.**
+Its main finding was that §6.16's own closing sentence was wrong to claim
+completeness (see the correction inline in §6.16 above): every review
+round from the third onward has closed its own findings only to have the
+next round find the CLOSING CLAIM itself was too strong. This entry
+breaks that pattern on purpose by not asserting completeness at the end.
+
+- **MEDIUM — the `enemyOwners` test couldn't observe the property it
+  exists to check.** `heuristicAgent.test.ts`'s "lists every other owner
+  with a living unit, and only those" built `dead` as `owner: 1` — the
+  SAME owner as the living `enemy` — so `livingUnits(state)` filtering
+  destroyed units out made no difference to the result (`[1]` either
+  way). Mutating `livingUnits(state)` to `state.units` (i.e. stop
+  filtering destroyed units) left the suite green. **Fixed:** changed
+  `dead`'s owner to a third value (`2`) not otherwise present, so the
+  destroyed unit's exclusion is the only thing that can produce `[1]`
+  instead of `[1, 2]` — mutation-verified against the committed file.
+- **MEDIUM — the multi-enemy `Math.max` in `enemyThreatAgainstUnit` had
+  zero test coverage, and it's a real 3-4-player behavior, not a
+  cosmetic one.** `worstReply = Math.max(worstReply, reply.score)` →
+  `worstReply = reply.score` (last owner wins, not worst) survived the
+  full suite, because every lookahead test in the file uses `makeGame`'s
+  fixed 2-player board — the loop's second iteration is structurally
+  unreachable there. In a real 3-4 player game this understates a real
+  threat by however much the last-checked owner's reply happens to fall
+  short of the worst one; the review measured a 5x understatement in a
+  constructed example. **Fixed:** added `makeGame3` (a 3-player variant
+  of the existing helper) and "takes the WORST reply across multiple
+  enemy owners, not just the last one checked" — a boxed-in mover with
+  exactly one legal destination, threatened by a strong owner-1 reply and
+  a weak owner-2 reply processed after it, so the outcome is purely
+  `endPhase` (correct, prices the strong reply) vs. an actual move
+  (buggy, prices only the weak one it saw last) — mutation-verified
+  against the committed file.
+- **MEDIUM — this file's own §6.16 closing paragraph, and the matching
+  sentence in `plan.md`'s In-flight entry, both overclaimed
+  completeness** ("no undisclosed coverage gaps remain," "two mutants
+  remain intentionally undiscriminated on record" as if that were the
+  whole list). Both corrected in place — see §6.16's inline correction
+  above and `plan.md`'s current In-flight text, which now deliberately
+  does NOT re-assert completeness, pointing here instead.
+- **LOW — three more design choices disclosed, not fixed:** the
+  `'ram'`-clone-probe exclusion (a genuine, already-documented design
+  choice, but nothing pins that adding `'ram'` to the probed cases would
+  change anything); `enemyThreatAgainstUnit`'s defensive `index < 0`
+  guard (structurally unreachable — `seatOrder` is fixed at game start
+  and never mutated — unlike `movingUnitId`'s structurally similar throw,
+  which WAS pinned once exported, because that one has a direct-call seam
+  and this one doesn't without exporting a function and handing it a
+  self-contradictory board); and `LOOKAHEAD_CANDIDATE_LIMIT`/
+  `LOOKAHEAD_REPLY_WEIGHT` are only pinned in the direction that matters
+  for correctness (lowering either breaks tests; raising either is a
+  performance/accuracy tradeoff with no test asserting the shipped value
+  specifically, consistent with the three tuning experiments in §6.14
+  that already tried larger values without a behavior test objecting).
+  All three got explanatory comments at their definition sites rather
+  than forced tests, since none is a `heuristicAgent.test.ts`-shaped fix.
+- **LOW — the clamp test's comment was corrected a second time.** Round
+  4's rewrite said west's afterThreat drops to 0 by "leaving watcher's
+  range 2 entirely" — true but incomplete. Checking `validTargets`
+  directly at both destinations showed west is threatened by neither
+  enemy for two DIFFERENT reasons: `watcher` genuinely leaves range, but
+  `decoy` (`archers`, `meleeCapable: false`) is now ADJACENT and simply
+  can't attack from melee range as a ranged-only unit — not "still in
+  range but somehow zero." The prior wording would have survived a
+  maintainer swapping `decoy` for a melee-capable unit without warning
+  that doing so breaks the destinations' symmetry. Reworded to cite the
+  `validTargets` check directly.
+- **LOW — one more stale citation:** `ui/session.ts:42`, on a line this
+  same branch's Stage 4 work had already touched, still said `plan.md
+  §6.4` after the split. Fixed.
+
+**What this round confirms:** the lookahead tier's actual behavior has
+now been independently attacked five times with the last two rounds
+finding zero shipped defects — the remaining friction is entirely about
+whether this file and the code's own comments describe themselves
+accurately, and about not overclaiming that description is finished.
+Given that pattern, this entry deliberately stops short of declaring the
+record complete; it names what changed and moves on.
+
+**Verification:** `tsc --noEmit` clean, `vitest run` green at 491 tests
+(up from 490 — one new mutation-verified targeted test; the `enemyOwners`
+fix edited an existing test rather than adding one), `npm run build`
+clean. **Not yet through a sixth adversarial review pass.**
 
 ---
 

@@ -159,12 +159,25 @@ type CombatScoringMode = 'greedy' | 'ev';
  * probe on one action choice. This is the tier's performance budget: large
  * enough to compare the plausible moves, small enough that a ship's huge
  * destination list does not multiply the already-expensive `legalActions`
- * BFS across the whole board. */
+ * BFS across the whole board.
+ *
+ * Only pinned in the direction that matters for correctness: lowering it
+ * to 1 fails three tests (an uncapped search is strictly more accurate, so
+ * raising it — tried up to 40 during Stage 3b tuning, plan-history.md
+ * §6.14 — is not a behavior change a test could object to, just a
+ * performance/accuracy tradeoff with no test asserting the CHOSEN value
+ * specifically). */
 const LOOKAHEAD_CANDIDATE_LIMIT = 8;
 
 /** How much of the opponent's best immediate combat reply is charged against
  * a candidate move. Kept below 1 so the tier still takes tactically valuable
- * ground instead of freezing whenever any counterattack exists. */
+ * ground instead of freezing whenever any counterattack exists.
+ *
+ * Like `LOOKAHEAD_CANDIDATE_LIMIT`, only pinned downward: zeroing it fails
+ * the tests that depend on the threat penalty existing at all, but nothing
+ * asserts 0.75 specifically over some other positive value (tried up to 2,
+ * nearly 3x, during the same tuning pass, with no material change to
+ * aggregate strength — plan-history.md §6.14). */
 const LOOKAHEAD_REPLY_WEIGHT = 0.75;
 
 export class HeuristicAgent implements PlayerAgent, ActionChooser {
@@ -764,6 +777,16 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
     let worstReply = 0;
     for (const owner of enemyOwners(board, movingOwner)) {
       const index = board.seatOrder.indexOf(owner);
+      // Defensive only, and genuinely unreachable rather than merely
+      // untested: `enemyOwners` reads its owners from `board.units`, and
+      // `seatOrder` is fixed at game start and never mutated afterward
+      // (`fuzzHarness.ts`'s seat setup is the only writer). Left unpinned,
+      // unlike `movingUnitId`'s structurally similar throw guard, which
+      // WAS pinned once exported for direct testing — that one is reachable
+      // by calling the function directly with a bogus action; this one has
+      // no equivalent seam without exporting `enemyThreatAgainstUnit` and
+      // handing it a `board` whose `seatOrder` disagrees with its own
+      // units, which would be testing a state this file never produces.
       if (index < 0) continue;
       board.activePlayerIndex = index;
       board.phase = 'combat';
@@ -783,7 +806,11 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
    * outcome is a die roll `combatOdds.ts` prices as a distribution rather
    * than a single resulting board, so cloning "after" it would mean picking
    * a hit or a miss to commit to; it's left unpenalized here rather than
-   * arbitrarily choosing one. */
+   * arbitrarily choosing one. This is a genuine design choice, not an
+   * oversight — but nothing pins it: no test asserts that adding `'ram'`
+   * to the cases below (i.e. clone-probing it anyway, against some
+   * arbitrarily chosen outcome) changes anything. Disclosed rather than
+   * silently left as a gap. */
   private cloneAfterDeterministicMovementAction(state: GameState, action: Action): GameState | null {
     switch (action.kind) {
       case 'landMove':

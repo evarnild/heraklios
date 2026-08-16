@@ -48,6 +48,21 @@ function makeGame(units: Unit[], phase: Phase): GameState {
   return state;
 }
 
+/** Same as `makeGame`, but 3 seats — `enemyThreatAgainstUnit`'s `Math.max`
+ * over multiple enemy owners is otherwise never exercised, since every
+ * other test in this file uses `makeGame`'s 2-player board. */
+function makeGame3(units: Unit[], phase: Phase): GameState {
+  const players: Player[] = [
+    { id: 0, name: 'P0', edge: 'W', purchasePoints: 400, eliminated: false },
+    { id: 1, name: 'P1', edge: 'E', purchasePoints: 400, eliminated: false },
+    { id: 2, name: 'P2', edge: 'N', purchasePoints: 400, eliminated: false },
+  ];
+  const state = createInitialState(players, 'multi-defender');
+  state.units = units;
+  state.phase = phase;
+  return state;
+}
+
 /** Runs the agent against the real, engine-generated action list rather than
  * a hand-written one, so a test can't accidentally offer something
  * `legalActions` never would. */
@@ -457,11 +472,20 @@ describe('HeuristicAgent: movement phase', () => {
     // reach of a COMBINED attack from `watcher` and `decoy` together
     // (`buildAttackGroup` assembles them into one group under 'ev'
     // scoring): baseline = 1.5, not either unit's solo EV (watcher alone
-    // is 0.333). Moving one hex toward EITHER breaks up that group and
-    // leaves both destinations threatened by at most `watcher` alone —
-    // east (toward watcher) keeps afterThreat at 0.333, west (toward
-    // decoy, leaving watcher's range 2 entirely) drops it to 0 — so BOTH
-    // are already below the 1.5 baseline and a correct, clamped
+    // is 0.333). Moving one hex toward EITHER breaks up that group, and
+    // the two destinations end up threatened for two DIFFERENT reasons,
+    // not the same one: east (toward watcher) leaves `decoy` out of its
+    // own range 2, so only `watcher`'s solo 0.333 remains; west (toward
+    // `decoy`) puts `mover` ADJACENT to `decoy` instead, and `decoy`
+    // (`archers`, `attack: 0`, `meleeCapable: false` — ranged-only) has NO
+    // valid target from adjacency, while `watcher` is now the one left out
+    // of range — so west's afterThreat is 0 not because "leaving range 2"
+    // zeroes it directly, but because BOTH enemies end up unable to reach
+    // `mover` at all (confirmed via `validTargets`: empty from either
+    // enemy at west). A future edit that swapped `decoy` for a
+    // melee-capable type would let it attack from adjacency instead of
+    // going silent, breaking this asymmetry. Both destinations are
+    // already below the 1.5 baseline either way, and a correct, clamped
     // `Math.max(0, afterThreat - baselineFor(...))` scores marginal
     // threat 0 for both: no reason to prefer one +1-approach move over
     // the other (both destinations have identical +1 raw approach —
@@ -566,6 +590,41 @@ describe('HeuristicAgent: movement phase', () => {
     expect(action.unitId).toBe('M');
   });
 
+  it('takes the WORST reply across multiple enemy owners, not just the last one checked', () => {
+    // `mover` is boxed in (5 of 6 neighbors blocked by movementLeft: 0
+    // friendlies) so it has exactly one legal destination, `(6,5)` — this
+    // isn't a raw-score contest between candidates, it's purely "does the
+    // one reachable move clear minMoveScore or not," which only depends on
+    // how big a threat gets priced against it. At `(6,5)`, owner 1's
+    // `elephants` (adjacent, EV 1.667) is a real threat and owner 2's
+    // `fantassins-archers` (range 2, EV 0.333) is a much smaller one — a
+    // correct `Math.max` over BOTH owners prices the bigger one and the
+    // move scores negative (below minMoveScore, so `endPhase`); a version
+    // that only kept the LAST owner checked would price the smaller one
+    // instead and the move would clear the gate. Two owners is the
+    // minimum that can expose this — `makeGame`'s 2-player board never
+    // reaches the loop's second iteration at all. Mutation-verified:
+    // replacing `Math.max(worstReply, reply.score)` with a bare
+    // `reply.score` (last owner wins) changes the outcome from `endPhase`
+    // to an actual move.
+    const weights = { approach: 0.5, terrainDefense: 0, zocPenalty: 0, strike: 0 };
+    const mover = makeUnit({ id: 'mover', typeId: 'archers', position: { q: 5, r: 5 }, owner: 0, movementLeft: 1 });
+    const blockers = [
+      { q: 6, r: 4 },
+      { q: 5, r: 4 },
+      { q: 4, r: 5 },
+      { q: 4, r: 6 },
+      { q: 5, r: 6 },
+    ].map((pos, i) => makeUnit({ id: `b${i}`, typeId: 'fantassins', position: pos, owner: 0, movementLeft: 0 }));
+    const owner1 = makeUnit({ id: 'owner1', typeId: 'elephants', position: { q: 7, r: 5 }, owner: 1 });
+    const owner2 = makeUnit({ id: 'owner2', typeId: 'fantassins-archers', position: { q: 6, r: 3 }, owner: 2 });
+    const state = makeGame3([mover, ...blockers, owner1, owner2], 'movement');
+
+    const action = choose(new HeuristicAgent({ difficulty: 'lookahead', weights }), state);
+
+    expect(action.kind).toBe('endPhase');
+  });
+
   it('the lookahead tier resets a stale defendedThisPhase flag before probing an enemy reply', () => {
     // Same position as "avoids a move whose best enemy reply is too
     // strong". `defendedThisPhase` matters on whoever is being ATTACKED in
@@ -661,9 +720,14 @@ describe('enemyOwners', () => {
   });
 
   it('lists every other owner with a living unit, and only those', () => {
+    // `dead` is a DIFFERENT owner than `enemy` on purpose — with both on
+    // owner 1, filtering destroyed units makes no difference to the
+    // result ([1] either way), so the test couldn't tell a broken filter
+    // from a working one. Mutation-verified: this failed to discriminate
+    // `livingUnits(state)` -> `state.units` until fixed.
     const own = makeUnit({ id: 'own', typeId: 'archers', position: CENTER, owner: 0 });
     const enemy = makeUnit({ id: 'enemy', typeId: 'archers', position: landRow(4), owner: 1 });
-    const dead = makeUnit({ id: 'dead', typeId: 'archers', position: landRow(6), owner: 1, destroyed: true });
+    const dead = makeUnit({ id: 'dead', typeId: 'archers', position: landRow(6), owner: 2, destroyed: true });
     const state = makeGame([own, enemy, dead], 'movement');
 
     expect(enemyOwners(state, 0)).toEqual([1]);
