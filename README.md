@@ -448,22 +448,17 @@ boarding one. It resolves via the transcribed boarding table (force ratio ×
 1d6), stripping equipment points (5 attack/5 defense each) from the losing
 side; a ship reduced to 0 equipment is destroyed.
 
-A few interpretive calls were needed where the rulebook itself is
-ambiguous or inconsistent (see `src/data/navalRamming.ts`'s comments for
-detail) — most notably, the ramming bonus mechanic: the rulebook's worked
-example describes success widening from "roll a 1" (no bonus) to "1, 2, or
-3" (max +2 bonus) in general terms, but the printed per-ship-matchup table
-already varies in width (1 to 5 entries) and some rows exceed what a max
-bonus would reach under a literal reading of the example. This edition
-treats the printed table as the success range at *maximum* bonus, and a
-lower bonus exposes only the first `1 + bonus` entries of it. This
-reproduces the worked example's exact numbers ("1, then 1-2, then 1-2-3")
-only for the matchups whose printed row has **exactly 3 entries** — for
-rows narrower than 3 (including galère vs. quintirème, the very matchup
-the rulebook's own worked example uses, whose printed row is just `[1]`)
-the effective range caps out below "1, 2, or 3" even at max bonus, and for
-the widest rows (4-5 entries) the benefit of movement alone caps at "1, 2,
-or 3" instead of the row's full printed width.
+The ramming bonus **extends** the printed per-ship-matchup table's success
+range rather than narrowing it: the rulebook's own text (see
+`src/data/navalRamming.ts`'s comments for the full quote and worked
+examples) says each bonus point raises the upper bound of a successful die
+roll by one, *on top of* whatever the printed row already gives at zero
+bonus — 0 bonus succeeds on the printed row unchanged, +1 raises its upper
+bound by one, +2 by two, with the bonus itself capped at +2. Nothing caps
+the resulting range at the printed row's own width; the only real ceiling
+is a d6's 6 faces, so a matchup whose printed row already reaches high
+enough (quintirème vs. birème or galère, both printed as 1-2-3-4-5) becomes
+an automatic hit at +1 bonus or higher, with nowhere further to go at +2.
 
 ### Combat log detail
 
@@ -485,19 +480,13 @@ printed tables in `docs/research/`, not just a bottom-line result:
   "Combining attacks" above), so the line is suppressed there rather than
   stating a threshold nobody gets asked to meet.
 - **Ramming** shows the effective success range for the bonus actually
-  rolled next to the matchup's full printed-table range (e.g., for a
-  trirème with bonus +1 against a galère: "Succeeds on: 1-2 (printed table
-  row: 1-2-3-4 — entries past the first 3 are unreachable at any bonus; see
-  `rammingSuccessRange`'s doc comment in `navalRamming.ts`)"), making the
-  bonus-narrows-the-range interpretation above visible in play rather than
-  only in that comment. For a matchup whose whole printed row IS reachable
-  at max bonus, it says so instead ("full table for this matchup: 1-2-3 at
-  max bonus" for a row of exactly 3 entries) — and for a row narrower than
-  3 entries (e.g. galère vs. quintirème), it says so too, but adds that the
-  row is narrower than the rulebook's own worked example. Which of the
-  three sentences applies is decided by a single tested predicate
-  (`wholeRowReachableAtMaxBonus`, swept across all 16 matchups in
-  `navalRamming.test.ts`), not re-derived in the UI. Also shown: the
+  rolled next to the matchup's printed table row (e.g., for a trirème with
+  bonus +1 against a galère: "Succeeds on: 1-2-3-4-5 (printed table row:
+  1-2-3-4 — bonus +1 extends the upper bound)"), making the
+  bonus-extends-the-range rule above visible in play rather than only in
+  that comment. If the bonus pushes the range to cover every face (the d6
+  ceiling described above), the note says so plainly instead ("bonus pushes
+  the upper bound to a d6's 6th face, so every roll hits"). Also shown: the
   unused-movement-point count the bonus was computed from.
 - **Boarding** shows both ships' attack/defense force entering the combat,
   the resolved boarding-CRT column, the die roll and result, and each
