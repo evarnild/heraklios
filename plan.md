@@ -92,14 +92,19 @@ Stage 3b — the shallow-lookahead fourth `HeuristicAgent` tier, labelled
 found none — see [§6.18](plan-history.md#618-stage-3b-sixth-review-outcome--pass)
 for the full record and why the review cycle stopped there)**, which
 completes plan-history.md's Stage 3 AI roadmap.
+and **[§18](plan-history.md#18-live-defect-ramming-bonus-narrows-the-table-instead-of-extending-it)
+— the ramming bonus fix**, which closed the plan's last open live defect: a
+bonus now *extends* the printed success range instead of narrowing it, per
+the rulebook's own general sentence rather than the one worked example the
+old reading had been fitted to (see
+[§18.5](plan-history.md#185-outcome) for the outcome and the four review
+findings on top of it).
 **In flight:** nothing. Queue is empty of self-contained items.
 **Carried over from merges, manual browser pass still owed:** Stage 4's
 ([§6.12](plan-history.md#612-stage-4-outcome)) and now §16's too — Chrome automation was
 unavailable in the session that shipped §16, so its per-hex badges have
 been verified by `tsc`/`vitest`/`build` and code review only, not by eye.
-**Live defects still open:** [§18](#18-live-defect-ramming-bonus-narrows-the-table-instead-of-extending-it)
-— ramming bonus narrows the table instead of extending it. Confirmed, not
-yet fixed.
+**Live defects still open:** none.
 
 <a id="10-sequenced-queue"></a>
 
@@ -129,6 +134,7 @@ sync when something merges** — it went stale once and the user caught it.
 | [§9.2](plan-history.md#92-endgamebytimelimit-is-never-called) endgame: clock, round limit, End game button (+4 MEDIUM review defects, +a mid-merge design revision) | `836c70f` |
 | [§16](plan-history.md#16-identify-which-unit-a-choice-dialog-means) label the units a choice dialog means | `ceb106a` |
 | [§6.4](plan-history.md#64-stage-3-shipped-stage-4-deferred) Stage 3b — shallow lookahead tier (6 review rounds; see [§6.18](plan-history.md#618-stage-3b-sixth-review-outcome--pass)) | `f4573d3` |
+| [§18](plan-history.md#18-live-defect-ramming-bonus-narrows-the-table-instead-of-extending-it) ramming bonus extends the table (+4 review findings, +1 follow-up: [§19](#19-the-lookahead-tier-is-blind-to-ramming-and-that-now-costs-measurably-more)) | see [§18.5](plan-history.md#185-outcome) |
 
 ### In flight
 
@@ -136,28 +142,26 @@ Nothing. Queue is empty of self-contained items.
 
 ### Queued
 
+All fully-shipped rows that previously lived here (Stage 3b, §18 and
+earlier) are in the [Shipped](#shipped) table above; see the History Map
+for their postmortems.
+
 | # | Item | Touches | Notes |
 | --- | --- | --- | --- |
-| ~~0~~ | ~~[§12](plan-history.md#12-cascading-push-when-a-unit-cannot-retreat) follow-ups~~ | — | **✅ Shipped `c23648c`.** All three closed; see [§12.6](plan-history.md#126-the-three-follow-ups). |
-| ~~0b~~ | ~~Reviewer-agent file corrections~~ | — | **✅ Shipped `9f99b1a`.** See [§15.7](plan-history.md#157-the-two-follow-ups). |
-| ~~0c~~ | ~~Combat groups not revalidated after a removal~~ | — | **✅ Shipped `9f99b1a`.** See [§15.7](plan-history.md#157-the-two-follow-ups). |
-| ~~1~~ | ~~[§9.2](plan-history.md#92-endgamebytimelimit-is-never-called) endgame: clock, round limit, and an "End game" button~~ | — | **✅ Shipped `836c70f`.** See [§9.2.4](plan-history.md#924-outcome) — including the mid-merge pause-behavior revision. |
-| ~~2~~ | ~~[§6.4](plan-history.md#64-stage-3-shipped-stage-4-deferred) Stage 4 — AI seat UI + save format~~ | — | **✅ Shipped `556fbf8`.** See [§6.12](plan-history.md#612-stage-4-outcome) — including the one check it shipped without. |
-| ~~2~~ | ~~[§16](plan-history.md#16-identify-which-unit-a-choice-dialog-means) label the units a choice dialog means~~ | — | **✅ Shipped `ceb106a`.** Implemented directly (no agent pair), verified by `tsc`/`vitest`/`build` and code review — the manual browser pass is still owed, Chrome automation wasn't available in that session. |
-| ~~3~~ | ~~[§6.4](plan-history.md#64-stage-3-shipped-stage-4-deferred) Stage 3b — shallow lookahead tier~~ | — | **✅ Shipped `f4573d3`.** Six review rounds; see [§6.18](plan-history.md#618-stage-3b-sixth-review-outcome--pass) (full history: [§6.13](plan-history.md#613-stage-3b-outcome)–[§6.17](plan-history.md#617-stage-3b-fifth-review-outcome)). |
-| 4 | [§18](#18-live-defect-ramming-bonus-narrows-the-table-instead-of-extending-it) ramming bonus narrows the table instead of extending it | `src/data/navalRamming.ts`, its tests, `BoardScene.ts`'s ram log, README | Confirmed live defect (user report, verified against the scanned rulebook page). Also affects AI ramming decisions via `combatOdds.ts`'s `evaluateRam`. |
 | 5 | [§17](#17-manual-step-by-step-naval-movement) manual step-by-step naval movement | `BoardScene.ts` (likely presentation-only) | Replace destination-click naval movement with hex-by-hex manual control; clearer Turn button labels. [§17.4](#174-open-design-question-distant-ramming-contacts) has one open design question to settle with the user before implementation starts. |
+| 6 | [§19](#19-the-lookahead-tier-is-blind-to-ramming-and-that-now-costs-measurably-more) lookahead tier is blind to ramming | `heuristicAgent.ts` + its tests | Engine-only AI tuning, surfaced and measured by #4. Not urgent and not proven — [§19.3](#193-options-in-preference-order) option 3 (re-measure at 160 seeds) is the cheap first step. |
 
 ## Backlog Map
 
 - **Start here:** [Current Queue](#10-sequenced-queue).
-- **Current next task:** #4, [§18](#18-live-defect-ramming-bonus-narrows-the-table-instead-of-extending-it)
-  the ramming bonus defect — a confirmed rules bug, ahead of #5 (naval
-  movement) at the user's request. Both remaining items are independent
-  (different files) and can proceed in parallel.
-- **Live defects:** [§18](#18-live-defect-ramming-bonus-narrows-the-table-instead-of-extending-it)
-  — ramming bonus narrows the table instead of extending it. Confirmed, not
-  yet fixed.
+- **Current next task:** #5, [§17](#17-manual-step-by-step-naval-movement)
+  manual naval movement — but settle
+  [§17.4](#174-open-design-question-distant-ramming-contacts)'s open design
+  question with the user before launching it. #6
+  ([§19](#19-the-lookahead-tier-is-blind-to-ramming-and-that-now-costs-measurably-more))
+  is independent of it (engine vs. scene) and can run in parallel.
+- **Live defects:** none. [§18](plan-history.md#18-live-defect-ramming-bonus-narrows-the-table-instead-of-extending-it)
+  was the last one and is shipped.
 - **Owed:** a manual browser pass over §16's per-hex choice labels and
   Stage 4's still-outstanding one ([§6.12](plan-history.md#612-stage-4-outcome))
   — next person with a working browser session should give both a look.
@@ -189,7 +193,12 @@ This map is just a fast index into it:
   [§13](plan-history.md#13-hex-coordinate-tooltip),
   [§14](plan-history.md#14-decomposing-boardscenets-for-parallel-work) (proposed, never started),
   [§15](plan-history.md#15-live-defect-ranged-attacks-resolve-at-zero-attack-force),
-  and [§16](plan-history.md#16-identify-which-unit-a-choice-dialog-means).
+  [§16](plan-history.md#16-identify-which-unit-a-choice-dialog-means),
+  and [§18](plan-history.md#18-live-defect-ramming-bonus-narrows-the-table-instead-of-extending-it)
+  (the ramming bonus — read [§18.4](plan-history.md#184-why-this-got-missed-and-why-it-took-three-tries-to-find)
+  and [§18.5](plan-history.md#185-outcome) together: the same "fitted to the
+  one example available" failure, once in the original bug and once in the
+  fix's own postmortem).
 
 > **Line citations were re-verified against `main` on 2026-08-07** (at
 > `3b15577`), after ~440 lines of drift in `BoardScene.ts` had rotted most of
@@ -585,165 +594,76 @@ either way: it only ever fires once the ship is already bow-on and adjacent.
   combat" section once this ships, rather than staying as a caveat for
   behavior that no longer exists.
 
-## 18. Live defect: ramming bonus narrows the table instead of extending it
+## 19. The lookahead tier is blind to ramming, and that now costs measurably more
 
-**Status: confirmed live defect, not yet fixed.** Reported by the user
-2026-08-15 (bireme-vs-galere ramming resolving fewer die faces as
-successful than expected), initially investigated and — wrongly — pushed
-back on twice by this session before being confirmed against the actual
-scanned rulebook page. Recorded here in full, including the mistaken
-pushback, because getting an interpretation call backwards and defending it
-confidently is exactly the failure mode this file's rulebook-citation
-convention (`CLAUDE.md`) exists to catch, and papering over the false starts
-would hide how the correct reading was actually found.
+**Status: open, not urgent.** Surfaced by [§18](plan-history.md#18-live-defect-ramming-bonus-narrows-the-table-instead-of-extending-it)'s
+ramming fix during review, measured, and deliberately not fixed in that
+branch — the fix is a rules correction and this is an AI-tuning question,
+which are different jobs with different review bars.
 
-### 18.1 The defect
+### 19.1 The gap
 
-`src/data/navalRamming.ts`'s `rammingSuccessRange` currently does this:
+`HeuristicAgent.cloneAfterDeterministicMovementAction` returns `null` for a
+`'ram'` action, so the `'lookahead'` tier's threat probe never prices a ram
+an enemy could make in reply. That is a deliberate, documented choice — a
+ram's outcome is a die-roll distribution, and cloning "after" it would mean
+committing to an arbitrarily chosen hit or miss, which is worse modelling
+than not probing at all. It was disclosed rather than hidden (see that
+function's own doc comment, and plan-history.md §6.13's posture on it).
 
-```ts
-export function rammingSuccessRange(attackerType, defenderType, bonus) {
-  const fullRange = RAMMING_SUCCESS_DICE[attackerType][defenderType];
-  return fullRange.slice(0, Math.min(fullRange.length, 1 + bonus));
-}
+What changed is the price. §18 made ramming hit substantially more often at
+every bonus level, and `'lookahead'` is the only tier that prices movement
+risk by probing enemy replies — so it is the only tier that is now blind to
+a threat that got materially stronger. Every other tier is blind to *all*
+reply threats and loses nothing by comparison.
+
+### 19.2 What was measured
+
+40 seeds, both seat assignments (80 games per build), `'lookahead'` vs
+`'ev'` surviving army value, run against `main` and against the §18 branch:
+
+```
+             seat 0    seat 1    pooled    ram hit rate
+  pre-fix     +3.17%    +1.67%    +2.64%    49.4% (80/162)
+  post-fix    -3.27%   -10.28%    -5.40%    70.2% (80/114)
 ```
 
-— treats the printed per-matchup table row as the success range **at
-maximum bonus**, and a lower bonus reveals fewer of that SAME row's
-entries. For birème (attacker) vs. galère (defender), whose printed row is
-`[1, 2, 3]`: 0 bonus → `[1]`, +1 bonus → `[1, 2]`, +2 (max) bonus →
-`[1, 2, 3]` — capped at the row's own width no matter how much bonus is
-available. This is what the user saw: 1 unused movement point (→ +1 bonus)
-succeeding only on 1-2, not 1-2-3-4.
+Lookahead led on both seats before and trails on both after. Rams resolved
+fell 162 → 114 for the same 80 hits: ships die faster per attempt now, which
+is what an unpriced threat costs.
 
-### 18.2 The correct rule, per the actual rulebook text
+**Read this before treating it as proven.** 29-37 of the 40 seed-pairs end
+in an exact tie, so the margin rests on a handful of games, and block-level
+signs still flip post-fix. The *direction* is consistent across both seats
+and has a named mechanism that predicts it; the *magnitude* is not pinned
+down. This is "a real effect with a plausible cause, size unknown," not a
+measured regression — and this project has now burned six review rounds on
+over-claiming exactly this comparison (plan-history.md §6.13–§6.18), so the
+bar for claiming an ordering here is high and deliberately unmet.
 
-Read directly off the scanned page (`docs/Jeux & stratégie 06 - Heraklios -
-Règles 2.jpg`, p.34 — the transcriptions in `docs/research/05-rules-french-original.md:375-386`
-and `docs/research/03-tables-reference.md:60-69` both match the scan
-exactly, so the transcription was never the problem):
+### 19.3 Options, in preference order
 
-> Selon qu'il lui reste 1, 2 (ou davantage encore) points de mouvement
-> lorsque la galère rencontre la quintirème, la galère reçoit 1 ou 2 points
-> de bonification. S'il lui reste un point de mouvement non utilisé, elle
-> obtient 1 point de bonification. **Cette valeur augmente d'une unité pour
-> la borne supérieure du jet de dé à réaliser pour que l'éperonnage soit
-> réussi.** Concrètement, pour que la galère réussisse son éperonnage, le
-> dé doit indiquer 1. Si la galère a un point de bonification, l'éperonnage
-> sera réussi avec l'apparition de 1 ou 2 au dé. Si elle a 2 points de
-> mouvement non utilisés, et donc 2 points de bonification, l'éperonnage
-> sera réussi avec l'apparition de 1, 2 ou 3 au dé. Quelque soit le nombre
-> de points de déplacement non utilisé supérieur à 2, on n'accordera jamais
-> plus de 2 points de bonification.
+1. **Price a ram by its expected value rather than cloning it.** The threat
+   probe wants a number, not a board — and `combatOdds.ts`'s `evaluateRam`
+   already returns exactly that number, as a proper distribution over six
+   faces. `enemyThreatAgainstUnit` could take the max over `'ram'` candidates
+   targeting the unit without ever cloning past the roll. This looks like
+   the right answer and is a smaller change than the original "clone a ram"
+   framing implied.
+2. **Leave it, and say so in the code.** Legitimate: the tier is labelled
+   "cautious," not "expert," precisely because it does not claim aggregate
+   strength. If so, `cloneAfterDeterministicMovementAction`'s comment should
+   record that the gap's cost went up in §18 and was accepted, rather than
+   still reading as a neutral modelling choice.
+3. **Re-measure at higher seed counts first.** 160 seeds in 4 blocks is the
+   protocol plan-history.md §6.14/§6.15 established for this exact
+   comparison. Cheap (the 40-seed run took ~11s per build) and would settle
+   whether option 1 is worth doing at all.
 
-The sentence in bold is a GENERAL statement, not scoped to the galère-vs-
-quintirème worked example it's illustrated with: **each bonus point raises
-the upper bound of a successful die roll by one**, on top of whatever the
-printed table already gives at zero bonus. It is the bonus itself that caps
-at +2 ("jamais plus de 2 points de bonification") — nothing in the text
-caps the resulting die-range at the printed row's own width. The previous
-interpretation had this backwards: it capped the *range*, when the rule
-caps the *bonus that extends the range*.
+### 19.4 Scope
 
-Under this reading there is no conflict to paper over — the code's own
-extensive comments in `navalRamming.ts` invented an "edition interpretation"
-to reconcile the worked example against wider rows, and that invention was
-the bug:
-
-- **Galère vs. quintirème (the book's own worked example), row `[1]`:** 0
-  bonus → succeeds on 1 (the printed row, unchanged). +1 bonus → upper bound
-  1+1=2, succeeds on 1-2. +2 bonus → upper bound 3, succeeds on 1-2-3.
-  **Matches the worked example exactly**, with no special-casing needed —
-  the previous code's comment calling this matchup an exception ("this
-  edition succeeds only on a 1 at every bonus level... not the book's
-  '1, 2, or 3'") was describing its own bug, not a real discrepancy in the
-  source material.
-- **Birème vs. galère (the user's report), row `[1, 2, 3]`:** 0 bonus →
-  1-2-3. +1 bonus → upper bound 3+1=4, succeeds on 1-2-3-4. +2 bonus → upper
-  bound 5, succeeds on 1-2-3-4-5. Matches what the user described exactly.
-- **A ceiling the rulebook text doesn't address, but a d6 forces:**
-  quintirème vs. birème, row `[1, 2, 3, 4, 5]` — already 5 of 6 faces at
-  zero bonus. +1 bonus would need upper bound 6 (succeeds on every face,
-  i.e. an automatic hit), and +2 bonus has nowhere further to go (a die
-  only has 6 faces). The fix needs `Math.min(upperBound, 6)`, and this is a
-  genuinely new edge case worth its own test: is a ramming attempt that
-  cannot possibly miss even legal/sensible under the rules, or should the
-  UI say so plainly? (Almost certainly yes it's legal — nothing in the text
-  suggests otherwise — this is just the first matchup+bonus combination
-  where it actually happens.)
-
-### 18.3 What needs to change
-
-- **`src/data/navalRamming.ts`** — `rammingSuccessRange` (the core fix:
-  extend the upper bound by `bonus`, capped at 6, instead of slicing the
-  row to `1 + bonus` entries capped at the row's own length).
-  `maxReachableRammingEntries` and `wholeRowReachableAtMaxBonus` are both
-  built on the OLD premise ("some rows have entries no bonus can ever
-  reach") — under the corrected rule every entry is reachable given enough
-  bonus (mostly; see the die-face-6 ceiling above), so both of these likely
-  become unnecessary rather than needing a new formula; confirm during
-  implementation rather than assuming. `fullRammingSuccessRange` stays
-  useful only as "the printed 0-bonus row," not as a distinct "wider than
-  what bonus can reach" concept. Every doc comment in this file describing
-  the old interpretation (`rammingSuccessRange`'s especially, which is
-  several paragraphs of now-incorrect reasoning) needs rewriting, not
-  patching around.
-- **`src/data/navalRamming.test.ts`** — the `wholeRowReachableAtMaxBonus —
-  exhaustive 16-matchup sweep` describe block (`:114-`) and the
-  `rammingSuccessRange / isRammingHitWithBonus` block (`:47-`, especially
-  "never exposes more entries than the printed table has, even at max
-  bonus" at `:61`) encode the WRONG expected values throughout — this is
-  the bulk of the implementation work, not a side effect of it. Needs a new
-  case for the die-face-6 ceiling (quintirème vs. birème/galère at bonus
-  ≥ 1).
-- **`src/engine/combatOdds.ts`** — no logic change: `rammingHitChance`
-  already delegates to `isRammingHitWithBonus` rather than re-deriving hit
-  probability itself (see its own doc comment, `:427-434`, explaining
-  exactly why — "so a change to it can't leave the odds quietly
-  disagreeing with the resolution"), so fixing `navalRamming.ts` fixes the
-  AI's odds for free. **This is also the reason the fix changes AI
-  behavior**: `HeuristicAgent.scoreNavalMove`/`combatCandidates` price
-  ramming via `evaluateRam`, which now sees higher hit chances for every
-  matchup with any bonus — expect the AI to ram more often and value
-  ramming positioning more highly than it did before. Worth a soak-test
-  glance after the fix (`heuristicSoak.test.ts`), though no test there
-  currently hardcodes ramming-specific numbers.
-- **`src/scenes/BoardScene.ts`'s `commitRam`** (`:1474-1524`) — the
-  `tableNote` sentence-selection logic (`wholeRowReachableAtMaxBonus` /
-  `maxReachableRammingEntries` branches, `:1503-1516`) is built entirely on
-  the old "some entries are unreachable" framing and needs to be rewritten
-  around the new one (there IS still a genuinely new thing worth telling
-  the player about — the die-face-6 "automatic hit" ceiling — just not the
-  old "printed table row wider than what bonus can reach" framing).
-- **`README.md`'s "Naval movement and combat" section** (`421-467`,
-  specifically the "interpretive calls" paragraph at `451-466`) currently
-  documents the OLD interpretation as this edition's deliberate,
-  considered choice, with a worked-through explanation of why it diverges
-  from the book. That entire paragraph is wrong and needs replacing with
-  the corrected rule — this is the rare case where a "known simplification"
-  /interpretation writeup wasn't a defensible judgment call, it was a
-  transcription-adjacent bug that happened to get an elaborate
-  justification written around it.
-
-### 18.4 Why this got missed, and why it took three tries to find
-
-Worth recording plainly rather than smoothing over. The first two responses
-in this session verified the printed table CELL VALUES exhaustively (the
-transcription, the tables-reference doc, and finally the scanned image
-itself all agree on what `RAMMING_SUCCESS_DICE` should contain) and
-concluded "not a bug" — technically correct about the table's cell
-contents, but answering the wrong question. The actual bug is in
-`rammingSuccessRange`'s FORMULA for combining a cell value with a bonus,
-which no amount of re-checking the table itself would ever catch. The user
-supplied the one piece of evidence that actually distinguishes the two
-readings — the galère-vs-quintirème worked example, which the OLD code
-already got right by construction (it's the exact matchup the interpretation
-was built to match) — and asked for the same procedure to be applied
-uniformly elsewhere, which is what exposed the divergence. The lesson for
-next time: when a worked example and a printed table both exist, check
-whether an interpretation was fitted to reproduce the ONE example given
-(narrow evidence) rather than derived from the general sentence the example
-is illustrating (broad evidence) — this file's own existing comments in
-`navalRamming.ts` were transparent about doing the former ("This
-reproduces the worked example's exact numbers... ONLY for the matchups
-whose printed row has EXACTLY 3 entries"), which in hindsight was the tell.
+Engine-only: `heuristicAgent.ts`, `heuristicSoak.test.ts`,
+`heuristicAgent.test.ts`. No scene, no rules, no save format. Any change
+here must come with a targeted, mutation-verified test — the aggregate soak
+is too noisy to be the evidence, which is the standing lesson from
+plan-history.md §6.14.

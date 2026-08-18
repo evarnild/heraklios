@@ -1,13 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
-  isRammingSuccessful,
   rammingBonusFromUnusedMovement,
   rammingSuccessRange,
   isRammingHitWithBonus,
   fullRammingSuccessRange,
-  maxReachableRammingEntries,
-  wholeRowReachableAtMaxBonus,
   MAX_RAMMING_BONUS,
+  HIGHEST_DIE_FACE,
   SHIP_ORDER,
   type ShipTypeId,
 } from './navalRamming';
@@ -21,16 +19,28 @@ const ALL_MATCHUPS: readonly [ShipTypeId, ShipTypeId][] = SHIP_ORDER.flatMap((at
   SHIP_ORDER.map((defender): [ShipTypeId, ShipTypeId] => [attacker, defender]),
 );
 
-describe('isRammingSuccessful', () => {
-  it('matches the transcribed ramming table', () => {
-    expect(isRammingSuccessful('galeres', 'galeres', 3)).toBe(true);
-    expect(isRammingSuccessful('galeres', 'galeres', 4)).toBe(false);
-    expect(isRammingSuccessful('galeres', 'quintiremes', 1)).toBe(true);
-    expect(isRammingSuccessful('galeres', 'quintiremes', 2)).toBe(false);
-    expect(isRammingSuccessful('quintiremes', 'galeres', 5)).toBe(true);
-    expect(isRammingSuccessful('quintiremes', 'galeres', 6)).toBe(false);
-    expect(isRammingSuccessful('triremes', 'biremes', 3)).toBe(true);
-    expect(isRammingSuccessful('triremes', 'biremes', 4)).toBe(false);
+/** `1..n` as a plain array, for building expected ranges without repeating
+ * the table's own numbers by hand at every call site below. */
+function upTo(n: number): number[] {
+  return Array.from({ length: n }, (_, i) => i + 1);
+}
+
+// These assertions used to call a bonus-free `isRammingSuccessful`, removed
+// with `engine/combat.ts`'s `isRammingHit` wrapper (see
+// `rammingSuccessRange`'s doc comment on why a hit test without a bonus
+// parameter is a trap). They still check exactly the same thing — the
+// transcribed cell values — just asked at `bonus: 0`, which IS the printed
+// row.
+describe('the transcribed ramming table, at zero bonus', () => {
+  it('matches the scanned table cell for cell', () => {
+    expect(isRammingHitWithBonus('galeres', 'galeres', 0, 3)).toBe(true);
+    expect(isRammingHitWithBonus('galeres', 'galeres', 0, 4)).toBe(false);
+    expect(isRammingHitWithBonus('galeres', 'quintiremes', 0, 1)).toBe(true);
+    expect(isRammingHitWithBonus('galeres', 'quintiremes', 0, 2)).toBe(false);
+    expect(isRammingHitWithBonus('quintiremes', 'galeres', 0, 5)).toBe(true);
+    expect(isRammingHitWithBonus('quintiremes', 'galeres', 0, 6)).toBe(false);
+    expect(isRammingHitWithBonus('triremes', 'biremes', 0, 3)).toBe(true);
+    expect(isRammingHitWithBonus('triremes', 'biremes', 0, 4)).toBe(false);
   });
 });
 
@@ -45,47 +55,76 @@ describe('rammingBonusFromUnusedMovement', () => {
 });
 
 describe('rammingSuccessRange / isRammingHitWithBonus', () => {
-  it('reproduces the rulebook worked example (galère vs. quintirème)', () => {
-    // Table row is [1] for this matchup, so all bonus levels agree here.
+  it('reproduces the rulebook worked example exactly (galère vs. quintirème, printed row [1])', () => {
+    // 0 bonus -> printed row unchanged. +1 -> upper bound 1+1=2. +2 -> upper bound 3.
+    // This is the book's own example: "1", then "1 ou 2", then "1, 2 ou 3".
     expect(rammingSuccessRange('galeres', 'quintiremes', 0)).toEqual([1]);
-    expect(rammingSuccessRange('galeres', 'quintiremes', 1)).toEqual([1]);
-    expect(rammingSuccessRange('galeres', 'quintiremes', 2)).toEqual([1]);
+    expect(rammingSuccessRange('galeres', 'quintiremes', 1)).toEqual([1, 2]);
+    expect(rammingSuccessRange('galeres', 'quintiremes', 2)).toEqual([1, 2, 3]);
   });
 
-  it('widens from 1, to 1-2, to 1-2-3 as bonus increases (galère vs. galère)', () => {
-    expect(rammingSuccessRange('galeres', 'galeres', 0)).toEqual([1]);
-    expect(rammingSuccessRange('galeres', 'galeres', 1)).toEqual([1, 2]);
-    expect(rammingSuccessRange('galeres', 'galeres', 2)).toEqual([1, 2, 3]);
+  it('widens from 1, to 1-2, to 1-2-3 as bonus increases (galère vs. galère, printed row already [1,2,3])', () => {
+    // Printed row's own upper bound is already 3 (N=3), so bonus extends it further:
+    // 0 -> 1-2-3 (the printed row itself). +1 -> upper bound 4. +2 -> upper bound 5.
+    expect(rammingSuccessRange('galeres', 'galeres', 0)).toEqual([1, 2, 3]);
+    expect(rammingSuccessRange('galeres', 'galeres', 1)).toEqual([1, 2, 3, 4]);
+    expect(rammingSuccessRange('galeres', 'galeres', 2)).toEqual([1, 2, 3, 4, 5]);
   });
 
-  it('never exposes more entries than the printed table has, even at max bonus', () => {
-    // Table row is [1,2,3,4,5] for this matchup; max bonus only unlocks 3 entries.
-    expect(rammingSuccessRange('quintiremes', 'galeres', 2)).toEqual([1, 2, 3]);
+  it('extends birème vs. galère (the user-reported matchup, printed row [1,2,3]) exactly as reported', () => {
+    expect(rammingSuccessRange('biremes', 'galeres', 0)).toEqual([1, 2, 3]);
+    expect(rammingSuccessRange('biremes', 'galeres', 1)).toEqual([1, 2, 3, 4]);
+    expect(rammingSuccessRange('biremes', 'galeres', 2)).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it('extends beyond the printed row length, not just up to it, for a matchup with a 4-entry row', () => {
+    // Printed row [1,2,3,4] (N=4); bonus extends the upper bound past 4.
+    expect(rammingSuccessRange('triremes', 'galeres', 0)).toEqual([1, 2, 3, 4]);
+    expect(rammingSuccessRange('triremes', 'galeres', 1)).toEqual([1, 2, 3, 4, 5]);
+    expect(rammingSuccessRange('triremes', 'galeres', 2)).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+
+  it('caps the upper bound at 6 (a d6 has no higher face) once bonus would push past it', () => {
+    // Printed row [1,2,3,4,5] (N=5) for quintirème vs. galère: even +1 bonus would
+    // need upper bound 6 (every face succeeds - an automatic hit), and +2 has
+    // nowhere further to go since a die only has 6 faces.
+    expect(rammingSuccessRange('quintiremes', 'galeres', 0)).toEqual([1, 2, 3, 4, 5]);
+    expect(rammingSuccessRange('quintiremes', 'galeres', 1)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(rammingSuccessRange('quintiremes', 'galeres', 2)).toEqual([1, 2, 3, 4, 5, 6]);
+    // Same shape for the other 5-entry row, quintirème vs. birème.
+    expect(rammingSuccessRange('quintiremes', 'biremes', 0)).toEqual([1, 2, 3, 4, 5]);
+    expect(rammingSuccessRange('quintiremes', 'biremes', 1)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(rammingSuccessRange('quintiremes', 'biremes', 2)).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+
+  it('never exceeds 6 entries (a d6\'s full face count) for any matchup at any bonus', () => {
+    for (const [attacker, defender] of ALL_MATCHUPS) {
+      for (const bonus of [0, 1, 2] as const) {
+        expect(rammingSuccessRange(attacker, defender, bonus).length).toBeLessThanOrEqual(HIGHEST_DIE_FACE);
+      }
+    }
   });
 
   it('isRammingHitWithBonus matches rammingSuccessRange membership', () => {
     expect(isRammingHitWithBonus('galeres', 'galeres', 0, 1)).toBe(true);
-    expect(isRammingHitWithBonus('galeres', 'galeres', 0, 2)).toBe(false);
-    expect(isRammingHitWithBonus('galeres', 'galeres', 2, 3)).toBe(true);
-    expect(isRammingHitWithBonus('galeres', 'galeres', 2, 4)).toBe(false);
+    expect(isRammingHitWithBonus('galeres', 'galeres', 0, 4)).toBe(false);
+    expect(isRammingHitWithBonus('galeres', 'galeres', 2, 5)).toBe(true);
+    expect(isRammingHitWithBonus('galeres', 'galeres', 2, 6)).toBe(false);
   });
 });
 
 describe('fullRammingSuccessRange', () => {
-  it('matches rammingSuccessRange at max bonus for a matchup with 3 or fewer entries', () => {
+  it('equals rammingSuccessRange at zero bonus for every matchup (the printed 0-bonus row, nothing more)', () => {
+    for (const [attacker, defender] of ALL_MATCHUPS) {
+      expect(fullRammingSuccessRange(attacker, defender)).toEqual(rammingSuccessRange(attacker, defender, 0));
+    }
+  });
+
+  it('spot-checks a few printed rows directly', () => {
     expect(fullRammingSuccessRange('galeres', 'galeres')).toEqual([1, 2, 3]);
-    expect(fullRammingSuccessRange('galeres', 'galeres')).toEqual(rammingSuccessRange('galeres', 'galeres', 2));
-  });
-
-  it('is WIDER than rammingSuccessRange at max bonus for a matchup with 4+ entries', () => {
-    // Table row is [1,2,3,4] for trirème vs galère; max bonus only unlocks 1-2-3.
+    expect(fullRammingSuccessRange('galeres', 'quintiremes')).toEqual([1]);
     expect(fullRammingSuccessRange('triremes', 'galeres')).toEqual([1, 2, 3, 4]);
-    expect(rammingSuccessRange('triremes', 'galeres', 2)).toEqual([1, 2, 3]);
-  });
-
-  it('is WIDER than rammingSuccessRange at max bonus for the widest row (quintirème vs galère)', () => {
     expect(fullRammingSuccessRange('quintiremes', 'galeres')).toEqual([1, 2, 3, 4, 5]);
-    expect(rammingSuccessRange('quintiremes', 'galeres', 2)).toEqual([1, 2, 3]);
   });
 
   it('returns a fresh array each time, not a reference into the shared table', () => {
@@ -95,61 +134,54 @@ describe('fullRammingSuccessRange', () => {
   });
 });
 
-describe('maxReachableRammingEntries', () => {
-  it('equals the full row length when the row fits within MAX_RAMMING_BONUS + 1 entries', () => {
-    expect(maxReachableRammingEntries('galeres', 'galeres')).toBe(3);
-    expect(fullRammingSuccessRange('galeres', 'galeres').length).toBe(3);
-    expect(maxReachableRammingEntries('galeres', 'quintiremes')).toBe(1);
-    expect(fullRammingSuccessRange('galeres', 'quintiremes').length).toBe(1);
-  });
-
-  it('is smaller than the full row length for rows wider than MAX_RAMMING_BONUS + 1', () => {
-    expect(maxReachableRammingEntries('triremes', 'galeres')).toBe(1 + MAX_RAMMING_BONUS);
-    expect(fullRammingSuccessRange('triremes', 'galeres').length).toBe(4);
-    expect(maxReachableRammingEntries('quintiremes', 'galeres')).toBe(1 + MAX_RAMMING_BONUS);
-    expect(fullRammingSuccessRange('quintiremes', 'galeres').length).toBe(5);
-  });
-});
-
-describe('wholeRowReachableAtMaxBonus — exhaustive 16-matchup sweep', () => {
+describe('rammingSuccessRange — exhaustive 16-matchup sweep', () => {
   it('has exactly 16 matchups to sweep (sanity check on the fixture itself)', () => {
     expect(ALL_MATCHUPS).toHaveLength(16);
   });
 
-  it('agrees with a direct length-vs-(1+MAX_RAMMING_BONUS) comparison for every matchup', () => {
+  it('always equals 1..min(6, printedRowUpperBound + bonus), for every matchup at every bonus level', () => {
     for (const [attacker, defender] of ALL_MATCHUPS) {
-      const rowLength = fullRammingSuccessRange(attacker, defender).length;
-      expect(wholeRowReachableAtMaxBonus(attacker, defender)).toBe(rowLength <= 1 + MAX_RAMMING_BONUS);
+      const printedRow = fullRammingSuccessRange(attacker, defender);
+      const printedUpperBound = printedRow[printedRow.length - 1]!;
+      for (const bonus of [0, 1, 2] as const) {
+        const expectedUpperBound = Math.min(HIGHEST_DIE_FACE, printedUpperBound + bonus);
+        expect(rammingSuccessRange(attacker, defender, bonus)).toEqual(upTo(expectedUpperBound));
+      }
     }
   });
 
-  it('is true, and rammingSuccessRange at max bonus reproduces the rulebook\'s "1-2-3" worked example exactly, for every matchup whose row has EXACTLY 3 entries', () => {
-    const exactMatchups = ALL_MATCHUPS.filter(([a, d]) => fullRammingSuccessRange(a, d).length === 3);
-    expect(exactMatchups.length).toBeGreaterThan(0); // fixture sanity: this bucket isn't empty
-    for (const [attacker, defender] of exactMatchups) {
-      expect(wholeRowReachableAtMaxBonus(attacker, defender)).toBe(true);
-      expect(rammingSuccessRange(attacker, defender, MAX_RAMMING_BONUS)).toEqual([1, 2, 3]);
+  it('every entry of the printed row is always still a subset of the range at any bonus (bonus only extends, never narrows)', () => {
+    for (const [attacker, defender] of ALL_MATCHUPS) {
+      const printedRow = fullRammingSuccessRange(attacker, defender);
+      for (const bonus of [0, 1, 2] as const) {
+        const range = rammingSuccessRange(attacker, defender, bonus);
+        for (const face of printedRow) {
+          expect(range).toContain(face);
+        }
+      }
     }
   });
 
-  it('is true but does NOT reproduce "1-2-3" for every matchup whose row has FEWER than 3 entries — including galère vs. quintirème, the exact pairing the rulebook\'s own worked example uses', () => {
-    const narrowerMatchups = ALL_MATCHUPS.filter(([a, d]) => fullRammingSuccessRange(a, d).length < 3);
-    expect(narrowerMatchups.length).toBeGreaterThan(0); // fixture sanity: this bucket isn't empty
-    expect(narrowerMatchups).toContainEqual(['galeres', 'quintiremes']);
-    for (const [attacker, defender] of narrowerMatchups) {
-      const row = fullRammingSuccessRange(attacker, defender);
-      expect(wholeRowReachableAtMaxBonus(attacker, defender)).toBe(true); // the whole (narrow) row IS reachable...
-      const atMaxBonus = rammingSuccessRange(attacker, defender, MAX_RAMMING_BONUS);
-      expect(atMaxBonus).toEqual(row); // ...but it's exactly the printed row, not padded up to it...
-      expect(atMaxBonus.length).toBeLessThan(3); // ...which is narrower than the book's "1, 2, or 3".
+  it('strictly widens (or stays the same, once the d6 ceiling is hit) as bonus increases, for every matchup', () => {
+    for (const [attacker, defender] of ALL_MATCHUPS) {
+      const at0 = rammingSuccessRange(attacker, defender, 0).length;
+      const at1 = rammingSuccessRange(attacker, defender, 1).length;
+      const at2 = rammingSuccessRange(attacker, defender, 2).length;
+      expect(at1).toBeGreaterThanOrEqual(at0);
+      expect(at2).toBeGreaterThanOrEqual(at1);
     }
   });
 
-  it('is false for every matchup whose row has MORE than 3 entries', () => {
-    const widerMatchups = ALL_MATCHUPS.filter(([a, d]) => fullRammingSuccessRange(a, d).length > 3);
-    expect(widerMatchups.length).toBeGreaterThan(0); // fixture sanity: this bucket isn't empty
-    for (const [attacker, defender] of widerMatchups) {
-      expect(wholeRowReachableAtMaxBonus(attacker, defender)).toBe(false);
+  it(`hits the d6 ceiling (6 entries, an automatic hit) at MAX_RAMMING_BONUS for every matchup whose printed row's upper bound is within ${MAX_RAMMING_BONUS} of 6`, () => {
+    const ceilingMatchups = ALL_MATCHUPS.filter(([a, d]) => {
+      const row = fullRammingSuccessRange(a, d);
+      return row[row.length - 1]! + MAX_RAMMING_BONUS >= HIGHEST_DIE_FACE;
+    });
+    expect(ceilingMatchups.length).toBeGreaterThan(0); // fixture sanity: this bucket isn't empty
+    expect(ceilingMatchups).toContainEqual(['quintiremes', 'galeres']);
+    expect(ceilingMatchups).toContainEqual(['quintiremes', 'biremes']);
+    for (const [attacker, defender] of ceilingMatchups) {
+      expect(rammingSuccessRange(attacker, defender, MAX_RAMMING_BONUS)).toEqual([1, 2, 3, 4, 5, 6]);
     }
   });
 });

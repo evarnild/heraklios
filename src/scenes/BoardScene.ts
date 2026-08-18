@@ -62,9 +62,7 @@ import { RIVER_CROSSING } from '../data/terrain';
 import {
   rammingSuccessRange,
   fullRammingSuccessRange,
-  maxReachableRammingEntries,
-  wholeRowReachableAtMaxBonus,
-  MAX_RAMMING_BONUS,
+  HIGHEST_DIE_FACE,
   type ShipTypeId,
 } from '../data/navalRamming';
 import { BOARDING_RATIO_COLUMNS } from '../data/navalBoarding';
@@ -1488,31 +1486,20 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.reportAction(action);
     this.rammedThisTurn.add(attacker.id);
     const effectiveRange = rammingSuccessRange(attackerType, defenderType, result.bonus);
-    const fullRange = fullRammingSuccessRange(attackerType, defenderType);
-    const maxReachable = maxReachableRammingEntries(attackerType, defenderType);
-    // Which sentence to show is decided entirely by `wholeRowReachableAtMaxBonus`
-    // (a tested predicate in navalRamming.ts), NOT re-derived here — this
-    // exact comparison used to live inline in this file and shipped a
-    // false "full table... at max bonus" claim for every wider row, since
-    // nothing exercised it (see that function's doc comment). Only claim
-    // the full printed row is reachable "at max bonus" when it actually
-    // is; for wider rows, the row has entries no bonus (capped at
-    // MAX_RAMMING_BONUS) can ever reach at all, and saying otherwise
-    // would tell a player who rolls into one of those entries that the
-    // game mis-resolved a hit.
+    const printedRange = fullRammingSuccessRange(attackerType, defenderType);
+    // `rammingSuccessRange` extends the printed 0-bonus row's upper bound by
+    // the bonus, capped at 6 (a d6 has no higher face) — see that function's
+    // doc comment in navalRamming.ts for the corrected rule and why the
+    // ceiling exists. The one thing worth calling out here beyond the plain
+    // "succeeds on N-M" line is that ceiling: once the effective range
+    // covers every face, the ram cannot possibly miss.
     let tableNote: string;
-    if (!wholeRowReachableAtMaxBonus(attackerType, defenderType)) {
-      tableNote = `printed table row: ${fullRange.join('-')} — entries past the first ${maxReachable} are unreachable at any bonus; see rammingSuccessRange's doc comment in navalRamming.ts`;
-    } else if (fullRange.length === 1 + MAX_RAMMING_BONUS) {
-      // Reproduces the rulebook's worked example ("1, then 1-2, then
-      // 1-2-3") exactly at every bonus level for this matchup.
-      tableNote = `full table for this matchup: ${fullRange.join('-')} at max bonus`;
+    if (effectiveRange.length === HIGHEST_DIE_FACE) {
+      tableNote = `printed table row: ${printedRange.join('-')} — bonus pushes the upper bound to a d6's 6th face, so every roll hits`;
+    } else if (result.bonus > 0) {
+      tableNote = `printed table row: ${printedRange.join('-')} — bonus +${result.bonus} extends the upper bound`;
     } else {
-      // The whole (narrow) row IS reachable at max bonus, but it's
-      // narrower than the rulebook's own worked example — e.g. galère
-      // vs. quintirème, the exact pairing that example uses, has a
-      // printed row of just `[1]` here, not the book's "1, 2, or 3".
-      tableNote = `full table for this matchup: ${fullRange.join('-')} at max bonus (narrower than the rulebook's own worked example, which reaches 1-2-3 at max bonus)`;
+      tableNote = `printed table row: ${printedRange.join('-')}`;
     }
     const pointWord = unusedMovement === 1 ? 'point' : 'points';
     this.log(

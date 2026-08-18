@@ -3037,3 +3037,221 @@ row) and want the same affordance.
   labels must be created by the **prompt**, not by the decision, or an AI
   turn will litter the map with labels nobody asked for.
 
+
+## 18. Live defect: ramming bonus narrows the table instead of extending it
+
+**Status: ✅ Shipped.** Outcome and the four review findings on top of it:
+[§18.5](#185-outcome). Reported by the user
+2026-08-15 (bireme-vs-galere ramming resolving fewer die faces as
+successful than expected), initially investigated and — wrongly — pushed
+back on twice by this session before being confirmed against the actual
+scanned rulebook page. Recorded here in full, including the mistaken
+pushback, because getting an interpretation call backwards and defending it
+confidently is exactly the failure mode this file's rulebook-citation
+convention (`CLAUDE.md`) exists to catch, and papering over the false starts
+would hide how the correct reading was actually found.
+
+### 18.1 The defect
+
+`src/data/navalRamming.ts`'s `rammingSuccessRange` currently does this:
+
+```ts
+export function rammingSuccessRange(attackerType, defenderType, bonus) {
+  const fullRange = RAMMING_SUCCESS_DICE[attackerType][defenderType];
+  return fullRange.slice(0, Math.min(fullRange.length, 1 + bonus));
+}
+```
+
+— treats the printed per-matchup table row as the success range **at
+maximum bonus**, and a lower bonus reveals fewer of that SAME row's
+entries. For birème (attacker) vs. galère (defender), whose printed row is
+`[1, 2, 3]`: 0 bonus → `[1]`, +1 bonus → `[1, 2]`, +2 (max) bonus →
+`[1, 2, 3]` — capped at the row's own width no matter how much bonus is
+available. This is what the user saw: 1 unused movement point (→ +1 bonus)
+succeeding only on 1-2, not 1-2-3-4.
+
+### 18.2 The correct rule, per the actual rulebook text
+
+Read directly off the scanned page (`docs/Jeux & stratégie 06 - Heraklios -
+Règles 2.jpg`, p.34 — the transcriptions in `docs/research/05-rules-french-original.md:375-386`
+and `docs/research/03-tables-reference.md:60-69` both match the scan
+exactly, so the transcription was never the problem):
+
+> Selon qu'il lui reste 1, 2 (ou davantage encore) points de mouvement
+> lorsque la galère rencontre la quintirème, la galère reçoit 1 ou 2 points
+> de bonification. S'il lui reste un point de mouvement non utilisé, elle
+> obtient 1 point de bonification. **Cette valeur augmente d'une unité pour
+> la borne supérieure du jet de dé à réaliser pour que l'éperonnage soit
+> réussi.** Concrètement, pour que la galère réussisse son éperonnage, le
+> dé doit indiquer 1. Si la galère a un point de bonification, l'éperonnage
+> sera réussi avec l'apparition de 1 ou 2 au dé. Si elle a 2 points de
+> mouvement non utilisés, et donc 2 points de bonification, l'éperonnage
+> sera réussi avec l'apparition de 1, 2 ou 3 au dé. Quelque soit le nombre
+> de points de déplacement non utilisé supérieur à 2, on n'accordera jamais
+> plus de 2 points de bonification.
+
+The sentence in bold is a GENERAL statement, not scoped to the galère-vs-
+quintirème worked example it's illustrated with: **each bonus point raises
+the upper bound of a successful die roll by one**, on top of whatever the
+printed table already gives at zero bonus. It is the bonus itself that caps
+at +2 ("jamais plus de 2 points de bonification") — nothing in the text
+caps the resulting die-range at the printed row's own width. The previous
+interpretation had this backwards: it capped the *range*, when the rule
+caps the *bonus that extends the range*.
+
+Under this reading there is no conflict to paper over — the code's own
+extensive comments in `navalRamming.ts` invented an "edition interpretation"
+to reconcile the worked example against wider rows, and that invention was
+the bug:
+
+- **Galère vs. quintirème (the book's own worked example), row `[1]`:** 0
+  bonus → succeeds on 1 (the printed row, unchanged). +1 bonus → upper bound
+  1+1=2, succeeds on 1-2. +2 bonus → upper bound 3, succeeds on 1-2-3.
+  **Matches the worked example exactly**, with no special-casing needed —
+  the previous code's comment calling this matchup an exception ("this
+  edition succeeds only on a 1 at every bonus level... not the book's
+  '1, 2, or 3'") was describing its own bug, not a real discrepancy in the
+  source material.
+- **Birème vs. galère (the user's report), row `[1, 2, 3]`:** 0 bonus →
+  1-2-3. +1 bonus → upper bound 3+1=4, succeeds on 1-2-3-4. +2 bonus → upper
+  bound 5, succeeds on 1-2-3-4-5. Matches what the user described exactly.
+- **A ceiling the rulebook text doesn't address, but a d6 forces:**
+  quintirème vs. birème, row `[1, 2, 3, 4, 5]` — already 5 of 6 faces at
+  zero bonus. +1 bonus would need upper bound 6 (succeeds on every face,
+  i.e. an automatic hit), and +2 bonus has nowhere further to go (a die
+  only has 6 faces). The fix needs `Math.min(upperBound, 6)`, and this is a
+  genuinely new edge case worth its own test: is a ramming attempt that
+  cannot possibly miss even legal/sensible under the rules, or should the
+  UI say so plainly? (Almost certainly yes it's legal — nothing in the text
+  suggests otherwise — this is just the first matchup+bonus combination
+  where it actually happens.)
+
+### 18.3 What needs to change
+
+- **`src/data/navalRamming.ts`** — `rammingSuccessRange` (the core fix:
+  extend the upper bound by `bonus`, capped at 6, instead of slicing the
+  row to `1 + bonus` entries capped at the row's own length).
+  `maxReachableRammingEntries` and `wholeRowReachableAtMaxBonus` are both
+  built on the OLD premise ("some rows have entries no bonus can ever
+  reach") — under the corrected rule every entry is reachable given enough
+  bonus (mostly; see the die-face-6 ceiling above), so both of these likely
+  become unnecessary rather than needing a new formula; confirm during
+  implementation rather than assuming. `fullRammingSuccessRange` stays
+  useful only as "the printed 0-bonus row," not as a distinct "wider than
+  what bonus can reach" concept. Every doc comment in this file describing
+  the old interpretation (`rammingSuccessRange`'s especially, which is
+  several paragraphs of now-incorrect reasoning) needs rewriting, not
+  patching around.
+- **`src/data/navalRamming.test.ts`** — the `wholeRowReachableAtMaxBonus —
+  exhaustive 16-matchup sweep` describe block (`:114-`) and the
+  `rammingSuccessRange / isRammingHitWithBonus` block (`:47-`, especially
+  "never exposes more entries than the printed table has, even at max
+  bonus" at `:61`) encode the WRONG expected values throughout — this is
+  the bulk of the implementation work, not a side effect of it. Needs a new
+  case for the die-face-6 ceiling (quintirème vs. birème/galère at bonus
+  ≥ 1).
+- **`src/engine/combatOdds.ts`** — no logic change: `rammingHitChance`
+  already delegates to `isRammingHitWithBonus` rather than re-deriving hit
+  probability itself (see its own doc comment, `:427-434`, explaining
+  exactly why — "so a change to it can't leave the odds quietly
+  disagreeing with the resolution"), so fixing `navalRamming.ts` fixes the
+  AI's odds for free. **This is also the reason the fix changes AI
+  behavior**: `HeuristicAgent.scoreNavalMove`/`combatCandidates` price
+  ramming via `evaluateRam`, which now sees higher hit chances for every
+  matchup with any bonus — expect the AI to ram more often and value
+  ramming positioning more highly than it did before. Worth a soak-test
+  glance after the fix (`heuristicSoak.test.ts`), though no test there
+  currently hardcodes ramming-specific numbers.
+- **`src/scenes/BoardScene.ts`'s `commitRam`** (`:1474-1524`) — the
+  `tableNote` sentence-selection logic (`wholeRowReachableAtMaxBonus` /
+  `maxReachableRammingEntries` branches, `:1503-1516`) is built entirely on
+  the old "some entries are unreachable" framing and needs to be rewritten
+  around the new one (there IS still a genuinely new thing worth telling
+  the player about — the die-face-6 "automatic hit" ceiling — just not the
+  old "printed table row wider than what bonus can reach" framing).
+- **`README.md`'s "Naval movement and combat" section** (`421-467`,
+  specifically the "interpretive calls" paragraph at `451-466`) currently
+  documents the OLD interpretation as this edition's deliberate,
+  considered choice, with a worked-through explanation of why it diverges
+  from the book. That entire paragraph is wrong and needs replacing with
+  the corrected rule — this is the rare case where a "known simplification"
+  /interpretation writeup wasn't a defensible judgment call, it was a
+  transcription-adjacent bug that happened to get an elaborate
+  justification written around it.
+
+### 18.4 Why this got missed, and why it took three tries to find
+
+Worth recording plainly rather than smoothing over. The first two responses
+in this session verified the printed table CELL VALUES exhaustively (the
+transcription, the tables-reference doc, and finally the scanned image
+itself all agree on what `RAMMING_SUCCESS_DICE` should contain) and
+concluded "not a bug" — technically correct about the table's cell
+contents, but answering the wrong question. The actual bug is in
+`rammingSuccessRange`'s FORMULA for combining a cell value with a bonus,
+which no amount of re-checking the table itself would ever catch. The user
+supplied the one piece of evidence that actually distinguishes the two
+readings — the galère-vs-quintirème worked example, which the OLD code
+already got right by construction (it's the exact matchup the interpretation
+was built to match) — and asked for the same procedure to be applied
+uniformly elsewhere, which is what exposed the divergence. The lesson for
+next time: when a worked example and a printed table both exist, check
+whether an interpretation was fitted to reproduce the ONE example given
+(narrow evidence) rather than derived from the general sentence the example
+is illustrating (broad evidence) — this file's own existing comments in
+`navalRamming.ts` were transparent about doing the former ("This
+reproduces the worked example's exact numbers... ONLY for the matchups
+whose printed row has EXACTLY 3 entries"), which in hindsight was the tell.
+
+### 18.5 Outcome
+
+Merged as the fix described above, implemented by an agent on
+`feat/ramming-bonus-fix`, then reviewed and extended in the main session.
+`tsc --noEmit` clean, `vitest run` green, `npm run build` clean.
+
+**The core fix landed exactly as §18.3 specified.** `rammingSuccessRange`
+now extends the printed 0-bonus row's upper bound by `bonus`, capped at
+`HIGHEST_DIE_FACE`, instead of slicing the row to its first `1 + bonus`
+entries. Both rulebook checkpoints hold and are pinned by literal
+(non-tautological) test cases: galère vs. quintirème `[1]` → `[1]`/`[1,2]`/
+`[1,2,3]` matches the book's own worked example, and birème vs. galère
+`[1,2,3]` at +1 gives `1-2-3-4`, matching the user's original report.
+`maxReachableRammingEntries` and `wholeRowReachableAtMaxBonus` were removed
+rather than reworked, as §18.3 predicted they would be.
+
+**A load-bearing assumption worth recording, because the implementation
+depends on it and nothing in the rulebook guarantees it.** The fix rebuilds
+the range as `1..upperBound` rather than extending the actual printed array.
+That is only correct because every one of the 16 printed rows happens to be
+the consecutive run `1..N`. Verified by reading `RAMMING_SUCCESS_DICE`
+directly; a future table edit that introduced a gap (say `[1, 3]`) would
+silently break it. The 16-matchup sweep in `navalRamming.test.ts` would
+catch it.
+
+**Four review findings on top of the agent's work**, all fixed before merge:
+
+1. **The soak-test threshold relaxation was justified with wrong numbers and
+   a wrong cause** — the finding that mattered. See §19, which exists
+   because of it.
+2. `MAX_RAMMING_BONUS`'s doc comment still named two consumers that the fix
+   had deleted, and conflated the bonus cap with the die-face ceiling. Split
+   into `MAX_RAMMING_BONUS` (how much bonus can be earned) and
+   `HIGHEST_DIE_FACE` (how far it can push the range), with the distinction
+   spelled out — it is precisely the confusion the original bug was made of.
+3. `engine/combat.ts`'s `isRammingHit` and `data/navalRamming.ts`'s
+   `isRammingSuccessful` were both deleted. Pre-existing dead code, but the
+   fix made them actively dangerous: an exported "did this ram hit" taking
+   no bonus parameter can only ever give a wrong answer now. Their test
+   coverage moved to `isRammingHitWithBonus(..., 0, ...)`, which is the same
+   question asked correctly.
+4. The bare `6` became `HIGHEST_DIE_FACE`, shared with `BoardScene`'s
+   "this ram cannot miss" branch. `DIE_FACES` already exists but lives in
+   `engine/combatOdds.ts`, and `src/data/` may not import from `src/engine/`.
+
+**The reason this section is worth re-reading later** is §18.4's lesson
+repeating one level up. §18.4 says: check whether an interpretation was
+fitted to the one worked example rather than derived from the general rule.
+The fix got that right. But its *own* postmortem — the soak-test comment —
+then explained an inconvenient measurement by picking the available story
+("aggregate noise," which this project's own history had already made
+respectable) instead of measuring. Same shape, different altitude. The
+correction cost one 40-seed run against both branches.
