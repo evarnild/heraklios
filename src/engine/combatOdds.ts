@@ -426,11 +426,11 @@ export function evaluateBoarding(attacker: Unit, defender: Unit): BoardingEvalua
 
 /**
  * Exact chance a ram connects, over the six faces — thin, but it goes
- * through `isRammingHitWithBonus` rather than measuring
- * `rammingSuccessRange(...).length / 6` so that this codebase's documented
- * interpretation of the bonus/table conflict (see `navalRamming.ts`) is the
- * single source of the answer, and a change to it can't leave the odds
- * quietly disagreeing with the resolution.
+ * through `isRammingHitWithBonus` rather than re-deriving hit membership
+ * itself, so that `navalRamming.ts`'s single implementation of the
+ * bonus-extends-the-table rule is the only source of the answer, and a
+ * future change to it can't leave the odds quietly disagreeing with the
+ * resolution.
  */
 export function rammingHitChance(
   attackerType: ShipTypeId,

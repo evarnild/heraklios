@@ -245,7 +245,9 @@ describe('applyAction — ram', () => {
     const attacker = makeUnit({ id: 'a', typeId: 'quintiremes', position: SEA_CENTER, facing: 0, movementLeft: 4 });
     const defender = makeUnit({ id: 'd', typeId: 'galeres', owner: 1, position: forward, movementLeft: 0 });
     const state = makeState([attacker, defender]);
-    // quintiremes vs galeres at max bonus (2) succeeds on 1-5 (see navalRamming.ts) — die 1 hits.
+    // quintiremes vs galeres printed row is [1,2,3,4,5]; at max bonus (2) the
+    // upper bound would be 7 but caps at 6, an automatic hit (see
+    // navalRamming.ts's rammingSuccessRange) — die 1 hits.
     const result = applyAction(state, { kind: 'ram', unitId: 'a' }, fixedRng(0));
     expect(result).toMatchObject({ kind: 'ram', dieRoll: 1, hit: true, bonus: 2 });
     expect(defender.destroyed).toBe(true);
@@ -257,7 +259,8 @@ describe('applyAction — ram', () => {
     const attacker = makeUnit({ id: 'a', typeId: 'galeres', position: SEA_CENTER, facing: 0, movementLeft: 8 });
     const defender = makeUnit({ id: 'd', typeId: 'quintiremes', owner: 1, position: forward, movementLeft: 0 });
     const state = makeState([attacker, defender]);
-    // galeres vs quintiremes only succeeds on a 1 even at max bonus — die 6 misses.
+    // galeres vs quintiremes printed row is [1]; at max bonus (2) the upper
+    // bound is 1+2=3, succeeding on 1-2-3 — die 6 still misses.
     const result = applyAction(state, { kind: 'ram', unitId: 'a' }, fixedRng(0.9999999));
     expect(result).toMatchObject({ kind: 'ram', dieRoll: 6, hit: false });
     expect(defender.destroyed).toBe(false);

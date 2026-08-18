@@ -379,16 +379,22 @@ describe('evaluateBoarding', () => {
 
 describe('ramming odds', () => {
   it('widens with the bonus exactly as rammingSuccessRange does', () => {
-    expect(rammingHitChance('galeres', 'galeres', 0)).toBeCloseTo(1 / 6, 10);
-    expect(rammingHitChance('galeres', 'galeres', 1)).toBeCloseTo(2 / 6, 10);
-    expect(rammingHitChance('galeres', 'galeres', 2)).toBeCloseTo(3 / 6, 10);
+    // Printed row for galère vs. galère is [1,2,3] (N=3); bonus extends the
+    // upper bound past the printed row rather than slicing into it — see
+    // navalRamming.ts's rammingSuccessRange doc comment for the corrected
+    // rule this exercises.
+    expect(rammingHitChance('galeres', 'galeres', 0)).toBeCloseTo(3 / 6, 10);
+    expect(rammingHitChance('galeres', 'galeres', 1)).toBeCloseTo(4 / 6, 10);
+    expect(rammingHitChance('galeres', 'galeres', 2)).toBeCloseTo(5 / 6, 10);
   });
 
   it('values a ram as the chance of sinking times the target', () => {
     const attacker = makeUnit({ id: 'a', typeId: 'galeres', position: CENTER, owner: 0 });
     const target = makeUnit({ id: 'd', typeId: 'triremes', position: NEIGHBOR, owner: 1 }); // 30 pts
-    // galley vs trirème succeeds on 1-2 at full bonus.
-    expect(evaluateRam(attacker, target, 2).expectedValue).toBeCloseTo((2 / 6) * 30, 10);
-    expect(evaluateRam(attacker, target, 0).expectedValue).toBeCloseTo((1 / 6) * 30, 10);
+    // Printed row for galère vs. trirème is [1,2] (N=2); +2 bonus extends the
+    // upper bound to 4, succeeding on 1-2-3-4, while 0 bonus is the printed
+    // row unchanged (1-2).
+    expect(evaluateRam(attacker, target, 2).expectedValue).toBeCloseTo((4 / 6) * 30, 10);
+    expect(evaluateRam(attacker, target, 0).expectedValue).toBeCloseTo((2 / 6) * 30, 10);
   });
 });
