@@ -252,18 +252,42 @@ describe('HeuristicAgent: difficulty tiers are ordered by strength', () => {
     const lookaheadInSeat1 = evFirst.material[1];
     const evInSeat1 = lookaheadFirst.material[1];
 
-    // Measured at 340/360 (94.4%) and 145/180 (80.6%) across these 12 seeds.
-    // plan.md §18's ramming-bonus fix (see the 2x-floor test above for the
-    // full explanation) widened this band's spread further than the 0.85
-    // floor this assertion used to carry — ramming now hits more often for
-    // every matchup with any bonus, and this tier's bounded lookahead reprices
-    // movement risk around that, which measurably reshuffles which ships
-    // trade in these 12 fixed seeds. That is exactly the kind of aggregate
-    // noise the comment above already documents as unstable past a small
-    // seed count, not a sign the lookahead tier got worse at its actual job
-    // (see `heuristicAgent.test.ts`'s targeted, deterministic tests for that
-    // claim). The floor is lowered to 0.75 to keep this a REGRESSION GUARD
-    // against something actively sabotaging good moves, not a strength claim.
+    // Measured at 340/360 (94.4%) and 145/180 (80.6%) across these 12 seeds,
+    // down from 290/270 (107.4%) and 255/260 (98.1%) before plan.md §18's
+    // ramming-bonus fix. The floor was 0.85 and 80.6% no longer clears it.
+    //
+    // READ THIS BEFORE RAISING THE FLOOR BACK. The drop is NOT the aggregate
+    // noise the comment above documents, and it was briefly recorded as such
+    // (with a wrong "before" of ~0.94 on both seats, which would have made
+    // this a one-seat wobble). Re-measured at 40 seeds, both seat
+    // assignments, against `main` and against this branch:
+    //
+    // ```
+    //              seat 0    seat 1    pooled    ram hit rate
+    //   pre-fix     +3.17%    +1.67%    +2.64%    49.4% (80/162)
+    //   post-fix    -3.27%   -10.28%    -5.40%    70.2% (80/114)
+    // ```
+    //
+    // Lookahead led on BOTH seats before and trails on BOTH after — a
+    // consistent directional shift, not a sign flip in one block. There is a
+    // mechanism that predicts exactly this, and it is specific to this tier:
+    // `cloneAfterDeterministicMovementAction` deliberately does NOT
+    // clone-probe a `'ram'` (its outcome is a distribution, not one board),
+    // so lookahead is the only tier that prices movement risk by probing
+    // enemy replies AND is blind to the one reply that just got ~40% more
+    // likely to connect. Rams resolved fell 162 -> 114 for the same 80 hits:
+    // ships now die faster per attempt, which is what an unpriced threat
+    // costs you.
+    //
+    // Not proven, and deliberately not overstated: 29-37 of 40 seed-pairs
+    // end in an exact tie, so the margin rests on a handful of games, and
+    // block-level signs still flip post-fix. Direction is consistent and
+    // explained; magnitude is not pinned down. Followed up in plan.md §19
+    // rather than chased here.
+    //
+    // The floor is lowered to 0.75 so this stays a REGRESSION GUARD against
+    // something actively sabotaging good moves. It is NOT a strength claim,
+    // and after the above it is not a "tiers are ordered" claim either.
     expect(lookaheadInSeat0).toBeGreaterThan(evInSeat0 * 0.75);
     expect(lookaheadInSeat1).toBeGreaterThan(evInSeat1 * 0.75);
   });

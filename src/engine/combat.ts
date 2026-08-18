@@ -2,7 +2,6 @@ import type { HexCoord } from '../data/map';
 import { MAP_TERRAIN, RIVER_HEXSIDES, riverEdgeKey, hexKey as mapHexKey } from '../data/map';
 import { TERRAIN_EFFECTS, RIVER_CROSSING, canEnterTerrain, type TerrainType } from '../data/terrain';
 import { resolveLandCombat, ratioToColumnIndex, RATIO_COLUMNS, type CombatResult } from '../data/combatTable';
-import { isRammingSuccessful, type ShipTypeId } from '../data/navalRamming';
 import { resolveBoarding, type BoardingResult } from '../data/navalBoarding';
 import { hexAdd, hexDistance, hexEquals, areFacingsParallel, DIRECTIONS } from './hex';
 import {
@@ -1042,9 +1041,12 @@ export function hexesUnderZoc(state: GameState, forOwner: number): Set<string> {
   return zocHexes;
 }
 
-export function isRammingHit(attackerType: ShipTypeId, defenderType: ShipTypeId, dieRoll: number): boolean {
-  return isRammingSuccessful(attackerType, defenderType, dieRoll);
-}
+// `isRammingHit` used to sit here, wrapping the bonus-free
+// `isRammingSuccessful`. Both are gone (plan.md §18): a ram's success
+// depends on the unused-movement bonus, so a signature without one could
+// only ever give a wrong answer, and nothing called it. Ask
+// `data/navalRamming.ts`'s `isRammingHitWithBonus` instead — which is what
+// `actions.ts`'s `'ram'` case has always done.
 
 export function resolveNavalBoarding(attackForce: number, defenseForce: number, dieRoll: number): BoardingResult {
   return resolveBoarding(attackForce, defenseForce, dieRoll);

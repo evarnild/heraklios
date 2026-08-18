@@ -59,7 +59,12 @@ import {
 import type { HexCoord } from '../data/map';
 import { RATIO_COLUMNS } from '../data/combatTable';
 import { RIVER_CROSSING } from '../data/terrain';
-import { rammingSuccessRange, fullRammingSuccessRange, type ShipTypeId } from '../data/navalRamming';
+import {
+  rammingSuccessRange,
+  fullRammingSuccessRange,
+  HIGHEST_DIE_FACE,
+  type ShipTypeId,
+} from '../data/navalRamming';
 import { BOARDING_RATIO_COLUMNS } from '../data/navalBoarding';
 
 /** Width of the left-hand HUD panel (buttons, phase status, combat log),
@@ -1489,7 +1494,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // "succeeds on N-M" line is that ceiling: once the effective range
     // covers every face, the ram cannot possibly miss.
     let tableNote: string;
-    if (effectiveRange.length === 6) {
+    if (effectiveRange.length === HIGHEST_DIE_FACE) {
       tableNote = `printed table row: ${printedRange.join('-')} — bonus pushes the upper bound to a d6's 6th face, so every roll hits`;
     } else if (result.bonus > 0) {
       tableNote = `printed table row: ${printedRange.join('-')} — bonus +${result.bonus} extends the upper bound`;

@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
-  isRammingSuccessful,
   rammingBonusFromUnusedMovement,
   rammingSuccessRange,
   isRammingHitWithBonus,
   fullRammingSuccessRange,
   MAX_RAMMING_BONUS,
+  HIGHEST_DIE_FACE,
   SHIP_ORDER,
   type ShipTypeId,
 } from './navalRamming';
@@ -25,16 +25,22 @@ function upTo(n: number): number[] {
   return Array.from({ length: n }, (_, i) => i + 1);
 }
 
-describe('isRammingSuccessful', () => {
-  it('matches the transcribed ramming table', () => {
-    expect(isRammingSuccessful('galeres', 'galeres', 3)).toBe(true);
-    expect(isRammingSuccessful('galeres', 'galeres', 4)).toBe(false);
-    expect(isRammingSuccessful('galeres', 'quintiremes', 1)).toBe(true);
-    expect(isRammingSuccessful('galeres', 'quintiremes', 2)).toBe(false);
-    expect(isRammingSuccessful('quintiremes', 'galeres', 5)).toBe(true);
-    expect(isRammingSuccessful('quintiremes', 'galeres', 6)).toBe(false);
-    expect(isRammingSuccessful('triremes', 'biremes', 3)).toBe(true);
-    expect(isRammingSuccessful('triremes', 'biremes', 4)).toBe(false);
+// These assertions used to call a bonus-free `isRammingSuccessful`, removed
+// with `engine/combat.ts`'s `isRammingHit` wrapper (see
+// `rammingSuccessRange`'s doc comment on why a hit test without a bonus
+// parameter is a trap). They still check exactly the same thing — the
+// transcribed cell values — just asked at `bonus: 0`, which IS the printed
+// row.
+describe('the transcribed ramming table, at zero bonus', () => {
+  it('matches the scanned table cell for cell', () => {
+    expect(isRammingHitWithBonus('galeres', 'galeres', 0, 3)).toBe(true);
+    expect(isRammingHitWithBonus('galeres', 'galeres', 0, 4)).toBe(false);
+    expect(isRammingHitWithBonus('galeres', 'quintiremes', 0, 1)).toBe(true);
+    expect(isRammingHitWithBonus('galeres', 'quintiremes', 0, 2)).toBe(false);
+    expect(isRammingHitWithBonus('quintiremes', 'galeres', 0, 5)).toBe(true);
+    expect(isRammingHitWithBonus('quintiremes', 'galeres', 0, 6)).toBe(false);
+    expect(isRammingHitWithBonus('triremes', 'biremes', 0, 3)).toBe(true);
+    expect(isRammingHitWithBonus('triremes', 'biremes', 0, 4)).toBe(false);
   });
 });
 
@@ -94,7 +100,7 @@ describe('rammingSuccessRange / isRammingHitWithBonus', () => {
   it('never exceeds 6 entries (a d6\'s full face count) for any matchup at any bonus', () => {
     for (const [attacker, defender] of ALL_MATCHUPS) {
       for (const bonus of [0, 1, 2] as const) {
-        expect(rammingSuccessRange(attacker, defender, bonus).length).toBeLessThanOrEqual(6);
+        expect(rammingSuccessRange(attacker, defender, bonus).length).toBeLessThanOrEqual(HIGHEST_DIE_FACE);
       }
     }
   });
@@ -138,7 +144,7 @@ describe('rammingSuccessRange — exhaustive 16-matchup sweep', () => {
       const printedRow = fullRammingSuccessRange(attacker, defender);
       const printedUpperBound = printedRow[printedRow.length - 1]!;
       for (const bonus of [0, 1, 2] as const) {
-        const expectedUpperBound = Math.min(6, printedUpperBound + bonus);
+        const expectedUpperBound = Math.min(HIGHEST_DIE_FACE, printedUpperBound + bonus);
         expect(rammingSuccessRange(attacker, defender, bonus)).toEqual(upTo(expectedUpperBound));
       }
     }
@@ -169,7 +175,7 @@ describe('rammingSuccessRange — exhaustive 16-matchup sweep', () => {
   it(`hits the d6 ceiling (6 entries, an automatic hit) at MAX_RAMMING_BONUS for every matchup whose printed row's upper bound is within ${MAX_RAMMING_BONUS} of 6`, () => {
     const ceilingMatchups = ALL_MATCHUPS.filter(([a, d]) => {
       const row = fullRammingSuccessRange(a, d);
-      return row[row.length - 1]! + MAX_RAMMING_BONUS >= 6;
+      return row[row.length - 1]! + MAX_RAMMING_BONUS >= HIGHEST_DIE_FACE;
     });
     expect(ceilingMatchups.length).toBeGreaterThan(0); // fixture sanity: this bucket isn't empty
     expect(ceilingMatchups).toContainEqual(['quintiremes', 'galeres']);
