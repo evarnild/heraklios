@@ -454,10 +454,14 @@ a dimmer orange hint on their hex — so the player knows an opportunity
 exists without the game auto-navigating there for them: getting there still
 means walking the ship over leg by leg, one Turn/forward click at a time,
 same as any other move; clicking one of those distant hexes directly is a
-no-op. Because contacts are recomputed fresh from wherever the ship
-actually is after every single click, any hand-chosen sequence of
-turns/moves surfaces whatever contacts it passes through, not just the
-cheapest route to a hex. A ship that declares a ram — hit or miss — commits
+no-op. Step-by-step movement also lets a player deliberately turn to a
+costlier facing than the cheapest one at a hex that has both — impossible
+under the old single destination-click model, which always silently took
+the cheapest route. What it doesn't change is which contacts exist to walk
+toward: a hint's displayed bonus is computed from the cheapest route to
+that hex/facing, so hand-walking there by a costlier path can arrive with
+less movement left, and a smaller bonus, than the hint implied (see "Known
+simplifications" below). A ship that declares a ram — hit or miss — commits
 the rest of its movement to the attempt and can't also board later that
 turn.
 
@@ -669,6 +673,18 @@ here rather than silently:
   and how far the cascade runs, so pricing it properly is lookahead rather
   than arithmetic. The assumption understates rather than overstates the
   value of hitting an elephant, which keeps the error on the cautious side.
+- **A ramming-contact hint's bonus assumes the cheapest route to it.**
+  `findRammingContacts` reports every reachable (hex, facing) a ship could
+  end up bow-on to an enemy from, each with the bonus that route's leftover
+  movement would earn — but a distant hint is only ever a "you could end up
+  here," not a commitment to a specific path. If the player hand-walks the
+  ship there by a costlier sequence of turns/moves than the cheapest one
+  (deliberately, or by taking a detour along the way), less movement is left
+  on arrival, and the bonus actually available at that contact is smaller
+  than what the hint displayed. This wasn't possible under the old
+  destination-click model — every move took the cheapest route by
+  construction — so it's a real, new (if minor) wrinkle of step-by-step
+  movement rather than a leftover of the old one.
 - **Non-galley ships forced into the coastal fringe/wide rivers** ("removed
   from the game" per the rulebook) has no code path today, since nothing in
   this implementation forces a ship's position outside its own chosen
