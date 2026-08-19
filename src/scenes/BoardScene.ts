@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { MapView } from '../ui/MapView';
+import { MapView, drawFacingArrowhead } from '../ui/MapView';
+import { PLAYER_COLORS_HEX } from '../ui/hexRender';
 import { session, resetToMenu, seatControlFor } from '../ui/session';
 import { showConfirmDialog } from '../ui/confirmDialog';
 import { SaveLoadPanel } from '../ui/saveLoadPanel';
@@ -47,6 +48,7 @@ import {
 } from '../engine/combat';
 import { resolveElephantDrift } from '../engine/drift';
 import { History } from '../engine/history';
+import { hexAdd, hexKey, DIRECTIONS } from '../engine/hex';
 import {
   unitType,
   currentAttack,
@@ -283,6 +285,15 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   private resolveBtn!: Phaser.GameObjects.Text;
   private rotateCCWBtn!: Phaser.GameObjects.Text;
   private rotateCWBtn!: Phaser.GameObjects.Text;
+  /** The Turn buttons' post-turn-facing glyphs (plan.md §17.2) — small
+   * arrowhead icons drawn next to each button showing the direction the
+   * ship will face *after* that click, computed live from `unit.facing`,
+   * reusing `drawFacingArrowhead` (the same primitive `MapView.
+   * setFacingIndicators` uses for the on-map ship arrows) rather than a
+   * static rotate glyph. Redrawn by `refreshTurnGlyphs` alongside every
+   * `refreshNavalMovementControls`/`clearNavalMovementControls` call. */
+  private turnCcwGlyph!: Phaser.GameObjects.Graphics;
+  private turnCwGlyph!: Phaser.GameObjects.Graphics;
   private ramNowBtn!: Phaser.GameObjects.Text;
   private undoBtn!: Phaser.GameObjects.Text;
   private redoBtn!: Phaser.GameObjects.Text;
@@ -488,8 +499,14 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       .setInteractive({ useHandCursor: true });
     this.resolveBtn.on('pointerdown', () => this.resolveGroupAttack());
 
+    // Plain "Turn" labels (plan.md §17.2): the old static ⟲/⟳ glyphs are
+    // replaced by `turnCcwGlyph`/`turnCwGlyph`, small arrowhead icons drawn
+    // just outside each button showing the facing the ship will actually end
+    // up at, refreshed in `refreshTurnGlyphs`. Cost is left off the label
+    // (always 1 point per 60° turn, `navalMovement.ts:69-70`) — direction is
+    // the informative half per the design decision, not cost.
     this.rotateCCWBtn = this.add
-      .text(76, 96, '⟲ Turn', {
+      .text(76, 96, 'Turn', {
         fontSize: '12px',
         color: '#fff',
         backgroundColor: '#3a3a55',
@@ -503,7 +520,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.rotateCCWBtn.on('pointerdown', () => this.rotateSelectedShip(-1));
 
     this.rotateCWBtn = this.add
-      .text(160, 96, 'Turn ⟳', {
+      .text(160, 96, 'Turn', {
         fontSize: '12px',
         color: '#fff',
         backgroundColor: '#3a3a55',
@@ -515,6 +532,11 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       .setInteractive({ useHandCursor: true })
       .setVisible(false);
     this.rotateCWBtn.on('pointerdown', () => this.rotateSelectedShip(1));
+
+    // Depth 31 (one above the buttons themselves, 30) so the arrowhead icons
+    // always draw on top of the button backgrounds they sit beside.
+    this.turnCcwGlyph = this.add.graphics().setScrollFactor(0).setDepth(31);
+    this.turnCwGlyph = this.add.graphics().setScrollFactor(0).setDepth(31);
 
     this.ramNowBtn = this.add
       .text(244, 96, 'Ram!', {
@@ -667,6 +689,8 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       this.resolveBtn,
       this.rotateCCWBtn,
       this.rotateCWBtn,
+      this.turnCcwGlyph,
+      this.turnCwGlyph,
       this.ramNowBtn,
       this.undoBtn,
       this.redoBtn,
@@ -1308,28 +1332,63 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   }
 
   /**
-   * Recomputes and displays the currently-selected ship's movement options:
-   * plain reachable hexes in blue, and any reachable hex from which its bow
-   * would point directly at an adjacent enemy ship (a ramming opportunity —
-   * see `findRammingContacts`) in orange. If a contact is available without
-   * moving at all (the ship is already bow-on to an enemy), `ramNowBtn`
-   * lights up instead of requiring a click on the map.
+   * Recomputes and displays the currently-selected ship's movement options.
+   * Movement is manual and single-step (plan.md §17): the only hex a click
+   * can actually move the ship into is the single hex directly ahead of its
+   * current bow facing, highlighted blue (or orange if it's ALSO a ramming
+   * contact — see `findRammingContacts`) — everything past that hex has to
+   * be walked leg by leg, one Turn/forward click at a time. Every OTHER
+   * reachable ramming contact `findRammingContacts` reports, however distant
+   * or many turns away, is still shown as a dim orange hint so the player
+   * knows where an opportunity is without the click auto-navigating there
+   * (plan.md §17.4) — `handleNavalMoveClick` rejects a click on any of these.
+   * If a contact is available without moving at all (the ship is already
+   * bow-on to an enemy), `ramNowBtn` lights up instead of requiring a click
+   * on the map at all.
    */
   private refreshNavalMovementControls(ship: Unit): void {
     const state = this.state();
     const reachable = reachableNavalHexes(state, ship);
     this.navalContacts = findRammingContacts(state, ship);
-    const ownHexKey = `${ship.position.q},${ship.position.r}`;
-    const contactHexKeys = new Set(this.navalContacts.map((c) => `${c.hex.q},${c.hex.r}`).filter((k) => k !== ownHexKey));
-    const moveOnlyHexes = Array.from(reachable.keys()).filter((k) => !contactHexKeys.has(k));
-    this.mapView.highlightHexGroups([
-      { hexes: moveOnlyHexes.map(parseKey), color: 0x4aa6ff, alpha: 0.35 },
-      { hexes: Array.from(contactHexKeys).map(parseKey), color: 0xff6a2a, alpha: 0.45 },
-    ]);
+    const ownHexKey = hexKey(ship.position);
+    const contactHexKeys = new Set(this.navalContacts.map((c) => hexKey(c.hex)).filter((k) => k !== ownHexKey));
+
+    const forwardHex = hexAdd(ship.position, DIRECTIONS[ship.facing]!);
+    const forwardKey = hexKey(forwardHex);
+    // The forward click only ever resolves a same-facing contact (see
+    // `handleNavalMoveClick`'s facing-pinned match, plan.md §17 review,
+    // HIGH-1) — so the solid "this click rams" highlight has to agree with
+    // that, not with "any contact lives at this hex regardless of facing."
+    // A contact at the forward hex but a DIFFERENT facing still needs a turn
+    // first, so it's treated like any other distant hint below rather than
+    // claiming the click itself is a ram approach (plan.md §17 review,
+    // MEDIUM-1).
+    const forwardIsContact = this.navalContacts.some(
+      (c) => hexKey(c.hex) === forwardKey && c.facing === ship.facing,
+    );
+    const groups: { hexes: HexCoord[]; color: number; alpha: number }[] = [];
+    if (reachable.has(forwardKey)) {
+      groups.push({
+        hexes: [forwardHex],
+        color: forwardIsContact ? 0xff6a2a : 0x4aa6ff,
+        alpha: forwardIsContact ? 0.45 : 0.35,
+      });
+    }
+    const distantContactHexes = Array.from(contactHexKeys).filter((k) => k !== forwardKey || !forwardIsContact);
+    if (distantContactHexes.length > 0) {
+      groups.push({ hexes: distantContactHexes.map(parseKey), color: 0xff6a2a, alpha: 0.18 });
+    }
+    this.mapView.highlightHexGroups(groups);
 
     const alreadyRammed = this.rammedThisTurn.has(ship.id);
-    this.rotateCCWBtn.setVisible(!alreadyRammed);
-    this.rotateCWBtn.setVisible(!alreadyRammed);
+    // A turn costs 1 movement point (`rotateSelectedShip`) and is rejected
+    // (logged, not applied) below that — so below 1 MP, showing the button
+    // and its live post-turn-facing arrow would advertise a rotation the
+    // next click can't actually perform. Gate both on `movementLeft >= 1`.
+    const canRotate = !alreadyRammed && ship.movementLeft >= 1;
+    this.rotateCCWBtn.setVisible(canRotate);
+    this.rotateCWBtn.setVisible(canRotate);
+    this.refreshTurnGlyphs(ship, canRotate);
     const immediateContact = this.navalContacts.find((c) => c.cost === 0);
     this.ramNowBtn.setVisible(!alreadyRammed && !!immediateContact);
   }
@@ -1339,6 +1398,23 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.rotateCCWBtn.setVisible(false);
     this.rotateCWBtn.setVisible(false);
     this.ramNowBtn.setVisible(false);
+    this.refreshTurnGlyphs(null, false);
+  }
+
+  /** Draws (or, if `ship` is null / `visible` is false, clears) the Turn
+   * buttons' post-turn-facing arrowhead icons — plan.md §17.2's rework of
+   * the old static ⟲/⟳ glyphs into a live preview of the direction each
+   * button will actually turn the ship to, in its owner's color. Reuses
+   * `drawFacingArrowhead`, the same triangle `MapView.setFacingIndicators`
+   * draws for the on-map ship arrows, just at a fixed screen point beside
+   * each button instead of a hex's screen position. */
+  private refreshTurnGlyphs(ship: Unit | null, visible: boolean): void {
+    this.turnCcwGlyph.clear();
+    this.turnCwGlyph.clear();
+    if (!ship || !visible) return;
+    const colorHex = PLAYER_COLORS_HEX[ship.owner] ?? '#ffffff';
+    drawFacingArrowhead(this.turnCcwGlyph, { x: 50, y: 96 }, (ship.facing + 5) % 6, colorHex, 0.4);
+    drawFacingArrowhead(this.turnCwGlyph, { x: 186, y: 96 }, (ship.facing + 1) % 6, colorHex, 0.4);
   }
 
   /** Rotating a ship's facing costs 1 movement point per 60° step (see
@@ -1369,31 +1445,47 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.promptRam(ship, contact.target, contact.bonus);
   }
 
-  /** Executes a click on a naval unit's reachable-hex/contact highlight
-   * during the Movement phase. A contact hex (see `navalContacts`) always
-   * takes priority over a plain move to the same hex, since it's the more
-   * specific (facing-exact) option — ending the move there always offers
-   * the ramming prompt rather than silently sailing past. */
+  /** Executes a click on a naval unit's single clickable move target during
+   * the Movement phase — the one hex directly ahead of the ship's current
+   * bow facing (plan.md §17: manual, single-step movement). A click on any
+   * other hex `reachableNavalHexes`/`navalContacts` might still enumerate
+   * (a multi-leg destination, or a distant ramming contact shown only as a
+   * hint — see `refreshNavalMovementControls`) is a no-op: the player has to
+   * walk the ship there leg by leg instead (plan.md §17.4).
+   *
+   * The fired `navalMove` always pins `facing: ship.facing` — the ship's
+   * CURRENT facing, i.e. "enter this hex without turning." Without that pin,
+   * `applyAction` would prefer a ramming-contact match at that hex over a
+   * plain terrain-cost entry even when the contact sits at a DIFFERENT
+   * facing than the ship's current one, silently rotating the ship and
+   * overcharging movement on what the player clicked as a plain forward step
+   * (plan.md §17 review, HIGH-1). Only when the bow-adjacent hex carries a
+   * contact at THIS ship's current facing (no turn required) is the click
+   * itself a ramming approach — that's the one case `navalContacts` and
+   * `applyAction`'s pinned-facing contact match agree on, so the ram prompt
+   * fires. A contact requiring a different facing has to be walked to
+   * deliberately: turn first (so the forward hex and the contact's facing
+   * line up), then click forward again. */
   private handleNavalMoveClick(hex: HexCoord): void {
     const ship = this.selected!;
     const state = this.state();
+    const forwardHex = hexAdd(ship.position, DIRECTIONS[ship.facing]!);
+    if (hex.q !== forwardHex.q || hex.r !== forwardHex.r) return;
     const contact = this.navalContacts
-      .filter((c) => c.hex.q === hex.q && c.hex.r === hex.r)
+      .filter((c) => c.hex.q === hex.q && c.hex.r === hex.r && c.facing === ship.facing)
       .sort((a, b) => a.cost - b.cost)[0];
+    const action: Action = { kind: 'navalMove', unitId: ship.id, to: hex, facing: ship.facing };
     if (contact) {
       this.recordAction(`Move ${unitType(ship).name} into contact`);
-      const action: Action = { kind: 'navalMove', unitId: ship.id, to: hex };
       applyAction(state, action);
       this.reportAction(action);
       this.renderAllUnits();
       this.promptRam(ship, contact.target, contact.bonus);
       return;
     }
-    const key = `${hex.q},${hex.r}`;
-    const dest = reachableNavalHexes(state, ship).get(key);
+    const dest = reachableNavalHexes(state, ship).get(hexKey(hex));
     if (!dest) return;
     this.recordAction(`Move ${unitType(ship).name}`);
-    const action: Action = { kind: 'navalMove', unitId: ship.id, to: hex };
     applyAction(state, action);
     this.reportAction(action);
     this.renderAllUnits();

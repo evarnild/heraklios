@@ -14,6 +14,51 @@ import {
 import { allHexes } from './mapBounds';
 import { formatHexTooltip } from './hexTooltip';
 
+/**
+ * Draws one arrowhead triangle at `center`, pointing in `facing`'s bow
+ * direction (see `facingAngleRad`). The shared drawing primitive behind
+ * `setFacingIndicators` (one arrow per ship, hex-positioned via `toScreen`)
+ * AND the Movement/Placement Turn buttons' post-turn facing glyph
+ * (`BoardScene.ts`/`PlacementScene.ts`, screen-positioned, unrelated to any
+ * hex — plan.md §17.2) — a free function rather than a `MapView` method
+ * since the button glyph has no hex or camera to go through, only a fixed
+ * screen point. `scale` shrinks the whole triangle proportionally: a
+ * button-sized icon doesn't want a full ship-sized arrowhead.
+ */
+export function drawFacingArrowhead(
+  graphics: Phaser.GameObjects.Graphics,
+  center: { x: number; y: number },
+  facing: number,
+  colorHex: string,
+  scale = 1,
+): void {
+  const angle = facingAngleRad(facing);
+  const tipRadius = HEX_SIZE * 0.95 * scale;
+  const backRadius = HEX_SIZE * 0.5 * scale;
+  const spread = 0.4; // radians half-width of the arrowhead's back edge
+
+  const tip = { x: center.x + tipRadius * Math.cos(angle), y: center.y + tipRadius * Math.sin(angle) };
+  const backLeft = {
+    x: center.x + backRadius * Math.cos(angle + spread),
+    y: center.y + backRadius * Math.sin(angle + spread),
+  };
+  const backRight = {
+    x: center.x + backRadius * Math.cos(angle - spread),
+    y: center.y + backRadius * Math.sin(angle - spread),
+  };
+
+  const color = Phaser.Display.Color.HexStringToColor(colorHex).color;
+  graphics.fillStyle(color, 1);
+  graphics.lineStyle(1.5, 0x1a1408, 0.9);
+  graphics.beginPath();
+  graphics.moveTo(tip.x, tip.y);
+  graphics.lineTo(backLeft.x, backLeft.y);
+  graphics.lineTo(backRight.x, backRight.y);
+  graphics.closePath();
+  graphics.fillPath();
+  graphics.strokePath();
+}
+
 /** Renders the hex map into a scene and handles hex click callbacks. Owns
  * camera scrolling (drag) since the full board is larger than the viewport. */
 export class MapView {
@@ -352,32 +397,8 @@ export class MapView {
     this.facingGraphics.clear();
     for (const { hex, facing, playerIndex } of ships) {
       const center = this.toScreen(hex);
-      const angle = facingAngleRad(facing);
-      const tipRadius = HEX_SIZE * 0.95;
-      const backRadius = HEX_SIZE * 0.5;
-      const spread = 0.4; // radians half-width of the arrowhead's back edge
-
-      const tip = { x: center.x + tipRadius * Math.cos(angle), y: center.y + tipRadius * Math.sin(angle) };
-      const backLeft = {
-        x: center.x + backRadius * Math.cos(angle + spread),
-        y: center.y + backRadius * Math.sin(angle + spread),
-      };
-      const backRight = {
-        x: center.x + backRadius * Math.cos(angle - spread),
-        y: center.y + backRadius * Math.sin(angle - spread),
-      };
-
       const colorHex = PLAYER_COLORS_HEX[playerIndex] ?? '#ffffff';
-      const color = Phaser.Display.Color.HexStringToColor(colorHex).color;
-      this.facingGraphics.fillStyle(color, 1);
-      this.facingGraphics.lineStyle(1.5, 0x1a1408, 0.9);
-      this.facingGraphics.beginPath();
-      this.facingGraphics.moveTo(tip.x, tip.y);
-      this.facingGraphics.lineTo(backLeft.x, backLeft.y);
-      this.facingGraphics.lineTo(backRight.x, backRight.y);
-      this.facingGraphics.closePath();
-      this.facingGraphics.fillPath();
-      this.facingGraphics.strokePath();
+      drawFacingArrowhead(this.facingGraphics, center, facing, colorHex);
     }
   }
 

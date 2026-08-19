@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { reachableNavalHexes, reachableNavalStates, findRammingContacts } from './navalMovement';
 import { createInitialState } from './turnManager';
+import { applyAction } from './actions';
 import { DIRECTIONS } from './hex';
+import { MAP_TERRAIN, hexKey as mapHexKey } from '../data/map';
+import { TERRAIN_EFFECTS } from '../data/terrain';
 import type { GameState, Unit } from './state';
 
 // (28,6) has every hex within 3 hexes as open sea on the shipped map — a
@@ -74,6 +77,85 @@ describe('reachableNavalStates / reachableNavalHexes', () => {
     };
     const reachable = reachableNavalHexes(makeState([ship]), ship);
     expect(reachable.has(`${forwardTwo.q},${forwardTwo.r}`)).toBe(false);
+  });
+
+  // plan.md §17.3: manual step-by-step naval movement (BoardScene.ts) relies
+  // on a single `navalMove` fired at exactly the bow-adjacent hex resolving
+  // to a plain forward step at unchanged facing — i.e. that no rotate-detour
+  // through the general (hex, facing) Dijkstra graph is ever cheaper than
+  // entering that hex straight off the bow. Confirmed here before any UI
+  // change assumed it: since every rotation costs 1 point, entering the hex
+  // and then rotating costs strictly more than entering it directly, so the
+  // direct entry is always weakly cheapest. Checked both at sea (moveCost 1)
+  // and for a galley entering wide river from the coast (moveCost 3), so the
+  // assertion isn't vacuously true only because every naval moveCost near
+  // CENTER happens to be 1.
+  it('the bow-adjacent hex is always reached at plain terrain cost with facing unchanged (plan.md §17.3)', () => {
+    const ship = makeUnit({ typeId: 'biremes', position: CENTER, facing: 0, movementLeft: 4 });
+    const forwardOne = { q: CENTER.q + DIRECTIONS[0]!.q, r: CENTER.r + DIRECTIONS[0]!.r };
+    const terrain = MAP_TERRAIN.get(mapHexKey(forwardOne.q, forwardOne.r))!;
+    const reachable = reachableNavalHexes(makeState([ship]), ship);
+    const entry = reachable.get(`${forwardOne.q},${forwardOne.r}`);
+    expect(entry).toEqual({ cost: TERRAIN_EFFECTS[terrain].moveCost, facing: ship.facing });
+
+    // Coast hex (22,5) faces wide river at (21,5) (direction index 3,
+    // moveCost 3) on the shipped map — only a galley may enter it.
+    const coastHex = { q: 22, r: 5 };
+    const wideRiverHex = { q: 21, r: 5 };
+    expect(MAP_TERRAIN.get(mapHexKey(coastHex.q, coastHex.r))).toBe('coast');
+    expect(MAP_TERRAIN.get(mapHexKey(wideRiverHex.q, wideRiverHex.r))).toBe('river-wide');
+    const galley = makeUnit({ typeId: 'galeres', position: coastHex, facing: 3, movementLeft: 5 });
+    const galleyReachable = reachableNavalHexes(makeState([galley]), galley);
+    const galleyEntry = galleyReachable.get(`${wideRiverHex.q},${wideRiverHex.r}`);
+    expect(galleyEntry).toEqual({ cost: TERRAIN_EFFECTS['river-wide'].moveCost, facing: galley.facing });
+    expect(galleyEntry!.cost).toBe(3);
+  });
+
+  // HIGH-1 review fix: `BoardScene`'s forward-step click fires `navalMove`
+  // with `facing` pinned to the ship's CURRENT facing (see
+  // `handleNavalMoveClick`), and `applyAction`'s `navalMove` case only takes
+  // the ramming-contact branch when that pinned facing matches the
+  // contact's — otherwise it must fall through to the plain terrain-cost
+  // entry. These two cases exercise `applyAction` directly (not just
+  // `reachableNavalHexes`) to pin that outcome, not just the input data.
+  describe('applyAction resolves a facing-pinned forward click correctly (plan.md §17 review, HIGH-1)', () => {
+    it('case (a): no enemy present — plain forward step at unchanged facing', () => {
+      const ship = makeUnit({ id: 'a', typeId: 'biremes', position: CENTER, facing: 0, movementLeft: 4 });
+      const forwardOne = { q: CENTER.q + DIRECTIONS[0]!.q, r: CENTER.r + DIRECTIONS[0]!.r };
+      const state = makeState([ship]);
+      applyAction(state, { kind: 'navalMove', unitId: ship.id, to: forwardOne, facing: ship.facing });
+      expect(ship.position).toEqual(forwardOne);
+      expect(ship.facing).toBe(0);
+      expect(ship.movementLeft).toBe(3); // sea moveCost 1, not overcharged
+    });
+
+    // Reproduces the exact scenario the reviewer verified: ship at (28,6)
+    // facing 0, 4 MP; enemy at (30,5) sits bow-on to the bow-adjacent hex
+    // (29,6) at facing 1 (cost 2: 1 to rotate + 1 to move), not facing 0 (the
+    // ship's current facing, plain cost 1). Without the HIGH-1 fix,
+    // `applyAction` picked the cheaper-sorted contact regardless of facing,
+    // silently turning the ship to facing 1 and deducting 2 instead of 1 —
+    // this assertion would have failed against that pre-fix behavior.
+    it('case (b): a different-facing contact at the same hex does not hijack a facing-pinned forward click', () => {
+      const ship = makeUnit({ id: 'a', typeId: 'biremes', position: CENTER, facing: 0, movementLeft: 4 });
+      const forwardOne = { q: CENTER.q + DIRECTIONS[0]!.q, r: CENTER.r + DIRECTIONS[0]!.r }; // (29,6)
+      const enemyHex = { q: forwardOne.q + DIRECTIONS[1]!.q, r: forwardOne.r + DIRECTIONS[1]!.r }; // (30,5)
+      const enemy = makeUnit({ id: 'd', typeId: 'biremes', owner: 1, position: enemyHex, movementLeft: 0 });
+      const state = makeState([ship, enemy]);
+
+      // Confirm the setup actually creates the trap: (29,6) is both plainly
+      // reachable at facing 0 AND a ramming contact at facing 1.
+      const contacts = findRammingContacts(state, ship).filter(
+        (c) => c.hex.q === forwardOne.q && c.hex.r === forwardOne.r,
+      );
+      expect(contacts).toContainEqual(expect.objectContaining({ facing: 1, cost: 2 }));
+      expect(contacts.some((c) => c.facing === 0)).toBe(false);
+
+      applyAction(state, { kind: 'navalMove', unitId: ship.id, to: forwardOne, facing: ship.facing });
+      expect(ship.position).toEqual(forwardOne);
+      expect(ship.facing).toBe(0); // NOT auto-rotated to 1
+      expect(ship.movementLeft).toBe(3); // plain terrain cost 1, NOT the contact's cost 2
+    });
   });
 });
 
