@@ -17,6 +17,25 @@ export type { NavalState, RammingContact } from './navalMovement';
  * tests can keep importing it from here. */
 export { unitCategory };
 
+function enemyZocProjectorsForHex(state: GameState, owner: number, hex: HexCoord): Set<string> {
+  const projectors = new Set<string>();
+  for (const enemy of state.units) {
+    if (enemy.destroyed || enemy.owner === owner) continue;
+    if (getUnitType(enemy.typeId).domain === 'naval') continue;
+    if (hexDistance(enemy.position, hex) !== 1) continue;
+    if (riverBetween(enemy.position, hex)) continue;
+    projectors.add(enemy.id);
+  }
+  return projectors;
+}
+
+function sharesAnyProjector(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
+  for (const id of a) {
+    if (b.has(id)) return true;
+  }
+  return false;
+}
+
 /**
  * Computes every hex reachable by `unit` given its remaining movement,
  * respecting terrain cost/restrictions and the "must stop on entering an
@@ -64,7 +83,7 @@ export function reachableHexes(state: GameState, unit: Unit): Map<string, number
   // though they were legitimately traversed to compute cost beyond them.
   const occupiedKeys = new Set<string>();
   const frontier: HexCoord[] = [unit.position];
-  const startedInZoc = enemyZoc.has(startKey);
+  const startZocProjectors = enemyZocProjectorsForHex(state, unit.owner, unit.position);
 
   while (frontier.length > 0) {
     const current = frontier.shift()!;
@@ -73,15 +92,21 @@ export function reachableHexes(state: GameState, unit: Unit): Map<string, number
 
     // A unit that just entered an enemy ZOC must stop — no further expansion.
     if (currentKey !== startKey && enemyZoc.has(currentKey)) continue;
-    // A unit that began its move inside an enemy ZOC may not shuffle to
-    // another hex still within that same ZOC without first leaving it.
-    if (currentKey === startKey && startedInZoc) continue;
 
     for (const next of neighbors(current)) {
       const nextKey = hexKey(next);
       const terrain = MAP_TERRAIN.get(mapHexKey(next.q, next.r));
       if (terrain === undefined) continue; // off the map
       if (!canEnterTerrain(terrain, category, isGalley)) continue;
+      // A unit that begins in enemy ZOC may leave it, but may not move
+      // directly to another hex controlled by any of the same enemy units.
+      if (
+        currentKey === startKey &&
+        startZocProjectors.size > 0 &&
+        sharesAnyProjector(startZocProjectors, enemyZocProjectorsForHex(state, unit.owner, next))
+      ) {
+        continue;
+      }
       const occupant = unitAt(state, next);
       // An enemy (or third-party, in a 3-4 player game) unit blocks entry
       // outright. A friendly unit (same owner) may be traversed mid-move —
@@ -197,7 +222,7 @@ function straightLineMoveCost(state: GameState, unit: Unit, destination: HexCoor
   if (category === 'naval') return undefined; // naval facing/rotation isn't a straight walk in this sense; charges are land-only anyway (see evaluateCharge)
   const isGalley = unit.typeId === 'galeres';
   const enemyZoc = hexesUnderZoc(state, unit.owner);
-  if (enemyZoc.has(hexKey(unit.position))) return undefined; // starting inside an enemy ZOC: reachableHexes disallows moving at all from there, so no charge either
+  const startZocProjectors = enemyZocProjectorsForHex(state, unit.owner, unit.position);
 
   const distance = hexDistance(unit.position, destination);
   let current = unit.position;
@@ -207,6 +232,13 @@ function straightLineMoveCost(state: GameState, unit: Unit, destination: HexCoor
     const terrain = MAP_TERRAIN.get(mapHexKey(next.q, next.r));
     if (terrain === undefined) return undefined; // off the map
     if (!canEnterTerrain(terrain, category, isGalley)) return undefined;
+    if (
+      step === 1 &&
+      startZocProjectors.size > 0 &&
+      sharesAnyProjector(startZocProjectors, enemyZocProjectorsForHex(state, unit.owner, next))
+    ) {
+      return undefined;
+    }
     const isFinalStep = step === distance;
     const occupant = unitAt(state, next);
     if (isFinalStep) {

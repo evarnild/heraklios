@@ -166,6 +166,32 @@ describe('evaluateCharge', () => {
   });
 });
 
+describe('reachableHexes — starting in enemy ZOC', () => {
+  it('allows an elephant to leave enemy ZOC instead of freezing on its starting hex', () => {
+    const elephant = makeCavalry({ id: 'elephant', typeId: 'elephants', owner: 0, position: { q: 6, r: 3 }, movementLeft: 4 });
+    const enemies = [
+      makeCavalry({ id: 'enemy-a', typeId: 'fantassins', owner: 1, position: { q: 5, r: 3 } }),
+      makeCavalry({ id: 'enemy-b', typeId: 'fantassins', owner: 1, position: { q: 5, r: 4 } }),
+      makeCavalry({ id: 'enemy-c', typeId: 'fantassins', owner: 1, position: { q: 5, r: 5 } }),
+    ];
+    const reachable = reachableHexes(makeState([elephant, ...enemies]), elephant);
+
+    expect(reachable.get('7,2')).toBe(3); // steep-flank, legal for elephants, outside enemy ZOC
+    expect(reachable.get('7,3')).toBe(1); // plain, outside enemy ZOC
+    expect(reachable.has('6,2')).toBe(false); // still in enemy-a's ZOC
+    expect(reachable.get('6,4')).toBe(2); // legal by first exiting through (7,3), then re-entering ZOC
+  });
+
+  it('does not allow a one-step shuffle directly within the same enemy ZOC', () => {
+    const infantry = makeCavalry({ id: 'mover', typeId: 'fantassins', owner: 0, position: { q: 6, r: 3 }, movementLeft: 1 });
+    const enemy = makeCavalry({ id: 'enemy', typeId: 'fantassins', owner: 1, position: { q: 5, r: 4 } });
+    const reachable = reachableHexes(makeState([infantry, enemy]), infantry);
+
+    expect(reachable.get('7,3')).toBe(1); // exit the enemy's ZOC
+    expect(reachable.has('6,4')).toBe(false); // direct move within enemy's ZOC is forbidden
+  });
+});
+
 describe('reachableHexes — moving through friendly units (plan.md §8)', () => {
   // French original (docs/research/05-rules-french-original.md:124-126):
   // "une unite ne peut en aucun cas se placer sur une case deja occupee par
