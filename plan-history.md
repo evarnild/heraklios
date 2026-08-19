@@ -3487,3 +3487,102 @@ predates and is distinct from all four of these — it was not double-counted,
 it just isn't part of this list. All four are tracked as an owed follow-up
 in `plan.md`'s Current Snapshot rather than re-opening this already-merged
 section.
+
+---
+
+## 20. Live defect: a unit that starts its move already inside an enemy ZOC can't move at all
+
+**Status: shipped.** Fixed as `9d7b38a`, reviewed PASS in the coordinating
+Codex session, fast-forwarded to `main`, and pushed to `origin/main`.
+
+### 20.1 The report
+
+An elephant at `(6,3)` with enemies at `(5,3)`, `(5,4)` and `(5,5)`, 4
+movement points, could not move to any hex at all — including `(7,2)` and
+`(7,3)`, which the user expected to be legal since neither sits in any
+enemy unit's ZOC.
+
+### 20.2 What the rulebook says
+
+`docs/research/02-rules-transcription.md:99-102`:
+
+> A unit that starts a movement phase already inside an enemy ZOC may not
+> move directly to a different hex still within that same ZOC — it must
+> first exit the ZOC entirely, then may re-enter (and immediately stop
+> again) elsewhere.
+
+The French original (`docs/research/05-rules-french-original.md:136-138`)
+agrees. Read plainly, this forbids exactly one thing: sliding from one
+ZOC-covered hex straight to another ZOC-covered hex without a hex of daylight
+between them. It does **not** forbid moving to a hex outside all enemy ZOC
+coverage — reaching such a hex *is* "exiting the ZOC entirely," which the
+rule explicitly allows as the first leg of a longer move.
+
+### 20.3 What the code actually did
+
+`reachableHexes` computed `startedInZoc` and then, inside the BFS loop:
+
+```ts
+// A unit that began its move inside an enemy ZOC may not shuffle to
+// another hex still within that same ZOC without first leaving it.
+if (currentKey === startKey && startedInZoc) continue;
+```
+
+That `continue` fired on the very first iteration (`current ===
+unit.position`) and skipped the entire neighbor-expansion loop for that
+iteration — so the BFS frontier was emptied without ever visiting a single
+neighbor. The comment described the correct rule ("may not shuffle to another
+hex still within that same ZOC"), but the code implemented "may not move to
+*any* hex, full stop," which was strictly more restrictive than the rule.
+
+### 20.4 Reproduction
+
+Verified directly against the shipped map and `hexesUnderZoc`/`reachableHexes`
+(scratch test, not committed):
+
+```
+(6,3) terrain=plain   (5,3) terrain=plain   (5,4) terrain=plain
+(5,5) terrain=plain   (7,2) terrain=steep-flank   (7,3) terrain=plain
+zoc contains (6,3)? true
+zoc contains (7,2)? false
+zoc contains (7,3)? false
+reachable: []
+```
+
+`(6,3)` is confirmed under enemy ZOC (adjacent to both `(5,3)` and `(5,4)`,
+per `DIRECTIONS` in `hex.ts`); `(7,2)`/`(7,3)` are confirmed clear of it;
+`reachableHexes` returned an **empty** map regardless — the elephant was
+completely immobilized, matching the user's report exactly. `(5,5)` is not
+actually adjacent to `(6,3)` (hex distance 2), so it isn't a factor —
+`(5,3)` and `(5,4)` alone already put the elephant in ZOC.
+
+### 20.5 Outcome
+
+The shipped fix reads "that same ZOC" narrowly: not "any enemy ZOC coverage"
+but **the specific set of enemy units projecting ZOC onto the start hex.**
+`enemyZocProjectorsForHex` returns the ids of every non-naval enemy unit
+adjacent to a given hex (river-blocked adjacency excluded, matching
+`hexesUnderZoc`'s own rule); `reachableHexes` computes this set once for the
+unit's start hex, and its per-neighbor loop blocks a direct first step only
+into a hex that shares **any** projector with the start hex — not into every
+ZOC hex in general. A hex covered by a *different* enemy's ZOC (no projector
+overlap with the start hex) is a legal direct first step under this reading.
+
+That was a real interpretation choice beyond §20.2's literal text, which
+doesn't disambiguate "same ZOC" between "the same projecting unit(s)" and
+"ZOC coverage in general." The user explicitly accepted this reading during
+review ("it is ok"). `straightLineMoveCost` (the charge-cost helper) got the
+equivalent fix, closing the analogous gap for charge evaluation; naval
+movement's separate code path in `navalMovement.ts` was not touched because
+naval ZOC is presently not modeled at all.
+
+Two new `movement.test.ts` cases (`reachableHexes — starting in enemy ZOC`)
+cover: the reported elephant scenario (exits to `(7,2)`/`(7,3)` directly,
+reaches `(6,4)` via a two-step exit-and-re-enter route, still can't reach
+`(6,2)` directly) and a minimal single-enemy case proving the
+direct-shuffle-within-the-same-ZOC prohibition still holds.
+
+Review found no blocking issues. The only noted open question was the
+"same projecting unit(s)" interpretation above, which the user approved.
+`npm.cmd run build` and `npm.cmd test` were both clean on `main`, with
+496/496 tests passing.
