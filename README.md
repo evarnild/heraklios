@@ -423,23 +423,42 @@ board, that player wins immediately.
 Ships have a **facing** (the direction their bow points) as well as a
 movement allowance. The rulebook doesn't cover initial facing at all, so
 placing a ship during Placement stages it on the clicked hex without
-committing it yet — the same **"⟲ Turn" / "Turn ⟳"** buttons used during
-the Movement phase (below) let the placing player pick its facing, shown
-live as the same arrow overlay, before **"Confirm facing"** actually adds
-it to the board (or **"Cancel"** to pick a different hex instead).
+committing it yet — the same **Turn** buttons used during the Movement
+phase (below) let the placing player pick its facing, shown live as the
+same arrow overlay, before **"Confirm facing"** actually adds it to the
+board (or **"Cancel"** to pick a different hex instead).
 
-During the Movement phase itself, selecting a ship highlights every
-hex it can reach (blue) given that a ship may only move forward through the
-side its bow faces, and rotating the facing costs 1 movement point per 60°
-turn (so a full reversal costs 3) — movement and rotation may be freely
-interleaved. The **"⟲ Turn" / "Turn ⟳"** buttons rotate the selected ship
-in place; if it's already bow-on to an adjacent enemy ship, or can become
-so, that's a **ramming** opportunity (orange highlight, or the **"Ram!"**
-button if no move is needed) — declaring one rolls 1d6 against the
-transcribed ramming table, with a bonus based on how much movement is left
-unspent at the moment of contact (up to +2). A ship that declares a ram —
-hit or miss — commits the rest of its movement to the attempt and can't
-also board later that turn.
+Movement itself is manual and hex-by-hex, one step at a time, rather than a
+single destination click that silently solves the route: selecting a ship
+during the Movement phase highlights only the single hex directly ahead of
+its current bow (blue), the one hex a click can actually move it into at
+that hex's terrain cost, plus the **Turn** buttons for rotating 60° in
+place (1 movement point per turn, either direction, so a full reversal
+costs 3) — movement and rotation may be freely interleaved, one click at a
+time, watching the movement allowance debit as it goes. Both Turn buttons
+show a live arrowhead icon, in the ship's own color, for the facing that
+click will actually turn it to, rather than a generic rotate glyph — the
+same is true of the placing-player's facing picker above, since it reuses
+the identical buttons.
+
+If the one clickable forward hex would put the ship's bow directly against
+an adjacent enemy ship, that's a **ramming** opportunity and the hex
+highlights orange instead of blue (or, if the ship is already bow-on to an
+enemy without moving at all, the **"Ram!"** button lights up so no click is
+needed) — declaring one rolls 1d6 against the transcribed ramming table,
+with a bonus based on how much movement is left unspent at the moment of
+contact (up to +2). Other ramming opportunities the ship could still reach
+this turn, however many hexes or turns of clicking away, are shown too — as
+a dimmer orange hint on their hex — so the player knows an opportunity
+exists without the game auto-navigating there for them: getting there still
+means walking the ship over leg by leg, one Turn/forward click at a time,
+same as any other move; clicking one of those distant hexes directly is a
+no-op. Because contacts are recomputed fresh from wherever the ship
+actually is after every single click, any hand-chosen sequence of
+turns/moves surfaces whatever contacts it passes through, not just the
+cheapest route to a hex. A ship that declares a ram — hit or miss — commits
+the rest of its movement to the attempt and can't also board later that
+turn.
 
 **Boarding** is a Combat-phase action instead, and requires the two ships
 to be adjacent with *parallel* facings (identical or exactly opposite) —
@@ -649,20 +668,6 @@ here rather than silently:
   and how far the cascade runs, so pricing it properly is lookahead rather
   than arithmetic. The assumption understates rather than overstates the
   value of hitting an elephant, which keeps the error on the cautious side.
-- **Naval movement is destination-click, not path-drawn.** Clicking a
-  highlighted hex moves the selected ship there by the cheapest combination
-  of rotation + forward moves (or, for an orange-highlighted contact hex,
-  by the specific facing that makes ramming eligible there, even if a
-  cheaper non-contact facing exists for that same hex) — a player can't
-  otherwise choose an *alternate*, costlier facing for a hex that also has a
-  cheap one. Multi-leg moves (rotate/reposition, stop, then move the same
-  ship again) are still possible by reselecting it mid-phase.
-- **A ramming contact is only detected at hexes a single click can already
-  reach** (the cheapest path to each hex, plus any bow-on contact along the
-  way) — a ship can't be walked through an arbitrary hand-drawn path hex by
-  hex, so an unusual route that would create a contact somewhere off that
-  set isn't offered. In practice this rarely matters since a rational
-  player wants the earliest (cheapest) contact anyway, for the best bonus.
 - **Non-galley ships forced into the coastal fringe/wide rivers** ("removed
   from the game" per the rulebook) has no code path today, since nothing in
   this implementation forces a ship's position outside its own chosen
