@@ -98,12 +98,20 @@ bonus now *extends* the printed success range instead of narrowing it, per
 the rulebook's own general sentence rather than the one worked example the
 old reading had been fitted to (see
 [§18.5](plan-history.md#185-outcome) for the outcome and the four review
-findings on top of it).
+findings on top of it), and **[§17](plan-history.md#17-manual-step-by-step-naval-movement)
+— manual step-by-step naval movement** (merged `3dee4e8`), replacing
+destination-click naval movement with hex-by-hex manual control and
+reworked Turn-button glyphs, after a FAIL/fix/PASS review cycle (one HIGH
+defect: a forward click could silently auto-rotate the ship onto a
+differently-faced ramming contact and overcharge movement — see
+[§17.6](plan-history.md#176-outcome) for the outcome and the review
+findings).
 **In flight:** nothing. Queue is empty of self-contained items.
 **Carried over from merges, manual browser pass still owed:** Stage 4's
-([§6.12](plan-history.md#612-stage-4-outcome)) and now §16's too — Chrome automation was
-unavailable in the session that shipped §16, so its per-hex badges have
-been verified by `tsc`/`vitest`/`build` and code review only, not by eye.
+([§6.12](plan-history.md#612-stage-4-outcome)), §16's, and now §17's naval
+movement controls too — Chrome automation was unavailable in the sessions
+that shipped §16 and §17, so both have been verified by `tsc`/`vitest`/
+`build` and code review only, not by eye.
 **Live defects still open:** none.
 
 <a id="10-sequenced-queue"></a>
@@ -135,6 +143,7 @@ sync when something merges** — it went stale once and the user caught it.
 | [§16](plan-history.md#16-identify-which-unit-a-choice-dialog-means) label the units a choice dialog means | `ceb106a` |
 | [§6.4](plan-history.md#64-stage-3-shipped-stage-4-deferred) Stage 3b — shallow lookahead tier (6 review rounds; see [§6.18](plan-history.md#618-stage-3b-sixth-review-outcome--pass)) | `f4573d3` |
 | [§18](plan-history.md#18-live-defect-ramming-bonus-narrows-the-table-instead-of-extending-it) ramming bonus extends the table (+4 review findings, +1 follow-up: [§19](#19-the-lookahead-tier-is-blind-to-ramming-and-that-now-costs-measurably-more)) | see [§18.5](plan-history.md#185-outcome) |
+| [§17](plan-history.md#17-manual-step-by-step-naval-movement) manual step-by-step naval movement (FAIL/fix/PASS; 1 HIGH + 2 MEDIUM + 4 LOW review findings, all fixed) | `3dee4e8` |
 
 ### In flight
 
@@ -142,29 +151,29 @@ Nothing. Queue is empty of self-contained items.
 
 ### Queued
 
-All fully-shipped rows that previously lived here (Stage 3b, §18 and
+All fully-shipped rows that previously lived here (Stage 3b, §17, §18 and
 earlier) are in the [Shipped](#shipped) table above; see the History Map
 for their postmortems.
 
 | # | Item | Touches | Notes |
 | --- | --- | --- | --- |
-| 5 | [§17](#17-manual-step-by-step-naval-movement) manual step-by-step naval movement | `BoardScene.ts` (likely presentation-only) | Replace destination-click naval movement with hex-by-hex manual control; clearer Turn button labels. [§17.4](#174-open-design-question-distant-ramming-contacts) has one open design question to settle with the user before implementation starts. |
-| 6 | [§19](#19-the-lookahead-tier-is-blind-to-ramming-and-that-now-costs-measurably-more) lookahead tier is blind to ramming | `heuristicAgent.ts` + its tests | Engine-only AI tuning, surfaced and measured by #4. Not urgent and not proven — [§19.3](#193-options-in-preference-order) option 3 (re-measure at 160 seeds) is the cheap first step. |
+| 5 | [§19](#19-the-lookahead-tier-is-blind-to-ramming-and-that-now-costs-measurably-more) lookahead tier is blind to ramming | `heuristicAgent.ts` + its tests | Engine-only AI tuning, surfaced and measured by §18. Not urgent and not proven — [§19.3](#193-options-in-preference-order) option 3 (re-measure at 160 seeds) is the cheap first step. |
 
 ## Backlog Map
 
 - **Start here:** [Current Queue](#10-sequenced-queue).
-- **Current next task:** #5, [§17](#17-manual-step-by-step-naval-movement)
-  manual naval movement — but settle
-  [§17.4](#174-open-design-question-distant-ramming-contacts)'s open design
-  question with the user before launching it. #6
-  ([§19](#19-the-lookahead-tier-is-blind-to-ramming-and-that-now-costs-measurably-more))
-  is independent of it (engine vs. scene) and can run in parallel.
+- **Current next task:** #5,
+  [§19](#19-the-lookahead-tier-is-blind-to-ramming-and-that-now-costs-measurably-more)
+  — the lookahead AI tier's blindness to ramming threats. Engine-only, not
+  urgent; [§19.3](#193-options-in-preference-order) option 3 (re-measure at
+  160 seeds) is the cheap first step before deciding whether to fix it for
+  real.
 - **Live defects:** none. [§18](plan-history.md#18-live-defect-ramming-bonus-narrows-the-table-instead-of-extending-it)
   was the last one and is shipped.
-- **Owed:** a manual browser pass over §16's per-hex choice labels and
-  Stage 4's still-outstanding one ([§6.12](plan-history.md#612-stage-4-outcome))
-  — next person with a working browser session should give both a look.
+- **Owed:** a manual browser pass over §16's per-hex choice labels, §17's
+  naval movement controls, and Stage 4's still-outstanding one
+  ([§6.12](plan-history.md#612-stage-4-outcome)) — next person with a
+  working browser session should give all three a look.
 
 ## History Map
 
@@ -194,11 +203,15 @@ This map is just a fast index into it:
   [§14](plan-history.md#14-decomposing-boardscenets-for-parallel-work) (proposed, never started),
   [§15](plan-history.md#15-live-defect-ranged-attacks-resolve-at-zero-attack-force),
   [§16](plan-history.md#16-identify-which-unit-a-choice-dialog-means),
-  and [§18](plan-history.md#18-live-defect-ramming-bonus-narrows-the-table-instead-of-extending-it)
+  [§18](plan-history.md#18-live-defect-ramming-bonus-narrows-the-table-instead-of-extending-it)
   (the ramming bonus — read [§18.4](plan-history.md#184-why-this-got-missed-and-why-it-took-three-tries-to-find)
   and [§18.5](plan-history.md#185-outcome) together: the same "fitted to the
   one example available" failure, once in the original bug and once in the
-  fix's own postmortem).
+  fix's own postmortem), and
+  [§17](plan-history.md#17-manual-step-by-step-naval-movement) (manual
+  step-by-step naval movement — [§17.6](plan-history.md#176-outcome) has
+  the FAIL/fix/PASS review cycle and a process note on a worktree-lock
+  snag worth reading before the next multi-round fix cycle).
 
 > **Line citations were re-verified against `main` on 2026-08-07** (at
 > `3b15577`), after ~440 lines of drift in `BoardScene.ts` had rotted most of
@@ -460,139 +473,6 @@ output schema (see [§1](#1-agent-workflow)). The feature brief
 need to carry; process rules live in the agent files.
 
 ---
-
-## 17. Manual step-by-step naval movement
-
-**Status: queued** (#4). Requested 2026-08-15: the player wants to decide
-each hex-step and each turn of a ship's move by hand, and wants the turn
-buttons themselves to read more clearly. Not a rules defect — the engine
-already computes and applies exactly the rules-legal cost for every hop —
-this is a control-granularity gap, and it is exactly the "Known
-simplifications" bullet already named in `README.md`:611 ("Naval movement is
-destination-click, not path-drawn").
-
-### 17.1 The gap, precisely
-
-Today a ship move is one atomic action from the player's point of view:
-click the ship, click a highlighted destination hex, and `handleNavalMoveClick`
-(`BoardScene.ts:1379-1403`) fires a single `navalMove` action carrying only
-`{ unitId, to }` — no facing, no path. `applyAction`'s `navalMove` case
-(`actions.ts:246-270`) looks the destination up in `reachableNavalHexes`
-(`navalMovement.ts:103-113`, itself a collapse of the full `(hex, facing)`
-Dijkstra graph in `reachableNavalStates`, `:57-94`) and applies whichever
-`{cost, facing}` was cheapest — **silently**. The player never sees or
-chooses the interleaving of rotate-1-point/move-terrain-cost steps that got
-the ship there, and cannot request a costlier alternate facing at a hex that
-also has a cheaper one.
-
-Rotation is the one piece of this that is **already** manual and explicit:
-the `⟲ Turn` / `Turn ⟳` buttons (`BoardScene.ts:493-519`) each fire a single
-`navalRotate` action, one 60° step, 1 movement point, via
-`rotateSelectedShip` (`:1349-1362`). There is no equivalent single-hex
-"step forward" button — forward movement only exists today as "click however
-far away and let the engine solve it."
-
-### 17.2 Design decisions made 2026-08-15
-
-Two things were asked and answered before scoping the rest:
-
-1. **Interaction model: step-by-step, hex by hex.** Click Turn to rotate 60°
-   (unchanged), or click the single hex directly ahead of the bow to move
-   forward one hex, and repeat — building the path one leg at a time,
-   watching `movementLeft` debit as you go. Rejected: full-path-preview
-   (plot the whole route, confirm once) and alternate-paths-to-one-hex (keep
-   destination-click, just let the player pick among tied/costlier routes to
-   the same hex) — both keep some or all of the "click far away" model this
-   request exists to remove.
-2. **Turn buttons: clearer labels/icons showing the resulting direction and
-   the cost.** Not a hover preview and not a full move to a directional
-   hex-grid overlay (both considered, both rejected) — the buttons stay
-   buttons, they just stop reading as generic `⟲`/`⟳` glyphs. Cost is
-   flat (always 1 point per 60°, `navalMovement.ts:24`), so the informative
-   half of this is really the **direction**: the label should show the arrow
-   the ship will be facing *after* the turn, computed live from
-   `unit.facing`, not a static rotate icon. `MapView.setFacingIndicators`
-   (`MapView.ts:347`, cited already in [§16.3](plan-history.md#163-implementation-notes))
-   is the existing arrow-rendering primitive to reuse for the glyph.
-
-### 17.3 What actually needs to change
-
-**Likely no engine change at all, and that is worth confirming rather than
-assuming.** `reachableNavalHexes` already contains an entry for the single
-hex directly ahead of the bow, and — since no rotation is cheaper than
-zero — that entry is necessarily the direct one-hop cost with the facing
-unchanged. So a `navalMove` fired at exactly that hex should already resolve
-to a plain forward step with today's `applyAction`, no new action kind
-needed. **Before writing any UI code, prove this**, e.g. with a focused
-`navalMovement.test.ts` assertion that the bow-adjacent hex's
-`reachableNavalHexes` entry always has `cost === TERRAIN_EFFECTS[terrain]
-.moveCost` and `facing === unit.facing` — if that ever fails (it shouldn't,
-but the Dijkstra graph is general enough that a non-obvious cheaper detour
-should be considered, not assumed away), the plan changes.
-
-If confirmed, this is almost entirely a `BoardScene.ts` presentation change,
-same shape as [§16](plan-history.md#16-identify-which-unit-a-choice-dialog-means):
-
-- `refreshNavalMovementControls` (`:1320-1337`) stops highlighting the full
-  `reachableNavalHexes` set in blue and instead highlights only the single
-  hex directly ahead of the current facing (if reachable at all — i.e. if
-  `movementLeft` covers its terrain cost).
-- `handleNavalMoveClick` (`:1379-1403`) keeps working unmodified for that one
-  hex once the highlight set is narrowed, since it already just fires
-  `navalMove` at whatever was clicked.
-- The Turn buttons get their label/icon rework from §17.2.
-- `legalActions` (`actions.ts:371-397`) is **not** touched — it keeps
-  enumerating every reachable hex, because that is the action surface the AI
-  (`HeuristicAgent`) and the fuzz harness use, and neither goes through
-  `BoardScene`'s highlight logic at all (see [§6.12](plan-history.md#612-stage-4-outcome)'s
-  note that an AI seat never draws a panel). This keeps the AI's play
-  strength and every existing engine test untouched — the redesign is scoped
-  to *how a human clicks*, not to what's legal.
-
-### 17.4 Open design question: distant ramming contacts
-
-`findRammingContacts` (`navalMovement.ts:135-151`) currently reports every
-reachable state whose bow would land pointed at an enemy — including ones
-several hexes and several turns away — and today's orange highlight lets a
-player click straight to one, auto-solving the whole approach exactly like
-the blue destination-click does. Restricting movement to single steps makes
-that inconsistent: the ship would have to be walked there leg by leg like
-everything else, but should the game still show *where* the opportunities
-are (an informational hint) even though clicking one no longer teleports the
-ship? Both readings are defensible — showing nothing means the player has to
-rediscover contacts by manual trial, showing a hint that isn't clickable
-avoids that without reintroducing the auto-navigate shortcut. **Not decided
-yet — settle this before implementing**, and settle it by asking the user
-rather than guessing, since it's the same category of "what does the player
-actually want to see" question §17.2 already needed the user for. The
-zero-cost `Ram!` button (`:521-529`, `attemptImmediateRam`) is unaffected
-either way: it only ever fires once the ship is already bow-on and adjacent.
-
-### 17.5 Scope and dependencies
-
-- **Presentation only, if §17.3's assumption holds** — no `GameState`
-  change, no save-format change, no new engine tests strictly required
-  (though the `reachableNavalHexes` confirmation test from §17.3 is cheap
-  insurance and should be added regardless). Per this repo's engine/presentation
-  split, the `BoardScene.ts` half is not unit-testable and needs a manual
-  browser pass — expect this to join [§16](plan-history.md#16-identify-which-unit-a-choice-dialog-means)
-  and [Stage 4's outstanding check](plan-history.md#612-stage-4-outcome) on the "owed manual
-  pass" list.
-- **Touches `BoardScene.ts`**, so it collides with anything else in flight
-  there — currently nothing (Stage 3b, [§6.13](plan-history.md#613-stage-3b-outcome), is
-  `engine/`-only and doesn't touch this file).
-- **Placement-phase facing selection reuses the same Turn buttons**
-  (`README.md`:426-429) — the label/icon rework from §17.2 lands there too,
-  for free, since it's the same two buttons; worth a placement-phase line in
-  the manual pass rather than assuming it inherited the change correctly.
-- **`README.md`'s "Naval movement and combat" section** (421-467) and the
-  "Naval movement is destination-click, not path-drawn" Known Simplification
-  (~611) both describe the *current* behavior this replaces — per this
-  file's own convention (`CLAUDE.md`: "When a 'Known simplification' ...
-  gets implemented, move its bullet out of that section and document the
-  new behavior in place"), that bullet moves into the "Naval movement and
-  combat" section once this ships, rather than staying as a caveat for
-  behavior that no longer exists.
 
 ## 19. The lookahead tier is blind to ramming, and that now costs measurably more
 

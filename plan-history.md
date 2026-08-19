@@ -3255,3 +3255,205 @@ then explained an inconvenient measurement by picking the available story
 ("aggregate noise," which this project's own history had already made
 respectable) instead of measuring. Same shape, different altitude. The
 correction cost one 40-seed run against both branches.
+
+## 17. Manual step-by-step naval movement
+
+**Status: queued** (#4). Requested 2026-08-15: the player wants to decide
+each hex-step and each turn of a ship's move by hand, and wants the turn
+buttons themselves to read more clearly. Not a rules defect — the engine
+already computes and applies exactly the rules-legal cost for every hop —
+this is a control-granularity gap, and it is exactly the "Known
+simplifications" bullet already named in `README.md`:611 ("Naval movement is
+destination-click, not path-drawn").
+
+### 17.1 The gap, precisely
+
+Today a ship move is one atomic action from the player's point of view:
+click the ship, click a highlighted destination hex, and `handleNavalMoveClick`
+(`BoardScene.ts:1379-1403`) fires a single `navalMove` action carrying only
+`{ unitId, to }` — no facing, no path. `applyAction`'s `navalMove` case
+(`actions.ts:246-270`) looks the destination up in `reachableNavalHexes`
+(`navalMovement.ts:103-113`, itself a collapse of the full `(hex, facing)`
+Dijkstra graph in `reachableNavalStates`, `:57-94`) and applies whichever
+`{cost, facing}` was cheapest — **silently**. The player never sees or
+chooses the interleaving of rotate-1-point/move-terrain-cost steps that got
+the ship there, and cannot request a costlier alternate facing at a hex that
+also has a cheaper one.
+
+Rotation is the one piece of this that is **already** manual and explicit:
+the `⟲ Turn` / `Turn ⟳` buttons (`BoardScene.ts:493-519`) each fire a single
+`navalRotate` action, one 60° step, 1 movement point, via
+`rotateSelectedShip` (`:1349-1362`). There is no equivalent single-hex
+"step forward" button — forward movement only exists today as "click however
+far away and let the engine solve it."
+
+### 17.2 Design decisions made 2026-08-15
+
+Two things were asked and answered before scoping the rest:
+
+1. **Interaction model: step-by-step, hex by hex.** Click Turn to rotate 60°
+   (unchanged), or click the single hex directly ahead of the bow to move
+   forward one hex, and repeat — building the path one leg at a time,
+   watching `movementLeft` debit as you go. Rejected: full-path-preview
+   (plot the whole route, confirm once) and alternate-paths-to-one-hex (keep
+   destination-click, just let the player pick among tied/costlier routes to
+   the same hex) — both keep some or all of the "click far away" model this
+   request exists to remove.
+2. **Turn buttons: clearer labels/icons showing the resulting direction and
+   the cost.** Not a hover preview and not a full move to a directional
+   hex-grid overlay (both considered, both rejected) — the buttons stay
+   buttons, they just stop reading as generic `⟲`/`⟳` glyphs. Cost is
+   flat (always 1 point per 60°, `navalMovement.ts:24`), so the informative
+   half of this is really the **direction**: the label should show the arrow
+   the ship will be facing *after* the turn, computed live from
+   `unit.facing`, not a static rotate icon. `MapView.setFacingIndicators`
+   (`MapView.ts:347`, cited already in [§16.3](plan-history.md#163-implementation-notes))
+   is the existing arrow-rendering primitive to reuse for the glyph.
+
+### 17.3 What actually needs to change
+
+**Likely no engine change at all, and that is worth confirming rather than
+assuming.** `reachableNavalHexes` already contains an entry for the single
+hex directly ahead of the bow, and — since no rotation is cheaper than
+zero — that entry is necessarily the direct one-hop cost with the facing
+unchanged. So a `navalMove` fired at exactly that hex should already resolve
+to a plain forward step with today's `applyAction`, no new action kind
+needed. **Before writing any UI code, prove this**, e.g. with a focused
+`navalMovement.test.ts` assertion that the bow-adjacent hex's
+`reachableNavalHexes` entry always has `cost === TERRAIN_EFFECTS[terrain]
+.moveCost` and `facing === unit.facing` — if that ever fails (it shouldn't,
+but the Dijkstra graph is general enough that a non-obvious cheaper detour
+should be considered, not assumed away), the plan changes.
+
+If confirmed, this is almost entirely a `BoardScene.ts` presentation change,
+same shape as [§16](plan-history.md#16-identify-which-unit-a-choice-dialog-means):
+
+- `refreshNavalMovementControls` (`:1320-1337`) stops highlighting the full
+  `reachableNavalHexes` set in blue and instead highlights only the single
+  hex directly ahead of the current facing (if reachable at all — i.e. if
+  `movementLeft` covers its terrain cost).
+- `handleNavalMoveClick` (`:1379-1403`) keeps working unmodified for that one
+  hex once the highlight set is narrowed, since it already just fires
+  `navalMove` at whatever was clicked.
+- The Turn buttons get their label/icon rework from §17.2.
+- `legalActions` (`actions.ts:371-397`) is **not** touched — it keeps
+  enumerating every reachable hex, because that is the action surface the AI
+  (`HeuristicAgent`) and the fuzz harness use, and neither goes through
+  `BoardScene`'s highlight logic at all (see [§6.12](plan-history.md#612-stage-4-outcome)'s
+  note that an AI seat never draws a panel). This keeps the AI's play
+  strength and every existing engine test untouched — the redesign is scoped
+  to *how a human clicks*, not to what's legal.
+
+### 17.4 Open design question: distant ramming contacts
+
+`findRammingContacts` (`navalMovement.ts:135-151`) currently reports every
+reachable state whose bow would land pointed at an enemy — including ones
+several hexes and several turns away — and today's orange highlight lets a
+player click straight to one, auto-solving the whole approach exactly like
+the blue destination-click does. Restricting movement to single steps makes
+that inconsistent: the ship would have to be walked there leg by leg like
+everything else, but should the game still show *where* the opportunities
+are (an informational hint) even though clicking one no longer teleports the
+ship? Both readings are defensible — showing nothing means the player has to
+rediscover contacts by manual trial, showing a hint that isn't clickable
+avoids that without reintroducing the auto-navigate shortcut. **Not decided
+yet — settle this before implementing**, and settle it by asking the user
+rather than guessing, since it's the same category of "what does the player
+actually want to see" question §17.2 already needed the user for. The
+zero-cost `Ram!` button (`:521-529`, `attemptImmediateRam`) is unaffected
+either way: it only ever fires once the ship is already bow-on and adjacent.
+
+### 17.5 Scope and dependencies
+
+- **Presentation only, if §17.3's assumption holds** — no `GameState`
+  change, no save-format change, no new engine tests strictly required
+  (though the `reachableNavalHexes` confirmation test from §17.3 is cheap
+  insurance and should be added regardless). Per this repo's engine/presentation
+  split, the `BoardScene.ts` half is not unit-testable and needs a manual
+  browser pass — expect this to join [§16](plan-history.md#16-identify-which-unit-a-choice-dialog-means)
+  and [Stage 4's outstanding check](plan-history.md#612-stage-4-outcome) on the "owed manual
+  pass" list.
+- **Touches `BoardScene.ts`**, so it collides with anything else in flight
+  there — currently nothing (Stage 3b, [§6.13](plan-history.md#613-stage-3b-outcome), is
+  `engine/`-only and doesn't touch this file).
+- **Placement-phase facing selection reuses the same Turn buttons**
+  (`README.md`:426-429) — the label/icon rework from §17.2 lands there too,
+  for free, since it's the same two buttons; worth a placement-phase line in
+  the manual pass rather than assuming it inherited the change correctly.
+- **`README.md`'s "Naval movement and combat" section** (421-467) and the
+  "Naval movement is destination-click, not path-drawn" Known Simplification
+  (~611) both describe the *current* behavior this replaces — per this
+  file's own convention (`CLAUDE.md`: "When a 'Known simplification' ...
+  gets implemented, move its bullet out of that section and document the
+  new behavior in place"), that bullet moves into the "Naval movement and
+  combat" section once this ships, rather than staying as a caveat for
+  behavior that no longer exists.
+
+### 17.6 Outcome
+
+**Shipped, merged `3dee4e8`.** §17.4's open question was settled with the
+user before implementation: distant ramming contacts stay visible as a
+non-clickable hint rather than disappearing, so the player still knows an
+opportunity exists without the game auto-navigating there.
+
+§17.3's assumption held — no engine change was needed for the base case,
+confirmed by a `navalMovement.test.ts` assertion added before any UI code,
+per the plan.
+
+Two adversarial review rounds:
+
+- **Round 1: FAIL.** One HIGH defect — `applyAction`'s `navalMove` case
+  preferred a ramming-contact match over a plain terrain-cost entry, so
+  clicking the single bow-adjacent hex (the only hex the new UI highlights
+  as clickable) could silently auto-rotate the ship and overcharge
+  movement whenever that hex *also* carried a ramming contact at a
+  different facing — reintroducing exactly the auto-navigate shortcut
+  §17.4 exists to remove. The new engine test only checked
+  `reachableNavalHexes`, never the actual `applyAction` outcome, so it
+  didn't catch this. Plus two MEDIUM findings (a README bullet removed
+  with backwards reasoning about what `findRammingContacts` recomputation
+  can reveal; a test/commit message asserting more than the test actually
+  checked) and three LOW findings.
+- **Fix round:** the HIGH defect was fixed by giving the `navalMove`
+  action an optional `facing` field — `applyAction` only takes the
+  ramming-contact branch when the caller's pinned facing is undefined or
+  matches the contact's, and `BoardScene.ts`'s forward-step click always
+  pins the ship's current facing. `legalActions` (the AI/fuzz-harness
+  action surface) never sets this field, so that surface stayed
+  byte-identical — verified by mutation testing in round 2, not just
+  asserted. The fix agent also found and fixed an adjacent defect on its
+  own (the forward hex's highlight color didn't agree with the
+  facing-pinned click's actual behavior) before the reviewer independently
+  flagged the same thing.
+- **Round 2: PASS**, with 2 LOW findings — a README sentence overclaiming
+  what was and wasn't possible under the old destination-click model
+  (mechanically fixed by the coordinating session directly during merge,
+  since it was a one-line documentation nit), and a double-painted-hex
+  presentation detail folded into the still-owed manual browser pass
+  rather than fixed blind.
+
+**One process note for future runs:** a worktree lock got confused
+mid-cycle — the original implementer's worktree was still holding the
+branch checked out when a fresh fix agent tried to check it out, and the
+fix agent that hit that lock never resumed cleanly afterward (its own
+worktree came back with a broken `core.worktree` redirect once the lock
+was cleared concurrently). The coordinating session had to unlock and
+remove the stale worktree by hand (checking for the `node_modules`
+junction first, per [§4](plan.md#4-runbook-detailed-launch-hazards-appendix)) and
+launch a second fresh fix agent rather than resuming the stuck one. No
+data was lost — all commits are branch-ref-safe regardless of worktree
+state — but it cost a full extra agent round-trip. Lesson: don't leave an
+implementer's worktree around once its commits are safely on the branch
+and review has started; clean it up as soon as the reviewer's detached
+checkout no longer needs it to exist for `git worktree list` bookkeeping.
+
+`tsc --noEmit` and `vitest run` (494/494) clean on `main` post-merge.
+**A manual browser pass is still owed**, joining
+[§16](plan-history.md#16-identify-which-unit-a-choice-dialog-means) and
+[Stage 4's outstanding check](plan-history.md#612-stage-4-outcome) on that
+list — specifically: the single blue forward hex only; dim distant hints
+non-clickable; solid orange forward hex → ram prompt; a differently-faced
+contact on the forward hex → plain step, no prompt (the blended
+blue/orange paint in that case is untested); Turn-button glyph directions
+and positions in both `BoardScene` and `PlacementScene`; buttons vanishing
+at 0 movement points.
