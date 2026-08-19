@@ -45,8 +45,9 @@ npm run build   # production build
    always starting bow-first in a fixed direction. Steps 2 and 3 are skipped
    for any seat the computer is playing — it buys and deploys its own army.
 4. **Board** — turns proceed player by player, each running a Movement
-   phase (click a unit, then a highlighted reachable hex) followed by a
-   Combat phase. In the Combat phase: click friendly units to build an
+   phase (click a unit, then a highlighted reachable hex — ships instead
+   move one hex at a time; see "Naval movement and combat" below) followed
+   by a Combat phase. In the Combat phase: click friendly units to build an
    attacking group (blue highlight), click eligible enemy units to add them
    as targets (amber = eligible but not yet chosen, red = chosen), then
    click **"Resolve attack"** to roll the combined combat. When a result forces a retreat, the owning player picks the
