@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { reachableNavalHexes, reachableNavalStates, findRammingContacts } from './navalMovement';
 import { createInitialState } from './turnManager';
 import { DIRECTIONS } from './hex';
+import { MAP_TERRAIN, hexKey as mapHexKey } from '../data/map';
+import { TERRAIN_EFFECTS } from '../data/terrain';
 import type { GameState, Unit } from './state';
 
 // (28,6) has every hex within 3 hexes as open sea on the shipped map — a
@@ -74,6 +76,39 @@ describe('reachableNavalStates / reachableNavalHexes', () => {
     };
     const reachable = reachableNavalHexes(makeState([ship]), ship);
     expect(reachable.has(`${forwardTwo.q},${forwardTwo.r}`)).toBe(false);
+  });
+
+  // plan.md §17.3: manual step-by-step naval movement (BoardScene.ts) relies
+  // on a single `navalMove` fired at exactly the bow-adjacent hex resolving
+  // to a plain forward step at unchanged facing — i.e. that no rotate-detour
+  // through the general (hex, facing) Dijkstra graph is ever cheaper than
+  // entering that hex straight off the bow. Confirmed here before any UI
+  // change assumed it: since every rotation costs 1 point and reaching the
+  // same hex from a different facing requires going around it (itself at
+  // least 1 extra hex of travel plus rotation), the direct entry is always
+  // weakly cheapest. Checked both at sea (moveCost 1) and for a galley
+  // entering wide river from the coast (moveCost 3), so the assertion isn't
+  // vacuously true only because every naval moveCost near CENTER happens to
+  // be 1.
+  it('the bow-adjacent hex is always reached at plain terrain cost with facing unchanged (plan.md §17.3)', () => {
+    const ship = makeUnit({ typeId: 'biremes', position: CENTER, facing: 0, movementLeft: 4 });
+    const forwardOne = { q: CENTER.q + DIRECTIONS[0]!.q, r: CENTER.r + DIRECTIONS[0]!.r };
+    const terrain = MAP_TERRAIN.get(mapHexKey(forwardOne.q, forwardOne.r))!;
+    const reachable = reachableNavalHexes(makeState([ship]), ship);
+    const entry = reachable.get(`${forwardOne.q},${forwardOne.r}`);
+    expect(entry).toEqual({ cost: TERRAIN_EFFECTS[terrain].moveCost, facing: ship.facing });
+
+    // Coast hex (22,5) faces wide river at (21,5) (direction index 3,
+    // moveCost 3) on the shipped map — only a galley may enter it.
+    const coastHex = { q: 22, r: 5 };
+    const wideRiverHex = { q: 21, r: 5 };
+    expect(MAP_TERRAIN.get(mapHexKey(coastHex.q, coastHex.r))).toBe('coast');
+    expect(MAP_TERRAIN.get(mapHexKey(wideRiverHex.q, wideRiverHex.r))).toBe('river-wide');
+    const galley = makeUnit({ typeId: 'galeres', position: coastHex, facing: 3, movementLeft: 5 });
+    const galleyReachable = reachableNavalHexes(makeState([galley]), galley);
+    const galleyEntry = galleyReachable.get(`${wideRiverHex.q},${wideRiverHex.r}`);
+    expect(galleyEntry).toEqual({ cost: TERRAIN_EFFECTS['river-wide'].moveCost, facing: galley.facing });
+    expect(galleyEntry!.cost).toBe(3);
   });
 });
 
