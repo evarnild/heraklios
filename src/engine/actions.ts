@@ -46,16 +46,21 @@ import { unitType, currentAttack, currentDefense, type GameState, type Unit } fr
  * separate yes/no prompt to actually declare the ram" — the prompt's "no"
  * branch is simply not choosing to play the `ram` action next.
  *
- * `navalMove`'s optional `facing` pins the ending facing the caller actually
- * wants at `to`, distinct from leaving it unset to mean "whichever facing is
- * cheapest / lands on a contact, I don't care." `BoardScene`'s human
- * forward-step click always passes the ship's CURRENT facing (see
- * `handleNavalMoveClick`) so that clicking the one hex directly ahead of the
- * bow can never be silently reinterpreted as turning onto a ramming contact
- * that happens to share that hex at a different facing (plan.md §17 review,
- * HIGH-1) — see `applyAction`'s `navalMove` case for how the field is
- * consumed. `legalActions` never sets it: the AI/fuzz-harness action surface
- * is unaffected.
+ * `navalMove`'s optional `facing` disambiguates WHICH ramming contact at `to`
+ * the caller means, distinct from leaving it unset to mean "whichever
+ * contact is cheapest, I don't care." It is NOT a general ending-facing pin:
+ * the plain-move fallback (no contact matches) still takes its facing from
+ * `reachableNavalHexes`/`reachableNavalStates`, ignoring `action.facing`
+ * entirely. `BoardScene`'s human forward-step click always passes the ship's
+ * CURRENT facing (see `handleNavalMoveClick`) so that clicking the one hex
+ * directly ahead of the bow can never be silently reinterpreted as turning
+ * onto a ramming contact that happens to share that hex at a different
+ * facing (plan.md §17 review, HIGH-1) — that click is also the only caller,
+ * and it only ever targets the bow-adjacent hex, where direct entry is
+ * provably the cheapest route (plan.md §17.3), so the fallback's facing and
+ * the pinned facing always agree in practice. See `applyAction`'s
+ * `navalMove` case for how the field is consumed. `legalActions` never sets
+ * it: the AI/fuzz-harness action surface is unaffected.
  */
 export type Action =
   | { kind: 'endPhase' }

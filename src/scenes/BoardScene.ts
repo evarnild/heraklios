@@ -1355,16 +1355,26 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
 
     const forwardHex = hexAdd(ship.position, DIRECTIONS[ship.facing]!);
     const forwardKey = hexKey(forwardHex);
+    // The forward click only ever resolves a same-facing contact (see
+    // `handleNavalMoveClick`'s facing-pinned match, plan.md §17 review,
+    // HIGH-1) — so the solid "this click rams" highlight has to agree with
+    // that, not with "any contact lives at this hex regardless of facing."
+    // A contact at the forward hex but a DIFFERENT facing still needs a turn
+    // first, so it's treated like any other distant hint below rather than
+    // claiming the click itself is a ram approach (plan.md §17 review,
+    // MEDIUM-1).
+    const forwardIsContact = this.navalContacts.some(
+      (c) => hexKey(c.hex) === forwardKey && c.facing === ship.facing,
+    );
     const groups: { hexes: HexCoord[]; color: number; alpha: number }[] = [];
     if (reachable.has(forwardKey)) {
-      const forwardIsContact = contactHexKeys.has(forwardKey);
       groups.push({
         hexes: [forwardHex],
         color: forwardIsContact ? 0xff6a2a : 0x4aa6ff,
         alpha: forwardIsContact ? 0.45 : 0.35,
       });
     }
-    const distantContactHexes = Array.from(contactHexKeys).filter((k) => k !== forwardKey);
+    const distantContactHexes = Array.from(contactHexKeys).filter((k) => k !== forwardKey || !forwardIsContact);
     if (distantContactHexes.length > 0) {
       groups.push({ hexes: distantContactHexes.map(parseKey), color: 0xff6a2a, alpha: 0.18 });
     }
