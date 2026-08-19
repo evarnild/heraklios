@@ -681,10 +681,11 @@ here rather than silently:
   ship there by a costlier sequence of turns/moves than the cheapest one
   (deliberately, or by taking a detour along the way), less movement is left
   on arrival, and the bonus actually available at that contact is smaller
-  than what the hint displayed. This wasn't possible under the old
-  destination-click model — every move took the cheapest route by
-  construction — so it's a real, new (if minor) wrinkle of step-by-step
-  movement rather than a leftover of the old one.
+  than what the cheapest-route hint implied. Step-by-step movement makes
+  this easier to hit than the old destination-click model did, where only a
+  deliberate rotate-then-click could waste movement this way — but the hint
+  itself is a highlight only, carrying no bonus figure, so the number a
+  player actually sees, at the ram prompt, is always the true one.
 - **Non-galley ships forced into the coastal fringe/wide rivers** ("removed
   from the game" per the rulebook) has no code path today, since nothing in
   this implementation forces a ship's position outside its own chosen
