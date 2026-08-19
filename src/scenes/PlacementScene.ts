@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { MapView } from '../ui/MapView';
+import { MapView, drawFacingArrowhead } from '../ui/MapView';
+import { PLAYER_COLORS_HEX } from '../ui/hexRender';
 import { legalDeploymentHexes, legalNavalDeploymentHexes } from '../ui/mapBounds';
 import { session, buildPlayers, resetToMenu } from '../ui/session';
 import { skipAiPlacementSeats } from '../ui/aiSetup';
@@ -73,6 +74,10 @@ export class PlacementScene extends Phaser.Scene {
   private pendingShip: { hex: HexCoord; typeId: string; facing: number } | null = null;
   private rotateCCWBtn!: Phaser.GameObjects.Text;
   private rotateCWBtn!: Phaser.GameObjects.Text;
+  /** Post-turn-facing arrowhead icons beside the Turn buttons — same
+   * plan.md §17.2 rework as BoardScene's, see its `refreshTurnGlyphs`. */
+  private turnCcwGlyph!: Phaser.GameObjects.Graphics;
+  private turnCwGlyph!: Phaser.GameObjects.Graphics;
   private confirmShipBtn!: Phaser.GameObjects.Text;
   private cancelShipBtn!: Phaser.GameObjects.Text;
 
@@ -184,8 +189,12 @@ export class PlacementScene extends Phaser.Scene {
     this.redoBtn.on('pointerdown', () => this.redo());
 
     // --- Ship-facing controls (hidden except while a ship is pending) ---
+    // Plain "Turn" labels (plan.md §17.2, same rework as BoardScene's Turn
+    // buttons — see `refreshTurnGlyphs`): the old static ⟲/⟳ glyphs are
+    // replaced by `turnCcwGlyph`/`turnCwGlyph`, arrowhead icons showing the
+    // facing each button will actually turn the pending ship to.
     this.rotateCCWBtn = this.add
-      .text(width / 2 - 90, height - 104, '⟲ Turn', {
+      .text(width / 2 - 90, height - 104, 'Turn', {
         fontSize: '13px',
         color: '#fff',
         backgroundColor: '#3a3a55',
@@ -198,7 +207,7 @@ export class PlacementScene extends Phaser.Scene {
     this.rotateCCWBtn.on('pointerdown', () => this.rotatePendingShip(-1));
 
     this.rotateCWBtn = this.add
-      .text(width / 2 + 90, height - 104, 'Turn ⟳', {
+      .text(width / 2 + 90, height - 104, 'Turn', {
         fontSize: '13px',
         color: '#fff',
         backgroundColor: '#3a3a55',
@@ -209,6 +218,11 @@ export class PlacementScene extends Phaser.Scene {
       .setDepth(30)
       .setInteractive({ useHandCursor: true });
     this.rotateCWBtn.on('pointerdown', () => this.rotatePendingShip(1));
+
+    // Depth 31: one above the buttons (30), so the arrowhead icons draw on
+    // top of the button backgrounds they sit beside.
+    this.turnCcwGlyph = this.add.graphics().setScrollFactor(0).setDepth(31);
+    this.turnCwGlyph = this.add.graphics().setScrollFactor(0).setDepth(31);
 
     this.confirmShipBtn = this.add
       .text(width / 2, height - 104, 'Confirm facing', {
@@ -254,6 +268,8 @@ export class PlacementScene extends Phaser.Scene {
       this.redoBtn,
       this.rotateCCWBtn,
       this.rotateCWBtn,
+      this.turnCcwGlyph,
+      this.turnCwGlyph,
       this.confirmShipBtn,
       this.cancelShipBtn,
     ]);
@@ -447,12 +463,28 @@ export class PlacementScene extends Phaser.Scene {
     this.rotateCWBtn.setVisible(pending);
     this.confirmShipBtn.setVisible(pending);
     this.cancelShipBtn.setVisible(pending);
+    this.refreshTurnGlyphs();
+  }
+
+  /** Draws (or, with no ship pending, clears) the Turn buttons'
+   * post-turn-facing arrowhead icons — same plan.md §17.2 rework as
+   * BoardScene's `refreshTurnGlyphs`, reusing `drawFacingArrowhead`. */
+  private refreshTurnGlyphs(): void {
+    this.turnCcwGlyph.clear();
+    this.turnCwGlyph.clear();
+    const pending = this.pendingShip;
+    if (!pending) return;
+    const { width, height } = this.scale;
+    const colorHex = PLAYER_COLORS_HEX[this.playerIndex] ?? '#ffffff';
+    drawFacingArrowhead(this.turnCcwGlyph, { x: width / 2 - 120, y: height - 104 }, (pending.facing + 5) % 6, colorHex, 0.4);
+    drawFacingArrowhead(this.turnCwGlyph, { x: width / 2 + 120, y: height - 104 }, (pending.facing + 1) % 6, colorHex, 0.4);
   }
 
   private rotatePendingShip(direction: 1 | -1): void {
     if (!this.pendingShip) return;
     this.pendingShip.facing = (this.pendingShip.facing + direction + 6) % 6;
     this.mapView.setFacingIndicators(this.shipArrowList());
+    this.refreshTurnGlyphs();
   }
 
   private confirmPendingShip(): void {
