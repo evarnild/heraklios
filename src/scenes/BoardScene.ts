@@ -1371,9 +1371,14 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.mapView.highlightHexGroups(groups);
 
     const alreadyRammed = this.rammedThisTurn.has(ship.id);
-    this.rotateCCWBtn.setVisible(!alreadyRammed);
-    this.rotateCWBtn.setVisible(!alreadyRammed);
-    this.refreshTurnGlyphs(ship, !alreadyRammed);
+    // A turn costs 1 movement point (`rotateSelectedShip`) and is rejected
+    // (logged, not applied) below that — so below 1 MP, showing the button
+    // and its live post-turn-facing arrow would advertise a rotation the
+    // next click can't actually perform. Gate both on `movementLeft >= 1`.
+    const canRotate = !alreadyRammed && ship.movementLeft >= 1;
+    this.rotateCCWBtn.setVisible(canRotate);
+    this.rotateCWBtn.setVisible(canRotate);
+    this.refreshTurnGlyphs(ship, canRotate);
     const immediateContact = this.navalContacts.find((c) => c.cost === 0);
     this.ramNowBtn.setVisible(!alreadyRammed && !!immediateContact);
   }
