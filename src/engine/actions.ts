@@ -45,11 +45,22 @@ import { unitType, currentAttack, currentDefense, type GameState, type Unit } fr
  * mirrors `BoardScene`'s original two-step "move into contact, then a
  * separate yes/no prompt to actually declare the ram" — the prompt's "no"
  * branch is simply not choosing to play the `ram` action next.
+ *
+ * `navalMove`'s optional `facing` pins the ending facing the caller actually
+ * wants at `to`, distinct from leaving it unset to mean "whichever facing is
+ * cheapest / lands on a contact, I don't care." `BoardScene`'s human
+ * forward-step click always passes the ship's CURRENT facing (see
+ * `handleNavalMoveClick`) so that clicking the one hex directly ahead of the
+ * bow can never be silently reinterpreted as turning onto a ramming contact
+ * that happens to share that hex at a different facing (plan.md §17 review,
+ * HIGH-1) — see `applyAction`'s `navalMove` case for how the field is
+ * consumed. `legalActions` never sets it: the AI/fuzz-harness action surface
+ * is unaffected.
  */
 export type Action =
   | { kind: 'endPhase' }
   | { kind: 'landMove'; unitId: string; to: HexCoord }
-  | { kind: 'navalMove'; unitId: string; to: HexCoord }
+  | { kind: 'navalMove'; unitId: string; to: HexCoord; facing?: number }
   | { kind: 'navalRotate'; unitId: string; direction: 1 | -1 }
   | { kind: 'ram'; unitId: string }
   | { kind: 'landAttack'; attackerIds: string[]; defenderIds: string[] }
@@ -179,7 +190,7 @@ export function applyAction(
 ): LandMoveResult;
 export function applyAction(
   state: GameState,
-  action: { kind: 'navalMove'; unitId: string; to: HexCoord },
+  action: { kind: 'navalMove'; unitId: string; to: HexCoord; facing?: number },
   rng?: () => number,
 ): NavalMoveResult;
 export function applyAction(
@@ -246,12 +257,23 @@ export function applyAction(
     case 'navalMove': {
       const unit = requireLivingUnit(state, action.unitId);
       const key = hexKey(action.to);
-      // A contact hex always takes priority over a plain move to the same
-      // hex — it's the more specific (facing-exact) option, so ending the
-      // move there always uses the contact's bow-on facing rather than
-      // whatever `reachableNavalHexes` would otherwise pick.
+      // A contact hex takes priority over a plain move to the same hex —
+      // it's the more specific (facing-exact) option, so ending the move
+      // there uses the contact's bow-on facing rather than whatever
+      // `reachableNavalHexes` would otherwise pick — UNLESS the caller
+      // pinned a specific ending `facing` that doesn't match the contact's:
+      // `BoardScene`'s human forward-step click always pins the ship's
+      // CURRENT facing (see `handleNavalMoveClick`), so clicking the single
+      // bow-adjacent hex must resolve to a plain forward step at unchanged
+      // facing even when that hex ALSO carries a contact at some other
+      // facing, rather than silently turning the ship onto it and
+      // overcharging movement (plan.md §17 review, HIGH-1). `legalActions`
+      // never sets `facing`, so its enumeration — and every AI/fuzz-harness
+      // caller built on it — keeps today's "cheapest contact wins" behavior
+      // unchanged.
       const contact = findRammingContacts(state, unit)
         .filter((c) => hexKey(c.hex) === key)
+        .filter((c) => action.facing === undefined || action.facing === c.facing)
         .sort((a, b) => a.cost - b.cost)[0];
       if (contact) {
         unit.movementLeft -= contact.cost;

@@ -1436,33 +1436,41 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * other hex `reachableNavalHexes`/`navalContacts` might still enumerate
    * (a multi-leg destination, or a distant ramming contact shown only as a
    * hint — see `refreshNavalMovementControls`) is a no-op: the player has to
-   * walk the ship there leg by leg instead (plan.md §17.4). If the one
-   * clickable hex is ALSO a ramming contact (see `navalContacts`), that
-   * takes priority over a plain move to it, since it's the more specific
-   * (facing-exact) option — ending the move there always offers the ramming
-   * prompt rather than silently sailing past. */
+   * walk the ship there leg by leg instead (plan.md §17.4).
+   *
+   * The fired `navalMove` always pins `facing: ship.facing` — the ship's
+   * CURRENT facing, i.e. "enter this hex without turning." Without that pin,
+   * `applyAction` would prefer a ramming-contact match at that hex over a
+   * plain terrain-cost entry even when the contact sits at a DIFFERENT
+   * facing than the ship's current one, silently rotating the ship and
+   * overcharging movement on what the player clicked as a plain forward step
+   * (plan.md §17 review, HIGH-1). Only when the bow-adjacent hex carries a
+   * contact at THIS ship's current facing (no turn required) is the click
+   * itself a ramming approach — that's the one case `navalContacts` and
+   * `applyAction`'s pinned-facing contact match agree on, so the ram prompt
+   * fires. A contact requiring a different facing has to be walked to
+   * deliberately: turn first (so the forward hex and the contact's facing
+   * line up), then click forward again. */
   private handleNavalMoveClick(hex: HexCoord): void {
     const ship = this.selected!;
     const state = this.state();
     const forwardHex = hexAdd(ship.position, DIRECTIONS[ship.facing]!);
     if (hex.q !== forwardHex.q || hex.r !== forwardHex.r) return;
     const contact = this.navalContacts
-      .filter((c) => c.hex.q === hex.q && c.hex.r === hex.r)
+      .filter((c) => c.hex.q === hex.q && c.hex.r === hex.r && c.facing === ship.facing)
       .sort((a, b) => a.cost - b.cost)[0];
+    const action: Action = { kind: 'navalMove', unitId: ship.id, to: hex, facing: ship.facing };
     if (contact) {
       this.recordAction(`Move ${unitType(ship).name} into contact`);
-      const action: Action = { kind: 'navalMove', unitId: ship.id, to: hex };
       applyAction(state, action);
       this.reportAction(action);
       this.renderAllUnits();
       this.promptRam(ship, contact.target, contact.bonus);
       return;
     }
-    const key = `${hex.q},${hex.r}`;
-    const dest = reachableNavalHexes(state, ship).get(key);
+    const dest = reachableNavalHexes(state, ship).get(hexKey(hex));
     if (!dest) return;
     this.recordAction(`Move ${unitType(ship).name}`);
-    const action: Action = { kind: 'navalMove', unitId: ship.id, to: hex };
     applyAction(state, action);
     this.reportAction(action);
     this.renderAllUnits();
