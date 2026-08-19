@@ -106,13 +106,30 @@ defect: a forward click could silently auto-rotate the ship onto a
 differently-faced ramming contact and overcharge movement — see
 [§17.6](plan-history.md#176-outcome) for the outcome and the review
 findings).
-**In flight:** nothing. Queue is empty of self-contained items.
+**In flight:** [§20](#20-live-defect-a-unit-that-starts-its-move-already-inside-an-enemy-zoc-cant-move-at-all)
+— live defect, fixed and green in the working tree, not yet committed or
+reviewed.
 **Carried over from merges, manual browser pass still owed:** Stage 4's
 ([§6.12](plan-history.md#612-stage-4-outcome)), §16's, and now §17's naval
 movement controls too — Chrome automation was unavailable in the sessions
 that shipped §16 and §17, so both have been verified by `tsc`/`vitest`/
 `build` and code review only, not by eye.
-**Live defects still open:** none.
+**Also carried over from §17: 4 unfixed LOW doc-staleness findings.** §17's
+second review round (post-merge) found `README.md:456-457`,
+`src/scenes/BoardScene.ts:1344`, `README.md:461` (contradicts `README.md:687`),
+and `src/scenes/BoardScene.ts:1338-1339` all still describe pre-`cfe5e75`
+click/highlight behavior. Verified still present in `main` as of this note
+(2026-08-20) — doc-only, no code-behavior risk, small enough to sweep in one
+commit whenever someone's next in that file. See
+[§17.6](plan-history.md#176-outcome)'s correction note for the exact wording
+each one needs.
+**Live defects still open:** none. [§20](#20-live-defect-a-unit-that-starts-its-move-already-inside-an-enemy-zoc-cant-move-at-all) —
+a unit that starts its move already inside an enemy ZOC couldn't move at
+all, not even to hexes free of any enemy ZOC — was reported by the user
+2026-08-20, confirmed by direct reproduction, and fixed in the working tree
+before this snapshot was written (`tsc -b` clean, `vitest run` 496/496).
+**Not yet committed or reviewed** as of this note — see §20 for the
+diagnosis and the chosen interpretation of "same ZOC."
 
 <a id="10-sequenced-queue"></a>
 
@@ -147,7 +164,10 @@ sync when something merges** — it went stale once and the user caught it.
 
 ### In flight
 
-Nothing. Queue is empty of self-contained items.
+[§20](#20-live-defect-a-unit-that-starts-its-move-already-inside-an-enemy-zoc-cant-move-at-all)
+— live defect: a unit starting its move already inside an enemy ZOC
+couldn't move at all. Diagnosed, fixed, and tested in the working tree
+(`tsc -b` clean, `vitest run` 496/496); **not yet committed or reviewed.**
 
 ### Queued
 
@@ -162,18 +182,23 @@ for their postmortems.
 ## Backlog Map
 
 - **Start here:** [Current Queue](#10-sequenced-queue).
-- **Current next task:** #5,
+- **Current next task:** get [§20](#20-live-defect-a-unit-that-starts-its-move-already-inside-an-enemy-zoc-cant-move-at-all)
+  committed and through adversarial review — it's implemented and green but
+  unreviewed, so it isn't done yet by this project's own standard. #5,
   [§19](#19-the-lookahead-tier-is-blind-to-ramming-and-that-now-costs-measurably-more)
-  — the lookahead AI tier's blindness to ramming threats. Engine-only, not
-  urgent; [§19.3](#193-options-in-preference-order) option 3 (re-measure at
-  160 seeds) is the cheap first step before deciding whether to fix it for
-  real.
-- **Live defects:** none. [§18](plan-history.md#18-live-defect-ramming-bonus-narrows-the-table-instead-of-extending-it)
-  was the last one and is shipped.
+  — the lookahead AI tier's blindness to ramming threats — is next after
+  that. Engine-only, not urgent; [§19.3](#193-options-in-preference-order)
+  option 3 (re-measure at 160 seeds) is the cheap first step before deciding
+  whether to fix it for real.
+- **Live defects:** none confirmed-and-open. [§20](#20-live-defect-a-unit-that-starts-its-move-already-inside-an-enemy-zoc-cant-move-at-all)
+  is fixed pending commit/review (see In flight, above);
+  [§18](plan-history.md#18-live-defect-ramming-bonus-narrows-the-table-instead-of-extending-it)
+  was the previous one and is shipped.
 - **Owed:** a manual browser pass over §16's per-hex choice labels, §17's
   naval movement controls, and Stage 4's still-outstanding one
   ([§6.12](plan-history.md#612-stage-4-outcome)) — next person with a
-  working browser session should give all three a look.
+  working browser session should give all three a look. Also owed: §17's 4
+  LOW doc-staleness findings noted in Current Snapshot above.
 
 ## History Map
 
@@ -547,3 +572,115 @@ Engine-only: `heuristicAgent.ts`, `heuristicSoak.test.ts`,
 here must come with a targeted, mutation-verified test — the aggregate soak
 is too noisy to be the evidence, which is the standing lesson from
 plan-history.md §6.14.
+
+---
+
+## 20. Live defect: a unit that starts its move already inside an enemy ZOC can't move at all
+
+**Status: fixed in the working tree, not yet committed or reviewed** — see
+[§20.5](#205-outcome). Reported by the user 2026-08-20 with a concrete
+board position; confirmed by direct reproduction against the real map data
+(not just read from the code) before being recorded here.
+
+### 20.1 The report
+
+An elephant at `(6,3)` with enemies at `(5,3)`, `(5,4)` and `(5,5)`, 4
+movement points, could not move to any hex at all — including `(7,2)` and
+`(7,3)`, which the user expected to be legal since neither sits in any
+enemy unit's ZOC.
+
+### 20.2 What the rulebook says
+
+`docs/research/02-rules-transcription.md:99-102`:
+
+> A unit that starts a movement phase already inside an enemy ZOC may not
+> move directly to a different hex still within that same ZOC — it must
+> first exit the ZOC entirely, then may re-enter (and immediately stop
+> again) elsewhere.
+
+The French original (`docs/research/05-rules-french-original.md:136-138`)
+agrees. Read plainly, this forbids exactly one thing: sliding from one
+ZOC-covered hex straight to another ZOC-covered hex without a hex of daylight
+between them. It does **not** forbid moving to a hex outside all enemy ZOC
+coverage — reaching such a hex *is* "exiting the ZOC entirely," which the
+rule explicitly allows as the first leg of a longer move.
+
+### 20.3 What the code actually does
+
+`reachableHexes` in `src/engine/movement.ts:50-110` computes `startedInZoc`
+(line 67) and then, inside the BFS loop:
+
+```ts
+// A unit that began its move inside an enemy ZOC may not shuffle to
+// another hex still within that same ZOC without first leaving it.
+if (currentKey === startKey && startedInZoc) continue;
+```
+
+This `continue` fires on the very first iteration (`current === unit.position`)
+and skips the entire neighbor-expansion loop for that iteration — so the
+BFS frontier is emptied without ever visiting a single neighbor. The
+comment describes the correct rule ("may not shuffle to another hex still
+within that same ZOC"), but the code doesn't implement that rule — it
+implements "may not move to *any* hex, full stop," which is strictly more
+restrictive than what's written above.
+
+### 20.4 Reproduction
+
+Verified directly against the shipped map and `hexesUnderZoc`/`reachableHexes`
+(scratch test, not committed):
+
+```
+(6,3) terrain=plain   (5,3) terrain=plain   (5,4) terrain=plain
+(5,5) terrain=plain   (7,2) terrain=steep-flank   (7,3) terrain=plain
+zoc contains (6,3)? true
+zoc contains (7,2)? false
+zoc contains (7,3)? false
+reachable: []
+```
+
+`(6,3)` is confirmed under enemy ZOC (adjacent to both `(5,3)` and `(5,4)`,
+per `DIRECTIONS` in `hex.ts`); `(7,2)`/`(7,3)` are confirmed clear of it;
+`reachableHexes` returns an **empty** map regardless — the elephant is
+completely immobilized, matching the user's report exactly. `(5,5)` is not
+actually adjacent to `(6,3)` (hex distance 2), so it isn't a factor —
+`(5,3)` and `(5,4)` alone already put the elephant in ZOC.
+
+### 20.5 Outcome
+
+**Fixed in the working tree** (`src/engine/movement.ts`,
+`src/engine/movement.test.ts`) while this section was still being written —
+by a concurrent session working the same checkout, not by the session that
+diagnosed and drafted §20.1-20.4 above. Left in place as-is rather than
+rewritten, per this file's own archiving rule about describing what
+actually happened.
+
+The shipped fix reads "that same ZOC" more narrowly than §20.2's plain-text
+gloss: not "any enemy ZOC coverage" but **the specific set of enemy units
+projecting ZOC onto the start hex.** `enemyZocProjectorsForHex` returns the
+ids of every non-naval enemy unit adjacent to a given hex (river-blocked
+adjacency excluded, matching `hexesUnderZoc`'s own rule); `reachableHexes`
+computes this set once for the unit's start hex, and its per-neighbor loop
+blocks a direct first step only into a hex that shares **any** projector
+with the start hex — not into every ZOC hex in general. A hex covered by a
+*different* enemy's ZOC (no projector overlap with the start hex) is a
+legal direct first step under this reading. This is a real interpretation
+choice beyond §20.2's literal text (which doesn't disambiguate "same ZOC"
+between "the same projecting unit(s)" and "ZOC coverage in general") and is
+recorded as a code comment at the change site, per this project's
+ambiguous-rule convention. `straightLineMoveCost` (the charge-cost helper)
+got the equivalent fix, closing the analogous gap [§20.3](#203-what-the-code-actually-does)
+flagged as unchecked for that path; naval movement's separate code path in
+`navalMovement.ts` was not touched and wasn't found to have the same bug
+shape (naval ZOC is presently not modeled at all, so the question doesn't
+arise there).
+
+Two new `movement.test.ts` cases (`reachableHexes — starting in enemy ZOC`)
+cover: the reported elephant scenario (exits to `(7,2)`/`(7,3)` directly,
+reaches `(6,4)` only via that two-step detour, still can't reach `(6,2)`
+directly) and a minimal single-enemy case proving the direct-shuffle-within-
+the-same-ZOC prohibition still holds. `tsc -b` and `vitest run` both clean,
+496/496 tests passing (up from 494).
+
+**Not yet done:** commit and adversarial review — this project's standing
+process ([§1](#1-agent-workflow)) calls for a review pass on every rule
+change before it's considered done, and none has happened yet for this one.

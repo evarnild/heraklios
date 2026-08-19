@@ -3457,3 +3457,33 @@ contact on the forward hex → plain step, no prompt (the blended
 blue/orange paint in that case is untested); Turn-button glyph directions
 and positions in both `BoardScene` and `PlacementScene`; buttons vanishing
 at 0 movement points.
+
+**Correction (2026-08-20), written by the session that ran the actual
+Round 2 review agent:** the "2 LOW findings" tally above undercounts what
+that agent reported. Its real output was 4 LOW findings, all doc-comment
+staleness introduced by the very fixes described above (the `cfe5e75`
+highlight fix and the `8ee285a` README fix), and as of this note **none of
+the four have been fixed**:
+
+1. `README.md:456-457` still says "clicking one of those distant hexes
+   directly is a no-op" — false since `cfe5e75`: a differently-faced
+   contact on the forward hex is now clickable and resolves as a plain
+   forward step, not a no-op.
+2. `src/scenes/BoardScene.ts:1344`'s doc comment still says
+   "`handleNavalMoveClick` rejects a click on any of these [distant
+   hints]" — same staleness as #1, for the same reason.
+3. `README.md:461` ("a hint's displayed bonus is computed from the
+   cheapest route...") contradicts `README.md:687` ("the hint itself is a
+   highlight only, carrying no bonus figure") — `8ee285a` corrected 687 but
+   left 461 saying the opposite.
+4. `src/scenes/BoardScene.ts:1338-1339`'s doc comment says the forward hex
+   is highlighted "orange if it's ALSO a ramming contact" without
+   specifying "at the ship's current facing," which has been the actual
+   condition since `cfe5e75`.
+
+The "mechanically fixed... one-line documentation nit" bullet above refers
+to a *different*, earlier finding (labelled LOW-A, fixed as `8ee285a`) that
+predates and is distinct from all four of these — it was not double-counted,
+it just isn't part of this list. All four are tracked as an owed follow-up
+in `plan.md`'s Current Snapshot rather than re-opening this already-merged
+section.
