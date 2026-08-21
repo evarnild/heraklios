@@ -186,13 +186,81 @@ describe('elephant drift engine', () => {
     const agent = new ScriptedAgent();
     const combatDie = dieForResult(elephant, defender, 'DR');
     const dice = [1, combatDie];
+    const positionsAtPause: HexCoord[] = [];
 
-    await resolveElephantDrift(state, elephant, 4, agent, () => dice.shift()!);
+    await resolveElephantDrift(state, elephant, 4, agent, () => dice.shift()!, {
+      onStep: () => {
+        positionsAtPause.push({ ...elephant.position });
+      },
+    });
 
     expect(agent.retreatCalls.map((u) => u.id)).toEqual(['defender']);
     expect(defender.destroyed).toBe(false);
     expect(defender.position).not.toEqual({ q: 11, r: 5 });
     expect(elephant.position).toEqual({ q: 14, r: 5 });
+
+    // Regression (review-3): `continueAfterVacated` — the resumption point
+    // after the trampled defender's retreat clears {11,5} — used to `continue`
+    // the outer loop instead of returning, so its freshly-pushed continuation
+    // frame (already carrying a resolved `direction`) would advance a FURTHER
+    // hex in the very same `driftStep` call, before any pause ever showed the
+    // elephant sitting at {11,5}. Collapse consecutive duplicate pause
+    // positions and assert {11,5} shows up as its own distinct step, ahead of
+    // {12,5} — not skipped over.
+    const distinctInOrder: HexCoord[] = [];
+    for (const pos of positionsAtPause) {
+      const last = distinctInOrder[distinctInOrder.length - 1];
+      if (!last || last.q !== pos.q || last.r !== pos.r) distinctInOrder.push(pos);
+    }
+    expect(distinctInOrder).toEqual([
+      { q: 10, r: 5 },
+      { q: 11, r: 5 },
+      { q: 12, r: 5 },
+      { q: 13, r: 5 },
+      { q: 14, r: 5 },
+    ]);
+  });
+
+  // Regression (review-3): the `DE` combat result (defender eliminated, the
+  // elephant enters the now-empty hex) mutated `elephant.position` and pushed
+  // its continuation frame, then `break`-ed into the SAME `driftStep` call's
+  // free-run loop — which, since that continuation frame already carries a
+  // resolved `direction`, immediately advanced a FURTHER hex before ever
+  // returning. Same bug class as the CRITICAL free-run fix and the DR case
+  // above; mirrors the CRITICAL regression test's shape but for a `DE` result,
+  // which nothing in this file exercised before.
+  it('does not advance past the hex it just entered on a DE combat result before the next pause', async () => {
+    const elephant = makeUnit('elephant', 0, 'elephants', CENTER);
+    const defender = makeUnit('defender', 1, 'fantassins', { q: 11, r: 5 });
+    const state = makeState([elephant, defender]);
+    const combatDie = dieForResult(elephant, defender, 'DE');
+    const dice = [1, combatDie];
+    const positionsAtPause: HexCoord[] = [];
+
+    await resolveElephantDrift(state, elephant, 3, new ScriptedAgent(), () => dice.shift()!, {
+      onStep: () => {
+        positionsAtPause.push({ ...elephant.position });
+      },
+    });
+
+    expect(elephant.destroyed).toBe(false);
+    expect(defender.destroyed).toBe(true);
+    expect(elephant.position).toEqual({ q: 13, r: 5 });
+
+    const distinctInOrder: HexCoord[] = [];
+    for (const pos of positionsAtPause) {
+      const last = distinctInOrder[distinctInOrder.length - 1];
+      if (!last || last.q !== pos.q || last.r !== pos.r) distinctInOrder.push(pos);
+    }
+    // Before the fix, this list would jump straight from {10,5} to {12,5} (or
+    // further) — skipping over {11,5}, the hex the elephant just entered by
+    // eliminating the defender, entirely.
+    expect(distinctInOrder).toEqual([
+      { q: 10, r: 5 },
+      { q: 11, r: 5 },
+      { q: 12, r: 5 },
+      { q: 13, r: 5 },
+    ]);
   });
 
   it('resolves a nested trampled elephant before the original elephant continues', async () => {

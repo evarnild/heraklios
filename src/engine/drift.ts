@@ -295,7 +295,16 @@ export function driftStep(game: GameState, drift: ElephantDriftState, input?: Dr
             announceStart: false,
           });
           events.push({ kind: 'enteredVacatedHex', elephant, hex: awaiting.hex });
-          break;
+          // Review-3 finding: this used to `break` out of the switch and
+          // fall through into the `while (!next.awaiting)` loop below
+          // WITHIN THE SAME CALL — which, since the continuation frame just
+          // pushed above already has `direction` populated, would skip
+          // straight past the direction-roll pause point and immediately
+          // advance a further hex before this call ever returned. Same bug
+          // class, same fix, as the CRITICAL free-run loop: return here so
+          // the elephant is only ever reported as far as the hex it just
+          // entered until the NEXT `driftStep` call.
+          return { state: next, events, done: false };
         case 'DR': {
           const remainingAfterEnter = awaiting.remainingSteps - 1;
           const trampledElephant = outcome.pendingDrifts.find((u) => u.id === occupant.id);
@@ -336,32 +345,40 @@ export function driftStep(game: GameState, drift: ElephantDriftState, input?: Dr
 
     if (frame.kind === 'continueAfterVacated') {
       const elephant = requireDriftUnit(game, frame.elephantId);
-      if (!elephant.destroyed) {
-        elephant.position = frame.hex;
-        events.push({ kind: 'enteredVacatedHex', elephant, hex: frame.hex });
-        // Review-2 LOW note 1: this is the resumption point for an elephant
-        // whose drift was paused mid-hex by trampling a defender (DR) — and,
-        // when that defender was ITSELF an elephant, the intervening frame is
-        // that trampled elephant's own full nested `startElephantDrift` run,
-        // which may have fired its own `onDirectionRolled` calls (possibly
-        // several, on an AR repel) for a different unit and direction. Without
-        // re-affirming this elephant's direction here, a presentation layer's
-        // arrow would still be pointing wherever the nested elephant's drift
-        // last left it, even though play has returned to resuming THIS
-        // elephant in ITS original direction. `directionResumed` carries no
-        // die roll (nothing was rolled — this is a resumption, not a new
-        // direction) but still reports the (elephant, direction) pair so
-        // `onDirectionRolled` can re-derive the arrow.
-        events.push({ kind: 'directionResumed', elephant, direction: frame.direction });
-        next.frames.push({
-          kind: 'drift',
-          elephantId: frame.elephantId,
-          remainingSteps: frame.remainingSteps,
-          direction: frame.direction,
-          announceStart: false,
-        });
-      }
-      continue;
+      if (elephant.destroyed) continue;
+
+      elephant.position = frame.hex;
+      events.push({ kind: 'enteredVacatedHex', elephant, hex: frame.hex });
+      // Review-2 LOW note 1: this is the resumption point for an elephant
+      // whose drift was paused mid-hex by trampling a defender (DR) — and,
+      // when that defender was ITSELF an elephant, the intervening frame is
+      // that trampled elephant's own full nested `startElephantDrift` run,
+      // which may have fired its own `onDirectionRolled` calls (possibly
+      // several, on an AR repel) for a different unit and direction. Without
+      // re-affirming this elephant's direction here, a presentation layer's
+      // arrow would still be pointing wherever the nested elephant's drift
+      // last left it, even though play has returned to resuming THIS
+      // elephant in ITS original direction. `directionResumed` carries no
+      // die roll (nothing was rolled — this is a resumption, not a new
+      // direction) but still reports the (elephant, direction) pair so
+      // `onDirectionRolled` can re-derive the arrow.
+      events.push({ kind: 'directionResumed', elephant, direction: frame.direction });
+      next.frames.push({
+        kind: 'drift',
+        elephantId: frame.elephantId,
+        remainingSteps: frame.remainingSteps,
+        direction: frame.direction,
+        announceStart: false,
+      });
+      // Review-3 finding: this used to `continue` the outer `while
+      // (!next.awaiting)` loop, which would immediately pop the
+      // continuation frame just pushed above (already carrying a resolved
+      // `direction`) and advance it a further hex WITHIN THE SAME CALL —
+      // same bug class as the CRITICAL free-run loop and the `DE` combat
+      // result above. Return here so the elephant is only ever reported as
+      // far as the vacated hex it just entered until the NEXT `driftStep`
+      // call.
+      return { state: next, events, done: false };
     }
 
     const elephant = requireDriftUnit(game, frame.elephantId);
