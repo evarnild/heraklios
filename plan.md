@@ -116,7 +116,15 @@ and gives drift-trample combats the same full combat report, and
 — naval movement range indicator + click-to-autopath** (merged `b02a96c`,
 1 MEDIUM review finding fixed), which adds a remaining-movement-points badge
 and a click-to-autopath option on every reachable hex alongside §17's manual
-single-step click, without touching or reopening it.
+single-step click, without touching or reopening it, and
+**[§21](plan-history.md#21-elephant-drift-pause-between-steps-and-show-the-drift-direction-on-the-map)
+— elephant drift pause + direction arrow** (merged `1d6666f`, four rounds of
+adversarial review, all chasing the same underlying "fall through instead
+of returning" bug class out of `engine/drift.ts`'s frame-stack state
+machine — see [§21.4](plan-history.md#214-outcome) for the full round-by-round
+record), which pauses a human seat's own drift cascade step by step behind
+a "Continue" affordance while staying a byte-identical no-op for headless/
+AI-vs-AI play.
 **In flight:** nothing. Queue is empty of self-contained items.
 **Carried over from merges, manual browser pass still owed:** Stage 4's
 ([§6.12](plan-history.md#612-stage-4-outcome)), §16's, and now §17's naval
@@ -168,6 +176,7 @@ sync when something merges** — it went stale once and the user caught it.
 | [§20](plan-history.md#20-live-defect-a-unit-that-starts-its-move-already-inside-an-enemy-zoc-cant-move-at-all) enemy-ZOC exit fix | `9d7b38a` |
 | [§23](plan-history.md#23-live-defect-elephant-drift-hides-the-combat-report) elephant drift combat-log fix | see [§23.4](plan-history.md#234-outcome) |
 | [§22](plan-history.md#22-naval-movement-show-remaining-range-and-let-a-distant-hex-auto-path-there-alongside-manual-stepping) naval range indicator + click-to-autopath (+1 MEDIUM review finding fixed) | `b02a96c` |
+| [§21](plan-history.md#21-elephant-drift-pause-between-steps-and-show-the-drift-direction-on-the-map) elephant drift pause + direction arrow (4 review rounds; see [§21.4](plan-history.md#214-outcome)) | `1d6666f` |
 
 ### In flight
 
@@ -182,7 +191,6 @@ for their postmortems.
 | # | Item | Touches | Notes |
 | --- | --- | --- | --- |
 | 5 | [§19](#19-the-lookahead-tier-is-blind-to-ramming-and-that-now-costs-measurably-more) lookahead tier is blind to ramming | `heuristicAgent.ts` + its tests | Engine-only AI tuning, surfaced and measured by §18. Not urgent and not proven — [§19.3](#193-options-in-preference-order) option 3 (re-measure at 160 seeds) is the cheap first step. |
-| 6 | [§21](#21-elephant-drift-pause-between-steps-and-show-the-drift-direction-on-the-map) pause + visualize elephant drift | `BoardScene.ts` (`beginDrift`), `engine/drift.ts`, `MapView.ts` | Presentation-only. Must stay a no-op for headless play (fuzz harness/soak/AI-vs-AI) — see [§21.2](#212-design-questions). |
 | 8 | [§24](#24-turn-status-should-name-the-side-and-unit-color) turn status side + color | `BoardScene.ts` (`refreshStatus`), `ui/hexRender.ts` | Presentation-only. The turn banner should keep the army name but also show the seat edge (`E`/`W`/`N`/`S`) and the visible unit color so hotseat players can identify whose turn it is at a glance. |
 
 ## Backlog Map
@@ -196,10 +204,6 @@ for their postmortems.
   real.
 - **Live defects:** none confirmed-and-open. [§23](plan-history.md#23-live-defect-elephant-drift-hides-the-combat-report)
   was the latest one and is shipped.
-- **Also queued:** #6, [§21](#21-elephant-drift-pause-between-steps-and-show-the-drift-direction-on-the-map)
-  — pause between elephant-drift steps and show the drift direction on the
-  map. Presentation-only; requested by the user directly (2026-08-21), not
-  surfaced by review or a live defect.
 - **Also queued:** #8, [§24](#24-turn-status-should-name-the-side-and-unit-color)
   — show the active player's map side and unit color in the turn/status
   banner, in addition to the army name. Requested by the user directly
@@ -207,11 +211,11 @@ for their postmortems.
   `BoardScene.refreshStatus` plus a shared color-name source for the existing
   player palette.
 - **Owed:** a manual browser pass over §16's per-hex choice labels, §17's
-  naval movement controls, §22's range indicator/click-to-autopath, and
-  Stage 4's still-outstanding one ([§6.12](plan-history.md#612-stage-4-outcome))
-  — next person with a working browser session should give all four a look.
-  Also owed: §17's 4 LOW doc-staleness findings noted in Current Snapshot
-  above.
+  naval movement controls, §22's range indicator/click-to-autopath, §21's
+  drift pause/direction arrow, and Stage 4's still-outstanding one
+  ([§6.12](plan-history.md#612-stage-4-outcome)) — next person with a
+  working browser session should give all five a look. Also owed: §17's 4
+  LOW doc-staleness findings noted in Current Snapshot above.
 
 ## History Map
 
@@ -258,7 +262,13 @@ This map is just a fast index into it:
   [§22](plan-history.md#22-naval-movement-show-remaining-range-and-let-a-distant-hex-auto-path-there-alongside-manual-stepping)
   (naval range indicator + click-to-autopath, shipped `b02a96c` — read
   [§22.6](plan-history.md#226-outcome) for the review round that moved the
-  click-guard logic out of `BoardScene.ts` and into testable engine code).
+  click-guard logic out of `BoardScene.ts` and into testable engine code),
+  and [§21](plan-history.md#21-elephant-drift-pause-between-steps-and-show-the-drift-direction-on-the-map)
+  (elephant drift pause + direction arrow, shipped `1d6666f` — read
+  [§21.4](plan-history.md#214-outcome) for all four review rounds; the same
+  "fall through instead of returning" bug recurred three times before a
+  self-audit plus an independent from-scratch mutation-site enumeration
+  finally closed it out).
 
 > **Line citations were re-verified against `main` on 2026-08-07** (at
 > `3b15577`), after ~440 lines of drift in `BoardScene.ts` had rotted most of
@@ -594,65 +604,6 @@ Engine-only: `heuristicAgent.ts`, `heuristicSoak.test.ts`,
 here must come with a targeted, mutation-verified test — the aggregate soak
 is too noisy to be the evidence, which is the standing lesson from
 plan-history.md §6.14.
-
----
-
-## 21. Elephant drift: pause between steps and show the drift direction on the map
-
-**Status: queued, not started.** Requested directly by the user
-(2026-08-21). Presentation-only — no rules change.
-
-### 21.1 The problem
-
-`BoardScene.beginDrift` (`BoardScene.ts:160`) drives `resolveElephantDrift`
-(`engine/drift.ts`) as a synchronous pump: a drift that tramples through
-several hexes, or cascades into a nested re-drift or a trampled unit's own
-drift (plan-history.md §6.7's `AR`/`DE`/`DR` cases), resolves start-to-finish
-in one call before the board re-renders. The player sees only the elephant's
-final hex and a wall of narration text appended via `logDriftLine`
-(`BoardScene.ts:1247`) — not the path it took or which direction it drifted
-at each step. There is currently no visual indicator of drift direction on
-the map at all.
-
-### 21.2 Design questions
-
-1. **What "pause" means.** Likely a per-step wait for explicit player
-   input (click / key / a "Next" affordance) rather than a fixed timer —
-   consistent with how retreat/advance choices already block on the
-   player. Needs a decision on the exact UI (e.g. reuse the existing choice
-   dialog affordance vs. a lighter "continue" prompt).
-2. **Must not regress headless/AI play.** `resolveElephantDrift` is called
-   from the same code path during AI-vs-AI turns and is the exact function
-   the fuzz harness and heuristic soak drive directly
-   (`fuzzHarness.ts`, `drift.test.ts`) — those must keep resolving a drift
-   in one synchronous call with zero pauses. The pause/visualization is a
-   `BoardScene` (human-seat presentation) concern only; it must not leak
-   into `engine/drift.ts`'s pure step function or slow down soak runs.
-   Likely means gating the pause on whether the drifting elephant's owning
-   seat (or the observing seat) is human, the same way other
-   presentation-only choices already key off seat type.
-3. **How to visualize direction.** Needs a per-step marker on the map (e.g.
-   an arrow or highlighted hex-edge showing the rolled drift direction)
-   drawn in `MapView.ts` before each step's move/trample resolves, then
-   cleared or advanced on the next step. Should reuse whatever hex-highlight
-   primitives `MapView.ts` already has (see §13's hex tooltip work for
-   precedent) rather than introducing a new rendering path.
-4. **Log interaction.** `logDriftLine` currently appends all of a drift's
-   narration as one block after the fact. Pausing per step means the log
-   should append (and the player should see) each step's line as that step
-   happens, not all at once at the end.
-
-### 21.3 Scope
-
-Presentation-only: `BoardScene.ts` (`beginDrift` and the drift queue
-draining around it), `MapView.ts` (direction marker rendering). No engine
-rule change — `engine/drift.ts`'s `driftStep`/`resolveElephantDrift` pure
-step function should not need to change shape, only how `BoardScene` calls
-it (step-by-step with a pause, instead of pumping to completion). Verify by
-hand in a browser (see [§4](#4-runbook-detailed-launch-hazards-appendix)'s
-port-pinning note) since this is inherently a visual/UX change; `tsc`/
-`vitest` can confirm the soak and fuzz harness still see zero pauses but
-cannot confirm the pause/visualization itself looks right.
 
 ---
 

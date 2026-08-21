@@ -3788,3 +3788,116 @@ Two review rounds:
 **A manual browser pass is still owed**, joining the existing list — this
 is inherently visual/interaction code no automated check can confirm looks
 or feels right.
+
+---
+
+## 21. Elephant drift: pause between steps and show the drift direction on the map
+
+**Status: queued, not started.** Requested directly by the user
+(2026-08-21). Presentation-only — no rules change.
+
+### 21.1 The problem
+
+`BoardScene.beginDrift` (`BoardScene.ts:160`) drives `resolveElephantDrift`
+(`engine/drift.ts`) as a synchronous pump: a drift that tramples through
+several hexes, or cascades into a nested re-drift or a trampled unit's own
+drift (§6.7's `AR`/`DE`/`DR` cases), resolves start-to-finish
+in one call before the board re-renders. The player sees only the elephant's
+final hex and a wall of narration text appended via `logDriftLine`
+(`BoardScene.ts:1247`) — not the path it took or which direction it drifted
+at each step. There is currently no visual indicator of drift direction on
+the map at all.
+
+### 21.2 Design questions
+
+1. **What "pause" means.** Likely a per-step wait for explicit player
+   input (click / key / a "Next" affordance) rather than a fixed timer —
+   consistent with how retreat/advance choices already block on the
+   player. Needs a decision on the exact UI (e.g. reuse the existing choice
+   dialog affordance vs. a lighter "continue" prompt).
+2. **Must not regress headless/AI play.** `resolveElephantDrift` is called
+   from the same code path during AI-vs-AI turns and is the exact function
+   the fuzz harness and heuristic soak drive directly
+   (`fuzzHarness.ts`, `drift.test.ts`) — those must keep resolving a drift
+   in one synchronous call with zero pauses. The pause/visualization is a
+   `BoardScene` (human-seat presentation) concern only; it must not leak
+   into `engine/drift.ts`'s pure step function or slow down soak runs.
+   Likely means gating the pause on whether the drifting elephant's owning
+   seat (or the observing seat) is human, the same way other
+   presentation-only choices already key off seat type.
+3. **How to visualize direction.** Needs a per-step marker on the map (e.g.
+   an arrow or highlighted hex-edge showing the rolled drift direction)
+   drawn in `MapView.ts` before each step's move/trample resolves, then
+   cleared or advanced on the next step. Should reuse whatever hex-highlight
+   primitives `MapView.ts` already has (see §13's hex tooltip work for
+   precedent) rather than introducing a new rendering path.
+4. **Log interaction.** `logDriftLine` currently appends all of a drift's
+   narration as one block after the fact. Pausing per step means the log
+   should append (and the player should see) each step's line as that step
+   happens, not all at once at the end.
+
+### 21.3 Scope
+
+Presentation-only: `BoardScene.ts` (`beginDrift` and the drift queue
+draining around it), `MapView.ts` (direction marker rendering). No engine
+rule change — `engine/drift.ts`'s `driftStep`/`resolveElephantDrift` pure
+step function should not need to change shape, only how `BoardScene` calls
+it (step-by-step with a pause, instead of pumping to completion). Verify by
+hand in a browser (see [§4](plan.md#4-runbook-detailed-launch-hazards-appendix)'s
+port-pinning note) since this is inherently a visual/UX change; `tsc`/
+`vitest` can confirm the soak and fuzz harness still see zero pauses but
+cannot confirm the pause/visualization itself looks right.
+
+### 21.4 Outcome
+
+**Shipped, merged `1d6666f`.** A human seat's own turn now pauses on every
+drift-cascade event (direction roll, each hex entered, each trample, a
+nested re-drift) behind a "▶ Continue" affordance (button, bare map click,
+Space, or Enter), with an arrowhead on the elephant's current hex showing
+the direction it just rolled — reusing `drawFacingArrowhead`, the same
+primitive naval facing uses. A fully computer-played turn never pauses,
+resolving the whole cascade at the same speed as everything else the
+computer does — `engine/drift.ts`'s `driftStep` gained an optional
+`onStep` hook, awaited only when present, so every existing headless caller
+(fuzz harness, soak tests, AI-vs-AI turns) sees byte-identical events/stats
+with zero added delay.
+
+**This took four rounds of adversarial review, all chasing the same
+underlying bug class**, and is worth reading in full before touching
+`driftStep` again:
+
+- **Round 1: FAIL (CRITICAL).** `driftStep`'s free-run loop batched an
+  entire uncontested multi-hex drift into one call before ever returning —
+  so a paced elephant was already at its final hex by the first pause,
+  defeating the feature's entire purpose. None of the first pass's 4 tests
+  checked an *intermediate* pause position, only before-any-pause and
+  after-all-pauses.
+- **Round 2: FAIL (CRITICAL, new).** The plain free-run fix was correct, but
+  the same bug survived in two more resumption paths (`DE` combat result,
+  `continueAfterVacated` resume after a trample) that fell through into the
+  shared loop instead of returning.
+- **Round 3: FAIL (CRITICAL, new again).** Fixing those two surfaced a
+  systematic sweep request; it found two *more* surviving instances (`AE`/
+  `EX` combat result, `eliminatedLeavingLandZone`), both only reachable when
+  the currently-resolving elephant is itself a nested trampled unit beneath
+  an outer `continueAfterVacated` frame.
+- **Round 4: PASS.** The implementer's own self-audit (requested after
+  round 3) found and fixed a *third* new instance (the `stopped` branch)
+  before the reviewer ever saw it, then produced a full enumeration of
+  every `elephant.position`/`elephant.destroyed` mutation site. The
+  reviewer did not trust that table — it re-derived the same enumeration
+  from scratch by grepping every mutation site directly (there are exactly
+  4, all now followed by an explicit `return`) and independently
+  reproduced the two trickiest "safe by construction" fall-through cases
+  with its own scenarios rather than the implementer's cited examples.
+
+`tsc --noEmit` and `vitest run` (512/512) clean on `main` post-merge.
+**Merge conflict note:** this branch was forked from `main` before
+[§23](#23-live-defect-elephant-drift-hides-the-combat-report)'s live-defect
+fix (full combat report on drift-trample combats via `formatCombatOutcome`)
+merged — both touched `BoardScene.beginDrift`'s `onCombat` hook. Resolved by
+keeping §23's `onCombat` body from `main` and adding only this branch's
+`onStep` hook alongside it; the two changes are independent (pacing vs.
+report content) and compose cleanly. A manual browser pass is still owed,
+joining the existing list — inherently visual/UX code no automated check
+can confirm looks or feels right.
