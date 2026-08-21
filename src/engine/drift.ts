@@ -371,35 +371,54 @@ export function driftStep(game: GameState, drift: ElephantDriftState, input?: Dr
       return { state: next, events, done: false };
     }
 
-    let remaining = frame.remainingSteps;
-    while (!elephant.destroyed && remaining > 0) {
-      const nextHex = hexAdd(elephant.position, frame.direction);
+    // Plan.md §21 (review-2 CRITICAL fix): advance exactly ONE hex per
+    // `driftStep` call here, not the whole uncontested free run. This used
+    // to be a `while (!elephant.destroyed && remaining > 0)` loop that
+    // mutated `elephant.position` and pushed a `moved` event for every empty
+    // hex in the run before ever returning — so a multi-hex uncontested
+    // drift was already sitting at its FINAL hex by the time the very first
+    // pause/hook fired for it, making per-step pausing and the direction
+    // arrow lie about where the elephant actually was. Now every single hex
+    // step (whether reached fresh off a direction roll or resumed here after
+    // a prior single-hex step) pushes its own one-step continuation frame
+    // (`remainingSteps - 1`, same `direction`, `announceStart: false`) and
+    // returns immediately — the same frame-stack-resumption pattern already
+    // used for `continueAfterVacated` and post-combat continuation above.
+    // `frame.remainingSteps > 0` and `!elephant.destroyed` are already
+    // guaranteed true here by the checks earlier in this loop body, so
+    // there's no need for a loop condition at all: this always runs once.
+    const nextHex = hexAdd(elephant.position, frame.direction);
 
-      if (!canElephantEnterHex(nextHex)) {
-        elephant.destroyed = true;
-        events.push({ kind: 'eliminatedLeavingLandZone', elephant, hex: nextHex });
-        break;
-      }
+    if (!canElephantEnterHex(nextHex)) {
+      elephant.destroyed = true;
+      events.push({ kind: 'eliminatedLeavingLandZone', elephant, hex: nextHex });
+      continue;
+    }
 
-      const occupant = unitAt(game, nextHex);
-      if (!occupant) {
-        elephant.position = nextHex;
-        remaining -= 1;
-        events.push({ kind: 'moved', elephant, hex: nextHex });
-        continue;
-      }
-
-      next.awaiting = {
-        kind: 'combatRoll',
+    const occupant = unitAt(game, nextHex);
+    if (!occupant) {
+      elephant.position = nextHex;
+      events.push({ kind: 'moved', elephant, hex: nextHex });
+      next.frames.push({
+        kind: 'drift',
         elephantId: frame.elephantId,
-        occupantId: occupant.id,
-        hex: nextHex,
+        remainingSteps: frame.remainingSteps - 1,
         direction: frame.direction,
-        remainingSteps: remaining,
-      };
-      events.push({ kind: 'combatRollNeeded', elephant, occupant, hex: nextHex });
+        announceStart: false,
+      });
       return { state: next, events, done: false };
     }
+
+    next.awaiting = {
+      kind: 'combatRoll',
+      elephantId: frame.elephantId,
+      occupantId: occupant.id,
+      hex: nextHex,
+      direction: frame.direction,
+      remainingSteps: frame.remainingSteps,
+    };
+    events.push({ kind: 'combatRollNeeded', elephant, occupant, hex: nextHex });
+    return { state: next, events, done: false };
   }
 
   return { state: next, events, done: false };
@@ -491,7 +510,18 @@ export async function resolveElephantDrift(
     if (result.done) return;
 
     const request = needsInput(result.events);
-    if (!request) throw new Error('driftStep paused without requesting input');
+    if (!request) {
+      // Plan.md §21 (review-2 CRITICAL fix): `driftStep` can now legitimately
+      // pause with `done: false` and no direction/combat/retreat request at
+      // all — that's the new single-hex "moved" (or an elimination) step
+      // returning on its own, needing nothing from this driver but to be
+      // resumed. The per-event `onStep` await above already gave a
+      // presentation layer its pacing pause for every event in
+      // `result.events`, including this one, so there's nothing left to do
+      // here except call `driftStep` again with no input.
+      input = undefined;
+      continue;
+    }
 
     switch (request.kind) {
       case 'directionRollNeeded':

@@ -151,7 +151,15 @@ describe('elephant drift engine', () => {
 
     pumpStep(state, undefined, events);
     pumpStep(state, { kind: 'directionRoll', dieRoll: 1 }, events);
-    const result = pumpStep(state, { kind: 'directionRoll', dieRoll: 2 }, events);
+    // Since the review-2 CRITICAL fix, `driftStep` returns after moving into
+    // this single hex — it does not also resolve "movement exhausted" in the
+    // same call — so completing this one-step drift takes one more `pumpStep`
+    // with no input than it used to.
+    const movedResult = pumpStep(state, { kind: 'directionRoll', dieRoll: 2 }, events);
+    expect(movedResult.done).toBe(false);
+    expect(elephant.position).toEqual({ q: 11, r: 4 });
+
+    const result = pumpStep(state, undefined, events);
 
     expect(result.done).toBe(true);
     expect(events.some((event) => event.kind === 'directionForbidden')).toBe(true);
