@@ -69,7 +69,15 @@ npm run build   # production build
    a new direction with whatever movement it has left, and it's eliminated
    outright if the drift would carry it out of the land zone — off the map,
    into the sea, or into a marsh, which elephants may never enter at all.
-   When a
+   When it's a human seat's own turn (or that seat is watching an opponent's
+   attack play out on their own board), each of those steps — the direction
+   roll, every hex entered, every trample combat, a nested re-drift if a
+   trampled unit is itself an elephant — pauses on an arrowhead drawn on the
+   elephant's current hex pointing the way it just rolled (the same marker
+   naval facing uses), with a **"▶ Continue"** button (also a bare map click,
+   Space, or Enter) to advance to the next step; a fully computer-played turn
+   never pauses this way, resolving the whole cascade at the same speed as
+   everything else the computer does. When a
    **defender** retreats, or is eliminated outright (DE/EX), the attacking
    side is then offered the chance to advance a unit *adjacent to* that hex
    into it (see

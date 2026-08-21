@@ -46,6 +46,23 @@ export function facingToward(from: HexCoord, to: HexCoord): number | undefined {
   return index === -1 ? undefined : index;
 }
 
+/**
+ * The facing index (0-5, same numbering as `directionForDie`/`DIRECTIONS`)
+ * for one of the six unit direction vectors itself, rather than for a pair of
+ * hexes — used to draw an elephant's drift-direction arrow (plan.md §21) from
+ * the `direction: HexCoord` a `DriftEvent` already carries, with
+ * `drawFacingArrowhead` (`ui/MapView.ts`), the same primitive naval facing
+ * indicators use. Throws on a non-direction vector rather than returning
+ * `undefined` like `facingToward` does for "not adjacent" — every direction
+ * this is ever called with comes from `directionForDie`, so a mismatch here
+ * would be a programming error, not a legitimate "no answer" case.
+ */
+export function facingForDirection(direction: HexCoord): number {
+  const index = DIRECTIONS.findIndex((d) => hexEquals(d, direction));
+  if (index === -1) throw new Error(`facingForDirection: ${JSON.stringify(direction)} is not one of DIRECTIONS`);
+  return index;
+}
+
 export function hexKey(hex: HexCoord): string {
   return `${hex.q},${hex.r}`;
 }
