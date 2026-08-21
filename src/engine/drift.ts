@@ -144,10 +144,17 @@ export interface DriftHooks extends RetreatHooks {
    *   - every existing headless caller (the fuzz harness, `drift.test.ts`,
    *     `heuristicSoak.test.ts`, and AI-vs-AI turns in `BoardScene`, none of
    *     which supply this hook) sees IDENTICAL event sequences and timing to
-   *     before this hook existed — `hooks.onStep?.()` is `undefined` and the
-   *     `if (hooks.onStep)` guard below skips the `await` entirely rather
-   *     than merely awaiting `undefined`, so not even an extra microtask tick
-   *     is added.
+   *     before this hook existed — `drift.test.ts`'s "resolves within the
+   *     same task when no onStep hook is supplied" test proves no
+   *     *macrotask* delay is added, and the "identical event trace and
+   *     stats" test proves the output is unchanged either way. The
+   *     `if (hooks.onStep)` guard below (rather than an unconditional
+   *     `await hooks.onStep?.()`) is written on the reasoning that `await`ing
+   *     a plain `undefined` still costs a *microtask* tick per the language
+   *     spec, where skipping the `await` statement entirely costs nothing —
+   *     but that finer-grained claim isn't itself pinned by a test here (it
+   *     would need to distinguish microtask-tick counts between the two
+   *     forms specifically, which no test in this file currently does).
    *   - only a human-seat-facing caller (`BoardScene`, when the seat
    *     currently free to interact with the board is human — see
    *     `BoardScene.beginDrift`'s comment on why it gates this on
