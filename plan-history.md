@@ -3642,3 +3642,149 @@ machine behavior changed.
 `npm.cmd run build` passed on the branch before merge. No browser pass was
 run in this session, so the verification is compile/build coverage plus code
 inspection of the log flow.
+
+---
+
+## 22. Naval movement: show remaining range, and let a distant hex auto-path there, alongside manual stepping
+
+**Status: queued, not started.** Requested by the user directly
+(2026-08-21): show visually how far a ship can go with its remaining
+movement points, and allow clicking any hex in that range to move there —
+resolved to a coexistence design after discussion (see below), not a full
+revert.
+
+### 22.1 The request and its tension with §17
+
+Read this before touching `BoardScene.ts`'s naval movement code — the
+request as first stated ("show the full range, click any hex in it to get
+there") is, almost word for word, the **pre-§17 destination-click model**:
+click the ship, every reachable hex lights up, click one, the engine
+silently solves whatever rotation/movement combination is cheapest to get
+there. [§17](plan-history.md#17-manual-step-by-step-naval-movement) replaced
+exactly that model, at the user's own prior request (2026-08-15), because
+the destination-click model hid the rotate/move interleaving from the
+player — the shipped replacement is manual, single-step: Turn buttons
+rotate 60° one click at a time, and only the single hex directly ahead of
+the bow is highlighted/clickable, built leg by leg. Two design alternatives
+that would have kept some of the old convenience — full-path-preview, and
+picking among alternate routes to one hex — were explicitly **rejected** at
+the time for that reason (plan-history.md §17.2).
+
+**Confirmed with the user (2026-08-21): coexistence, not a revert.** §17's
+manual single-step forward click stays exactly as it is, unchanged. This
+task *adds*, alongside it: (a) a visible indicator on every hex in the
+ship's full remaining-movement range showing how many movement points would
+be left if the ship ended its move there, and (b) the ability to click any
+of those hexes (not just the immediate forward one) to move there directly
+in one atomic action — restoring the old auto-solved-path convenience as an
+*option*, not the only way to move.
+
+### 22.2 What's already there, engine-side (no change expected)
+
+`reachableNavalHexes` (`engine/navalMovement.ts:103`), built from
+`reachableNavalStates`'s full `(hex, facing)` Dijkstra graph (`:57`), already
+computes the cheapest `{cost, facing}` to reach *every* hex the ship can get
+to this turn — this is the exact data source the pre-§17 destination-click
+UI used, and it is still computed today: `refreshNavalMovementControls`
+(`BoardScene.ts:1349`) calls it every refresh, just narrows the *display and
+interaction* down to the single bow-adjacent hex (`BoardScene.ts:1370-1376`).
+So both new pieces of this feature should be readable directly off data
+that already exists — no `GameState` or `applyAction` change expected,
+consistent with §17.3's finding that this whole feature area is UI-only.
+
+### 22.3 What needs to change in `BoardScene.ts` / `MapView.ts`
+
+1. **Remaining-movement-points indicator.** For every hex in `reachable`
+   (the full `reachableNavalHexes` map, not just the forward one), show
+   `ship.movementLeft - cost` as a small numeric label. Needs a new
+   `MapView` primitive — a per-hex text-label layer, cleared and redrawn on
+   every `refreshNavalMovementControls` call, the same lifecycle already
+   used for `highlightHexGroups` and (per [§21](plan.md#21-elephant-drift-pause-between-steps-and-show-the-drift-direction-on-the-map))
+   `driftArrowGraphics`.
+2. **Highlight the full range**, visually distinct from the existing
+   forward-hex highlight — the player needs to tell "the one manual-step
+   hex, unchanged" apart from "any of these, new auto-path click" at a
+   glance. A third color/alpha alongside the existing blue-forward /
+   orange-contact scheme (`refreshNavalMovementControls`,
+   `BoardScene.ts:1369-1381`) is the natural fit.
+3. **Widen `handleNavalMoveClick`'s guard.** It currently early-returns for
+   anything but the forward hex (`BoardScene.ts:1473`:
+   `if (hex.q !== forwardHex.q || hex.r !== forwardHex.r) return;`). For a
+   hex beyond the forward one, fire `navalMove` with `to: hex, facing:
+   dest.facing` — the cheapest route's own ending facing from
+   `reachableNavalHexes`, i.e. let the engine resolve rotation freely for
+   *that* click, same as pre-§17. **Do not touch the forward-hex click's
+   existing behavior** — it must keep pinning `facing: ship.facing`
+   (`BoardScene.ts:1477`), which is precisely the fix for §17 review's
+   HIGH-1 defect (a forward click silently auto-rotating onto a
+   differently-faced ramming contact). The two clicks are allowed to resolve
+   facing differently on purpose: "the one immediate hex, no-turn" vs. "some
+   other hex, however the engine gets there."
+
+### 22.4 Design decision — distant ramming-contact hexes stay non-clickable hints
+
+**Settled with the user (2026-08-21): keep §17.4's non-clickable-hint
+treatment as-is, unchanged by this feature.**
+[§17.4](#174-open-design-question-distant-ramming-contacts)
+deliberately decided that distant ramming contacts stay non-clickable dim
+hints, specifically to prevent "click straight to a ram, auto-solving the
+whole approach" — the exact shortcut §17 existed to remove for ramming. This
+task's click-any-hex affordance applies only to plain reachable hexes;
+every hex `findRammingContacts` reports keeps its existing behavior exactly
+as it is today (solid-orange forward-hex-only ram click, dim non-clickable
+hint everywhere else) — **not** touched or reopened by this feature.
+
+### 22.5 Scope
+
+Presentation-only: `BoardScene.ts` (`refreshNavalMovementControls`,
+`handleNavalMoveClick`), `MapView.ts` (range labels + a third highlight
+color). No `GameState`/save-format change expected. Joins the existing owed
+manual-browser-pass list (see Current Snapshot) — this is inherently a
+visual/interaction change `tsc`/`vitest` can't confirm looks or feels right.
+
+### 22.6 Outcome
+
+**Shipped, merged `b02a96c`.** Implemented as scoped: §17's forward-hex
+manual click is unchanged, every hex in `reachableNavalHexes` gets a
+`movementLeft - cost` badge (`MapView.setRangeLabels`/`clearRangeLabels`),
+non-contact reachable hexes beyond the forward one highlight teal and are
+clickable to auto-path there (`facing: dest.facing`, engine-resolved), and
+every ramming-contact hex keeps its exact pre-existing behavior per §22.4.
+No engine/`GameState` change was needed, confirming §22.2's expectation.
+
+Two review rounds:
+
+- **Round 1: PASS**, with one MEDIUM and two LOW findings. The MEDIUM —
+  the ramming-contact click-guard exclusion (`contactHexKeys.has(...)` in
+  `handleNavalMoveClick`) had zero test coverage; removing that guard line
+  entirely still left all 496 tests passing, a surviving mutant on exactly
+  the regression class this feature was built to avoid (a widened click
+  guard silently letting a click auto-path into a ram). Fixed by extracting
+  the guard's decision logic out of `BoardScene.ts` (which cannot be
+  unit-tested in this repo at all — importing it under vitest's node
+  environment throws `ReferenceError: window is not defined` from inside
+  Phaser) into two plain, Phaser-free functions in `engine/navalMovement.ts`:
+  `navalContactHexKeys` and `resolveNavalAutoPathClick`, both re-exported
+  from `engine/movement.ts` alongside the module's other naval-movement
+  functions. Both scene call sites became thin wrappers with no
+  independently-derived guard logic left to drift out of sync. Five new
+  tests, including the exact "reachable at one facing, contact at a
+  different facing" trap scenario, mutation-tested by both the implementer
+  and, independently, round 2. The two LOW notes (an overstated
+  "byte-for-byte unchanged" doc claim, and comments citing this section
+  before it was committed) were reworded/accepted as no-action-needed.
+- **Round 2: PASS**, no outstanding findings. Independently re-verified the
+  refactor genuinely removed all duplicated guard logic from `BoardScene.ts`,
+  confirmed by construction that `resolveNavalAutoPathClick` and
+  `applyAction`'s `navalMove` case cannot disagree (the auto-path resolver
+  only returns non-null for a hex with zero ramming contacts, so
+  `applyAction`'s contact-priority branch can never fire for a hex it
+  resolved), re-ran the mutation test from scratch (same two tests fail,
+  restore, green again), confirmed the "trap" test is a real trap rather
+  than a vacuous pass, and confirmed `legalActions`/the AI action surface
+  remain untouched.
+
+`tsc --noEmit` and `vitest run` (501/501) clean on `main` post-merge.
+**A manual browser pass is still owed**, joining the existing list — this
+is inherently visual/interaction code no automated check can confirm looks
+or feels right.
