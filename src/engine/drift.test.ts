@@ -159,6 +159,14 @@ describe('elephant drift engine', () => {
     expect(movedResult.done).toBe(false);
     expect(elephant.position).toEqual({ q: 11, r: 4 });
 
+    // Since the review-3 round-3 self-audit fix, the `stopped` branch also
+    // returns immediately rather than resolving "no more frames" in the same
+    // call — so this now takes one more `pumpStep` with no input than it did
+    // even after the review-2 CRITICAL fix above.
+    const stoppedResult = pumpStep(state, undefined, events);
+    expect(stoppedResult.done).toBe(false);
+    expect(elephant.position).toEqual({ q: 11, r: 4 });
+
     const result = pumpStep(state, undefined, events);
 
     expect(result.done).toBe(true);
@@ -305,6 +313,147 @@ describe('elephant drift engine', () => {
     // to `original`, not `nested` — proving the arrow hands back correctly
     // rather than being stuck on whichever elephant rolled most recently.
     expect(directionCalls[directionCalls.length - 1]!.id).toBe('original');
+  });
+
+  // Review-3 round 2. Same bug class as the DE/continueAfterVacated fixes
+  // above, but in the two places a NESTED trampled elephant's own re-drift
+  // can end (its combat or its own elimination) while an OUTER
+  // `continueAfterVacated` frame is still sitting on the stack beneath it.
+  // Both used to fall through (`break`/`continue`) into the same
+  // `driftStep` call's frame-processing loop, which would immediately pop
+  // and process that outer frame too — moving the outer elephant into its
+  // vacated hex, and pushing ITS OWN `enteredVacatedHex`/`directionResumed`
+  // events, before the call describing the NESTED elephant's fate ever
+  // returned. So the outer elephant would already be sitting at its new hex
+  // by the time its own narration/pause fired — one full `driftStep` call
+  // ahead of itself. The existing "resolves a nested trampled elephant"
+  // test above never drives the nested elephant to its own destruction (it
+  // survives and drifts to a stop), which is exactly why it couldn't catch
+  // this: these two tests reproduce it precisely, asserting call-by-call
+  // (via direct `driftStep`/`pumpStep`, not the higher-level driver) that
+  // the outer elephant is untouched by the call that resolves the nested
+  // elephant's fate, and only moves on the NEXT call.
+  describe('nested trampled elephant reaching its own destruction (review-3 round 2)', () => {
+    it('does not resume the outer elephant in the same call where its nested trampled elephant is destroyed in combat (EX)', () => {
+      const original = makeUnit('original', 0, 'elephants', CENTER);
+      const nested = makeUnit('nested', 1, 'elephants', { q: 11, r: 5 });
+      const third = makeUnit('third', 1, 'archers', { q: 12, r: 4 });
+      const state = makeState([original, nested, third]);
+      const trampleDie = dieForResult(original, nested, 'DR');
+      const exDie = dieForResult(nested, third, 'EX');
+      currentDrift = startElephantDrift(original, 4);
+      const events: DriftEvent[] = [];
+
+      pumpStep(state, undefined, events); // driftStarted(original) + directionRollNeeded(original)
+      pumpStep(state, { kind: 'directionRoll', dieRoll: 1 }, events); // directionRolled(original) + combatRollNeeded(original vs nested)
+      pumpStep(state, { kind: 'combatRoll', dieRoll: trampleDie }, events); // combatResolved(DR) + driftStarted(nested) + directionRollNeeded(nested)
+      // Die 2 -> DIRECTIONS[1] = {1,-1}, which is not `nested`'s forbidden
+      // reverse direction ({-1,0}, `original`'s own direction reversed), so
+      // this is accepted on the first roll.
+      pumpStep(state, { kind: 'directionRoll', dieRoll: 2 }, events); // directionRolled(nested) + combatRollNeeded(nested vs third)
+
+      expect(original.position).toEqual(CENTER); // sanity: untouched so far
+
+      const destroyResult = pumpStep(state, { kind: 'combatRoll', dieRoll: exDie }, events);
+
+      expect(destroyResult.done).toBe(false);
+      expect(destroyResult.events.map((e) => e.kind)).toEqual(['combatResolved', 'driftElephantDestroyed']);
+      expect(nested.destroyed).toBe(true);
+      expect(third.destroyed).toBe(true);
+      // The fix: `original` is completely untouched by this call — before
+      // it, this assertion would fail because `original.position` would
+      // already be {11,5}.
+      expect(original.position).toEqual(CENTER);
+
+      const resumeResult = pumpStep(state, undefined, events);
+      expect(resumeResult.events.map((e) => e.kind)).toEqual(['enteredVacatedHex', 'directionResumed']);
+      expect(original.position).toEqual({ q: 11, r: 5 });
+    });
+
+    it('does not resume the outer elephant in the same call where its nested trampled elephant drifts off the map', () => {
+      // (23,3) and the invalid hex one further east it drifts into on a die
+      // of 1 are the exact coordinates the existing "eliminates an elephant
+      // that drifts off-map or into sea" test above already relies on.
+      const original = makeUnit('original', 0, 'elephants', { q: 22, r: 3 });
+      const nested = makeUnit('nested', 1, 'elephants', { q: 23, r: 3 });
+      const state = makeState([original, nested]);
+      const trampleDie = dieForResult(original, nested, 'DR');
+      currentDrift = startElephantDrift(original, 4);
+      const events: DriftEvent[] = [];
+
+      pumpStep(state, undefined, events); // driftStarted(original) + directionRollNeeded(original)
+      pumpStep(state, { kind: 'directionRoll', dieRoll: 1 }, events); // directionRolled(original) + combatRollNeeded(original vs nested)
+      pumpStep(state, { kind: 'combatRoll', dieRoll: trampleDie }, events); // combatResolved(DR) + driftStarted(nested) + directionRollNeeded(nested)
+
+      expect(original.position).toEqual({ q: 22, r: 3 }); // sanity: untouched so far
+
+      // Die 1 -> DIRECTIONS[0] = {1,0}, same direction `original` rolled —
+      // not `nested`'s forbidden reverse ({-1,0}) — so accepted immediately,
+      // walking `nested` straight off the map on its first step.
+      const eliminatedResult = pumpStep(state, { kind: 'directionRoll', dieRoll: 1 }, events);
+
+      expect(eliminatedResult.done).toBe(false);
+      expect(eliminatedResult.events.map((e) => e.kind)).toEqual(['directionRolled', 'eliminatedLeavingLandZone']);
+      expect(nested.destroyed).toBe(true);
+      // The fix: `original` is completely untouched by this call — before
+      // it, this assertion would fail because `original.position` would
+      // already be {23,3}.
+      expect(original.position).toEqual({ q: 22, r: 3 });
+
+      const resumeResult = pumpStep(state, undefined, events);
+      expect(resumeResult.events.map((e) => e.kind)).toEqual(['enteredVacatedHex', 'directionResumed']);
+      expect(original.position).toEqual({ q: 23, r: 3 });
+    });
+
+    // Review-3 round-3 self-audit finding (not in the reviewer's original
+    // two — found by exhaustively enumerating every fall-through in this
+    // function, as asked). Same bug class again, but in the ONE remaining
+    // way a nested trampled elephant's own re-drift can end: neither combat
+    // nor elimination, just normally exhausting its movement and stopping.
+    // Uses the exact scenario the "resolves a nested trampled elephant"
+    // test above already exercises (`nested` survives and drifts to
+    // {15,1}) — that test only checks FINAL positions, which is exactly why
+    // it couldn't catch this: the call that pushes `nested`'s own `stopped`
+    // event used to ALSO resume `original` in the same call.
+    it('does not resume the outer elephant in the same call where its nested trampled elephant stops normally', () => {
+      const original = makeUnit('original', 0, 'elephants', CENTER);
+      const nested = makeUnit('nested', 1, 'elephants', { q: 11, r: 5 });
+      const state = makeState([original, nested]);
+      const trampleDie = dieForResult(original, nested, 'DR');
+      currentDrift = startElephantDrift(original, 4);
+      const events: DriftEvent[] = [];
+
+      pumpStep(state, undefined, events); // driftStarted(original) + directionRollNeeded(original)
+      pumpStep(state, { kind: 'directionRoll', dieRoll: 1 }, events); // directionRolled(original) + combatRollNeeded(original vs nested)
+      pumpStep(state, { kind: 'combatRoll', dieRoll: trampleDie }, events); // combatResolved(DR) + driftStarted(nested) + directionRollNeeded(nested)
+      // Die 4 -> DIRECTIONS[3] = {-1,0}, `nested`'s forbidden reverse
+      // direction (the reverse of `original`'s own {1,0}) — rejected, so
+      // this reproduces the same reroll the "re-rolls a forbidden reverse
+      // direction" test above exercises, before die 2 is accepted.
+      pumpStep(state, { kind: 'directionRoll', dieRoll: 4 }, events); // directionForbidden(nested) + directionRollNeeded(nested)
+      pumpStep(state, { kind: 'directionRoll', dieRoll: 2 }, events); // directionRolled(nested) + moved(nested to {12,4})
+      pumpStep(state, undefined, events); // moved(nested to {13,3})
+      pumpStep(state, undefined, events); // moved(nested to {14,2})
+      pumpStep(state, undefined, events); // moved(nested to {15,1}) — nested's movement exhausted after this
+
+      expect(original.position).toEqual(CENTER); // sanity: untouched so far
+      expect(nested.position).toEqual({ q: 15, r: 1 });
+
+      const stoppedResult = pumpStep(state, undefined, events);
+
+      expect(stoppedResult.done).toBe(false);
+      expect(stoppedResult.events.map((e) => e.kind)).toEqual(['stopped']);
+      expect(nested.destroyed).toBe(false);
+      // The fix: `original` is completely untouched by this call — before
+      // it, this assertion would fail because `original.position` would
+      // already be {11,5}, bundled into the SAME call as `nested`'s own
+      // `stopped` event.
+      expect(original.position).toEqual(CENTER);
+
+      const resumeResult = pumpStep(state, undefined, events);
+      expect(resumeResult.events.map((e) => e.kind)).toEqual(['enteredVacatedHex', 'directionResumed']);
+      expect(original.position).toEqual({ q: 11, r: 5 });
+    });
   });
 
   // plan.md §21 — "pause between steps and show the drift direction on the

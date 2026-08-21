@@ -275,7 +275,20 @@ export function driftStep(game: GameState, drift: ElephantDriftState, input?: Dr
         case 'AE':
         case 'EX':
           events.push({ kind: 'driftElephantDestroyed', elephant });
-          break;
+          // Review-3 round-2 finding: this used to `break` out of the switch
+          // and fall through into the `while (!next.awaiting)` loop below
+          // WITHIN THE SAME CALL. When this elephant is itself a nested
+          // trampled unit doing its own re-drift beneath an outer
+          // `continueAfterVacated` frame, that fallthrough would pop and
+          // process the OUTER frame too — mutating the outer elephant's
+          // position and pushing its `enteredVacatedHex`/`directionResumed`
+          // events — all before this call ever returned. So the outer
+          // elephant would already be sitting at its new hex by the time its
+          // own narration/pause fired, one full call ahead of itself. Same
+          // bug class, same fix, as the DE/continueAfterVacated cases:
+          // return immediately so nothing past this destruction is
+          // resolved until the NEXT `driftStep` call.
+          return { state: next, events, done: false };
         case 'AR':
           events.push({ kind: 'repelled', elephant });
           next.frames.push({
@@ -329,6 +342,31 @@ export function driftStep(game: GameState, drift: ElephantDriftState, input?: Dr
             events.push({ kind: 'retreatResolutionNeeded', unit: occupant });
             return { state: next, events, done: false };
           }
+          // Review-3 round-3 self-audit: neither `trampledElephant` nor
+          // `trampledOther` is possible when the trampled occupant had no
+          // legal retreat hex AND no push candidate — `applyLandCombatResult`
+          // (combat.ts's `forceRetreat`) destroys such a unit directly and it
+          // appears in neither `pendingDrifts` nor `pendingRetreats` (see
+          // combat.ts:957 and combat.test.ts's "(4,9) on the shipped map"
+          // terrain-boxed tests for a real, reachable example). This `break`
+          // falls through into the shared `while` loop below and immediately
+          // pops the `continueAfterVacated` frame just pushed above, in the
+          // SAME call — but that is NOT an instance of the bug fixed
+          // elsewhere in this file: `continueAfterVacated`'s own branch
+          // returns immediately after its mutation (see its comment below),
+          // so this call ends up producing exactly
+          // `[combatResolved(DR), enteredVacatedHex, directionResumed]` and
+          // stopping there — the same shape, for the same single elephant,
+          // as the `DE` case above (`[combatResolved(DE), enteredVacatedHex]`
+          // then an explicit return). There is no OTHER unit's narration
+          // interleaved (unlike the AE/EX/eliminatedLeavingLandZone nested-
+          // nested-elephant bugs fixed this round) and no second, further
+          // hex is silently entered. Verified directly: a
+          // `cavalerie-legere` trampled at (4,9) — the shipped map's
+          // documented terrain-boxed hex — produces exactly that one-call
+          // event trace, with the elephant's position update paired 1:1 with
+          // its own already-resolved combat, not hidden behind a DIFFERENT
+          // unit's pause.
           break;
         }
       }
@@ -386,7 +424,24 @@ export function driftStep(game: GameState, drift: ElephantDriftState, input?: Dr
 
     if (frame.remainingSteps <= 0) {
       events.push({ kind: 'stopped', elephant });
-      continue;
+      // Review-3 round-3 self-audit finding: this used to `continue` the
+      // outer `while (!next.awaiting)` loop, which — same bug class as the
+      // AE/EX and eliminatedLeavingLandZone fixes above — would immediately
+      // pop and process the NEXT frame on the stack within the SAME call.
+      // When this elephant is a nested trampled unit whose own re-drift
+      // finishes NORMALLY (exhausts its movement and stops, rather than
+      // being destroyed) beneath an outer `continueAfterVacated` frame,
+      // that next frame is the outer frame, and processing it here would
+      // move the outer elephant into its vacated hex (and push its own
+      // events) before this call ever returned — one full call ahead of
+      // its own narration. Verified directly (via the exact scenario the
+      // "resolves a nested trampled elephant" test below uses) that,
+      // before this fix, one call produced
+      // `[stopped(nested), enteredVacatedHex(original), directionResumed(original)]`
+      // with `original.position` already at the vacated hex. Return
+      // immediately instead, matching every other mutation-adjacent branch
+      // in this function.
+      return { state: next, events, done: false };
     }
 
     if (frame.announceStart) {
@@ -431,7 +486,18 @@ export function driftStep(game: GameState, drift: ElephantDriftState, input?: Dr
     if (!canElephantEnterHex(nextHex)) {
       elephant.destroyed = true;
       events.push({ kind: 'eliminatedLeavingLandZone', elephant, hex: nextHex });
-      continue;
+      // Review-3 round-2 finding: this used to `continue` the outer `while
+      // (!next.awaiting)` loop, which — same as the AE/EX case above — would
+      // immediately pop and process the NEXT frame on the stack within the
+      // SAME call. When this elephant is a nested trampled unit whose own
+      // re-drift walks it off the map/into the sea/marsh beneath an outer
+      // `continueAfterVacated` frame, that next frame is the outer frame,
+      // and processing it here would move the outer elephant into its
+      // vacated hex (and push its own events) before this call ever
+      // returned — one full call ahead of its own narration. Return
+      // immediately instead, matching every other mutation site in this
+      // function.
+      return { state: next, events, done: false };
     }
 
     const occupant = unitAt(game, nextHex);
