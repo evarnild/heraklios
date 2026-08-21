@@ -108,7 +108,10 @@ differently-faced ramming contact and overcharge movement — see
 findings), and **[§20](plan-history.md#20-live-defect-a-unit-that-starts-its-move-already-inside-an-enemy-zoc-cant-move-at-all)
 — the enemy-ZOC exit fix** (fixed `9d7b38a`, reviewed PASS, pushed to
 `origin/main`), which lets a unit that starts in enemy ZOC leave that
-specific ZOC instead of being frozen outright.
+specific ZOC instead of being frozen outright, and **[§23](plan-history.md#23-live-defect-elephant-drift-hides-the-combat-report)
+— the elephant drift combat-log fix**, which keeps the original attack's
+force/ratio/die/result report visible when an elephant is forced to drift
+and gives drift-trample combats the same full combat report.
 **In flight:** nothing. Queue is empty of self-contained items.
 **Carried over from merges, manual browser pass still owed:** Stage 4's
 ([§6.12](plan-history.md#612-stage-4-outcome)), §16's, and now §17's naval
@@ -124,7 +127,7 @@ click/highlight behavior. Verified still present in `main` as of this note
 commit whenever someone's next in that file. See
 [§17.6](plan-history.md#176-outcome)'s correction note for the exact wording
 each one needs.
-**Live defects still open:** none. [§20](plan-history.md#20-live-defect-a-unit-that-starts-its-move-already-inside-an-enemy-zoc-cant-move-at-all)
+**Live defects still open:** none. [§23](plan-history.md#23-live-defect-elephant-drift-hides-the-combat-report)
 was the latest live defect and is shipped.
 
 <a id="10-sequenced-queue"></a>
@@ -158,6 +161,7 @@ sync when something merges** — it went stale once and the user caught it.
 | [§18](plan-history.md#18-live-defect-ramming-bonus-narrows-the-table-instead-of-extending-it) ramming bonus extends the table (+4 review findings, +1 follow-up: [§19](#19-the-lookahead-tier-is-blind-to-ramming-and-that-now-costs-measurably-more)) | see [§18.5](plan-history.md#185-outcome) |
 | [§17](plan-history.md#17-manual-step-by-step-naval-movement) manual step-by-step naval movement (FAIL/fix/PASS; 1 HIGH + 2 MEDIUM fixed, 4 LOW doc follow-ups still owed) | `3dee4e8` |
 | [§20](plan-history.md#20-live-defect-a-unit-that-starts-its-move-already-inside-an-enemy-zoc-cant-move-at-all) enemy-ZOC exit fix | `9d7b38a` |
+| [§23](plan-history.md#23-live-defect-elephant-drift-hides-the-combat-report) elephant drift combat-log fix | see [§23.4](plan-history.md#234-outcome) |
 
 ### In flight
 
@@ -182,7 +186,7 @@ for their postmortems.
   urgent; [§19.3](#193-options-in-preference-order) option 3 (re-measure at
   160 seeds) is the cheap first step before deciding whether to fix it for
   real.
-- **Live defects:** none confirmed-and-open. [§20](plan-history.md#20-live-defect-a-unit-that-starts-its-move-already-inside-an-enemy-zoc-cant-move-at-all)
+- **Live defects:** none confirmed-and-open. [§23](plan-history.md#23-live-defect-elephant-drift-hides-the-combat-report)
   was the latest one and is shipped.
 - **Owed:** a manual browser pass over §16's per-hex choice labels, §17's
   naval movement controls, and Stage 4's still-outstanding one
@@ -229,7 +233,9 @@ This map is just a fast index into it:
   snag worth reading before the next multi-round fix cycle), and
   [§20](plan-history.md#20-live-defect-a-unit-that-starts-its-move-already-inside-an-enemy-zoc-cant-move-at-all)
   (enemy-ZOC exit fix, shipped `9d7b38a`, reviewed PASS in the coordinating
-  Codex session).
+  Codex session), and
+  [§23](plan-history.md#23-live-defect-elephant-drift-hides-the-combat-report)
+  (elephant drift combat-log fix).
 
 > **Line citations were re-verified against `main` on 2026-08-07** (at
 > `3b15577`), after ~440 lines of drift in `BoardScene.ts` had rotted most of
