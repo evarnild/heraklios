@@ -465,6 +465,24 @@ simplifications" below). A ship that declares a ram — hit or miss — commits
 the rest of its movement to the attempt and can't also board later that
 turn.
 
+Alongside that manual, one-step-at-a-time model, the selected ship's entire
+remaining range is also shown at once: every hex it could still reach this
+turn (by any combination of turning and moving forward) gets a small badge
+reading how much movement would be left if it stopped there, and every one
+of those hexes that ISN'T a ramming-contact hint (contacts keep the exact
+treatment above, unchanged) is highlighted a third color, teal, distinct
+from the forward hex's blue/orange. Clicking any of those teal hexes moves
+the ship there directly in one atomic action, by whatever facing its
+cheapest route ends on — the engine resolves the turning/moving
+interleaving for that click, the same as the old destination-click model.
+The two click kinds are deliberately not the same: the forward hex always
+enters "without turning" (pinning the ship's current facing, so it can
+never be silently spun onto a differently-faced ramming contact), while a
+distant teal hex resolves to whatever facing gets there cheapest. Distant
+ramming-contact hints stay exactly as described above either way — clicking
+one is still a no-op; the only way to reach one is to walk the ship there
+leg by leg.
+
 **Boarding** is a Combat-phase action instead, and requires the two ships
 to be adjacent with *parallel* facings (identical or exactly opposite) —
 one ship's bow pointing directly at the other is a ramming angle, not a
