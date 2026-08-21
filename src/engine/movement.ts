@@ -7,7 +7,13 @@ import { hexesUnderZoc, unitAt, terrainAt, riverBetween } from './combat';
 import { reachableNavalHexes } from './navalMovement';
 import { unitCategory, type GameState, type Unit } from './state';
 
-export { reachableNavalHexes, reachableNavalStates, findRammingContacts } from './navalMovement';
+export {
+  reachableNavalHexes,
+  reachableNavalStates,
+  findRammingContacts,
+  navalContactHexKeys,
+  resolveNavalAutoPathClick,
+} from './navalMovement';
 export type { NavalState, RammingContact } from './navalMovement';
 
 /** The `canEnterTerrain` category a unit type falls into — re-exported from

@@ -25,7 +25,14 @@ import type { PlayerAgent, ActionObserver, DrivingAgent } from '../engine/agent'
 import { createSeatAgent, isAiSeat, seatControlLabel } from '../engine/seatControl';
 import { routeBySeat } from '../engine/seatRouter';
 import { rollDie as engineRollDie } from '../engine/dice';
-import { reachableHexes, reachableNavalHexes, findRammingContacts, type RammingContact } from '../engine/movement';
+import {
+  reachableHexes,
+  reachableNavalHexes,
+  findRammingContacts,
+  navalContactHexKeys,
+  resolveNavalAutoPathClick,
+  type RammingContact,
+} from '../engine/movement';
 import {
   exchangeSacrificeForce,
   exchangeSacrificeMeetsThreshold,
@@ -1361,8 +1368,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     const state = this.state();
     const reachable = reachableNavalHexes(state, ship);
     this.navalContacts = findRammingContacts(state, ship);
-    const ownHexKey = hexKey(ship.position);
-    const contactHexKeys = new Set(this.navalContacts.map((c) => hexKey(c.hex)).filter((k) => k !== ownHexKey));
+    const contactHexKeys = navalContactHexKeys(this.navalContacts, ship.position);
 
     const forwardHex = hexAdd(ship.position, DIRECTIONS[ship.facing]!);
     const forwardKey = hexKey(forwardHex);
@@ -1494,21 +1500,23 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    *    `applyAction`'s pinned-facing contact match agree on, so the ram
    *    prompt fires. A contact requiring a different facing has to be
    *    walked to deliberately: turn first (so the forward hex and the
-   *    contact's facing line up), then click forward again. This branch's
-   *    behavior is exactly what §17 shipped — untouched by §22.
+   *    contact's facing line up), then click forward again. This branch is
+   *    a behaviorally-identical restructure of what §17 shipped (its early
+   *    return got folded into this wrapping `if`, to make room for branch 2
+   *    below) — not touched in substance by §22.
    * 2. **Any other reachable, non-contact hex** (plan.md §22.3.3) — the new
-   *    auto-path click: fires `navalMove` with `to: hex, facing:
-   *    dest.facing`, the cheapest route's own ending facing from
-   *    `reachableNavalHexes`, letting the engine resolve rotation freely for
-   *    that click (the pre-§17 destination-click model, restored as an
-   *    *option* alongside manual stepping, not instead of it). A hex
-   *    `findRammingContacts` reports is explicitly excluded from this
-   *    branch (plan.md §22.4, unchanged from §17.4) — reusing the exact
-   *    same `contactHexKeys` derivation `refreshNavalMovementControls` uses
-   *    for its dim-hint highlight, so the click guard and the highlight
-   *    never disagree about which hexes are "just a hint." Any hex neither
-   *    reachable nor a click target at all (e.g. a distant contact) is a
-   *    no-op. */
+   *    auto-path click, resolved by `resolveNavalAutoPathClick`
+   *    (`engine/navalMovement.ts`): fires `navalMove` with the cheapest
+   *    route's own ending facing, letting the engine resolve rotation
+   *    freely for that click (the pre-§17 destination-click model, restored
+   *    as an *option* alongside manual stepping, not instead of it). A hex
+   *    `findRammingContacts` reports is excluded (plan.md §22.4, unchanged
+   *    from §17.4) — `resolveNavalAutoPathClick` and
+   *    `refreshNavalMovementControls`'s dim-hint highlight both derive that
+   *    exclusion from the same `navalContactHexKeys`, so the click guard and
+   *    the highlight can never disagree about which hexes are "just a
+   *    hint." Any hex neither reachable nor a click target at all (e.g. a
+   *    distant contact) is a no-op. */
   private handleNavalMoveClick(hex: HexCoord): void {
     const ship = this.selected!;
     const state = this.state();
@@ -1536,18 +1544,14 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       return;
     }
 
-    // Auto-path click (plan.md §22.3.3): only for a plain reachable hex,
-    // never a ramming-contact hex — see `refreshNavalMovementControls`'s
-    // identical `contactHexKeys` derivation, reused here so the two never
-    // disagree.
-    const ownHexKey = hexKey(ship.position);
-    const contactHexKeys = new Set(this.navalContacts.map((c) => hexKey(c.hex)).filter((k) => k !== ownHexKey));
-    const targetKey = hexKey(hex);
-    if (contactHexKeys.has(targetKey)) return;
-    const dest = reachableNavalHexes(state, ship).get(targetKey);
-    if (!dest) return;
+    // Auto-path click (plan.md §22.3.3): `resolveNavalAutoPathClick` is the
+    // single source of truth for the guard against ramming-contact hexes —
+    // see its doc comment for why this logic lives there (Phaser-free,
+    // testable) rather than inline here.
+    const resolved = resolveNavalAutoPathClick(state, ship, hex, this.navalContacts);
+    if (!resolved) return;
     this.recordAction(`Move ${unitType(ship).name}`);
-    const action: Action = { kind: 'navalMove', unitId: ship.id, to: hex, facing: dest.facing };
+    const action: Action = { kind: 'navalMove', unitId: ship.id, to: resolved.to, facing: resolved.facing };
     applyAction(state, action);
     this.reportAction(action);
     this.renderAllUnits();

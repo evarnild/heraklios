@@ -149,3 +149,57 @@ export function findRammingContacts(state: GameState, unit: Unit): RammingContac
   }
   return contacts;
 }
+
+/**
+ * The set of hex keys `findRammingContacts` reports as a ramming-contact
+ * hex for this ship — at ANY facing, not just the ship's current one — with
+ * the ship's own starting hex excluded (a contact already available without
+ * moving is never itself a "hex to move into"). This is BoardScene's single
+ * source of truth for "which hexes stay a non-clickable orange hint rather
+ * than a plain auto-path target" (plan.md §22.4): both
+ * `refreshNavalMovementControls` (the highlight) and
+ * `resolveNavalAutoPathClick` below (the click guard) call this exact same
+ * function, rather than each re-deriving the set independently, specifically
+ * so the two can never drift out of agreement about which hexes are "just a
+ * hint."
+ */
+export function navalContactHexKeys(contacts: readonly RammingContact[], ownHex: HexCoord): Set<string> {
+  const ownKey = hexKey(ownHex);
+  return new Set(contacts.map((c) => hexKey(c.hex)).filter((k) => k !== ownKey));
+}
+
+/**
+ * Resolves a click on a naval unit's move target during the Movement phase
+ * for every hex OTHER than the one directly ahead of the ship's current bow
+ * (that forward-hex case is `BoardScene.handleNavalMoveClick`'s own,
+ * unchanged §17 branch, not this function) — the plan.md §22.3.3 auto-path
+ * click. Returns the `{ to, facing }` a `navalMove` action should use (the
+ * cheapest route's own ending facing, from `reachableNavalHexes` — i.e. the
+ * engine is free to resolve rotation however it likes for this click,
+ * unlike the facing-pinned forward click), or `null` if the click is a
+ * no-op: `hex` isn't reachable at all, OR it's a ramming-contact hex
+ * (`navalContactHexKeys`) — every such hex stays a non-clickable hint
+ * outside the forward-hex case (plan.md §22.4, unchanged from §17.4).
+ *
+ * Deliberately a plain, Phaser-free function (not a `BoardScene` method):
+ * `BoardScene.ts` imports Phaser at module scope, which throws
+ * (`window is not defined`) the moment anything in it is imported under
+ * this project's Node-environment vitest config — so the one piece of
+ * `handleNavalMoveClick`'s logic this feature most needs regression-tested
+ * (a widened click guard silently letting a click auto-path into a ram)
+ * has to live somewhere actually testable. `BoardScene.handleNavalMoveClick`
+ * calls this directly rather than re-deriving any of it.
+ */
+export function resolveNavalAutoPathClick(
+  state: GameState,
+  ship: Unit,
+  hex: HexCoord,
+  contacts: readonly RammingContact[],
+): { to: HexCoord; facing: number } | null {
+  const contactHexKeys = navalContactHexKeys(contacts, ship.position);
+  const targetKey = hexKey(hex);
+  if (contactHexKeys.has(targetKey)) return null;
+  const dest = reachableNavalHexes(state, ship).get(targetKey);
+  if (!dest) return null;
+  return { to: hex, facing: dest.facing };
+}

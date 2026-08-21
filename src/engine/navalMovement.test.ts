@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { reachableNavalHexes, reachableNavalStates, findRammingContacts } from './navalMovement';
+import {
+  reachableNavalHexes,
+  reachableNavalStates,
+  findRammingContacts,
+  navalContactHexKeys,
+  resolveNavalAutoPathClick,
+} from './navalMovement';
 import { createInitialState } from './turnManager';
 import { applyAction } from './actions';
 import { DIRECTIONS } from './hex';
@@ -192,5 +198,91 @@ describe('findRammingContacts', () => {
     const friendly = makeUnit({ id: 'f', typeId: 'galeres', owner: 0, position: target, movementLeft: 0 });
     const contacts = findRammingContacts(makeState([attacker, friendly]), attacker);
     expect(contacts.some((c) => c.cost === 0)).toBe(false);
+  });
+});
+
+// plan.md §22.3.3 (BoardScene's new auto-path click, coexisting with §17's
+// manual forward-hex click) plus the MEDIUM finding from this feature's own
+// review: the guard against auto-pathing onto a ramming-contact hex had no
+// test coverage at all — a reviewer deleting the guard line in
+// `BoardScene.handleNavalMoveClick` left all 496 existing tests green. These
+// exercise `resolveNavalAutoPathClick` directly (the Phaser-free function
+// `handleNavalMoveClick`'s auto-path branch now calls verbatim, with no
+// independent guard logic of its own left to silently regress) rather than
+// `BoardScene.ts` itself, which cannot be imported under this project's
+// Node-environment vitest config (`Phaser`'s `OS.js` throws
+// `window is not defined` at import time — confirmed by hand while writing
+// this test) — so this is the closest a test in this repo can come to
+// exercising the click handler's own code, not just its inputs.
+describe('resolveNavalAutoPathClick / navalContactHexKeys (plan.md §22.3.3)', () => {
+  it('returns the cheapest route\'s ending facing for a plain reachable, non-contact hex', () => {
+    const ship = makeUnit({ typeId: 'biremes', position: CENTER, facing: 0, movementLeft: 3 });
+    const state = makeState([ship]);
+    // Direction 1 requires one turn + one move: cost 2, ending facing 1 (see
+    // the "reaching a hex off the bow line" test above for the same math).
+    const target = { q: CENTER.q + DIRECTIONS[1]!.q, r: CENTER.r + DIRECTIONS[1]!.r };
+    const resolved = resolveNavalAutoPathClick(state, ship, target, findRammingContacts(state, ship));
+    expect(resolved).toEqual({ to: target, facing: 1 });
+  });
+
+  it('returns null for a hex reachableNavalHexes does not report at all', () => {
+    const ship = makeUnit({ typeId: 'biremes', position: CENTER, facing: 0, movementLeft: 1 });
+    const state = makeState([ship]);
+    const tooFar = { q: CENTER.q + DIRECTIONS[0]!.q * 2, r: CENTER.r + DIRECTIONS[0]!.r * 2 };
+    expect(resolveNavalAutoPathClick(state, ship, tooFar, findRammingContacts(state, ship))).toBeNull();
+  });
+
+  // The trap: hex A is plainly reachable at facing 1 (cost 2, the cheapest
+  // way to arrive at all) but is ALSO a ramming-contact hex, at a DIFFERENT
+  // facing (2, cost 3) reached by rotating one step further once there.
+  // `reachableNavalHexes`/the cheapest route never resolves to facing 2, so
+  // a naive auto-path click on A would silently fire a plain `navalMove` at
+  // facing 1 that walks straight past a live ramming opportunity without
+  // ever offering it — exactly the "click auto-solves the whole approach,
+  // including past a ram" shortcut plan.md §22.4 keeps off-limits for every
+  // hex but the forward one.
+  it('is a no-op (null) for a hex that is reachable but is ALSO a ramming-contact hex at a different facing', () => {
+    const ship = makeUnit({ id: 'a', typeId: 'biremes', position: CENTER, facing: 0, movementLeft: 4 });
+    const hexA = { q: CENTER.q + DIRECTIONS[1]!.q, r: CENTER.r + DIRECTIONS[1]!.r };
+    const enemyHex = { q: hexA.q + DIRECTIONS[2]!.q, r: hexA.r + DIRECTIONS[2]!.r };
+    const enemy = makeUnit({ id: 'd', typeId: 'biremes', owner: 1, position: enemyHex, movementLeft: 0 });
+    const state = makeState([ship, enemy]);
+
+    // Confirm the trap actually exists before relying on it: A's cheapest
+    // reachable entry is facing 1 at cost 2 (not a contact facing)...
+    const reachable = reachableNavalHexes(state, ship);
+    expect(reachable.get(`${hexA.q},${hexA.r}`)).toEqual({ cost: 2, facing: 1 });
+    // ...while a DIFFERENT, costlier route to the same hex (facing 2, cost
+    // 3: rotate to 1, move, rotate to 2) is a live ramming contact.
+    const contacts = findRammingContacts(state, ship);
+    const contactAtA = contacts.filter((c) => c.hex.q === hexA.q && c.hex.r === hexA.r);
+    expect(contactAtA).toContainEqual(expect.objectContaining({ facing: 2, cost: 3 }));
+    expect(contactAtA.some((c) => c.facing === 1)).toBe(false);
+    expect(navalContactHexKeys(contacts, ship.position).has(`${hexA.q},${hexA.r}`)).toBe(true);
+
+    expect(resolveNavalAutoPathClick(state, ship, hexA, contacts)).toBeNull();
+  });
+
+  it('excludes every ramming-contact hex regardless of facing, even one only reachable at the ship\'s CURRENT facing', () => {
+    // Simpler case: the contact facing matches the cheapest route's own
+    // facing too (not just "some other reachable facing") — still excluded.
+    const ship = makeUnit({ id: 'a', typeId: 'biremes', position: CENTER, facing: 0, movementLeft: 4 });
+    const oneAhead = { q: CENTER.q + DIRECTIONS[0]!.q, r: CENTER.r + DIRECTIONS[0]!.r };
+    const twoAhead = { q: oneAhead.q + DIRECTIONS[0]!.q, r: oneAhead.r + DIRECTIONS[0]!.r };
+    const enemy = makeUnit({ id: 'd', typeId: 'biremes', owner: 1, position: twoAhead, movementLeft: 0 });
+    const state = makeState([ship, enemy]);
+    const contacts = findRammingContacts(state, ship);
+    expect(contacts).toContainEqual(expect.objectContaining({ hex: oneAhead, facing: 0, cost: 1 }));
+    expect(resolveNavalAutoPathClick(state, ship, oneAhead, contacts)).toBeNull();
+  });
+
+  it('navalContactHexKeys excludes the ship\'s own starting hex even if it is a contact', () => {
+    const target = { q: CENTER.q + DIRECTIONS[0]!.q, r: CENTER.r + DIRECTIONS[0]!.r };
+    const ship = makeUnit({ typeId: 'galeres', position: CENTER, facing: 0, movementLeft: 4 });
+    const enemy = makeUnit({ id: 'd', typeId: 'galeres', owner: 1, position: target, movementLeft: 0 });
+    const state = makeState([ship, enemy]);
+    const contacts = findRammingContacts(state, ship);
+    expect(contacts.some((c) => c.cost === 0)).toBe(true); // already bow-on at the start hex
+    expect(navalContactHexKeys(contacts, ship.position).has(`${CENTER.q},${CENTER.r}`)).toBe(false);
   });
 });
