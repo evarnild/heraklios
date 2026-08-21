@@ -92,6 +92,7 @@ export type DriftEvent =
   | { kind: 'directionRollNeeded'; elephant: Unit; remainingSteps: number; forbiddenDirection?: HexCoord }
   | { kind: 'directionForbidden'; elephant: Unit; dieRoll: number; direction: HexCoord }
   | { kind: 'directionRolled'; elephant: Unit; dieRoll: number; direction: HexCoord; remainingSteps: number }
+  | { kind: 'directionResumed'; elephant: Unit; direction: HexCoord }
   | { kind: 'moved'; elephant: Unit; hex: HexCoord }
   | { kind: 'enteredVacatedHex'; elephant: Unit; hex: HexCoord }
   | { kind: 'stopped'; elephant: Unit }
@@ -331,6 +332,20 @@ export function driftStep(game: GameState, drift: ElephantDriftState, input?: Dr
       if (!elephant.destroyed) {
         elephant.position = frame.hex;
         events.push({ kind: 'enteredVacatedHex', elephant, hex: frame.hex });
+        // Review-2 LOW note 1: this is the resumption point for an elephant
+        // whose drift was paused mid-hex by trampling a defender (DR) — and,
+        // when that defender was ITSELF an elephant, the intervening frame is
+        // that trampled elephant's own full nested `startElephantDrift` run,
+        // which may have fired its own `onDirectionRolled` calls (possibly
+        // several, on an AR repel) for a different unit and direction. Without
+        // re-affirming this elephant's direction here, a presentation layer's
+        // arrow would still be pointing wherever the nested elephant's drift
+        // last left it, even though play has returned to resuming THIS
+        // elephant in ITS original direction. `directionResumed` carries no
+        // die roll (nothing was rolled — this is a resumption, not a new
+        // direction) but still reports the (elephant, direction) pair so
+        // `onDirectionRolled` can re-derive the arrow.
+        events.push({ kind: 'directionResumed', elephant, direction: frame.direction });
         next.frames.push({
           kind: 'drift',
           elephantId: frame.elephantId,
@@ -462,6 +477,14 @@ export async function resolveElephantDrift(
           break;
         case 'directionRolled':
           hooks.onLine?.(`Direction die: ${event.dieRoll} - ${event.remainingSteps} hex(es) of movement to go.`);
+          hooks.onDirectionRolled?.(event.elephant, event.direction);
+          break;
+        case 'directionResumed':
+          // No die was rolled — this elephant's frame is just resuming its
+          // already-known direction after a nested trampled elephant's own
+          // drift finished (see the doc comment where this event is pushed).
+          // No `onLine` narration either: nothing happened worth logging,
+          // only the arrow needs to catch up.
           hooks.onDirectionRolled?.(event.elephant, event.direction);
           break;
         case 'moved':

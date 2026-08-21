@@ -209,6 +209,36 @@ describe('elephant drift engine', () => {
     expect(original.position).toEqual({ q: 14, r: 5 });
   });
 
+  // Review-2 LOW note 1. On resuming `original`'s frame after `nested`'s own
+  // re-drift finishes, `original` used to just silently reuse its
+  // already-rolled direction with no hook call at all — so a presentation
+  // layer's direction arrow, having followed `nested`'s roll(s) mid-cascade,
+  // would never switch back to `original` once play returned to it. Fixed by
+  // pushing a `directionResumed` event (see `driftStep`'s `continueAfterVacated`
+  // branch) that re-fires `onDirectionRolled` with no new die involved.
+  it('re-emits onDirectionRolled for the outer elephant when it resumes after a nested trampled elephant finishes its own drift', async () => {
+    const original = makeUnit('original', 0, 'elephants', CENTER);
+    const nested = makeUnit('nested', 1, 'elephants', { q: 11, r: 5 });
+    const state = makeState([original, nested]);
+    const combatDie = dieForResult(original, nested, 'DR');
+    const dice = [1, combatDie, 4, 2];
+    const directionCalls: { id: string; direction: HexCoord }[] = [];
+
+    await resolveElephantDrift(state, original, 4, new ScriptedAgent(), () => dice.shift()!, {
+      onDirectionRolled: (u, direction) => directionCalls.push({ id: u.id, direction }),
+    });
+
+    const originalCalls = directionCalls.filter((c) => c.id === 'original');
+    // `original` rolled its direction once, up front, then again re-derived
+    // it (same direction, no new roll) on resuming after `nested` finishes.
+    expect(originalCalls.length).toBeGreaterThanOrEqual(2);
+    expect(originalCalls[originalCalls.length - 1]).toEqual(originalCalls[0]);
+    // The very last direction-related hook call of the whole cascade belongs
+    // to `original`, not `nested` — proving the arrow hands back correctly
+    // rather than being stuck on whichever elephant rolled most recently.
+    expect(directionCalls[directionCalls.length - 1]!.id).toBe('original');
+  });
+
   // plan.md §21 — "pause between steps and show the drift direction on the
   // map". These four pin the contract the design brief cares about most:
   // a presentation layer's OPTIONAL `onStep`/`onDirectionRolled`/
@@ -331,6 +361,74 @@ describe('elephant drift engine', () => {
       expect(moveCalls).toEqual([
         { id: 'elephant', hex: { q: 11, r: 5 } },
         { id: 'elephant', hex: { q: 12, r: 5 } },
+      ]);
+    });
+
+    // Review-2 MEDIUM finding: reverting `hooks.onDriftMoved?.(event.elephant,
+    // event.hex);` in the `enteredVacatedHex` branch of `driftStep` — the one
+    // that fires when a trampled non-elephant defender's retreat vacates the
+    // hex the elephant then enters — passed the whole suite unmodified. No
+    // existing test asserted `onDriftMoved` for THIS branch specifically: the
+    // `moved` event never reports this hex, only `enteredVacatedHex` does, so
+    // this fails if that hook call is missing.
+    it('fires onDriftMoved when the elephant enters a hex vacated by a trampled defender that retreats (DR)', async () => {
+      const elephant = makeUnit('elephant', 0, 'elephants', CENTER);
+      const defender = makeUnit('defender', 1, 'phalanges', { q: 11, r: 5 });
+      const state = makeState([elephant, defender]);
+      const agent = new ScriptedAgent();
+      const combatDie = dieForResult(elephant, defender, 'DR');
+      const dice = [1, combatDie];
+      const moveCalls: { id: string; hex: HexCoord }[] = [];
+
+      await resolveElephantDrift(state, elephant, 4, agent, () => dice.shift()!, {
+        onDriftMoved: (u, hex) => moveCalls.push({ id: u.id, hex }),
+      });
+
+      expect(moveCalls).toContainEqual({ id: 'elephant', hex: { q: 11, r: 5 } });
+    });
+
+    // Review-2's test-gap finding: none of the four hooks tests above assert
+    // `elephant.position` at an INTERMEDIATE pause between the first and last
+    // `moved` event of a single uncontested free run — they only check
+    // position before any pause resolves (still the start hex) and after ALL
+    // pauses resolve (the final hex). That gap is exactly what let the
+    // CRITICAL bug ship: before the fix, an uncontested multi-hex drift
+    // resolved its ENTIRE free run — every hex — inside one `driftStep` call,
+    // so the elephant was already sitting at its final hex by the time the
+    // very first pause after the direction roll fired.
+    it('advances the elephant by exactly one hex per onStep pause, never jumping straight to the final hex (regression: review-2 CRITICAL)', async () => {
+      const elephant = makeUnit('elephant', 0, 'elephants', CENTER);
+      const state = makeState([elephant]);
+      const positionsAtPause: HexCoord[] = [];
+
+      await resolveElephantDrift(state, elephant, 3, new ScriptedAgent(), () => 1, {
+        onStep: () => {
+          positionsAtPause.push({ ...elephant.position });
+        },
+      });
+
+      expect(elephant.position).toEqual({ q: 13, r: 5 });
+
+      // Collapse consecutive duplicate pause-positions (several pauses can
+      // legitimately share one position within the same `driftStep` call —
+      // e.g. the direction-roll pause and the pause for that same call's
+      // first hex of movement) down to the distinct positions the elephant
+      // was actually AT, in the order it was at them.
+      const distinctInOrder: HexCoord[] = [];
+      for (const pos of positionsAtPause) {
+        const last = distinctInOrder[distinctInOrder.length - 1];
+        if (!last || last.q !== pos.q || last.r !== pos.r) distinctInOrder.push(pos);
+      }
+
+      // Before the CRITICAL fix, this list would be just [{10,5}, {13,5}] —
+      // the elephant already at its destination by the very first pause
+      // after the direction roll, three hexes early. Fixed, every hex of the
+      // uncontested run shows up as its own step:
+      expect(distinctInOrder).toEqual([
+        { q: 10, r: 5 },
+        { q: 11, r: 5 },
+        { q: 12, r: 5 },
+        { q: 13, r: 5 },
       ]);
     });
   });
