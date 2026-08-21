@@ -77,6 +77,12 @@ export class MapView {
    * `setChoiceLabels`. Its own list, deliberately separate from `unitLabels`
    * (which `clearAllUnitLabels` wipes on every `renderAllUnits`, mid-prompt). */
   private choiceLabels: Phaser.GameObjects.Text[] = [];
+  /** Per-hex remaining-movement-points badges over a selected ship's full
+   * reachable range — see `setRangeLabels` (plan.md §22.3.1). Its own list,
+   * same "batch, redrawn together, own destroyable array" pattern as
+   * `choiceLabels`, since text can't be batched into one `Graphics` object
+   * the way `highlightHexGroups`'s fills can. */
+  private rangeLabels: Phaser.GameObjects.Text[] = [];
   /** Set once `pinUIObjects` has added the fixed HUD camera — used so newly
    * created world objects (unit markers) get excluded from it too. */
   private uiCamera: Phaser.Cameras.Scene2D.Camera | null = null;
@@ -446,6 +452,47 @@ export class MapView {
   clearChoiceLabels(): void {
     for (const badge of this.choiceLabels) badge.destroy();
     this.choiceLabels = [];
+  }
+
+  /**
+   * Shows a small numeric badge on every hex in a selected ship's full
+   * reachable naval-movement range (`reachableNavalHexes`), reading
+   * `ship.movementLeft - cost` for that hex — the "how much movement would
+   * be left if I ended my move here" indicator (plan.md §22.3.1). Redrawn
+   * wholesale on every `refreshNavalMovementControls` call, same lifecycle
+   * as `highlightHexGroups`; call `clearRangeLabels` on every exit path
+   * (deselecting the ship, switching to a land unit, ending the phase) so a
+   * stale badge never survives past the selection it describes.
+   *
+   * Offset down-right from the hex center — the opposite corner from
+   * `setChoiceLabels`' up-left badges — since a ramming-contact hex can be
+   * both a choice-prompt candidate's hex AND (this being the ship's own
+   * reachable range) show a range label at the same time; keeping the two
+   * label kinds' corners apart avoids them ever overlapping each other.
+   */
+  setRangeLabels(labels: readonly { hex: HexCoord; value: number }[]): void {
+    this.clearRangeLabels();
+    for (const { hex, value } of labels) {
+      const center = this.toScreen(hex);
+      const badge = this.scene.add
+        .text(center.x + HEX_SIZE * 0.5, center.y + HEX_SIZE * 0.5, `${value}`, {
+          fontSize: '13px',
+          fontStyle: 'bold',
+          color: '#ffffff',
+          backgroundColor: '#1a1408b0',
+          padding: { x: 3, y: 1 },
+        })
+        .setOrigin(0.5)
+        .setDepth(13);
+      if (this.uiCamera) this.uiCamera.ignore(badge);
+      this.rangeLabels.push(badge);
+    }
+  }
+
+  /** Clears whatever `setRangeLabels` last drew. */
+  clearRangeLabels(): void {
+    for (const badge of this.rangeLabels) badge.destroy();
+    this.rangeLabels = [];
   }
 
   /**
