@@ -31,6 +31,11 @@ export interface SaveLoadPanelConfig {
 
 const PANEL_WIDTH = 720;
 const ROW_HEIGHT = 44;
+const SLOT_NAME_WIDTH = 90;
+const ACTION_BUTTON_X = 400;
+const ACTION_BUTTON_GAP = 16;
+const SAVE_DESCRIPTION_WIDTH = ACTION_BUTTON_X - SLOT_NAME_WIDTH - ACTION_BUTTON_GAP;
+const SAVE_DESCRIPTION_HEIGHT = 20;
 const TEXT_COLOR = '#e8d9b0';
 const MUTED_COLOR = '#8a7c5c';
 
@@ -153,7 +158,12 @@ export class SaveLoadPanel {
 
     const label = this.add(
       this.scene.add
-        .text(left + 90, y, '', { fontSize: '13px', color: MUTED_COLOR })
+        .text(left + SLOT_NAME_WIDTH, y, '', {
+          fontSize: '13px',
+          color: MUTED_COLOR,
+          fixedWidth: SAVE_DESCRIPTION_WIDTH,
+          fixedHeight: SAVE_DESCRIPTION_HEIGHT,
+        })
         .setOrigin(0, 0.5)
         .setScrollFactor(0)
         .setDepth(41),
@@ -161,7 +171,7 @@ export class SaveLoadPanel {
     this.rowLabels.set(key, label);
 
     const buttons: Phaser.GameObjects.Text[] = [];
-    let x = left + 400;
+    let x = left + ACTION_BUTTON_X;
     // The autosave slot is written by the game, never by hand — offering
     // "Save" there would just invite overwriting the crash-recovery copy.
     if (this.config.mode === 'manage' && slot !== 'autosave') {

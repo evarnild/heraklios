@@ -117,7 +117,8 @@ and gives drift-trample combats the same full combat report, and
 1 MEDIUM review finding fixed), which adds a remaining-movement-points badge
 and a click-to-autopath option on every reachable hex alongside §17's manual
 single-step click, without touching or reopening it.
-**In flight:** nothing. Queue is empty of self-contained items.
+**In flight:** [§25](#25-live-defect-save-load-panel-labels-overlap-action-buttons)
+— save/load labels overlap buttons, on `codex/save-load-label-overlap`.
 **Carried over from merges, manual browser pass still owed:** Stage 4's
 ([§6.12](plan-history.md#612-stage-4-outcome)), §16's, and now §17's naval
 movement controls too — Chrome automation was unavailable in the sessions
@@ -132,8 +133,9 @@ click/highlight behavior. Verified still present in `main` as of this note
 commit whenever someone's next in that file. See
 [§17.6](plan-history.md#176-outcome)'s correction note for the exact wording
 each one needs.
-**Live defects still open:** none. [§23](plan-history.md#23-live-defect-elephant-drift-hides-the-combat-report)
-was the latest live defect and is shipped.
+**Live defects still open:** [§25](#25-live-defect-save-load-panel-labels-overlap-action-buttons)
+— long save descriptions in the Save / Load panel can run underneath the row's
+Load/Save/Delete buttons.
 
 <a id="10-sequenced-queue"></a>
 
@@ -171,7 +173,9 @@ sync when something merges** — it went stale once and the user caught it.
 
 ### In flight
 
-Nothing. Queue is empty of self-contained items.
+| # | Item | Touches | Notes |
+| --- | --- | --- | --- |
+| 9 | [§25](#25-live-defect-save-load-panel-labels-overlap-action-buttons) save/load labels overlap buttons | `ui/saveLoadPanel.ts` | Presentation-only live defect. Long save descriptions currently have no reserved column width, so they can draw under the row action buttons. |
 
 ### Queued
 
@@ -194,8 +198,10 @@ for their postmortems.
   urgent; [§19.3](#193-options-in-preference-order) option 3 (re-measure at
   160 seeds) is the cheap first step before deciding whether to fix it for
   real.
-- **Live defects:** none confirmed-and-open. [§23](plan-history.md#23-live-defect-elephant-drift-hides-the-combat-report)
-  was the latest one and is shipped.
+- **Live defects:** #9,
+  [§25](#25-live-defect-save-load-panel-labels-overlap-action-buttons)
+  — long save descriptions in the Save / Load panel can overlap the row's
+  Load/Save/Delete buttons.
 - **Also queued:** #6, [§21](#21-elephant-drift-pause-between-steps-and-show-the-drift-direction-on-the-map)
   — pause between elephant-drift steps and show the drift direction on the
   map. Presentation-only; requested by the user directly (2026-08-21), not
@@ -691,3 +697,44 @@ Turn 3 — Athènes (W, yellow) — MOVEMENT phase
 
 For AI seats, preserve the existing controller label as well; e.g. the army
 name, side/color, and `[AI — cautious]` label should all remain visible.
+
+---
+
+## 25. Live defect: Save / Load panel labels overlap action buttons
+
+**Status: in flight on `codex/save-load-label-overlap`.** Reported directly by the user
+(2026-08-21). Presentation-only.
+
+### 25.1 The problem
+
+`SaveLoadPanel.buildRow` lays out each row with the save description at
+`left + 90` and the first row action button at `left + 400`. The description
+text is built from `describeSave(save)` plus `formatSavedAt(save.savedAt)`;
+with long army names, controller labels, or timestamps, that text can extend
+past the implicit 310px label area and draw underneath the Save, Load, or
+Delete buttons.
+
+The result is visually ambiguous: the player cannot easily read the saved
+game's name/summary, and the row actions appear on top of the label.
+
+### 25.2 Scope
+
+Presentation-only: `src/ui/saveLoadPanel.ts`. Reserve a real label column
+before the action buttons, and constrain the save-description text so it
+cannot overlap controls. Prefer truncation with an ellipsis or Phaser text
+wrapping/clipping that preserves a single stable row height; do not change the
+save data format or `describeSave`.
+
+This should work in both panel modes:
+
+- Board/manage mode: manual slots show Save, Load, and Delete; autosave shows
+  Load and Delete.
+- Menu/load mode: rows show Load only, but long labels still need a bounded
+  readable area.
+
+### 25.3 Verification
+
+Create or simulate a save whose description is long enough to approach the
+buttons, then verify in a pinned-port browser session (see [§4](#4-runbook-detailed-launch-hazards-appendix))
+that no row label overlaps the Save, Load, or Delete buttons. `npm run build`
+is enough for compile coverage; this is mainly a visual layout fix.
