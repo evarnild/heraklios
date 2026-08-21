@@ -3586,3 +3586,59 @@ Review found no blocking issues. The only noted open question was the
 "same projecting unit(s)" interpretation above, which the user approved.
 `npm.cmd run build` and `npm.cmd test` were both clean on `main`, with
 496/496 tests passing.
+
+---
+
+## 23. Live defect: elephant drift hides the combat report
+
+**Status: shipped.** Fixed on `fix/elephant-drift-combat-log` and merged
+back to `main` in the coordinating Codex session.
+
+### 23.1 The report
+
+When an elephant was attacked and forced to retreat, the log shown to the
+player started with the drift narration:
+
+```text
+Elephants is forced to retreat - instead it drifts!
+Direction die: 1 - 4 hex(es) of movement to go.
+...
+```
+
+The normal combat report had disappeared. The missing information was the
+attack force, defense force, ratio, combat die roll, and CRT result.
+
+### 23.2 What the code actually did
+
+`executeLandAttack` correctly called `logCombatOutcome` before starting the
+retreat/drift queue, so the combat report existed briefly. The problem was
+in `BoardScene.beginDrift`: it initialized `driftState.lines` as an empty
+array. The first `appendLine` from `resolveElephantDrift` then replaced the
+panel with the drift narration, erasing the combat block the user needed to
+audit the result.
+
+A related presentation gap already existed for trample combats during a
+drift. The drift engine emitted a full `LandAttackDetail` through
+`onCombat`, but `BoardScene` compressed it into one terse line rather than
+using the same multi-line combat formatter as ordinary attacks.
+
+### 23.3 The fix
+
+`beginDrift` now seeds the drift narration with the current combat-log text
+when no explicit `existingLines` are supplied. That preserves the original
+attack report before the "forced to retreat - instead it drifts" line is
+appended.
+
+`logCombatOutcome` was split into a reusable `formatCombatOutcome` helper.
+Ordinary attacks still log exactly the same block, and drift-trample combats
+now append that same force/ratio/die/result block after the trample context
+line.
+
+This is presentation-only: no engine rules, save format, or drift state
+machine behavior changed.
+
+### 23.4 Outcome
+
+`npm.cmd run build` passed on the branch before merge. No browser pass was
+run in this session, so the verification is compile/build coverage plus code
+inspection of the log flow.

@@ -168,7 +168,8 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       onComplete();
       return;
     }
-    const lines = existingLines ?? [];
+    const currentLog = this.logText?.text.trim();
+    const lines = existingLines ?? (currentLog ? [currentLog] : []);
     this.driftState = { lines, onComplete };
     this.decisionPending = true;
     resolveElephantDrift(
@@ -187,15 +188,18 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         },
         onLine: (line) => this.appendLine(line),
         onRender: () => this.renderAllUnits(),
-        onCombat: (detail, _outcome, drifting, occupant, hex) => {
-          const dieLine =
-            detail.terrainModifier !== 0
-              ? `die ${detail.rawDieRoll} +${detail.terrainModifier} terrain = ${detail.modifiedDieRoll}`
-              : `die ${detail.rawDieRoll}`;
+        onCombat: (detail, outcome, drifting, occupant, hex) => {
           this.appendLine(
-            `${unitType(drifting).name} tramples into ${unitType(occupant).name} at (${hex.q}, ${hex.r}): ` +
-              `${detail.attackForce} vs ${detail.defenseForce} (${detail.ratioLabel.replace('-', ':')}), ${dieLine} ` +
-              `-> ${BoardScene.RESULT_LABELS[detail.result] ?? detail.result}`,
+            `${unitType(drifting).name} tramples into ${unitType(occupant).name} at (${hex.q}, ${hex.r}).`,
+          );
+          this.appendLine(
+            this.formatCombatOutcome(
+              [drifting],
+              [occupant],
+              detail,
+              outcome.requiredSacrificeForce,
+              outcome.requiresExchangeChoice,
+            ),
           );
         },
         onRetreat: (unit, _hex, isPushedLink) => {
@@ -2281,6 +2285,16 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     requiredSacrificeForce: number,
     requiresExchangeChoice: boolean,
   ): void {
+    this.log(this.formatCombatOutcome(attackers, defenders, detail, requiredSacrificeForce, requiresExchangeChoice));
+  }
+
+  private formatCombatOutcome(
+    attackers: Unit[],
+    defenders: Unit[],
+    detail: LandAttackDetail,
+    requiredSacrificeForce: number,
+    requiresExchangeChoice: boolean,
+  ): string {
     const unitLines = (units: Unit[], statFn: (u: Unit) => number, label: string) =>
       units.map((u) => `  ${unitType(u).name} (${label} ${statFn(u)})`).join('\n');
 
@@ -2328,7 +2342,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       );
     }
 
-    this.log(lines.join('\n'));
+    return lines.join('\n');
   }
 
   /** `PlayerAgent.chooseExchangeSacrifice` — on an EX (exchange) result with
