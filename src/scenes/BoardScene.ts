@@ -48,7 +48,7 @@ import {
 } from '../engine/combat';
 import { resolveElephantDrift } from '../engine/drift';
 import { History } from '../engine/history';
-import { hexAdd, hexKey, DIRECTIONS } from '../engine/hex';
+import { hexAdd, hexKey, DIRECTIONS, facingForDirection } from '../engine/hex';
 import {
   unitType,
   currentAttack,
@@ -157,6 +157,82 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   private resolutionResolvedIds = new Set<string>();
   private retreatChoice: RetreatChoice | null = null;
   private driftState: DriftState | null = null;
+  /** The elephant `beginDrift`'s `resolveElephantDrift` call is CURRENTLY
+   * moving, and the facing (0-5) it last rolled — together, "where to draw
+   * the drift arrow" (plan.md §21). Kept as scene state rather than threaded
+   * through `onRender` itself since `onRender` is a bare `() => void` used
+   * by other callers too; `onDirectionRolled`/`onDriftMoved` (see
+   * `DriftHooks`) update these directly from the event that changed them, and
+   * `renderAllUnits` reads them on every render, including ones triggered by
+   * something unrelated to the drift (so the arrow can never go stale
+   * relative to whatever's actually on screen). `driftArrowFacing` is
+   * `undefined` between "an elephant was just forced to drift" and its first
+   * direction roll landing, so the arrow simply doesn't appear until there is
+   * an actual direction to show. */
+  private driftArrowElephant: Unit | null = null;
+  private driftArrowFacing: number | undefined = undefined;
+  /**
+   * Resolves the currently-pending "click / press a key to continue" pause
+   * between elephant drift steps (plan.md §21) — `null` when no such pause is
+   * up. A single resolver rather than a queue: `beginDrift`'s `onStep` hook
+   * only ever awaits one at a time (the drift's own loop doesn't call it
+   * again until the previous await has resolved), so there is never more
+   * than one pending.
+   */
+  private driftContinueResolve: (() => void) | null = null;
+
+  /**
+   * Supplies `resolveElephantDrift`'s optional `onStep` hook (see
+   * `DriftHooks.onStep`'s doc comment for the full contract) — but ONLY when
+   * a human is the one actually free to interact with the board right now.
+   *
+   * The obvious-sounding rule would be "pause when the drifting elephant's
+   * OWNER is human" — but a drift can just as easily be trampling through (or
+   * be) the OPPONENT's elephant mid-combat, on either side's turn, so "owner"
+   * doesn't actually answer "is anyone watching right now" on its own.
+   * Properly answering that in general (whose combat is this, is the
+   * opposing seat also human and does IT get a turn to watch too, etc.) would
+   * need new seat-routing plumbing this feature's scope doesn't cover — see
+   * plan.md §21's design brief, which explicitly says to default OFF rather
+   * than guess at that.
+   *
+   * `!this.aiRunning` is the one part of "is a human free to look at the
+   * board right now" this codebase already tracks and gates everything else
+   * on (undo/redo, save/load, the Resolve-attack button, ordinary hex
+   * clicks — see `aiRunning`'s own doc comment and every guard listed next to
+   * it). It is exactly right for the common cases this feature is actually
+   * for — a human's own turn (always paced, regardless of whose elephant it
+   * is), and a fully AI-vs-AI turn (never paced, matching every existing
+   * "don't animate at bot speed" pacing decision in this file, e.g.
+   * `AI_MOVE_DELAY_MS`/`AI_COMBAT_DELAY_MS`'s doc comment) — and simplifies to
+   * "no pause" for the one case it doesn't fully answer (an AI seat's turn
+   * that happens to trample a human's own elephant): a known, intentional
+   * simplification per the brief above, not an oversight.
+   */
+  private driftOnStepHook(): (() => Promise<void>) | undefined {
+    if (this.aiRunning) return undefined;
+    return () => this.awaitDriftContinue();
+  }
+
+  private awaitDriftContinue(): Promise<void> {
+    return new Promise((resolve) => {
+      this.driftContinueResolve = resolve;
+      this.driftContinueBtn.setVisible(true);
+    });
+  }
+
+  /** Click-to-continue, keypress-to-continue, or the button itself — all
+   * three resolve the same pending promise (see `awaitDriftContinue`). A
+   * no-op if nothing is actually pending, so it's safe to wire to a bare map
+   * click without checking `driftContinueResolve` first at every call site. */
+  private resolveDriftContinue(): void {
+    const resolve = this.driftContinueResolve;
+    if (!resolve) return;
+    this.driftContinueResolve = null;
+    this.driftContinueBtn.setVisible(false);
+    resolve();
+  }
+
   private beginDrift(
     elephant: Unit,
     remainingSteps: number,
@@ -184,9 +260,27 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       {
         onDriftStart: (drifting) => {
           this.resolutionResolvedIds.add(drifting.id);
+          // `driftArrowFacing` resets to `undefined` here rather than
+          // carrying over the PREVIOUS leg's direction: this fires both for
+          // the very first "forced to drift" and for a nested trampled
+          // elephant's own drift starting mid-cascade, and in neither case
+          // has a direction actually been rolled for THIS leg yet — showing
+          // the old one (or, worse, the previous drifter's) would be an
+          // arrow pointing somewhere the elephant isn't about to go.
+          this.driftArrowElephant = drifting;
+          this.driftArrowFacing = undefined;
+        },
+        onDirectionRolled: (drifting, direction) => {
+          this.driftArrowElephant = drifting;
+          this.driftArrowFacing = facingForDirection(direction);
+          this.renderAllUnits();
+        },
+        onDriftMoved: (drifting, _hex) => {
+          this.driftArrowElephant = drifting;
         },
         onLine: (line) => this.appendLine(line),
         onRender: () => this.renderAllUnits(),
+        onStep: this.driftOnStepHook(),
         onCombat: (detail, _outcome, drifting, occupant, hex) => {
           const dieLine =
             detail.terrainModifier !== 0
@@ -219,6 +313,10 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       this.resolutionResolvedIds,
     ).then(
       () => {
+        this.driftArrowElephant = null;
+        this.driftArrowFacing = undefined;
+        this.driftContinueResolve = null;
+        this.driftContinueBtn.setVisible(false);
         this.renderAllUnits();
         const complete = this.driftState?.onComplete ?? onComplete;
         this.driftState = null;
@@ -226,6 +324,11 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         complete();
       },
       (error: unknown) => {
+        this.driftArrowElephant = null;
+        this.driftArrowFacing = undefined;
+        this.driftContinueResolve = null;
+        this.driftContinueBtn.setVisible(false);
+        this.mapView.clearDriftArrow();
         this.driftState = null;
         this.decisionPending = false;
         throw error;
@@ -300,6 +403,9 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   private endGameBtn!: Phaser.GameObjects.Text;
   private pauseBtn!: Phaser.GameObjects.Text;
   private abandonBtn!: Phaser.GameObjects.Text;
+  /** Shown only while a human-paced elephant drift is waiting on
+   * `driftContinueResolve` — see `driftOnStepHook`/`awaitDriftContinue`. */
+  private driftContinueBtn!: Phaser.GameObjects.Text;
   /** Undo/redo history, scoped to the current phase — `endPhase` clears it,
    * and so does any die roll outside test mode (see `rollDie`). */
   private history = new History<BoardSnapshot>();
@@ -424,6 +530,11 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.retreatChoice = null;
     this.driftState = null;
     this.decisionPending = false;
+    this.driftArrowElephant = null;
+    this.driftArrowFacing = undefined;
+    this.driftContinueResolve = null;
+    this.driftContinueBtn?.setVisible(false);
+    this.mapView?.clearDriftArrow();
     this.advanceEligibleAttackers = [];
     this.advanceOfferQueue = [];
     this.history = new History();
@@ -636,6 +747,27 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       .setInteractive({ useHandCursor: true });
     this.pauseBtn.on('pointerdown', () => this.togglePause());
 
+    // Elephant drift pacing (plan.md §21) — a lightweight "continue" prompt,
+    // deliberately distinct from the `retreatChoice`/`chooseAdvance`-style
+    // dialogs: those ask the player to pick something, this one asks for
+    // nothing but "I've seen this, go on" — a button plus a bare map click
+    // (see `onHexClick`) or a keypress (below) all resolve the same pending
+    // promise via `resolveDriftContinue`. Hidden by default; only shown while
+    // `driftContinueResolve` is actually pending (see `awaitDriftContinue`).
+    this.driftContinueBtn = this.add
+      .text(16, height - 232, '▶ Continue', {
+        fontSize: '12px',
+        color: '#fff',
+        backgroundColor: '#4a2a5a',
+        padding: { x: 8, y: 4 },
+        wordWrap: { width: PANEL_WIDTH - 48 },
+      })
+      .setScrollFactor(0)
+      .setDepth(30)
+      .setInteractive({ useHandCursor: true })
+      .setVisible(false);
+    this.driftContinueBtn.on('pointerdown', () => this.resolveDriftContinue());
+
     this.input.keyboard?.on('keydown-Z', (event: KeyboardEvent) => {
       if (!event.ctrlKey && !event.metaKey) return;
       if (event.shiftKey) this.redo();
@@ -644,6 +776,8 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.input.keyboard?.on('keydown-Y', (event: KeyboardEvent) => {
       if (event.ctrlKey || event.metaKey) this.redo();
     });
+    this.input.keyboard?.on('keydown-SPACE', () => this.resolveDriftContinue());
+    this.input.keyboard?.on('keydown-ENTER', () => this.resolveDriftContinue());
 
     this.statusText = this.add
       .text(16, 118, '', {
@@ -692,6 +826,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       this.turnCcwGlyph,
       this.turnCwGlyph,
       this.ramNowBtn,
+      this.driftContinueBtn,
       this.undoBtn,
       this.redoBtn,
       saveLoadBtn,
@@ -736,6 +871,18 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       }
     }
     this.mapView.setFacingIndicators(ships);
+    // The elephant drift-direction arrow (plan.md §21) — read from scene
+    // state rather than passed in, so EVERY render (not just the ones an
+    // in-progress drift itself triggers) keeps it in sync; see
+    // `driftArrowElephant`'s doc comment for why that self-healing matters
+    // (a destroyed elephant, or one a nested re-drift has replaced as "the"
+    // drifter, would otherwise leave a stale arrow on screen).
+    if (this.driftArrowElephant && !this.driftArrowElephant.destroyed && this.driftArrowFacing !== undefined) {
+      const colorHex = PLAYER_COLORS_HEX[this.driftArrowElephant.owner] ?? '#ffffff';
+      this.mapView.setDriftArrow(this.driftArrowElephant.position, this.driftArrowFacing, colorHex);
+    } else {
+      this.mapView.clearDriftArrow();
+    }
     this.refreshMovementLabel();
   }
 
@@ -1025,6 +1172,11 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.retreatChoice = null;
     this.driftState = null;
     this.decisionPending = false;
+    this.driftArrowElephant = null;
+    this.driftArrowFacing = undefined;
+    this.driftContinueResolve = null;
+    this.driftContinueBtn.setVisible(false);
+    this.mapView.clearDriftArrow();
     this.advanceEligibleAttackers = [];
     this.advanceOfferQueue = [];
     this.navalContacts = [];
@@ -1258,6 +1410,16 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   }
 
   private onHexClick(hex: HexCoord): void {
+    // A drift-pause "continue" (plan.md §21) is up: a click anywhere on the
+    // map dismisses it, same as the dedicated button/keypress — checked
+    // before `retreatChoice` for the same reason that branch sits ahead of
+    // `decisionPending`/`aiRunning` below: a bare hex click must not fall
+    // through to ordinary movement/attack handling while ANY of these is
+    // pending, drift-continue included.
+    if (this.driftContinueResolve) {
+      this.resolveDriftContinue();
+      return;
+    }
     if (this.retreatChoice) {
       this.handleRetreatChoiceClick(hex);
       return;

@@ -120,6 +120,41 @@ export interface DriftHooks extends RetreatHooks {
   onLine?(line: string): void;
   onRender?(): void;
   onCombat?(detail: LandAttackDetail, outcome: LandCombatOutcome, elephant: Unit, occupant: Unit, hex: HexCoord): void;
+  /** Fired once a direction die has resolved into an actual `direction`
+   * (plan.md §21) — a lower-friction way for a presentation layer to track
+   * "which way is this elephant currently drifting" than re-parsing `onLine`'s
+   * narration string, so it can draw a direction arrow without caring about
+   * log text at all. */
+  onDirectionRolled?(elephant: Unit, direction: HexCoord): void;
+  /** Fired whenever the drifting elephant's `position` actually changes —
+   * `moved` and `enteredVacatedHex` both qualify. Paired with
+   * `onDirectionRolled` above so a presentation layer can redraw a
+   * direction arrow at the elephant's new hex without needing to inspect
+   * `GameState` itself to find "the" drifting unit. */
+  onDriftMoved?(elephant: Unit, hex: HexCoord): void;
+  /**
+   * Optional per-step pause point (plan.md §21 — "pause between steps and
+   * show the drift direction on the map"). Awaited, if present, once after
+   * EVERY event in the switch below (i.e. once per narrated beat: drift
+   * started, direction rolled, a hex entered, a trample resolved, the drift
+   * stopping or an elephant/occupant being destroyed) — never inside
+   * `driftStep` itself, which stays a pure, uninterrupted state machine.
+   * `resolveElephantDrift`'s own loop is the only place this is awaited, so:
+   *   - every existing headless caller (the fuzz harness, `drift.test.ts`,
+   *     `heuristicSoak.test.ts`, and AI-vs-AI turns in `BoardScene`, none of
+   *     which supply this hook) sees IDENTICAL event sequences and timing to
+   *     before this hook existed — `hooks.onStep?.()` is `undefined` and the
+   *     `if (hooks.onStep)` guard below skips the `await` entirely rather
+   *     than merely awaiting `undefined`, so not even an extra microtask tick
+   *     is added.
+   *   - only a human-seat-facing caller (`BoardScene`, when the seat
+   *     currently free to interact with the board is human — see
+   *     `BoardScene.beginDrift`'s comment on why it gates this on
+   *     `!this.aiRunning` rather than "the drifting elephant's owner") would
+   *     ever supply a hook that returns a Promise resolved by a player's
+   *     explicit "continue" action.
+   */
+  onStep?(): void | Promise<void>;
 }
 
 export interface DriftStats {
@@ -408,12 +443,15 @@ export async function resolveElephantDrift(
           break;
         case 'directionRolled':
           hooks.onLine?.(`Direction die: ${event.dieRoll} - ${event.remainingSteps} hex(es) of movement to go.`);
+          hooks.onDirectionRolled?.(event.elephant, event.direction);
           break;
         case 'moved':
           hooks.onLine?.(`${unitType(event.elephant).name} moves to (${event.hex.q}, ${event.hex.r}).`);
+          hooks.onDriftMoved?.(event.elephant, event.hex);
           hooks.onRender?.();
           break;
         case 'enteredVacatedHex':
+          hooks.onDriftMoved?.(event.elephant, event.hex);
           hooks.onRender?.();
           break;
         case 'stopped':
@@ -429,10 +467,24 @@ export async function resolveElephantDrift(
           break;
         case 'driftElephantDestroyed':
           hooks.onLine?.(`${unitType(event.elephant).name} is destroyed.`);
+          // Unlike the other `destroyed` branch above (`eliminatedLeavingLandZone`),
+          // this one previously had no `onRender` call of its own — a gap that
+          // went unnoticed because nothing rendered again until the NEXT event
+          // anyway. Adding the per-step pause below made that gap visible: a
+          // paused presentation would sit there showing a marker for a unit
+          // that combat has already flagged `destroyed`, which is exactly the
+          // kind of stale-frame bug this whole feature exists to prevent.
+          hooks.onRender?.();
           break;
         case 'repelled':
           hooks.onLine?.(`${unitType(event.elephant).name} is repelled and must drift again!`);
           break;
+      }
+
+      // See `DriftHooks.onStep`'s doc comment: only paces a presentation
+      // layer that opts in, never `driftStep` itself.
+      if (hooks.onStep) {
+        await hooks.onStep();
       }
     }
 

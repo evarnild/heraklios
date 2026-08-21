@@ -9,6 +9,7 @@ import {
   startElephantDrift,
   type DriftEvent,
   type DriftInput,
+  type DriftStats,
 } from './drift';
 import { DIRECTIONS } from './hex';
 import type { GameState, Player, PlayerId, Unit } from './state';
@@ -198,5 +199,131 @@ describe('elephant drift engine', () => {
     expect(nested.destroyed).toBe(false);
     expect(nested.position).toEqual({ q: 15, r: 1 });
     expect(original.position).toEqual({ q: 14, r: 5 });
+  });
+
+  // plan.md §21 — "pause between steps and show the drift direction on the
+  // map". These four pin the contract the design brief cares about most:
+  // a presentation layer's OPTIONAL `onStep`/`onDirectionRolled`/
+  // `onDriftMoved` hooks must (1) leave every headless caller — the fuzz
+  // harness, `heuristicSoak.test.ts`, AI-vs-AI `BoardScene` turns, none of
+  // which supply them — completely unaffected, and (2) actually pause the
+  // cascade, one beat at a time, for the one caller that DOES supply them.
+  describe('presentation hooks (plan.md §21)', () => {
+    it('resolves within the same task when no onStep hook is supplied — no macrotask delay added', async () => {
+      const elephant = makeUnit('elephant', 0, 'elephants', CENTER);
+      const state = makeState([elephant]);
+      let macrotaskFired = false;
+      setTimeout(() => {
+        macrotaskFired = true;
+      }, 0);
+
+      await resolveElephantDrift(state, elephant, 2, new ScriptedAgent(), () => 1);
+
+      // If `resolveElephantDrift` ever grew a hidden macrotask-based delay
+      // (a `setTimeout`, a `requestAnimationFrame`, etc.) rather than only
+      // ever awaiting a caller-supplied Promise, this `setTimeout(0)` queued
+      // BEFORE the call would have had time to fire by the time the awaited
+      // drift settles. It hasn't: the whole cascade above completed on pure
+      // microtasks, same as before this hook existed.
+      expect(macrotaskFired).toBe(false);
+      expect(elephant.position).toEqual({ q: 12, r: 5 });
+    });
+
+    it('produces an identical event trace and stats whether onStep is a no-op or simply absent', async () => {
+      const withoutHook = makeUnit('e1', 0, 'elephants', CENTER);
+      const stateWithoutHook = makeState([withoutHook]);
+      const statsWithoutHook: DriftStats = { driftsResolved: 0, driftCombatsResolved: 0 };
+      await resolveElephantDrift(
+        stateWithoutHook,
+        withoutHook,
+        4,
+        new ScriptedAgent(),
+        () => 1,
+        {},
+        undefined,
+        statsWithoutHook,
+      );
+
+      const withNoOpHook = makeUnit('e2', 0, 'elephants', CENTER);
+      const stateWithNoOpHook = makeState([withNoOpHook]);
+      const statsWithNoOpHook: DriftStats = { driftsResolved: 0, driftCombatsResolved: 0 };
+      let stepCalls = 0;
+      await resolveElephantDrift(
+        stateWithNoOpHook,
+        withNoOpHook,
+        4,
+        new ScriptedAgent(),
+        () => 1,
+        {
+          onStep: () => {
+            stepCalls++;
+          },
+        },
+        undefined,
+        statsWithNoOpHook,
+      );
+
+      expect(withNoOpHook.position).toEqual(withoutHook.position);
+      expect(statsWithNoOpHook).toEqual(statsWithoutHook);
+      // ...but onStep itself was genuinely invoked — proving the identical
+      // outcome above is because the hook is inert when synchronous, not
+      // because it silently never ran.
+      expect(stepCalls).toBeGreaterThan(0);
+    });
+
+    it('pauses the cascade at each step until the onStep hook\'s returned promise resolves', async () => {
+      const elephant = makeUnit('elephant', 0, 'elephants', CENTER);
+      const state = makeState([elephant]);
+      const pendingResolvers: Array<() => void> = [];
+      let settled = false;
+
+      const donePromise = resolveElephantDrift(state, elephant, 2, new ScriptedAgent(), () => 1, {
+        onStep: () => new Promise<void>((resolve) => pendingResolvers.push(resolve)),
+      });
+      void donePromise.then(() => {
+        settled = true;
+      });
+
+      // Flush pending microtasks without resolving anything: the drift
+      // should be stuck at its first pause (right after `driftStarted`),
+      // having not moved the elephant at all yet.
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(pendingResolvers.length).toBeGreaterThan(0);
+      expect(elephant.position).toEqual(CENTER);
+      expect(settled).toBe(false);
+
+      // Resolve each pause as it appears, one at a time, until the whole
+      // drift finishes — if `onStep` weren't genuinely awaited (rather than
+      // just called and ignored), the cascade would already have run to
+      // completion above, before any of these resolves.
+      let guard = 0;
+      while (!settled) {
+        if (++guard > 100) throw new Error('drift never settled — onStep is not actually pausing it');
+        const resolve = pendingResolvers.shift();
+        if (resolve) resolve();
+        await Promise.resolve();
+      }
+
+      expect(elephant.position).toEqual({ q: 12, r: 5 });
+    });
+
+    it('fires onDirectionRolled/onDriftMoved with the drifting elephant and its real direction/position', async () => {
+      const elephant = makeUnit('elephant', 0, 'elephants', CENTER);
+      const state = makeState([elephant]);
+      const directionCalls: { id: string; direction: HexCoord }[] = [];
+      const moveCalls: { id: string; hex: HexCoord }[] = [];
+
+      await resolveElephantDrift(state, elephant, 2, new ScriptedAgent(), () => 1, {
+        onDirectionRolled: (u, direction) => directionCalls.push({ id: u.id, direction }),
+        onDriftMoved: (u, hex) => moveCalls.push({ id: u.id, hex }),
+      });
+
+      expect(directionCalls).toEqual([{ id: 'elephant', direction: DIRECTIONS[0] }]);
+      expect(moveCalls).toEqual([
+        { id: 'elephant', hex: { q: 11, r: 5 } },
+        { id: 'elephant', hex: { q: 12, r: 5 } },
+      ]);
+    });
   });
 });

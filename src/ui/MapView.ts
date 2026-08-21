@@ -71,6 +71,9 @@ export class MapView {
   private overlayGraphics: Phaser.GameObjects.Graphics;
   private riverGraphics!: Phaser.GameObjects.Graphics;
   private facingGraphics: Phaser.GameObjects.Graphics;
+  /** The elephant drift-direction arrow (plan.md §21) — see its assignment
+   * in the constructor for why this isn't just reused from `facingGraphics`. */
+  private driftArrowGraphics: Phaser.GameObjects.Graphics;
   private unitLabels = new Map<string, Phaser.GameObjects.GameObject>();
   private movementLabel: Phaser.GameObjects.Text | null = null;
   /** Per-hex "A"/"B"/"C" badges drawn during a choice prompt — see
@@ -137,6 +140,15 @@ export class MapView {
 
     this.overlayGraphics = scene.add.graphics().setDepth(5);
     this.facingGraphics = scene.add.graphics().setDepth(11);
+    // Depth 12 — one above the ship facing indicators, so an elephant's
+    // drift arrow (plan.md §21) is never hidden behind them on the rare hex
+    // where both happen to be drawn at once. A separate `Graphics` object
+    // rather than sharing `facingGraphics`: `renderAllUnits` calls
+    // `setFacingIndicators` on every render, which `.clear()`s and redraws
+    // ship arrows from scratch — sharing one object would wipe the drift
+    // arrow out on every unrelated re-render unless every such call also
+    // remembered to re-supply it.
+    this.driftArrowGraphics = scene.add.graphics().setDepth(12);
 
     for (const hex of hexes) {
       const terrain = MAP_TERRAIN.get(`${hex.q},${hex.r}`) ?? 'plain';
@@ -404,6 +416,26 @@ export class MapView {
 
   clearFacingIndicators(): void {
     this.facingGraphics.clear();
+  }
+
+  /**
+   * Draws a single arrowhead on `hex` pointing in `facing`'s direction — the
+   * currently-drifting elephant's just-rolled/in-progress direction (plan.md
+   * §21). Reuses `drawFacingArrowhead`, the same primitive `setFacingIndicators`
+   * draws ship bows with, rather than inventing a second arrow shape. Redraws
+   * from scratch each call (there is ever only one drifting elephant's arrow
+   * shown at a time — a nested trampled-elephant re-drift replaces it, it
+   * doesn't add a second one), same "clear, then redraw the current set"
+   * pattern as `setFacingIndicators`.
+   */
+  setDriftArrow(hex: HexCoord, facing: number, colorHex: string): void {
+    this.driftArrowGraphics.clear();
+    const center = this.toScreen(hex);
+    drawFacingArrowhead(this.driftArrowGraphics, center, facing, colorHex, 1.15);
+  }
+
+  clearDriftArrow(): void {
+    this.driftArrowGraphics.clear();
   }
 
   /**
