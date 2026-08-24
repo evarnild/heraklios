@@ -3901,3 +3901,67 @@ keeping §23's `onCombat` body from `main` and adding only this branch's
 report content) and compose cleanly. A manual browser pass is still owed,
 joining the existing list — inherently visual/UX code no automated check
 can confirm looks or feels right.
+
+---
+
+## 25. Live defect: Save / Load panel labels overlap action buttons
+
+**Status: shipped.** Reported directly by the user (2026-08-21).
+Presentation-only. Fixed in `cc29f1f`, reviewed PASS, then merged after
+`main` had advanced past §21.
+
+### 25.1 The problem
+
+`SaveLoadPanel.buildRow` laid out each row with the save description at
+`left + 90` and the first row action button at `left + 400`. The description
+text was built from `describeSave(save)` plus `formatSavedAt(save.savedAt)`;
+with long army names, controller labels, or timestamps, that text could extend
+past the implicit 310px label area and draw underneath the Save, Load, or
+Delete buttons.
+
+The result was visually ambiguous: the player could not easily read the saved
+game's name/summary, and the row actions appeared on top of the label.
+
+### 25.2 Scope
+
+Presentation-only: `src/ui/saveLoadPanel.ts`. Reserve a real label column
+before the action buttons, and constrain the save-description text so it
+cannot overlap controls. Prefer truncation with an ellipsis or Phaser text
+wrapping/clipping that preserves a single stable row height; do not change the
+save data format or `describeSave`.
+
+This should work in both panel modes:
+
+- Board/manage mode: manual slots show Save, Load, and Delete; autosave shows
+  Load and Delete.
+- Menu/load mode: rows show Load only, but long labels still need a bounded
+  readable area.
+
+### 25.3 Verification
+
+Create or simulate a save whose description is long enough to approach the
+buttons, then verify in a pinned-port browser session (see [§4](plan.md#4-runbook-detailed-launch-hazards-appendix))
+that no row label overlaps the Save, Load, or Delete buttons. `npm run build`
+is enough for compile coverage; this is mainly a visual layout fix.
+
+### 25.4 Outcome
+
+**Shipped, fixed `cc29f1f`, reviewed PASS.** `SaveLoadPanel` now names the
+row geometry instead of relying on raw offsets: the slot name column is 90px,
+the action column starts at 400px, and the save description receives a
+fixed-width/fixed-height Phaser `Text` box with a 16px gap before the action
+buttons. Long descriptions are clipped inside that text canvas instead of
+drawing underneath Save, Load, or Delete. The save format and `describeSave`
+were deliberately unchanged.
+
+`npm.cmd run build` and `npm.cmd test` (31 files, 501 tests) passed in both
+the implementation pass and the independent reviewer pass. The reviewer found
+no defects and specifically checked that the geometry covers both Board/manage
+mode and Menu/load mode.
+
+**Residual verification note:** the browser session confirmed the dev server
+was pinned to `127.0.0.1:5199` and served the edited source, but the attempted
+long-save visual setup was blocked by browser/localStorage/file-upload safety
+controls. Static review confirms Phaser's fixed-size text cannot draw under
+the buttons, but a manual pinned-port browser pass with a real long save is
+still the only full end-to-end visual proof.

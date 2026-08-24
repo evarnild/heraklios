@@ -124,7 +124,10 @@ of returning" bug class out of `engine/drift.ts`'s frame-stack state
 machine — see [§21.4](plan-history.md#214-outcome) for the full round-by-round
 record), which pauses a human seat's own drift cascade step by step behind
 a "Continue" affordance while staying a byte-identical no-op for headless/
-AI-vs-AI play.
+AI-vs-AI play, and
+**[§25](plan-history.md#25-live-defect-save-load-panel-labels-overlap-action-buttons)
+— Save / Load panel label overlap**, which bounds long save descriptions so
+they cannot draw underneath the row's action buttons.
 **In flight:** nothing. Queue is empty of self-contained items.
 **Carried over from merges, manual browser pass still owed:** Stage 4's
 ([§6.12](plan-history.md#612-stage-4-outcome)), §16's, and now §17's naval
@@ -140,7 +143,7 @@ click/highlight behavior. Verified still present in `main` as of this note
 commit whenever someone's next in that file. See
 [§17.6](plan-history.md#176-outcome)'s correction note for the exact wording
 each one needs.
-**Live defects still open:** none. [§23](plan-history.md#23-live-defect-elephant-drift-hides-the-combat-report)
+**Live defects still open:** none. [§25](plan-history.md#25-live-defect-save-load-panel-labels-overlap-action-buttons)
 was the latest live defect and is shipped.
 
 <a id="10-sequenced-queue"></a>
@@ -177,6 +180,7 @@ sync when something merges** — it went stale once and the user caught it.
 | [§23](plan-history.md#23-live-defect-elephant-drift-hides-the-combat-report) elephant drift combat-log fix | see [§23.4](plan-history.md#234-outcome) |
 | [§22](plan-history.md#22-naval-movement-show-remaining-range-and-let-a-distant-hex-auto-path-there-alongside-manual-stepping) naval range indicator + click-to-autopath (+1 MEDIUM review finding fixed) | `b02a96c` |
 | [§21](plan-history.md#21-elephant-drift-pause-between-steps-and-show-the-drift-direction-on-the-map) elephant drift pause + direction arrow (4 review rounds; see [§21.4](plan-history.md#214-outcome)) | `1d6666f` |
+| [§25](plan-history.md#25-live-defect-save-load-panel-labels-overlap-action-buttons) save/load labels overlap buttons | see [§25.4](plan-history.md#254-outcome) |
 
 ### In flight
 
@@ -203,7 +207,8 @@ for their postmortems.
   160 seeds) is the cheap first step before deciding whether to fix it for
   real.
 - **Live defects:** none confirmed-and-open. [§23](plan-history.md#23-live-defect-elephant-drift-hides-the-combat-report)
-  was the latest one and is shipped.
+  and [§25](plan-history.md#25-live-defect-save-load-panel-labels-overlap-action-buttons)
+  are both shipped.
 - **Also queued:** #8, [§24](#24-turn-status-should-name-the-side-and-unit-color)
   — show the active player's map side and unit color in the turn/status
   banner, in addition to the army name. Requested by the user directly
@@ -212,9 +217,10 @@ for their postmortems.
   player palette.
 - **Owed:** a manual browser pass over §16's per-hex choice labels, §17's
   naval movement controls, §22's range indicator/click-to-autopath, §21's
-  drift pause/direction arrow, and Stage 4's still-outstanding one
+  drift pause/direction arrow, §25's long-save panel layout, and Stage 4's
+  still-outstanding one
   ([§6.12](plan-history.md#612-stage-4-outcome)) — next person with a
-  working browser session should give all five a look. Also owed: §17's 4
+  working browser session should give all six a look. Also owed: §17's 4
   LOW doc-staleness findings noted in Current Snapshot above.
 
 ## History Map
@@ -268,7 +274,11 @@ This map is just a fast index into it:
   [§21.4](plan-history.md#214-outcome) for all four review rounds; the same
   "fall through instead of returning" bug recurred three times before a
   self-audit plus an independent from-scratch mutation-site enumeration
-  finally closed it out).
+  finally closed it out), and
+  [§25](plan-history.md#25-live-defect-save-load-panel-labels-overlap-action-buttons)
+  (Save / Load panel label overlap, fixed `cc29f1f`, reviewed PASS; see
+  [§25.4](plan-history.md#254-outcome) for the residual manual visual-check
+  note).
 
 > **Line citations were re-verified against `main` on 2026-08-07** (at
 > `3b15577`), after ~440 lines of drift in `BoardScene.ts` had rotted most of
