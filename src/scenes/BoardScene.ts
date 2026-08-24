@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { MapView, drawFacingArrowhead } from '../ui/MapView';
-import { PLAYER_COLORS_HEX } from '../ui/hexRender';
+import { PLAYER_COLORS_HEX, PLAYER_COLOR_NAMES } from '../ui/hexRender';
 import { session, resetToMenu, seatControlFor } from '../ui/session';
 import { showConfirmDialog } from '../ui/confirmDialog';
 import { SaveLoadPanel } from '../ui/saveLoadPanel';
@@ -1329,7 +1329,15 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // what makes an AI turn readable as one: without it, a board rearranging
     // itself is indistinguishable from a bug.
     const control = seatControlFor(activeId);
-    const who = isAiSeat(control) ? `${player.name} [${seatControlLabel(control)}]` : player.name;
+    // plan.md §24: in hotseat play the army name alone doesn't always let a
+    // player quickly identify the active seat, so the status line also names
+    // the map edge the seat owns and the on-board color of its units. Index
+    // into PLAYER_COLOR_NAMES with `activeId` — the same player index used to
+    // look up PLAYER_COLORS_HEX for actually rendering the seat's units (see
+    // e.g. `ship.owner`/`markerTextureKey` callers) — so the name always
+    // matches the color shown on the board.
+    const seatLabel = `${player.name} (${player.edge}, ${PLAYER_COLOR_NAMES[activeId] ?? 'unknown'})`;
+    const who = isAiSeat(control) ? `${seatLabel} [${seatControlLabel(control)}]` : seatLabel;
     // plan.md §9.2.2 #6: tell the player when a trigger (clock, round limit,
     // or the button below) has fired, since the game does NOT end on the
     // spot — every seat still finishes this round (see `pendingGameEnd`'s
