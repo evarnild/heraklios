@@ -127,7 +127,14 @@ a "Continue" affordance while staying a byte-identical no-op for headless/
 AI-vs-AI play, and
 **[§25](plan-history.md#25-live-defect-save-load-panel-labels-overlap-action-buttons)
 — Save / Load panel label overlap**, which bounds long save descriptions so
-they cannot draw underneath the row's action buttons.
+they cannot draw underneath the row's action buttons, and, implemented in
+parallel and merged together, **[§24](plan-history.md#24-turn-status-should-name-the-side-and-unit-color)
+— turn status side + color** (merged `74a169a`, reviewed PASS, no findings),
+which adds the seat's map edge and unit-color name to the turn banner, and
+**[§19](plan-history.md#19-the-lookahead-tier-is-blind-to-ramming-and-that-now-costs-measurably-more)
+— pricing ramming in the lookahead tier's reply-threat probe** (merged
+`10a7c21`, reviewed PASS with one open MEDIUM finding — see below), which
+closes most, but not provably all, of the AI-tuning gap §18 opened.
 **In flight:** nothing. Queue is empty of self-contained items.
 **Carried over from merges, manual browser pass still owed:** Stage 4's
 ([§6.12](plan-history.md#612-stage-4-outcome)), §16's, and now §17's naval
@@ -181,6 +188,8 @@ sync when something merges** — it went stale once and the user caught it.
 | [§22](plan-history.md#22-naval-movement-show-remaining-range-and-let-a-distant-hex-auto-path-there-alongside-manual-stepping) naval range indicator + click-to-autopath (+1 MEDIUM review finding fixed) | `b02a96c` |
 | [§21](plan-history.md#21-elephant-drift-pause-between-steps-and-show-the-drift-direction-on-the-map) elephant drift pause + direction arrow (4 review rounds; see [§21.4](plan-history.md#214-outcome)) | `1d6666f` |
 | [§25](plan-history.md#25-live-defect-save-load-panel-labels-overlap-action-buttons) save/load labels overlap buttons | see [§25.4](plan-history.md#254-outcome) |
+| [§24](plan-history.md#24-turn-status-should-name-the-side-and-unit-color) turn status side + color | `74a169a` |
+| [§19](plan-history.md#19-the-lookahead-tier-is-blind-to-ramming-and-that-now-costs-measurably-more) lookahead tier prices ramming threats (1 open MEDIUM follow-up; see [§19.5](plan-history.md#195-outcome)) | `10a7c21` |
 
 ### In flight
 
@@ -188,39 +197,31 @@ Nothing. Queue is empty of self-contained items.
 
 ### Queued
 
-All fully-shipped rows that previously lived here (Stage 3b, §17, §18 and
-earlier) are in the [Shipped](#shipped) table above; see the History Map
-for their postmortems.
-
-| # | Item | Touches | Notes |
-| --- | --- | --- | --- |
-| 5 | [§19](#19-the-lookahead-tier-is-blind-to-ramming-and-that-now-costs-measurably-more) lookahead tier is blind to ramming | `heuristicAgent.ts` + its tests | Engine-only AI tuning, surfaced and measured by §18. Not urgent and not proven — [§19.3](#193-options-in-preference-order) option 3 (re-measure at 160 seeds) is the cheap first step. |
-| 8 | [§24](#24-turn-status-should-name-the-side-and-unit-color) turn status side + color | `BoardScene.ts` (`refreshStatus`), `ui/hexRender.ts` | Presentation-only. The turn banner should keep the army name but also show the seat edge (`E`/`W`/`N`/`S`) and the visible unit color so hotseat players can identify whose turn it is at a glance. |
+Empty. All fully-shipped rows that previously lived here (Stage 3b, §17,
+§18, §19, §24 and earlier) are in the [Shipped](#shipped) table above; see
+the History Map for their postmortems.
 
 ## Backlog Map
 
 - **Start here:** [Current Queue](#10-sequenced-queue).
-- **Current next task:** #5,
-  [§19](#19-the-lookahead-tier-is-blind-to-ramming-and-that-now-costs-measurably-more)
-  — the lookahead AI tier's blindness to ramming threats. Engine-only, not
-  urgent; [§19.3](#193-options-in-preference-order) option 3 (re-measure at
-  160 seeds) is the cheap first step before deciding whether to fix it for
-  real.
+- **Current next task:** none queued. The plan's self-contained backlog is
+  empty; the one open item is the follow-up below.
+- **Follow-up, not yet a queued task:** [§19.5](plan-history.md#195-outcome)'s
+  open MEDIUM finding — `enemyRamThreatAgainstUnit` prices a ram threat using
+  the enemy ship's current `movementLeft` rather than its full per-turn
+  allowance, so it misses threats from ships that already spent movement
+  earlier in the round. Minimal fix: clone with full movement before probing,
+  or document the staleness explicitly. Small enough to fold into whoever's
+  next in `heuristicAgent.ts`, not urgent enough to queue on its own.
 - **Live defects:** none confirmed-and-open. [§23](plan-history.md#23-live-defect-elephant-drift-hides-the-combat-report)
   and [§25](plan-history.md#25-live-defect-save-load-panel-labels-overlap-action-buttons)
   are both shipped.
-- **Also queued:** #8, [§24](#24-turn-status-should-name-the-side-and-unit-color)
-  — show the active player's map side and unit color in the turn/status
-  banner, in addition to the army name. Requested by the user directly
-  (2026-08-21); presentation-only and likely contained to
-  `BoardScene.refreshStatus` plus a shared color-name source for the existing
-  player palette.
 - **Owed:** a manual browser pass over §16's per-hex choice labels, §17's
   naval movement controls, §22's range indicator/click-to-autopath, §21's
-  drift pause/direction arrow, §25's long-save panel layout, and Stage 4's
-  still-outstanding one
+  drift pause/direction arrow, §24's status banner wording, §25's long-save
+  panel layout, and Stage 4's still-outstanding one
   ([§6.12](plan-history.md#612-stage-4-outcome)) — next person with a
-  working browser session should give all six a look. Also owed: §17's 4
+  working browser session should give all seven a look. Also owed: §17's 4
   LOW doc-staleness findings noted in Current Snapshot above.
 
 ## History Map
@@ -278,7 +279,17 @@ This map is just a fast index into it:
   [§25](plan-history.md#25-live-defect-save-load-panel-labels-overlap-action-buttons)
   (Save / Load panel label overlap, fixed `cc29f1f`, reviewed PASS; see
   [§25.4](plan-history.md#254-outcome) for the residual manual visual-check
-  note).
+  note), and
+  [§24](plan-history.md#24-turn-status-should-name-the-side-and-unit-color)
+  (turn status side + color, shipped `74a169a`, reviewed PASS with no
+  findings), and
+  [§19](plan-history.md#19-the-lookahead-tier-is-blind-to-ramming-and-that-now-costs-measurably-more)
+  (lookahead tier prices ramming threats, shipped `10a7c21` — read
+  [§19.5](plan-history.md#195-outcome) for the review's open MEDIUM finding:
+  the new ram-threat term reads a stale `movementLeft`, so it undercounts
+  threats from enemy ships that already spent movement earlier in the
+  round). §19 and §24 were implemented and reviewed in parallel by
+  independent agent pairs, then merged back to back with no conflicts.
 
 > **Line citations were re-verified against `main` on 2026-08-07** (at
 > `3b15577`), after ~440 lines of drift in `BoardScene.ts` had rotted most of
@@ -538,117 +549,3 @@ output schema (see [§1](#1-agent-workflow)). The feature brief
 (slug / files / design question — from whichever section
 [Current Queue](#10-sequenced-queue) points at) is the only per-run content the prompts
 need to carry; process rules live in the agent files.
-
----
-
-## 19. The lookahead tier is blind to ramming, and that now costs measurably more
-
-**Status: open, not urgent.** Surfaced by [§18](plan-history.md#18-live-defect-ramming-bonus-narrows-the-table-instead-of-extending-it)'s
-ramming fix during review, measured, and deliberately not fixed in that
-branch — the fix is a rules correction and this is an AI-tuning question,
-which are different jobs with different review bars.
-
-### 19.1 The gap
-
-`HeuristicAgent.cloneAfterDeterministicMovementAction` returns `null` for a
-`'ram'` action, so the `'lookahead'` tier's threat probe never prices a ram
-an enemy could make in reply. That is a deliberate, documented choice — a
-ram's outcome is a die-roll distribution, and cloning "after" it would mean
-committing to an arbitrarily chosen hit or miss, which is worse modelling
-than not probing at all. It was disclosed rather than hidden (see that
-function's own doc comment, and plan-history.md §6.13's posture on it).
-
-What changed is the price. §18 made ramming hit substantially more often at
-every bonus level, and `'lookahead'` is the only tier that prices movement
-risk by probing enemy replies — so it is the only tier that is now blind to
-a threat that got materially stronger. Every other tier is blind to *all*
-reply threats and loses nothing by comparison.
-
-### 19.2 What was measured
-
-40 seeds, both seat assignments (80 games per build), `'lookahead'` vs
-`'ev'` surviving army value, run against `main` and against the §18 branch:
-
-```
-             seat 0    seat 1    pooled    ram hit rate
-  pre-fix     +3.17%    +1.67%    +2.64%    49.4% (80/162)
-  post-fix    -3.27%   -10.28%    -5.40%    70.2% (80/114)
-```
-
-Lookahead led on both seats before and trails on both after. Rams resolved
-fell 162 → 114 for the same 80 hits: ships die faster per attempt now, which
-is what an unpriced threat costs.
-
-**Read this before treating it as proven.** 29-37 of the 40 seed-pairs end
-in an exact tie, so the margin rests on a handful of games, and block-level
-signs still flip post-fix. The *direction* is consistent across both seats
-and has a named mechanism that predicts it; the *magnitude* is not pinned
-down. This is "a real effect with a plausible cause, size unknown," not a
-measured regression — and this project has now burned six review rounds on
-over-claiming exactly this comparison (plan-history.md §6.13–§6.18), so the
-bar for claiming an ordering here is high and deliberately unmet.
-
-### 19.3 Options, in preference order
-
-1. **Price a ram by its expected value rather than cloning it.** The threat
-   probe wants a number, not a board — and `combatOdds.ts`'s `evaluateRam`
-   already returns exactly that number, as a proper distribution over six
-   faces. `enemyThreatAgainstUnit` could take the max over `'ram'` candidates
-   targeting the unit without ever cloning past the roll. This looks like
-   the right answer and is a smaller change than the original "clone a ram"
-   framing implied.
-2. **Leave it, and say so in the code.** Legitimate: the tier is labelled
-   "cautious," not "expert," precisely because it does not claim aggregate
-   strength. If so, `cloneAfterDeterministicMovementAction`'s comment should
-   record that the gap's cost went up in §18 and was accepted, rather than
-   still reading as a neutral modelling choice.
-3. **Re-measure at higher seed counts first.** 160 seeds in 4 blocks is the
-   protocol plan-history.md §6.14/§6.15 established for this exact
-   comparison. Cheap (the 40-seed run took ~11s per build) and would settle
-   whether option 1 is worth doing at all.
-
-### 19.4 Scope
-
-Engine-only: `heuristicAgent.ts`, `heuristicSoak.test.ts`,
-`heuristicAgent.test.ts`. No scene, no rules, no save format. Any change
-here must come with a targeted, mutation-verified test — the aggregate soak
-is too noisy to be the evidence, which is the standing lesson from
-plan-history.md §6.14.
-
----
-
-## 24. Turn status should name the side and unit color
-
-**Status: queued, not started.** Requested directly by the user
-(2026-08-21). Presentation-only.
-
-### 24.1 The problem
-
-`BoardScene.refreshStatus` currently renders the active player as the army
-name only (plus the AI controller label when applicable):
-
-```text
-Turn 3 — Athènes — MOVEMENT phase
-```
-
-In hotseat play, the army name alone is not always enough to identify the
-seat quickly. The player also wants the status line to say which map side
-the seat owns (`E`, `W`, `N`, or `S`) and the visible color of that seat's
-units.
-
-### 24.2 Scope
-
-Presentation-only: update the turn/status banner in `BoardScene.refreshStatus`.
-Use the existing `Player.edge` field for side. Add or expose human-readable
-names for the existing player colors in `ui/hexRender.ts`
-(`PLAYER_COLORS_HEX`: yellow, red, blue, green) rather than hard-coding a
-separate mapping inside the scene.
-
-Likely target wording:
-
-```text
-Turn 3 — Athènes (W, yellow) — MOVEMENT phase
-```
-
-For AI seats, preserve the existing controller label as well; e.g. the army
-name, side/color, and `[AI — cautious]` label should all remain visible.

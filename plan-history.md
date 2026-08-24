@@ -3965,3 +3965,197 @@ long-save visual setup was blocked by browser/localStorage/file-upload safety
 controls. Static review confirms Phaser's fixed-size text cannot draw under
 the buttons, but a manual pinned-port browser pass with a real long save is
 still the only full end-to-end visual proof.
+
+---
+
+## 19. The lookahead tier is blind to ramming, and that now costs measurably more
+
+**Status: shipped, merged `10a7c21`, one open MEDIUM finding (see §19.5).**
+Surfaced by [§18](plan-history.md#18-live-defect-ramming-bonus-narrows-the-table-instead-of-extending-it)'s
+ramming fix during review, measured, and deliberately not fixed in that
+branch — the fix is a rules correction and this is an AI-tuning question,
+which are different jobs with different review bars.
+
+### 19.1 The gap
+
+`HeuristicAgent.cloneAfterDeterministicMovementAction` returns `null` for a
+`'ram'` action, so the `'lookahead'` tier's threat probe never prices a ram
+an enemy could make in reply. That is a deliberate, documented choice — a
+ram's outcome is a die-roll distribution, and cloning "after" it would mean
+committing to an arbitrarily chosen hit or miss, which is worse modelling
+than not probing at all. It was disclosed rather than hidden (see that
+function's own doc comment, and plan-history.md §6.13's posture on it).
+
+What changed is the price. §18 made ramming hit substantially more often at
+every bonus level, and `'lookahead'` is the only tier that prices movement
+risk by probing enemy replies — so it is the only tier that is now blind to
+a threat that got materially stronger. Every other tier is blind to *all*
+reply threats and loses nothing by comparison.
+
+### 19.2 What was measured
+
+40 seeds, both seat assignments (80 games per build), `'lookahead'` vs
+`'ev'` surviving army value, run against `main` and against the §18 branch:
+
+```
+             seat 0    seat 1    pooled    ram hit rate
+  pre-fix     +3.17%    +1.67%    +2.64%    49.4% (80/162)
+  post-fix    -3.27%   -10.28%    -5.40%    70.2% (80/114)
+```
+
+Lookahead led on both seats before and trails on both after. Rams resolved
+fell 162 → 114 for the same 80 hits: ships die faster per attempt now, which
+is what an unpriced threat costs.
+
+**Read this before treating it as proven.** 29-37 of the 40 seed-pairs end
+in an exact tie, so the margin rests on a handful of games, and block-level
+signs still flip post-fix. The *direction* is consistent across both seats
+and has a named mechanism that predicts it; the *magnitude* is not pinned
+down. This is "a real effect with a plausible cause, size unknown," not a
+measured regression — and this project has now burned six review rounds on
+over-claiming exactly this comparison (plan-history.md §6.13–§6.18), so the
+bar for claiming an ordering here is high and deliberately unmet.
+
+### 19.3 Options, in preference order
+
+1. **Price a ram by its expected value rather than cloning it.** The threat
+   probe wants a number, not a board — and `combatOdds.ts`'s `evaluateRam`
+   already returns exactly that number, as a proper distribution over six
+   faces. `enemyThreatAgainstUnit` could take the max over `'ram'` candidates
+   targeting the unit without ever cloning past the roll. This looks like
+   the right answer and is a smaller change than the original "clone a ram"
+   framing implied.
+2. **Leave it, and say so in the code.** Legitimate: the tier is labelled
+   "cautious," not "expert," precisely because it does not claim aggregate
+   strength. If so, `cloneAfterDeterministicMovementAction`'s comment should
+   record that the gap's cost went up in §18 and was accepted, rather than
+   still reading as a neutral modelling choice.
+3. **Re-measure at higher seed counts first.** 160 seeds in 4 blocks is the
+   protocol plan-history.md §6.14/§6.15 established for this exact
+   comparison. Cheap (the 40-seed run took ~11s per build) and would settle
+   whether option 1 is worth doing at all.
+
+### 19.4 Scope
+
+Engine-only: `heuristicAgent.ts`, `heuristicSoak.test.ts`,
+`heuristicAgent.test.ts`. No scene, no rules, no save format. Any change
+here must come with a targeted, mutation-verified test — the aggregate soak
+is too noisy to be the evidence, which is the standing lesson from
+plan-history.md §6.14.
+
+### 19.5 Outcome
+
+**Shipped, merged `10a7c21`, reviewed PASS with one open MEDIUM finding.**
+Took §19.3 option 1: `heuristicAgent.ts` gained `enemyRamThreatAgainstUnit`,
+a separate, non-cloning term maxed into `enemyThreatAgainstUnit` alongside
+the existing land/boarding reply-threat, using `combatOdds.ts`'s
+`evaluateRam(...).expectedValue` over `findRammingContacts` results —
+`cloneAfterDeterministicMovementAction`'s existing `null`-for-`'ram'` branch
+was deliberately left untouched (it covers a different case, the mover's own
+hypothetical ram, not the enemy's reply).
+
+The review independently confirmed the structural reason a simpler fix
+couldn't work: `enemyThreatAgainstUnit` fakes an enemy *combat* phase to
+enumerate reply actions, but `'ram'` is only ever a *movement*-phase action
+(`actions.ts`'s `legalActions`), so no amount of cloning into a combat phase
+could ever have surfaced one — the new term had to be genuinely separate,
+not a fix to the existing clone path. The new test's mutation-proof was
+independently reproduced by the reviewer (not just re-read): the ram-pricing
+call was independently commented out, the new test was confirmed to fail,
+then the file was restored and the full suite (513 tests) confirmed green
+again.
+
+**Open MEDIUM finding, not yet fixed:** `enemyRamThreatAgainstUnit` reads the
+threatening enemy ship's *current* `movementLeft` rather than its full
+per-turn allowance. Since `resetMovementForActivePlayer` only restores a
+ship's movement at the start of *its own* owner's next movement phase, a ship
+that already spent movement earlier in the round reads as posing no ram
+threat at probe time — even though the same threat exists once that ship's
+movement genuinely resets. The reviewer verified this empirically (a raider
+with `movementLeft: 0` collapses `'lookahead'` onto the same exposed hex
+`'ev'` picks, i.e. zero threat detected, on the identical geometry the
+shipped test proves the code *can* detect at `movementLeft: 1`). Not vacuous
+— alert raiders often do hold reserved movement, per
+`rammingBonusFromUnusedMovement`'s incentive — but narrower coverage than the
+plan's "next turn" framing implies, and undisclosed in the shipped code's
+comments (unlike `cloneAfterDeterministicMovementAction`'s own documented
+gap). Minimal fix: clone the enemy unit with its full movement allowance
+before calling `findRammingContacts`, or document the staleness the way the
+`'ram'`-clone gap is already documented.
+
+A single, uncommitted 40-seed re-measurement (§19.2's exact protocol) found
+pooled **+8.57%** (seat0 +0.41%, seat1 +19.77%, ram hit rate 80/111) versus
+§19.2's post-§18/pre-fix **-5.40%** — consistent with the fix's intended
+direction but explicitly one data point, not a settled magnitude, per the
+standing caution in plan-history.md §6.14/§6.15 against over-claiming this
+exact comparison. `heuristicSoak.test.ts`'s committed 12-seed regression-guard
+test is unmodified and still passes.
+
+`./node_modules/.bin/tsc --noEmit` and `./node_modules/.bin/vitest run`
+(513 tests, 31 files) were clean in both the implementation and the
+independent review pass.
+
+---
+
+## 24. Turn status should name the side and unit color
+
+**Status: shipped, merged `74a169a`, reviewed PASS.** Requested directly by
+the user (2026-08-21). Presentation-only.
+
+### 24.1 The problem
+
+`BoardScene.refreshStatus` currently renders the active player as the army
+name only (plus the AI controller label when applicable):
+
+```text
+Turn 3 — Athènes — MOVEMENT phase
+```
+
+In hotseat play, the army name alone is not always enough to identify the
+seat quickly. The player also wants the status line to say which map side
+the seat owns (`E`, `W`, `N`, or `S`) and the visible color of that seat's
+units.
+
+### 24.2 Scope
+
+Presentation-only: update the turn/status banner in `BoardScene.refreshStatus`.
+Use the existing `Player.edge` field for side. Add or expose human-readable
+names for the existing player colors in `ui/hexRender.ts`
+(`PLAYER_COLORS_HEX`: yellow, red, blue, green) rather than hard-coding a
+separate mapping inside the scene.
+
+Likely target wording:
+
+```text
+Turn 3 — Athènes (W, yellow) — MOVEMENT phase
+```
+
+For AI seats, preserve the existing controller label as well; e.g. the army
+name, side/color, and `[AI — cautious]` label should all remain visible.
+
+### 24.3 Outcome
+
+**Shipped, merged `74a169a`, reviewed PASS with no findings.**
+`BoardScene.refreshStatus` builds a `seatLabel` as
+`` `${player.name} (${player.edge}, ${colorName})` ``, with the existing AI
+`[difficulty]` suffix still layered on for AI seats — matching the plan's
+target wording exactly (`Turn 3 — Athènes (W, yellow) — MOVEMENT phase`).
+`PLAYER_COLOR_NAMES` already existed in `ui/hexRender.ts` as a parallel
+array to `PLAYER_COLORS_HEX` (`['yellow', 'red', 'blue', 'green']`), so no
+new export was needed — the change indexes it with the same `PlayerId`
+(`activeId`) already used everywhere else to pick a seat's rendered hex
+color (`ship.owner`, `markerTextureKey`, `PlacementScene.playerIndex`), so
+the printed color name is guaranteed to match what's actually rendered. The
+review independently re-derived this indexing claim by grepping every
+`PLAYER_COLORS_HEX` consumer rather than trusting the report, and found no
+mismatch.
+
+No README update was needed — grepped for a literal banner-text example and
+found only descriptive mentions, neither of which described the exact
+wording this branch changed. `./node_modules/.bin/tsc --noEmit` and
+`./node_modules/.bin/vitest run` (512 tests, 31 files) were clean in both
+the implementation and the independent review pass; `src/scenes/` has no
+existing test target for this string format, consistent with `CLAUDE.md`'s
+engine-tested/scenes-untested convention, so tsc/vitest-clean plus a careful
+manual diff read was the available verification (no browser session was
+available in either pass).
