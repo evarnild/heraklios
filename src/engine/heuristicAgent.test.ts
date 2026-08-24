@@ -709,6 +709,66 @@ describe('HeuristicAgent: movement phase', () => {
 
     expect(choose(new HeuristicAgent({ difficulty: 'lookahead' }), state).kind).toBe('endPhase');
   });
+
+  it('the lookahead tier prices a ramming reply, and backs off a naval approach it exposes (plan.md §19)', () => {
+    // `raider` sits at (31,6), facing 4 (a 60° rotation short of facing 3,
+    // which points due west along the shared row at `mover`), with only
+    // `movementLeft: 1` — just enough to spend its whole turn on that one
+    // 60° rotation (cost 1, matching `facingRotationCost`) and nothing else,
+    // per `findRammingContacts`'s "rotate in place" states
+    // (`navalMovement.test.ts`'s "rotating in place costs 1 point per 60°
+    // and never leaves the hex"). That budget makes the threat depend
+    // entirely on WHERE `mover` ends up, not just how close it gets:
+    //
+    // - `mover`'s ORIGINAL hex (28,6) is 3 hexes from `raider` — no rotation
+    //   alone reaches a bow-adjacent contact against it (contact requires
+    //   the TARGET to sit exactly one hex off `raider`'s own hex), so
+    //   `raider` poses zero threat there regardless of the fix. This is the
+    //   `baselineFor` term `applyMovementLookahead` subtracts, and it MUST
+    //   be 0 here or the marginal-threat clamp (`Math.max(0, afterThreat -
+    //   baselineFor(...))`) would hide the very threat this test exists to
+    //   catch.
+    // - (30,6), directly adjacent to `raider`, sits exactly on the far side
+    //   of that single rotation: `raider` CAN reach a bonus-0 contact there
+    //   (spending its only point on the turn, 0 left over) — a real,
+    //   nonzero threat that did not exist before `mover` moved.
+    // - (29,6), one hex short, is 2 hexes from `raider` — still out of
+    //   reach of a same-hex rotation, so the threat stays 0 there too.
+    //
+    // `mover` has just enough movement (2) to reach either (29,6) (cost 1)
+    // or (30,6) (cost 2), and with `strike: 0` (excluding mover's OWN
+    // potential ram from the score) the `approach` term alone prefers
+    // (30,6): closing distance 3 -> 1 beats 3 -> 2 by 0.5 point at
+    // `approach: 0.5`. Before §19, `enemyThreatAgainstUnit` had no way to
+    // price a `'ram'` reply at all — ramming is only ever a movement-phase
+    // action (see `enemyRamThreatAgainstUnit`'s doc comment), so
+    // `combatCandidates`'s hypothetical combat-phase probe structurally
+    // never produced one — and `evAction`/`lookaheadAction` landed on the
+    // exact same hex. The priced threat at (30,6) is a bonus-0 galère-vs-
+    // galère ram: hits on 1-2-3 (`data/navalRamming.ts`), 3/6 = 0.5 chance,
+    // against a full-value 10-point galère, EV 5.0 -- far past the
+    // 0.667-point edge (`0.5 / 0.75`, `LOOKAHEAD_REPLY_WEIGHT`) needed to
+    // flip the preference to (29,6).
+    //
+    // Mutation-verified: commenting out the
+    // `worstReply = Math.max(worstReply, this.enemyRamThreatAgainstUnit(...))`
+    // line in `enemyThreatAgainstUnit` collapses `lookaheadAction` onto the
+    // exact same hex `evAction` picks, failing the final assertion below.
+    const mover = makeUnit({ id: 'mover', typeId: 'galeres', position: { q: 28, r: 6 }, owner: 0, facing: 0, movementLeft: 2 });
+    const raider = makeUnit({ id: 'raider', typeId: 'galeres', position: { q: 31, r: 6 }, owner: 1, facing: 4, movementLeft: 1 });
+    const state = makeGame([mover, raider], 'movement');
+    const weights = { approach: 0.5, terrainDefense: 0, zocPenalty: 0, strike: 0 };
+
+    const evAction = choose(new HeuristicAgent({ difficulty: 'ev', weights }), state);
+    expect(evAction.kind).toBe('navalMove');
+    if (evAction.kind !== 'navalMove') throw new Error('unreachable');
+    expect(hexDistance(evAction.to, raider.position)).toBe(1);
+
+    const lookaheadAction = choose(new HeuristicAgent({ difficulty: 'lookahead', weights }), state);
+    expect(lookaheadAction.kind).toBe('navalMove');
+    if (lookaheadAction.kind !== 'navalMove') throw new Error('unreachable');
+    expect(hexDistance(lookaheadAction.to, raider.position)).toBeGreaterThan(1);
+  });
 });
 
 describe('enemyOwners', () => {

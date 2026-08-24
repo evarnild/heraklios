@@ -772,6 +772,15 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
    * `charged` normalized the way a real transition into combat would leave
    * them (see `normalizedThreatProbeClone`, which every caller routes
    * through — directly, or via `cloneAfterDeterministicMovementAction`).
+   *
+   * Also maxes in a ramming reply (plan.md §19), priced by
+   * `enemyRamThreatAgainstUnit` — NOT by walking a hypothetical combat
+   * phase, because ramming is never a combat-phase action (`legalActions`
+   * only offers `'ram'` during MOVEMENT — see its `movement` case), so
+   * `combatCandidates`/`legalActions(board, {})` above structurally never
+   * produces a ram candidate no matter what phase this probe fakes. §19's
+   * gap was exactly this: a real enemy ship reachable to `unitId`'s new hex
+   * threatens a ram next turn, and that threat went unpriced.
    */
   private enemyThreatAgainstUnit(board: GameState, unitId: string): number {
     const movingOwner = this.activeOwner(board);
@@ -801,8 +810,44 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
       if (reply && reply.score > this.weights.minAttackValue) {
         worstReply = Math.max(worstReply, reply.score);
       }
+      worstReply = Math.max(worstReply, this.enemyRamThreatAgainstUnit(board, owner, unitId));
     }
     return worstReply;
+  }
+
+  /**
+   * The best ramming EV any of `owner`'s living naval units could achieve
+   * against `unitId`, priced WITHOUT cloning past the roll (plan.md §19.3
+   * option 1) — `evaluateRam` already reduces a ram to a single expected-value
+   * number over its six-face distribution, so there is no board to commit to,
+   * unlike `cloneAfterDeterministicMovementAction`'s deliberate `null` for a
+   * `'ram'` candidate of the MOVER's own (that gap is separate and untouched:
+   * it concerns the mover's own hypothetical ram, not an enemy's reply to a
+   * mover's move, which is what this probes).
+   *
+   * 0 immediately if `unitId` isn't a living naval unit — `findRammingContacts`
+   * only ever reports naval targets, so a land unit can never be rammed and
+   * the loop below would find nothing anyway; the early return just skips the
+   * BFS `findRammingContacts` runs per candidate naval unit.
+   *
+   * Gated by `weights.minAttackValue`, same noise floor `enemyThreatAgainstUnit`
+   * already applies to the land/boarding reply above — a ram so unlikely to
+   * hit it isn't worth pricing shouldn't count as a threat any more than a
+   * land attack in the same range would.
+   */
+  private enemyRamThreatAgainstUnit(board: GameState, owner: PlayerId, unitId: string): number {
+    const target = board.units.find((u) => u.id === unitId);
+    if (!target || target.destroyed || unitType(target).domain !== 'naval') return 0;
+    let best = 0;
+    for (const unit of board.units) {
+      if (unit.destroyed || unit.owner !== owner || unitType(unit).domain !== 'naval') continue;
+      for (const contact of findRammingContacts(board, unit)) {
+        if (contact.target.id !== unitId) continue;
+        const value = evaluateRam(unit, contact.target, contact.bonus).expectedValue;
+        if (value > this.weights.minAttackValue) best = Math.max(best, value);
+      }
+    }
+    return best;
   }
 
   /** Clones `state`, normalized for the threat probe, and applies `action` —
@@ -814,7 +859,15 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
    * oversight — but nothing pins it: no test asserts that adding `'ram'`
    * to the cases below (i.e. clone-probing it anyway, against some
    * arbitrarily chosen outcome) changes anything. Disclosed rather than
-   * silently left as a gap. */
+   * silently left as a gap.
+   *
+   * This `null` only covers the MOVER's own hypothetical ram (the candidate
+   * `action` here) — it does NOT mean ramming is unpriced everywhere. An
+   * ENEMY's ramming reply against the unit the mover just moved is a
+   * different question, answered without cloning at all by
+   * `enemyRamThreatAgainstUnit` (plan.md §19), which `enemyThreatAgainstUnit`
+   * always calls regardless of what `action` produced the board being
+   * probed. */
   private cloneAfterDeterministicMovementAction(state: GameState, action: Action): GameState | null {
     switch (action.kind) {
       case 'landMove':
