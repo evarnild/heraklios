@@ -829,6 +829,11 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
    * only ever reports naval targets, so a land unit can never be rammed and
    * the loop below would find nothing anyway; the early return just skips the
    * BFS `findRammingContacts` runs per candidate naval unit.
+   *
+   * Gated by `weights.minAttackValue`, same noise floor `enemyThreatAgainstUnit`
+   * already applies to the land/boarding reply above — a ram so unlikely to
+   * hit it isn't worth pricing shouldn't count as a threat any more than a
+   * land attack in the same range would.
    */
   private enemyRamThreatAgainstUnit(board: GameState, owner: PlayerId, unitId: string): number {
     const target = board.units.find((u) => u.id === unitId);
@@ -838,7 +843,8 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
       if (unit.destroyed || unit.owner !== owner || unitType(unit).domain !== 'naval') continue;
       for (const contact of findRammingContacts(board, unit)) {
         if (contact.target.id !== unitId) continue;
-        best = Math.max(best, evaluateRam(unit, contact.target, contact.bonus).expectedValue);
+        const value = evaluateRam(unit, contact.target, contact.bonus).expectedValue;
+        if (value > this.weights.minAttackValue) best = Math.max(best, value);
       }
     }
     return best;
