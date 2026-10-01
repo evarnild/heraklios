@@ -6,6 +6,18 @@ hex wargame published as an insert in *Jeux & Stratégie* #6 (Dec 1980/Jan
 Phaser 3, rules and map data transcribed from a scan of the original
 magazine.
 
+## License and credits
+
+The source code is released under the [MIT License](LICENSE).
+
+*Héraklios* itself, including its rules text, tables, map, and unit-counter
+artwork (`docs/research/`, `docs/markers_cells/`, `public/markers/`,
+`src/data/map.ts`), comes from a 1980 magazine insert in *Jeux & Stratégie*
+and belongs to its original authors and publisher. That material is **not**
+covered by the MIT license and is included here only as a non-commercial
+fan preservation project. If you are a rights holder and want something
+removed, please open an issue.
+
 ## Running it
 
 ```
