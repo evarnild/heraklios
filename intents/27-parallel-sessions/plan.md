@@ -78,3 +78,24 @@ State is split by who owns it:
   `--remove`.
 
 ## Progress
+
+- 2026-10-07 — subtasks 1–7 done on `refactor/27-parallel-sessions`
+  (branched from §26, which is not merged yet). The lib tests caught a real
+  bug: the first port scheme (5100 + id mod 100) gave §73 Vite's default
+  5173, so the range moved to 5200–5299. Manual check passed: realistic hook
+  payloads (including a cwd in a subdirectory) reach the log, `npm run
+  sessions` shows "needs you" first with its message, a spawn of a
+  throwaway §99 (`npm ci` 7 s, intent folder moved, brief written) then
+  `--remove` refused while unmerged, refused while dirty, and succeeded once
+  clean, with the main tree's `node_modules` intact. Test events were deleted
+  from the log afterwards.
+- Incident, which is also the case for this intent: I created this branch with
+  `git checkout -b` in the main checkout while another session was reviewing
+  §26 there. Its edits to `scripts/*check*` landed on a checkout that now
+  pointed at §27. Nothing was committed to the wrong branch: §27 was
+  committed by explicit paths, the checkout went back to §26 with those
+  edits untouched, and this branch was verified in
+  `../heraklios-wt/27-parallel-sessions`.
+- Not checked: the hooks firing from a real Claude Code session. They only
+  run in a session started on a branch that contains `.claude/settings.json`,
+  i.e. this worktree, or `main` after merge.
