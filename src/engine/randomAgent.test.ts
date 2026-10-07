@@ -110,7 +110,7 @@ describe('RandomAgent', () => {
     ];
     for (let i = 0; i < 20; i++) {
       const chosen = await agent.chooseExchangeSacrifice(makeState(), attackers, 5);
-      const total = chosen.reduce((sum, u) => sum + 2, 0);
+      const total = chosen.reduce((sum) => sum + 2, 0);
       expect(total).toBeGreaterThanOrEqual(5);
       expect(chosen.length).toBe(3); // only reaching 5 requires all three (2+2+2=6 >= 5, 2+2=4 < 5)
     }

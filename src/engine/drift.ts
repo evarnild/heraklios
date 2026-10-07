@@ -561,7 +561,7 @@ export async function resolveElephantDrift(
     for (const event of result.events) {
       switch (event.kind) {
         case 'driftStarted':
-          stats && (stats.driftsResolved += 1);
+          if (stats) stats.driftsResolved += 1;
           hooks.onDriftStart?.(event.elephant);
           hooks.onLine?.(defaultLine(event.elephant));
           break;
@@ -594,7 +594,7 @@ export async function resolveElephantDrift(
           hooks.onRender?.();
           break;
         case 'combatResolved':
-          stats && (stats.driftCombatsResolved += 1);
+          if (stats) stats.driftCombatsResolved += 1;
           hooks.onCombat?.(event.detail, event.outcome, event.elephant, event.occupant, event.hex);
           break;
         case 'driftElephantDestroyed':

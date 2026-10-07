@@ -51,7 +51,6 @@ import {
   pruneIllegalSelections,
   unitAt,
   type LandAttackDetail,
-  type LandCombatOutcome,
 } from '../engine/combat';
 import { resolveElephantDrift } from '../engine/drift';
 import { History } from '../engine/history';

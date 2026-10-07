@@ -339,7 +339,7 @@ describe('HeuristicAgent: movement phase', () => {
     // another is its defensive terrain. An agent that ignores terrain scores
     // every move at 0, falls under `minMoveScore`, and ends its phase —
     // which is what makes this test kill the mutant rather than merely pass.
-    const { plateau, below } = samplePlateauWithLowerNeighbor();
+    const { below } = samplePlateauWithLowerNeighbor();
     const unit = makeUnit({ id: 'inf', typeId: 'fantassins', position: below, owner: 0, movementLeft: 3 });
     const state = makeGame([unit], 'movement');
 

@@ -21,6 +21,10 @@ npm run build      # tsc -b && vite build
 npm run preview    # preview the production build
 npm test           # vitest run — the full engine/data/map-editor test suite
 npm run test:watch # vitest in watch mode
+npm run lint       # eslint, capped at the current guardrail-warning count
+npm run verify     # build + lint + test — THE check before a change is done
+npm run check:intent  # does this branch's change match its intent? (intents/README.md)
+npm run sdlc:scan  # the evidence behind docs/sdlc-grid.md
 ```
 
 Run a single test file: `npx vitest run src/engine/combat.test.ts`.
@@ -29,8 +33,23 @@ Type-check without emitting: `npx tsc --noEmit` (the build uses `tsc -b`,
 which is incremental — delete `tsconfig.tsbuildinfo` if a stale build info
 file ever seems to mask an error).
 
-There is no separate lint script; `tsc` (via `npm run build` or `--noEmit`)
-and `npm test` are the two checks to run before considering a change done.
+`npm run verify` is the one command to run before considering a change done.
+Lint correctness rules are errors; the guardrails from the agent guidelines
+(file ≤500 lines, function ≤80 lines, complexity ≤20, ≤7 params) are
+warnings, capped by `--max-warnings` in `package.json` at today's count so
+new violations fail `verify`. If you remove warnings, lower the cap in the
+same commit; never raise it.
+
+## How work flows
+
+- `plan.md` is the coordinator view (snapshot, queue, backlog, history map).
+  Each work item's detail lives in `intents/<id>-<slug>/` — intent, spec
+  (features), plan, review report, metadata. Read `intents/README.md` for
+  the types, gates and branch naming (`feat/27-…`, `fix/27-…`).
+- No code before the plan's gate is recorded in `metadata.yml`.
+- `/intent` drafts an intent, `/review` runs `REVIEW-POLICY.md` and writes
+  `review.md`, `/grid` refreshes `docs/sdlc-grid.md`.
+- Merges into `main` are local and done by the owner, never by an agent.
 
 ## Architecture
 

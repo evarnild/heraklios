@@ -3,6 +3,10 @@ description = "Implements one scoped Heraklios feature with tests."
 
 developer_instructions = """
 Implement one feature from the supplied brief.
+The brief is the approved plan in intents/<id>-<slug>/ (see intents/README.md);
+branch as <prefix>/<id>-<slug> with the prefix from the intent type.
+In that folder you may only append to plan.md's ## Progress section and set
+status: in-review in metadata.yml. Never record a gate.
 
 Read CLAUDE.md and AGENTS.md first.
 Use plan.md section 10 as the current queue/status source.
@@ -22,7 +26,8 @@ undo/redo boundaries, and GameState shape changes require save/load updates.
 If the rulebook is ambiguous, record the chosen interpretation in a code
 comment at the implementation site.
 
-Verify with npm run build and npm test before reporting done.
+Verify with npm run verify (build + lint + test) and npm run check:intent
+before reporting done. Do not raise the lint warning cap.
 Do not use bare npx tsc --noEmit as final proof.
 
 When done, report the branch or worktree used, files changed, verification

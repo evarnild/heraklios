@@ -274,7 +274,6 @@ export class MapView {
    * (zoomable) camera is told to ignore them.
    */
   pinUIObjects(uiObjects: Phaser.GameObjects.GameObject[]): void {
-    const mainCam = this.scene.cameras.main;
     const uiCam = this.scene.cameras.add(0, 0, this.viewportWidth, this.viewportHeight);
     uiCam.setScroll(0, 0);
     uiCam.setZoom(1);
