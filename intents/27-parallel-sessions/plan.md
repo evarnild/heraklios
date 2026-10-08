@@ -72,7 +72,7 @@ State is split by who owns it:
 ## Validation
 
 - `npm run verify` green, warning cap unchanged.
-- `npm run check:intent -- --base refactor/26-ai-sdlc-kit` → PASS.
+- `npm run check:intent` → PASS (against `main`, since the rebase onto §26's merge).
 - Manual: spawn a throwaway intent, check the worktree, port and brief, start
   a session there and check its events appear in `npm run sessions`, then
   `--remove`.
@@ -99,3 +99,18 @@ State is split by who owns it:
 - Not checked: the hooks firing from a real Claude Code session. They only
   run in a session started on a branch that contains `.claude/settings.json`,
   i.e. this worktree, or `main` after merge.
+- 2026-10-08 — round-1 review returned `rework` (4 MEDIUM, 7 LOW). Fixed:
+  events filed under `CLAUDE_PROJECT_DIR` (a coordinator `cd`'d into a
+  worktree no longer impersonates it); prompts logged by length only (owner's
+  decision); notification type recorded and the idle reminder mapped to
+  `idle`, with a text fallback for versions that send no type — so
+  `.claude/settings.json` needed no change; recording logic moved into the
+  pure `eventRecordFrom`; gates use check-intent's date rule; spawn detects an
+  existing worktree first, finds a carried intent on its branch, and lists the
+  brief in `info/exclude`; root `plan.md` edit dropped (coordinator's job).
+  Tests: 13 surviving `session-lib` mutants targeted, plus
+  `spawn-intent.test.mjs` — end to end in a temp repo: carry, brief ignored,
+  re-spawn, unmerged / junction / dirty refusals, remove, re-spawn from
+  branch, merged remove, and the hook's project-dir and no-prompt-text rules.
+  Writing it caught a real gap: re-spawning right after a spawn still said
+  "Draft it with /intent".

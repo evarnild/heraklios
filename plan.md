@@ -204,7 +204,7 @@ sync when something merges** — it went stale once and the user caught it.
 
 | Item | Type · status |
 | --- | --- |
-| [§27](intents/27-parallel-sessions/) Parallel sessions — spawn worktrees, session event log, coordinator view (branch `refactor/27-parallel-sessions`, worktree `../heraklios-wt/27-parallel-sessions`) | refactor · in-review |
+| [§27](intents/27-parallel-sessions/) Parallel sessions — spawn worktrees, session event log, coordinator view (branch `refactor/27-parallel-sessions`, worktree `../heraklios-wt/27-parallel-sessions`; needs a rebase onto `568f2a6`) | refactor · in-review |
 
 ### Queued
 

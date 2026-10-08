@@ -45,6 +45,32 @@ export function findIntentDir(root, id) {
   return dir ? `intents/${dir}` : null;
 }
 
+/**
+ * Intent `id` read from git rather than a working tree: from the first local
+ * branch whose name carries that id. This is where an intent lives after
+ * spawn has carried its uncommitted folder into the worktree.
+ */
+export function readIntentMetadataFromBranch(root, id) {
+  const branch = git(root, 'for-each-ref', '--format=%(refname:short)', 'refs/heads')
+    .split(/\r?\n/)
+    .find((b) => parseBranch(b)?.id === String(id));
+  if (!branch) return null;
+  let dirs;
+  try {
+    dirs = git(root, 'ls-tree', '--name-only', `${branch}:intents`).split(/\r?\n/);
+  } catch {
+    return null;
+  }
+  const name = dirs.find((d) => d.startsWith(`${id}-`));
+  if (!name) return null;
+  const dir = `intents/${name}`;
+  try {
+    return { dir, metadata: parseMetadata(git(root, 'show', `${branch}:${dir}/metadata.yml`)), branch };
+  } catch {
+    return null;
+  }
+}
+
 /** Parsed `metadata.yml` of intent `id` as it stands in the worktree at `root`, or null. */
 export function readIntentMetadata(root, id) {
   const dir = findIntentDir(root, id);

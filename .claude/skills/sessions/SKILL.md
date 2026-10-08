@@ -3,7 +3,7 @@ name: sessions
 description: The coordinator's read of all parallel heraklios work — every worktree's intent status, gates, ahead/behind main, uncommitted files and what its Claude Code session is doing — turned into what needs the owner now, what can be reviewed, and in what order to merge. Use when the owner asks "where are we", "what's waiting on me", "what can I merge", or after a merge into main. Invoke as /sessions [--log N].
 metadata:
   owner: evarnild
-  version: 0.1.0
+  version: 0.1.1
   scope: repository
   status: experimental
   review-tier: reviewed

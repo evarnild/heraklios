@@ -2,7 +2,7 @@
 // sessions` and the session-event hook. Kept free of git/fs calls so it can
 // be unit-tested; see session-lib.test.mjs. The workflow it serves is written
 // down for humans in CLAUDE.md → "Parallel sessions".
-import { PREFIX_TO_TYPE, TYPE_RULES } from './intent-check-lib.mjs';
+import { GATE_DATE_RE, PREFIX_TO_TYPE, TYPE_RULES } from './intent-check-lib.mjs';
 
 /** Name of the shared event log, inside the git common dir (never committed). */
 export const EVENT_LOG = 'heraklios-sessions.jsonl';
@@ -94,10 +94,55 @@ export function latestEventByWorktree(events) {
   return out;
 }
 
+/**
+ * Claude Code sends a Notification both when it needs the owner (a
+ * permission prompt, a question) and when it has merely been idle for a
+ * minute. Only the first kind is "needs you". Older versions send no
+ * `notification_type`, so the idle prompt is also recognised by its text;
+ * anything unrecognised stays "needs you", the safe direction.
+ */
+const IDLE_NOTIFICATIONS = new Set(['idle_prompt', 'auth_success']);
+
+export function notificationState(e) {
+  if (IDLE_NOTIFICATIONS.has(e.kind)) return 'idle';
+  if (!e.kind && /waiting for your input/i.test(e.detail ?? '')) return 'idle';
+  return 'needs you';
+}
+
 /** `{state, since, detail}` for one worktree's latest event, or a placeholder when it has none. */
 export function sessionState(event) {
   if (!event) return { state: 'no events', since: null, detail: '' };
-  return { state: EVENT_STATE[event.event] ?? event.event, since: event.ts ?? null, detail: event.detail ?? '' };
+  const state = event.event === 'Notification' ? notificationState(event) : (EVENT_STATE[event.event] ?? event.event);
+  return { state, since: event.ts ?? null, detail: event.detail ?? '' };
+}
+
+/**
+ * Turns one hook's stdin payload into the record to log, or null when it
+ * isn't a hook event. Events are filed under the session's project
+ * directory (`CLAUDE_PROJECT_DIR`), not wherever the session happens to have
+ * `cd`'d — a coordinator running `npm run verify` inside another worktree
+ * must not show up as that worktree's session. Prompts are logged by length
+ * only: the log should show that a session is working, never what was typed.
+ */
+export function eventRecordFrom(input, env = {}, fallbackCwd = '.') {
+  if (!input || typeof input !== 'object' || typeof input.hook_event_name !== 'string') return null;
+  const event = input.hook_event_name;
+  const fields = { event, session: input.session_id };
+  if (event === 'UserPromptSubmit') {
+    fields.promptChars = typeof input.prompt === 'string' ? input.prompt.length : 0;
+    fields.detail = `${fields.promptChars} chars`;
+  } else if (event === 'Notification') {
+    if (input.notification_type) fields.kind = String(input.notification_type);
+    fields.detail = clip(input.message);
+  } else if (event === 'SessionStart') {
+    fields.detail = clip(input.source);
+  } else if (event === 'SessionEnd') {
+    fields.detail = clip(input.reason);
+  } else {
+    fields.detail = '';
+  }
+  const dir = env.CLAUDE_PROJECT_DIR || (typeof input.cwd === 'string' && input.cwd) || fallbackCwd;
+  return { dir, fields };
 }
 
 /** "4m", "2h", "3d" — enough to tell a stuck session from a busy one. */
@@ -119,8 +164,9 @@ export function gateSummary(metadata) {
   return gates.map((key) => (isRecorded(metadata[key]) ? GATE_LETTERS[key] : '-')).join('·');
 }
 
+/** Same rule as check-intent: a gate is recorded only as a YYYY-MM-DD date. */
 function isRecorded(v) {
-  return Boolean(v) && !(Array.isArray(v) && v.length === 0) && v !== 'null' && v !== '~';
+  return typeof v === 'string' && GATE_DATE_RE.test(v);
 }
 
 /** Rows that need the owner sort first, then work in flight, then the rest. */

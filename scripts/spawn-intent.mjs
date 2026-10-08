@@ -9,9 +9,9 @@
 // the branch is merged; the branch itself is left for the owner to delete.
 // Workflow: CLAUDE.md → "Parallel sessions".
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, lstatSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { appendEvent, git, mainCheckout, readIntentMetadata } from './session-io.mjs';
+import { appendFileSync, cpSync, existsSync, lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { appendEvent, git, mainCheckout, readIntentMetadata, readIntentMetadataFromBranch } from './session-io.mjs';
 import { branchFor, parseWorktreeList, pathKey, portFor, sessionBrief, worktreePathFor } from './session-lib.mjs';
 import { parseBranch } from './intent-check-lib.mjs';
 
@@ -39,6 +39,7 @@ function branchExists(root, branch) {
  * behind as untracked files and block the merge back. Move it with its branch.
  */
 function carryIntentFolder(root, dir, path) {
+  if (!existsSync(join(root, dir))) return; // read from its branch: nothing in the main checkout to carry
   const tracked = git(root, 'ls-files', '--', dir);
   if (tracked) {
     if (git(root, 'status', '--porcelain', '--', dir)) {
@@ -55,6 +56,19 @@ function carryIntentFolder(root, dir, path) {
   console.log(`Moved the uncommitted ${dir}/ from the main checkout into the worktree; it travels with the branch.`);
 }
 
+/**
+ * The brief must never be committed. `.gitignore` covers it from §27 on, but a
+ * worktree based on an older ref lacks that line, so also list it in the
+ * repository's shared info/exclude.
+ */
+function ignoreBrief(path) {
+  const exclude = resolve(path, git(path, 'rev-parse', '--git-path', 'info/exclude'));
+  const current = existsSync(exclude) ? readFileSync(exclude, 'utf8') : '';
+  if (/^\/?CLAUDE\.local\.md\s*$/m.test(current)) return;
+  mkdirSync(dirname(exclude), { recursive: true });
+  appendFileSync(exclude, `${current && !current.endsWith('\n') ? '\n' : ''}CLAUDE.local.md\n`);
+}
+
 function install(path) {
   console.log('Installing dependencies (npm ci)…');
   // One command string: npm is npm.cmd on Windows, so it needs a shell, and
@@ -63,19 +77,29 @@ function install(path) {
   if (r.status !== 0) console.warn('spawn: npm ci failed; run it in the worktree before `npm run verify`.');
 }
 
+/** The worktree already serving intent `id`, other than the main checkout, or undefined. */
+function worktreeFor(root, id) {
+  return parseWorktreeList(git(root, 'worktree', 'list', '--porcelain')).find(
+    (w) => w.branch && parseBranch(w.branch)?.id === id && pathKey(w.path) !== pathKey(root),
+  );
+}
+
 function spawn() {
   const root = mainCheckout(process.cwd());
-  const found = readIntentMetadata(root, id);
-  if (!found) fail(`no intents/${id}-*/metadata.yml in ${root}. Draft it with /intent first.`);
+  const existing = worktreeFor(root, id);
+  if (existing) fail(`§${id} already has a worktree at ${existing.path} (${existing.branch}). See npm run sessions.`);
+  const found = readIntentMetadata(root, id) ?? readIntentMetadataFromBranch(root, id);
+  if (!found) fail(`no intents/${id}-*/metadata.yml in ${root} or on any local branch for §${id}. Draft it with /intent first.`);
   const { dir, metadata } = found;
-  const branch = branchFor({ type: metadata.type, id, slug: metadata.slug });
   const path = worktreePathFor(root, id, metadata.slug);
-  const port = portFor(id);
   if (existsSync(path)) fail(`${path} already exists. See npm run sessions.`);
+  const branch = branchFor({ type: metadata.type, id, slug: metadata.slug });
+  const port = portFor(id);
 
   if (branchExists(root, branch)) git(root, 'worktree', 'add', path, branch);
   else git(root, 'worktree', 'add', '-b', branch, path, option('--base', 'main'));
   carryIntentFolder(root, dir, path);
+  ignoreBrief(path);
   writeFileSync(
     join(path, 'CLAUDE.local.md'),
     sessionBrief({ id, slug: metadata.slug, type: metadata.type, branch, intentDir: dir, port, coordinatorPath: root }),
@@ -96,9 +120,7 @@ Start its session:  cd "${path}" && claude
 
 function remove() {
   const root = mainCheckout(process.cwd());
-  const wt = parseWorktreeList(git(root, 'worktree', 'list', '--porcelain')).find(
-    (w) => w.branch && parseBranch(w.branch)?.id === id && pathKey(w.path) !== pathKey(root),
-  );
+  const wt = worktreeFor(root, id);
   if (!wt) fail(`no worktree for §${id}. See npm run sessions.`);
   const nm = join(wt.path, 'node_modules');
   if (existsSync(nm) && lstatSync(nm).isSymbolicLink()) {

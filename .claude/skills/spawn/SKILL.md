@@ -3,7 +3,7 @@ name: spawn
 description: Start a parallel heraklios session for an intent — a worktree on the intent's branch in ../heraklios-wt/, its own node_modules, a reserved dev port and a CLAUDE.local.md brief — or take one down after merge. Use from the main checkout when the owner wants to work on an intent alongside others. Invoke as /spawn <id> [--base <ref>], or /spawn <id> --remove.
 metadata:
   owner: evarnild
-  version: 0.1.0
+  version: 0.1.1
   scope: repository
   status: experimental
   review-tier: reviewed

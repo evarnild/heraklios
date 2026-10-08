@@ -76,7 +76,12 @@ npm run sessions -- --log 30    # the raw event tail
   come from git. What each session is doing is in
   `.git/heraklios-sessions.jsonl`, written by the hooks in
   `.claude/settings.json` on start, prompt, turn end, notification and end.
-  That file is never committed, and no agent writes to it by hand.
+  That file is never committed, and no agent writes to it by hand. It holds
+  **no prompt text** — a prompt is logged by its length only. Events are
+  filed under the session's project directory, so a session that `cd`s into
+  another worktree still shows as itself. A permission prompt or question
+  shows as `needs you`; Claude Code's idle "waiting for your input"
+  reminder shows as `idle`.
 - **Only the coordinator** edits `plan.md`, runs `/spawn`, `/sessions` and
   `/review`, and sends "main moved, rebase" notices. The owner merges, one
   branch at a time, running `npm run verify` on `main` after each merge.
