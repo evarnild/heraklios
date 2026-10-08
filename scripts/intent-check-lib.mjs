@@ -188,14 +188,15 @@ function checkLiveCheck({ review, metadata, intentDir }, errors) {
 }
 
 /**
- * The current round's header of a review.md: the `key: value` lines above the
- * first `# Round N (history)` heading. Earlier rounds keep their fields as
- * list items below that heading, so they are never read as current.
+ * The current round's header of a review.md: the `key: value` lines before its
+ * first `## ` section. Stopping there keeps report text (a pasted
+ * `type-check: PASS`) and earlier rounds, below `# Round N (history)`, from
+ * ever being read as the current header.
  */
 export function parseReviewHeader(text) {
   const out = {};
   for (const raw of text.split(/\r?\n/)) {
-    if (/^# Round\b/.test(raw)) break;
+    if (/^## |^# Round\b/.test(raw)) break;
     const kv = /^([a-z][\w-]*):\s*(.*?)\s*$/.exec(raw);
     if (kv) out[kv[1]] = kv[2];
   }

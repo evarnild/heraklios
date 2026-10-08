@@ -241,6 +241,8 @@ describe('parseReviewHeader', () => {
     '',
     '## Findings',
     '- live-check: owed',
+    'live-check: owed',
+    'type-check: FAIL',
     '',
     '# Round 1 (history)',
     'live-check: owed',
@@ -251,9 +253,13 @@ describe('parseReviewHeader', () => {
     expect(parseReviewHeader(report)).toEqual({ verdict: 'attest', tier: 'attested', 'live-check': 'not-needed' });
   });
 
-  it('ignores list items and everything below the first # Round heading', () => {
+  it('ignores everything from the first ## section or # Round heading on', () => {
     const h = parseReviewHeader(report.replace('live-check: not-needed\n', ''));
     expect(h['live-check']).toBeUndefined();
+  });
+
+  it('stops at # Round even in a report with no ## sections', () => {
+    expect(parseReviewHeader('verdict: attest\n# Round 1 (history)\nlive-check: owed\n')).toEqual({ verdict: 'attest' });
   });
 
   it('reads CRLF reports and strips trailing whitespace', () => {

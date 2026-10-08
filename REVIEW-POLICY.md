@@ -42,6 +42,11 @@ not a defence.
 If `npm run verify` stops running the tests, or a module loses its tests,
 the Attested tier is suspended for those paths until it is restored.
 
+`src/scenes/**`, `src/ui/**` and `src/map-editor/**` have no test suite.
+They stay Attested because a **live check** (below) stands in for it: a
+change there cannot merge until you have run it. Reading the diff would not
+show that it runs, so moving them to Reviewed would not close the gap.
+
 ### Against rubber-stamping
 
 - **Sampling.** Every fifth attested change (1 in 5 — volume here is low, so
@@ -56,6 +61,60 @@ the Attested tier is suspended for those paths until it is restored.
   reverts whose subject names the reverted `§`. If attested changes need
   follow-ups more often than reviewed ones, the boundary is wrong — move it.
 - **Time-to-approve is not tracked.** Fast approval is not the goal.
+
+## Live checks
+
+Some behaviour only shows when the thing runs. A **live check** is you
+running it — the game in the browser, a hook in a real session — and
+recording that you did, before the merge.
+
+- **When one is owed.** `/review` sets `live-check: owed` when any of:
+  1. the diff touches `src/scenes/**`, `src/ui/**`, `src/map-editor/**`,
+     `index.html`, `map-editor.html` or `vite.config.ts`;
+  2. the diff touches `.claude/settings.json` (hooks run in every session);
+  3. a "Not checked" item is runtime behaviour only a live run can show —
+     browser behaviour, hooks, a real `npm ci`, a dev-server path. The
+     report names which item.
+
+  Otherwise `live-check: not-needed`. A change to `src/engine/**` or
+  `src/data/**` alone is never owed by rule 1, but can be by rule 3.
+- **What the report says.** When owed, `## Live check` lists concrete
+  steps: the command (`npm run dev`, or the worktree's port), the test-mode
+  shortcut or seed to start from, what to do, what you should see. When not
+  needed, one line saying why.
+- **Who records it.** You, after doing the steps: `live_checked: <date>` in
+  `metadata.yml`, like the other gates. If it finds a defect, leave the date
+  empty and send the change back to rework (or open a fix intent if the
+  defect is out of scope).
+- **An agent's browser run is evidence, not the gate.** The reviewer or
+  implementer may drive the browser and list what it saw under "Verified
+  myself". That never fills `live_checked:`: the point is a check by someone
+  other than the model that wrote and reviewed the code.
+- **Enforced.** `npm run check:intent` fails while the current review says
+  `owed` and `live_checked:` holds no date. The verdict is unaffected:
+  `attest`, `escalate` and `rework` mean what they did.
+
+## Merging
+
+An agent merges into `main`, pushes, deletes a branch or removes a worktree
+**only when the owner explicitly asks for that action in the current
+conversation**, never on its own initiative. A request covers the change it
+names and does not carry over to the next one. "Go ahead" in reply to a
+summary that proposed the merge counts; a standing instruction from an
+earlier session, a memory or a `CLAUDE.local.md` brief does not.
+
+Asked to merge, it first checks, and refuses naming the one that failed:
+
+1. the current `review.md` verdict is `attest` or `escalate`, and its
+   `reviewed-commit` is the branch's HEAD (no unreviewed commits on top);
+2. `npm run check:intent <branch>` reports PASS, or ROUTE with the reason
+   already stated in `review.md`;
+3. no live check is owed without `live_checked:` recorded (`check:intent`
+   covers this).
+
+Then it merges with `--no-ff`, runs `npm run verify` on `main`, and does the
+bookkeeping: `merged:` and `status: done` in `metadata.yml`, the `plan.md`
+row to Shipped.
 
 ## Passes
 
@@ -121,6 +180,7 @@ tier: automated | attested | reviewed
 reviewed-commit: <hash>
 round: <n>
 sampled: no
+live-check: owed | not-needed
 
 ## Passes
 | # | Pass | Result |
@@ -138,6 +198,12 @@ sampled: no
 ## Not checked
 - <what this run could not assess, and why — be specific; this list is the
   harness backlog>
+
+## Live check
+- owed: <rule 1, 2 or 3 from "Live checks", and which Not-checked item>
+- steps: <command and port> → <test-mode shortcut or seed> → <what to do>
+- you should see: <the observable result>
+<!-- or, when not needed: "not needed — <why>" -->
 
 ## Verified myself vs. taken on trust
 - <which commands actually ran, with results>
