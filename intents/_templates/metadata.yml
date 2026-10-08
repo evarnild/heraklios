@@ -1,0 +1,17 @@
+# Copy to intents/<id>-<slug>/metadata.yml. Format is flat on purpose —
+# scripts/intent-check-lib.mjs parses it without a YAML dependency.
+id: 0
+slug: short-kebab-name
+type: feature            # feature | fix | refactor | adjustment | experiment
+status: draft            # draft | accepted | in-progress | in-review | done | abandoned | deferred
+title: One-line title as it appears in plan.md's queue
+review_tier:             # empty = REVIEW-POLICY.md's path table decides; set only to raise it (attested | reviewed)
+# Gates: the date you passed each one. Leave empty until you have.
+intent_accepted:
+spec_accepted:           # feature only
+plan_approved:           # feature, fix, refactor
+merged:                  # merge commit hash
+follows_up:              # fix only: id of the intent whose change caused this defect, if known
+links:
+  # - plan-history.md#19-...    related history
+  # - intents/26-ai-sdlc-kit    related intent

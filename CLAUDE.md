@@ -21,16 +21,37 @@ npm run build      # tsc -b && vite build
 npm run preview    # preview the production build
 npm test           # vitest run — the full engine/data/map-editor test suite
 npm run test:watch # vitest in watch mode
+npm run lint       # eslint, capped at the current guardrail-warning count
+npm run verify     # build + lint + test — THE check before a change is done
+npm run check:intent  # does this branch's change match its intent? (intents/README.md)
+npm run sdlc:scan  # the evidence behind docs/sdlc-grid.md
 ```
 
 Run a single test file: `npx vitest run src/engine/combat.test.ts`.
 Run tests matching a name: `npx vitest run -t "pattern"`.
-Type-check without emitting: `npx tsc --noEmit` (the build uses `tsc -b`,
+Type-check without emitting: `./node_modules/.bin/tsc --noEmit` — never bare
+`npx tsc`, which false-greens without a local install (plan.md §4). The build uses `tsc -b`,
 which is incremental — delete `tsconfig.tsbuildinfo` if a stale build info
 file ever seems to mask an error).
 
-There is no separate lint script; `tsc` (via `npm run build` or `--noEmit`)
-and `npm test` are the two checks to run before considering a change done.
+`npm run verify` is the one command to run before considering a change done.
+Lint correctness rules are errors; the guardrails from the agent guidelines
+(file ≤500 lines, function ≤80 lines, complexity ≤20, ≤7 params, nesting
+≤4, no `console` outside `scripts/`) are warnings, capped by `--max-warnings`
+in `package.json` at today's count so new violations fail `verify`. The cap
+counts warnings, not locations: if you remove warnings, lower the cap in the
+same commit, or a later change can spend the slack. Never raise it.
+
+## How work flows
+
+- `plan.md` is the coordinator view (snapshot, queue, backlog, history map).
+  Each work item's detail lives in `intents/<id>-<slug>/` — intent, spec
+  (features), plan, review report, metadata. Read `intents/README.md` for
+  the types, gates and branch naming (`feat/27-…`, `fix/27-…`).
+- No code before the plan's gate is recorded in `metadata.yml`.
+- `/intent` drafts an intent, `/review` runs `REVIEW-POLICY.md` and writes
+  `review.md`, `/grid` refreshes `docs/sdlc-grid.md`.
+- Merges into `main` are local and done by the owner, never by an agent.
 
 ## Architecture
 
@@ -70,7 +91,7 @@ and rendering.
   paths reachable deterministically rather than by luck.
 - `src/scenes/` — the Phaser scenes, run in sequence: `MenuScene` →
   `ArmyBuilderScene` → `PlacementScene` → `BoardScene` → `GameOverScene`.
-  `BoardScene.ts` is by far the largest file in the repo (~1600 lines) and
+  `BoardScene.ts` is by far the largest file in the repo (~3000 lines) and
   owns movement clicks, combat-group building, retreat/drift prompts, and
   naval rotation/ramming/boarding UI; it implements `PlayerAgent` and
   `ActionObserver` via those same prompts, and delegates its movement,

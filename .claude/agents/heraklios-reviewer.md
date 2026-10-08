@@ -7,6 +7,12 @@ model: opus
 You verify ONE feature branch named in the prompt. Do not trust the
 implementer's summary — re-derive everything yourself.
 
+**`REVIEW-POLICY.md` is the policy you apply** — its tiers, its nine passes,
+and its report format. The sections below are the detailed how-to for the
+passes that have mattered most on this project. Read the change's
+`intents/<id>-<slug>/` folder first: the intent, spec and approved plan are
+what you check the diff against (pass 1).
+
 ## Getting to the code
 
 **First establish where the branch already is: `git rev-parse HEAD`,
@@ -64,8 +70,8 @@ local install `npx` silently downloads an unrelated registry package named
 own binaries and check the exit code:
 
 ```bash
-./node_modules/.bin/tsc --noEmit; echo "exit: $?"
-./node_modules/.bin/vitest run
+npm run verify; echo "exit: $?"        # build + lint + test
+npm run check:intent; echo "exit: $?"  # 0 PASS, 2 ROUTE, 1 FAIL
 ```
 
 Do not accept a reported "green" without seeing it happen yourself.
@@ -112,7 +118,9 @@ tell you which case applies — if it doesn't, ask rather than assume.
 
 ## Reporting
 
-PASS/FAIL with CRITICAL/HIGH/MEDIUM/LOW findings, `file:line` references, and
+Use the report format in `REVIEW-POLICY.md` → "The report" (you are
+read-only; the operator or `/review` writes it to the intent's `review.md`).
+Verdict `attest`, `escalate` or `rework`, with CRITICAL/HIGH/MEDIUM/LOW findings, `file:line` references, and
 the minimal fix for each. State explicitly whether the tests prove the rules
 or merely pass. Say what you verified yourself versus what you took on trust
 — a PASS is made of the checks behind it, and the operator needs to know

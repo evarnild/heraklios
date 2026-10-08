@@ -14,8 +14,16 @@ moving out.
 
 ## How To Manage This Plan
 
-- [Current Queue](#10-sequenced-queue) is the single source of truth for status. Read it
-  first, and update it the moment anything merges.
+- **Since §26, work items live in `intents/<id>-<slug>/`**, not in this
+  file — see [`intents/README.md`](intents/README.md). This file is the
+  coordinator view: snapshot, queue, backlog map, history map. A queue row
+  is one line linking to its intent folder, with the type and the status
+  from its `metadata.yml` (which is the source of truth for status). Backlog
+  items move into `intents/` only when they are picked up. Sections §1–§25
+  keep their old form; nothing is migrated retroactively.
+- [Current Queue](#10-sequenced-queue) is where to read status first. For
+  intents (§26 on) it mirrors `metadata.yml`, which wins if they disagree;
+  update both the moment anything merges.
 - Keep per-section status headers in sync with the queue. If something moves from
   queued to in-flight or shipped, update both the section and the queue in the same
   commit.
@@ -193,7 +201,9 @@ sync when something merges** — it went stale once and the user caught it.
 
 ### In flight
 
-Nothing. Queue is empty of self-contained items.
+| Item | Type · status |
+| --- | --- |
+| [§26](intents/26-ai-sdlc-kit/) AI-native SDLC kit — verify, lint, intents, review policy, skills, grid | refactor · in-review |
 
 ### Queued
 

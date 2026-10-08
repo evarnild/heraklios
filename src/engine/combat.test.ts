@@ -29,7 +29,7 @@ import {
 } from './combat';
 import { DIRECTIONS, hexAdd, hexDistance } from './hex';
 import { createInitialState } from './turnManager';
-import { RIVER_HEXSIDES, riverEdgeKey } from '../data/map';
+import { RIVER_HEXSIDES } from '../data/map';
 import { UNIT_TYPES } from '../data/units';
 import type { GameState, Unit } from './state';
 

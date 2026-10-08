@@ -31,6 +31,8 @@ screen/machine, taking turns.
 ```
 npm test    # run the engine's unit tests (Vitest)
 npm run build   # production build
+npm run lint    # ESLint
+npm run verify  # build + lint + test — run before considering a change done
 ```
 
 ## How to play

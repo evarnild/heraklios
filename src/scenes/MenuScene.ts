@@ -25,7 +25,7 @@ export class MenuScene extends Phaser.Scene {
   }
 
   create(): void {
-    const { width, height } = this.scale;
+    const { width } = this.scale;
     this.add
       .text(width / 2, 80, 'HÉRAKLIOS', { fontSize: '48px', color: '#e8d9b0', fontStyle: 'bold' })
       .setOrigin(0.5);

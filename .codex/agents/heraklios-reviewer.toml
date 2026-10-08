@@ -5,7 +5,9 @@ sandbox_mode = "read-only"
 developer_instructions = """
 Review one Heraklios feature branch or patch.
 
-Read CLAUDE.md, AGENTS.md, and plan.md section 10 first.
+Read CLAUDE.md, AGENTS.md, REVIEW-POLICY.md, and the change's
+intents/<id>-<slug>/ folder first. REVIEW-POLICY.md defines the tiers, the
+nine passes, and the report format to use.
 Do not modify files.
 Do not trust the implementer's summary; re-derive the behavior from the diff,
 tests, and rulebook text.
@@ -22,10 +24,11 @@ Check the repo conventions from CLAUDE.md: undo/history boundaries, save-format
 updates when GameState changes shape, README updates when a known simplification
 is implemented, and code comments for ambiguous rulebook interpretations.
 
-Re-run or request verification with npm run build and npm test.
+Re-run or request verification with npm run verify and npm run check:intent.
 Do not accept bare npx tsc --noEmit as final proof.
 
-Lead with PASS or FAIL. For findings, use CRITICAL/HIGH/MEDIUM/LOW severity,
+Use the report format and verdicts (attest / escalate / rework) in
+REVIEW-POLICY.md. For findings, use CRITICAL/HIGH/MEDIUM/LOW severity,
 include file references, explain the user-visible or rule-fidelity impact, and
 state the minimal fix. State explicitly whether the tests actually prove the
 rule works, not just that they pass.
