@@ -13,7 +13,7 @@
 // read from git, so it can run from any checkout.
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { checkChange, formatResult, parseArgs, parseBranch, parseMetadata } from './intent-check-lib.mjs';
+import { checkChange, formatResult, parseArgs, parseBranch, parseMetadata, parseReviewHeader } from './intent-check-lib.mjs';
 
 let opts;
 try {
@@ -51,6 +51,7 @@ const source = fromBranch
 let intentDir = null;
 let metadata = null;
 let intentFiles = [];
+let review = null;
 if (parsed) {
   let dirs = [];
   try {
@@ -63,6 +64,7 @@ if (parsed) {
     intentDir = `intents/${dir}`;
     intentFiles = source.files(intentDir);
     if (intentFiles.includes('metadata.yml')) metadata = parseMetadata(source.read(`${intentDir}/metadata.yml`));
+    if (intentFiles.includes('review.md')) review = parseReviewHeader(source.read(`${intentDir}/review.md`));
   }
 }
 
@@ -88,7 +90,7 @@ if (!fromBranch) {
   }
 }
 
-const result = checkChange({ branch, metadata, intentDir, intentFiles, diff });
+const result = checkChange({ branch, metadata, intentDir, intentFiles, diff, review });
 const { verdict, text } = formatResult(result);
 console.log(text);
 process.exit(verdict === 'FAIL' ? 1 : verdict === 'ROUTE' ? 2 : 0);
