@@ -25,7 +25,7 @@ You may escalate by hand at any time without a reason.
 | --- | --- | --- | --- |
 | **Automated** | `npm run verify` + `npm run check:intent` green → merge | nothing beyond merging | `intents/**` artefacts only; `docs/**` except `docs/research/**`; `README.md` wording that changes no documented rule |
 | **Attested** | `/review` runs every pass and writes `review.md` | read the report, not the diff; if you agree with its scope, merge | `src/ui/**`, `src/scenes/**`, `src/map-editor/**`, `src/engine/**` not listed below, tests-only changes, `scripts/**`, build config |
-| **Reviewed** | same report, plus you read the diff | full read, then merge | save format (`src/engine/saveGame.ts`, `src/ui/saveStorage.ts`); undo (`src/engine/history.ts`); rule tables (`src/data/combatTable.ts`, `navalRamming.ts`, `navalBoarding.ts`, `units.ts`, `terrain.ts`); `src/data/map.ts`; `docs/research/**`; this file; `eslint.config.js` changes that loosen a rule or raise the warning cap; `.claude/agents/**`, `.codex/agents/**`, `.claude/skills/**` |
+| **Reviewed** | same report, plus you read the diff | full read, then merge | save format (`src/engine/saveGame.ts`, `src/ui/saveStorage.ts`); undo (`src/engine/history.ts`); rule tables (`src/data/combatTable.ts`, `navalRamming.ts`, `navalBoarding.ts`, `units.ts`, `terrain.ts`); `src/data/map.ts`; `docs/research/**`; this file; lint guardrails — an `eslint.config.js` change that loosens a rule, a `package.json` `lint` script change that raises or removes `--max-warnings`, a new `eslint-disable` comment in `src/`; `.claude/agents/**`, `.codex/agents/**`, `.claude/skills/**` |
 
 **Approving means:** "I read what the checker did, I accept its scope —
 including the Not-checked list — and I take responsibility for this change."
@@ -49,9 +49,11 @@ the Attested tier is suspended for those paths until it is restored.
   `sampled: yes` in its `review.md`. Anything you find that the checker
   missed is a defect in the checker: add a pass or a rule here, or move the
   path to Reviewed.
-- **Quality per tier.** `/grid` reports reverts and follow-up fixes per tier.
-  If attested changes need follow-ups more often than reviewed ones, the
-  boundary is wrong — move it.
+- **Quality per tier.** `npm run sdlc:scan` (and so `/grid`) counts, per
+  tier, follow-up fixes — fix intents whose `links:` name the earlier
+  intent's folder, which `/intent` adds when the cause is known — and
+  reverts whose subject names the reverted `§`. If attested changes need
+  follow-ups more often than reviewed ones, the boundary is wrong — move it.
 - **Time-to-approve is not tracked.** Fast approval is not the goal.
 
 ## Passes
@@ -85,7 +87,7 @@ Each pass reports `pass`, `findings`, or `not run` (with why).
    style; an implemented "Known simplification" has moved out of that list;
    `CLAUDE.md` still describes the architecture accurately.
 8. **Guardrails and hygiene.** `npm run lint` passes and the warning cap did
-   not rise; no new dependency without a line in `plan.md` saying why; no
+   not rise; no new dependency without a line in the intent's `plan.md` saying why; no
    save-file or user-supplied text reaches `innerHTML` or `eval`.
 9. **Repository-specific footguns.** Drift state machine: every frame
    transition *returns* rather than falling through (§21's recurring bug).

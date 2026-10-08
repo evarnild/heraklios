@@ -7,7 +7,7 @@ context, but keep Claude-specific files and Codex-specific files separate.
 
 - Read `CLAUDE.md` for the project overview, architecture, and coding
   conventions.
-- Treat `plan.md` section 10 as the current queue/status source; each queued
+- Treat `plan.md`'s Current Queue as the queue/status overview; each queued
   item's detail lives in `intents/<id>-<slug>/` (see `intents/README.md`).
 - Apply `REVIEW-POLICY.md` when reviewing; the procedures in
   `.claude/skills/*/SKILL.md` (`intent`, `review`, `grid`) are plain markdown

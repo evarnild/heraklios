@@ -21,8 +21,9 @@ moving out.
   from its `metadata.yml` (which is the source of truth for status). Backlog
   items move into `intents/` only when they are picked up. Sections §1–§25
   keep their old form; nothing is migrated retroactively.
-- [Current Queue](#10-sequenced-queue) is the single source of truth for status. Read it
-  first, and update it the moment anything merges.
+- [Current Queue](#10-sequenced-queue) is where to read status first. For
+  intents (§26 on) it mirrors `metadata.yml`, which wins if they disagree;
+  update both the moment anything merges.
 - Keep per-section status headers in sync with the queue. If something moves from
   queued to in-flight or shipped, update both the section and the queue in the same
   commit.

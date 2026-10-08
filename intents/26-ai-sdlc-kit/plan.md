@@ -44,6 +44,13 @@ and so the grid can be read from the repo.
     `plan.md` management rules and queue format.
 11. This intent folder, then `/review` it.
 
+## Dependencies
+
+Dev-only, none shipped to players: `eslint@9` (the linter), `@eslint/js@9`
+(its recommended rule set, split out of core in v9), `typescript-eslint@8`
+(TypeScript parser + rules), `globals` (browser/node global names for the
+flat config — what `env:` did in the old config format).
+
 ## Tests
 
 - `intent-check-lib.test.mjs`: branch parsing, metadata parsing (CRLF,
@@ -65,3 +72,12 @@ See intent.md.
 - 2026-10-07 — subtasks 1–10 done on `refactor/26-ai-sdlc-kit`. Writing the
   check-lib tests caught a real bug in the first version: an empty `gate:`
   line parsed as `[]`, which is truthy, so an unrecorded gate passed.
+- 2026-10-08 — round-1 review returned `rework` (7 MEDIUM, 13 LOW). Fixed in
+  one commit: check-intent CLI argument parsing (`parseArgs`, tested), reads
+  the named branch's `intents/` from git, `--no-renames`, untracked files
+  counted, gates must be `YYYY-MM-DD`, `#` inside quoted values kept, 12 new
+  tests killing the 7 surviving mutants; scan prints its window and quality
+  per review tier; policy, skills, templates, agents, CLAUDE.md, AGENTS.md,
+  README and plan.md contradictions fixed. Skills bumped to 0.1.1. Process
+  note: a second session created §27's branch in this same checkout while
+  the rework was uncommitted — no harm done, and it is §27's motivating case.

@@ -3,7 +3,7 @@ name: intent
 description: Draft or sharpen a heraklios intent (intents/<id>-<slug>/intent.md + metadata.yml) for a fix, feature, refactor, adjustment or experiment. Use when starting any new piece of heraklios work, turning a bug found while playing or a review finding into work, or backfilling an intent for a plan that came first. Invoke as /intent --fix|--feature|--refactor|--adjust|--exp <what you have>.
 metadata:
   owner: evarnild
-  version: 0.1.0
+  version: 0.1.1
   scope: repository
   status: experimental
   review-tier: reviewed
@@ -16,7 +16,7 @@ user has into an intent good enough to accept, asking **only** the questions
 the material does not already answer. The user accepts; you never record a
 gate yourself.
 
-Stamp: `<!-- generated-by: heraklios/intent@0.1.0 -->` as the first line of
+Stamp: `<!-- generated-by: heraklios/intent@0.1.1 -->` as the first line of
 every file you write.
 
 ## 1. Settle the type
@@ -68,7 +68,10 @@ draft it", fill gaps with your best reading and list each one under
 3. Create `metadata.yml` from `intents/_templates/metadata.yml`: id, slug,
    type, `status: draft`, title, `review_tier` from `REVIEW-POLICY.md`'s path
    table for the files the work will likely touch (raise to `reviewed` for a
-   feature implementing a new rulebook rule), links. **Leave every gate empty.**
+   feature implementing a new rulebook rule; otherwise leave it empty so the
+   path table decides), links — for a fix, link the folder of the intent that
+   introduced the defect when you can tell (`intents/<id>-<slug>`); that link
+   is how the scan counts follow-ups per review tier. **Leave every gate empty.**
 4. Add a one-line row under `plan.md` → Current Queue → Queued:
    `| [§<id>](intents/<id>-<slug>/) <title> | <type> · draft |`
    (create the table header `| Item | Type · status |` if the section is

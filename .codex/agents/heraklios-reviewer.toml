@@ -27,7 +27,8 @@ is implemented, and code comments for ambiguous rulebook interpretations.
 Re-run or request verification with npm run verify and npm run check:intent.
 Do not accept bare npx tsc --noEmit as final proof.
 
-Lead with PASS or FAIL. For findings, use CRITICAL/HIGH/MEDIUM/LOW severity,
+Use the report format and verdicts (attest / escalate / rework) in
+REVIEW-POLICY.md. For findings, use CRITICAL/HIGH/MEDIUM/LOW severity,
 include file references, explain the user-visible or rule-fidelity impact, and
 state the minimal fix. State explicitly whether the tests actually prove the
 rule works, not just that they pass.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkChange, formatResult, parseBranch, parseMetadata } from './intent-check-lib.mjs';
+import { ADJUSTMENT_LIMITS, checkChange, formatResult, parseArgs, parseBranch, parseMetadata } from './intent-check-lib.mjs';
 
 const meta = (over = {}) => ({
   id: '27',
@@ -153,5 +153,67 @@ describe('checkChange', () => {
       }),
     );
     expect(r.routes.join()).toMatch(/Rule code .* no test change/);
+  });
+});
+
+describe('parseMetadata edge cases', () => {
+  it('keeps a # inside a quoted value and treats [] as an empty list', () => {
+    const m = parseMetadata(['title: "Fix #12 overlap"  # trailing comment', "note: 'a # b'", 'links: []', 'tag: a#b'].join('\n'));
+    expect(m.title).toBe('Fix #12 overlap');
+    expect(m.note).toBe('a # b');
+    expect(m.links).toEqual([]);
+    expect(m.tag).toBe('a#b');
+  });
+});
+
+describe('gates must hold a date', () => {
+  for (const value of ['~', 'null', 'TBD', 'no', '2026-10', []]) {
+    it(`rejects plan_approved: ${JSON.stringify(value)} once code changed`, () => {
+      const r = checkChange(base({ metadata: meta({ plan_approved: value }) }));
+      expect(r.errors.join()).toMatch(/plan_approved.*Code changed before the gate/);
+    });
+  }
+});
+
+describe('type shape boundaries', () => {
+  const adj = { branch: 'adjust/27-copy', metadata: meta({ type: 'adjustment' }), intentFiles: ['intent.md', 'metadata.yml'] };
+  const files = (n) => Array.from({ length: n }, (_, i) => ({ path: `docs/a${i}.md`, added: 1, deleted: 0 }));
+
+  it('allows an adjustment exactly at the limits, routes one past them', () => {
+    expect(checkChange(base({ ...adj, diff: files(ADJUSTMENT_LIMITS.files) })).routes).toEqual([]);
+    expect(checkChange(base({ ...adj, diff: files(ADJUSTMENT_LIMITS.files + 1) })).routes).toHaveLength(1);
+    const lines = (n) => [{ path: 'README.md', added: n, deleted: 0 }];
+    expect(checkChange(base({ ...adj, diff: lines(ADJUSTMENT_LIMITS.lines) })).routes).toEqual([]);
+    expect(checkChange(base({ ...adj, diff: lines(ADJUSTMENT_LIMITS.lines + 1) })).routes).toHaveLength(1);
+  });
+
+  it('routes a refactor that removed even one test line', () => {
+    const r = checkChange(
+      base({ branch: 'refactor/27-split', metadata: meta({ type: 'refactor' }), diff: [{ path: 'src/engine/combat.test.ts', added: 1, deleted: 1 }] }),
+    );
+    expect(r.routes).toHaveLength(1);
+  });
+
+  it('does not ask a fix for a test while only its artefacts have changed', () => {
+    const r = checkChange(base({ diff: [{ path: 'intents/27-drift-log/plan.md', added: 30, deleted: 0 }] }));
+    expect(r.routes).toEqual([]);
+  });
+});
+
+describe('parseArgs', () => {
+  it('reads a branch with or without --base', () => {
+    expect(parseArgs([])).toEqual({ branch: null, base: 'main' });
+    expect(parseArgs(['main'])).toEqual({ branch: 'main', base: 'main' });
+    expect(parseArgs(['fix/27-x', '--base', 'stable'])).toEqual({ branch: 'fix/27-x', base: 'stable' });
+    expect(parseArgs(['--base', 'stable', 'fix/27-x'])).toEqual({ branch: 'fix/27-x', base: 'stable' });
+    expect(parseArgs(['--base=stable'])).toEqual({ branch: null, base: 'stable' });
+  });
+
+  it('rejects a missing --base value, unknown flags and extra arguments', () => {
+    expect(() => parseArgs(['--base'])).toThrow(/needs a value/);
+    expect(() => parseArgs(['--base', '--x'])).toThrow(/needs a value/);
+    expect(() => parseArgs(['--base='])).toThrow(/needs a value/);
+    expect(() => parseArgs(['--bsae', 'main'])).toThrow(/Unknown option/);
+    expect(() => parseArgs(['a', 'b'])).toThrow(/at most one branch/);
   });
 });

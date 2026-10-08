@@ -50,7 +50,7 @@ without the revert rate beside it.
 
 | Date | Window | Changes on main | Per week | Reference an intent/§ | Reverts | Intents (stamped) | Attested / reviewed |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-10-07 | since 2026-07-16 (repo start) | 74 | 6.2 | 20% | 0 (0.0%) | 0 (0) | — |
+| 2026-10-07 | 2026-07-16 (repo start) → 2026-10-07 | 74 | 6.2 | 20% | 0 (0.0%) | 0 (0) | — |
 
 The baseline is history before the kit existed. Expect throughput to dip
 while the kit is adopted; that is the investment, not a failure. Reverts

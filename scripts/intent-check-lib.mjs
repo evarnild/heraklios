@@ -46,7 +46,7 @@ export function parseMetadata(text) {
   const out = {};
   let listKey = null;
   for (const raw of text.split(/\r?\n/)) {
-    const line = raw.replace(/\s+#.*$/, '').replace(/^#.*$/, '');
+    const line = stripComment(raw);
     if (!line.trim()) continue;
     const item = /^\s+-\s+(.*)$/.exec(line);
     if (item && listKey) {
@@ -66,6 +66,25 @@ export function parseMetadata(text) {
   }
   return out;
 }
+
+/** Drops a `#` comment, but not a `#` inside a quoted value ("Fix #12"). */
+function stripComment(line) {
+  let quote = null;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (quote) {
+      if (c === quote) quote = null;
+    } else if (c === '"' || c === "'") {
+      quote = c;
+    } else if (c === '#' && (i === 0 || /\s/.test(line[i - 1]))) {
+      return line.slice(0, i).trimEnd();
+    }
+  }
+  return line;
+}
+
+/** A gate counts as recorded only when it holds a date — not TBD, no, ~, null or empty. */
+export const GATE_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function unquote(v) {
   const s = v.trim();
@@ -125,11 +144,10 @@ export function checkChange({ branch, metadata, intentDir, intentFiles, diff }) 
   const touchesSource = diff.some((d) => isSource(d.path));
   for (const gate of rules.gates) {
     const v = metadata[gate];
-    // An empty `gate:` line parses as an empty list, not a missing key.
-    if (!v || (Array.isArray(v) && v.length === 0) || v === 'null' || v === '~') {
+    if (typeof v !== 'string' || !GATE_DATE_RE.test(v)) {
       // A plan that is not approved yet is fine while only artefacts change;
       // it is a gate violation once code arrives.
-      const msg = `Gate "${gate}" is not recorded in ${intentDir}/metadata.yml.`;
+      const msg = `Gate "${gate}" is not recorded (as YYYY-MM-DD) in ${intentDir}/metadata.yml.`;
       if (touchesSource) errors.push(`${msg} Code changed before the gate was passed.`);
       else notes.push(msg);
     }
@@ -167,6 +185,35 @@ function checkShape(type, diff, routes, notes) {
   if ((type === 'feature' || type === 'fix') && ruleCodeTouched && !testsTouched) {
     routes.push('Rule code in src/engine or src/data changed with no test change.');
   }
+}
+
+/**
+ * Parses check-intent's CLI: `[<branch>] [--base <ref> | --base=<ref>]`.
+ * Throws on an unknown flag or a `--base` without a value, so a typo can't
+ * silently check the wrong thing.
+ */
+export function parseArgs(argv) {
+  let base = 'main';
+  let branch = null;
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === '--base') {
+      const v = argv[i + 1];
+      if (!v || v.startsWith('--')) throw new Error('--base needs a value, e.g. --base main');
+      base = v;
+      i++;
+    } else if (a.startsWith('--base=')) {
+      base = a.slice('--base='.length);
+      if (!base) throw new Error('--base needs a value, e.g. --base=main');
+    } else if (a.startsWith('--')) {
+      throw new Error(`Unknown option ${a}`);
+    } else if (branch === null) {
+      branch = a;
+    } else {
+      throw new Error(`Unexpected argument ${a} — pass at most one branch`);
+    }
+  }
+  return { branch, base };
 }
 
 /** Formats a result as the "Type check" block the review report embeds. */

@@ -5,8 +5,9 @@
 //    length, complexity, parameter count) — warnings, because existing files
 //    such as BoardScene.ts predate them. `npm run lint` caps the warning
 //    count at the current baseline (see package.json), so new violations
-//    fail `npm run verify` while the old ones are paid down. When you remove
-//    warnings, lower the cap in the same commit.
+//    fail `npm run verify` while the old ones are paid down. The cap counts
+//    warnings, not locations — when you remove warnings, lower the cap in
+//    the same commit, or a later change can quietly spend the slack.
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import globals from 'globals';

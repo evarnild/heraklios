@@ -3,7 +3,7 @@ name: review
 description: Run heraklios's review policy against a branch and write the review report (intents/<id>-<slug>/review.md) with passes, findings, a Not-checked section and an attest/escalate/rework verdict. Use before merging any heraklios branch into main, or to re-review after rework. Invoke as /review [branch].
 metadata:
   owner: evarnild
-  version: 0.1.0
+  version: 0.1.1
   scope: repository
   status: experimental
   review-tier: reviewed
@@ -15,7 +15,7 @@ metadata:
 policy first, every time — it changes, and the version you remember may not
 be current.
 
-Stamp: `<!-- generated-by: heraklios/review@0.1.0 -->` as the first line of
+Stamp: `<!-- generated-by: heraklios/review@0.1.1 -->` as the first line of
 `review.md`.
 
 ## 0. Orient
@@ -80,8 +80,8 @@ Exactly the format in `REVIEW-POLICY.md` → "The report". Rules:
   the 5th, 10th, … attested change, set `sampled: yes` and tell the user a
   post-merge full read is due.
 
-Set `status: in-review` in `metadata.yml` if it isn't already. Change nothing
-else.
+Write nothing but `review.md`. The implementer sets `status: in-review`; if
+it is still something else, say so in the report rather than fixing it.
 
 ## 5. Tell the user
 

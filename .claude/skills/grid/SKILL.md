@@ -3,10 +3,10 @@ name: grid
 description: Draft or update heraklios's AI-native SDLC grid (docs/sdlc-grid.md) — the L0–L4 level per stage (Intent, Design, Build, Test, Deploy, Maintain), the evidence behind each, the outcome measures, and the two stages to move next. Use at the start of a quarter, after a pilot change, or when asked "where does heraklios stand".
 metadata:
   owner: evarnild
-  version: 0.1.0
+  version: 0.1.1
   scope: repository
   status: experimental
-  review-tier: automated
+  review-tier: reviewed
 ---
 
 # /grid — where heraklios stands
@@ -16,7 +16,7 @@ the user confirms. The scan cannot see deliberate choices ("Maintain is out
 of scope", "Design and Build are one step for features") — keep any the user
 already recorded.
 
-Stamp: keep or add `<!-- generated-by: heraklios/grid@0.1.0 -->` as the first
+Stamp: keep or add `<!-- generated-by: heraklios/grid@0.1.1 -->` as the first
 line of `docs/sdlc-grid.md`.
 
 ## 1. Collect evidence — don't ask for it

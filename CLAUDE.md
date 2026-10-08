@@ -29,16 +29,18 @@ npm run sdlc:scan  # the evidence behind docs/sdlc-grid.md
 
 Run a single test file: `npx vitest run src/engine/combat.test.ts`.
 Run tests matching a name: `npx vitest run -t "pattern"`.
-Type-check without emitting: `npx tsc --noEmit` (the build uses `tsc -b`,
+Type-check without emitting: `./node_modules/.bin/tsc --noEmit` — never bare
+`npx tsc`, which false-greens without a local install (plan.md §4). The build uses `tsc -b`,
 which is incremental — delete `tsconfig.tsbuildinfo` if a stale build info
 file ever seems to mask an error).
 
 `npm run verify` is the one command to run before considering a change done.
 Lint correctness rules are errors; the guardrails from the agent guidelines
-(file ≤500 lines, function ≤80 lines, complexity ≤20, ≤7 params) are
-warnings, capped by `--max-warnings` in `package.json` at today's count so
-new violations fail `verify`. If you remove warnings, lower the cap in the
-same commit; never raise it.
+(file ≤500 lines, function ≤80 lines, complexity ≤20, ≤7 params, nesting
+≤4, no `console` outside `scripts/`) are warnings, capped by `--max-warnings`
+in `package.json` at today's count so new violations fail `verify`. The cap
+counts warnings, not locations: if you remove warnings, lower the cap in the
+same commit, or a later change can spend the slack. Never raise it.
 
 ## How work flows
 
@@ -89,7 +91,7 @@ and rendering.
   paths reachable deterministically rather than by luck.
 - `src/scenes/` — the Phaser scenes, run in sequence: `MenuScene` →
   `ArmyBuilderScene` → `PlacementScene` → `BoardScene` → `GameOverScene`.
-  `BoardScene.ts` is by far the largest file in the repo (~1600 lines) and
+  `BoardScene.ts` is by far the largest file in the repo (~3000 lines) and
   owns movement clicks, combat-group building, retreat/drift prompts, and
   naval rotation/ramming/boarding UI; it implements `PlayerAgent` and
   `ActionObserver` via those same prompts, and delegates its movement,

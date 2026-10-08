@@ -9,7 +9,7 @@ In that folder you may only append to plan.md's ## Progress section and set
 status: in-review in metadata.yml. Never record a gate.
 
 Read CLAUDE.md and AGENTS.md first.
-Use plan.md section 10 as the current queue/status source.
+Use plan.md's Current Queue as the queue; intent status lives in metadata.yml.
 Do not edit .claude/.
 Do not edit plan.md unless explicitly instructed.
 Do not push, merge, or switch main unless explicitly instructed.
