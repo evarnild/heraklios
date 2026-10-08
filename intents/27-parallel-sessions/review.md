@@ -1,15 +1,72 @@
 <!-- generated-by: heraklios/review@0.1.1 -->
 # §27 review — Parallel sessions: spawn worktrees, session event log, coordinator view
 
-verdict: rework
+verdict: escalate
 tier: reviewed
-reviewed-commit: 35d67fb
-round: 2
+reviewed-commit: 02829c8
+round: 3
 sampled: no
+
+Tier: **path table** → Reviewed (`.claude/skills/**`, `.claude/settings.json`); `metadata.yml` agrees. Nothing needs rework → `escalate`: the owner reads the diff, then merges.
+
+## Passes
+| # | Pass | Result |
+| --- | --- | --- |
+| 1 | Intent and plan match | pass |
+| 2 | Type check | pass |
+| 3 | Rulebook fidelity | not run — nothing under `src/` |
+| 4 | Tests prove the rule, not only pass | findings (1, LOW) |
+| 5 | Engine/presentation boundary and conventions | pass |
+| 6 | Numbers in prose | pass |
+| 7 | Documentation | pass |
+| 8 | Guardrails and hygiene | pass |
+| 9 | Repository-specific footguns | pass |
+
+## Type check
+```
+type-check: PASS (intent 27, refactor)
+  note:  15 file(s), 1316 line(s) changed outside intents/.
+```
+
+## Round 2 findings — status
+1. **M** inherited `GIT_*` — **resolved**: probe with `GIT_DIR`/`GIT_WORK_TREE`/`GIT_INDEX_FILE` at a scratch clone left its refs byte-identical; all 13 e2e tests pass.
+2. **M** `worktreeFor` filters — **resolved for the id filter** (§97 neighbour kills it); the not-main-checkout filter still survives (LOW below).
+3. **M** `carryIntentFolder` guards — **resolved**: §96 and §95 tests kill both, asserting the main checkout copy is untouched.
+4. **M** idle reminder hiding a pending prompt — **resolved, rule judged sound**: holds whether or not live `notification_type` values match; known cost: after approval the row stays `needs you` until the turn's `Stop`, as before.
+5. **L** 5 minor survivors — **4 of 5 killed**; `isRecorded`'s `typeof` likely equivalent.
+6. **L** id on two branches — **resolved**: error names both; §94 test kills the mutant.
+
+## Findings
+- **LOW** `scripts/spawn-intent.mjs:83`, `:42`, `:95`, `:124`; `scripts/session-lib.mjs:102`, `:109` — remaining survivors, none changes what is moved or deleted: `:83` not-main filter (matters only with the main checkout on an intent branch, and git refuses to remove the main working tree anyway); `:42` falls through to a warning; `:95`/`:124` are refusals git also enforces; `:102`/`:109` change only `since`/`detail`. **Owed**, not blocking.
+
+## Not checked
+- Hooks firing from a real interactive session: live `notification_type` values, idle-after-permission ordering (rule handles either), `$CLAUDE_PROJECT_DIR` expansion under the Windows hook shell, sessions started from `C:/Users/eric/src`.
+- A real `npm ci` in a spawned worktree.
+- The e2e test on Linux/macOS.
+
+## Verified myself vs. taken on trust
+- `npm run verify` exit 0 — lint 0/21, 34 files / 585 tests (e2e 13 tests in 4.8 s).
+- `check:intent` PASS; `npm run sessions` shows §27 `in-review`, `+5/-0`, "Ready for /review: §27".
+- `git diff 35d67fb 02829c8` read in full; `git diff --stat main...HEAD` 20 files, +1657/−2.
+- Mutants: `session-lib.mjs` 10 (6 killed, 4 state-equivalent survived); `spawn-intent.mjs` 8 (4 killed, 4 survived as above); `session-io.mjs` 1 (killed). Files restored, checked with `cmp`.
+- Test review: sandbox fully inside `mkdtempSync(tmpdir())`; `afterAll` removes all linked worktrees then the sandbox; junction target inside sandbox, unlinked in `finally`; `core.autocrlf` local only; ~35 runs, not flaky.
+- Cleanup: worktree clean, real event log absent, main worktree list unchanged, stash untouched.
+- Taken on trust: Claude Code hook payload semantics.
+
+---
+
+# Round 2 (history)
+
+
+- verdict: rework
+- tier: reviewed
+- reviewed-commit: 35d67fb
+- round: 2
+- sampled: no
 
 Tier: **path table** → Reviewed (`.claude/skills/spawn/**`, `.claude/skills/sessions/**`, and from this round `.claude/settings.json`); `metadata.yml` agrees.
 
-## Passes
+### Passes
 | # | Pass | Result |
 | --- | --- | --- |
 | 1 | Intent and plan match | pass |
@@ -22,16 +79,16 @@ Tier: **path table** → Reviewed (`.claude/skills/spawn/**`, `.claude/skills/se
 | 8 | Guardrails and hygiene | findings (1) |
 | 9 | Repository-specific footguns | findings (1) |
 
-## Type check
+### Type check
 ```
 type-check: PASS (intent 27, refactor)
   note:  15 file(s), 1202 line(s) changed outside intents/.
 ```
 
-## Round 1 findings — status
+### Round 1 findings — status
 All 11 **resolved** and re-probed: events go to `CLAUDE_PROJECT_DIR`'s log (foreign repo untouched); 13 old `session-lib` survivors killed; spawn/remove tested end to end; permission vs idle notifications map correctly; immediate re-spawn says "already has a worktree", re-spawn after `--remove --unmerged` reads the intent from its branch; a secret in a prompt logs as `"promptChars":26` only; `.claude/settings.json` in the Reviewed row; no root `plan.md` change; README "spawned session" bullet; Validation line fixed; brief ignored via `info/exclude` on an old base, not duplicated.
 
-## Findings
+### Findings
 - **MEDIUM** `scripts/spawn-intent.test.mjs` — `GIT_ENV` inherits `GIT_DIR` / `GIT_WORK_TREE` / `GIT_INDEX_FILE` / `GIT_COMMON_DIR`; run from a git hook or `rebase -x`, the "sandbox" commits into the inherited repo (reproduced against a scratch clone). Needs rework: strip `GIT_*`.
 - **MEDIUM** `scripts/spawn-intent.mjs` `worktreeFor` — the id and not-main-checkout filters survive mutation; nothing proves `--remove 98` spares another intent's worktree. Needs rework: a second spawned intent in the test.
 - **MEDIUM** `scripts/spawn-intent.mjs` `carryIntentFolder` — the "already tracked" and "untracked here and on the branch" guards survive. Worth a look: a test each.
@@ -39,7 +96,7 @@ All 11 **resolved** and re-probed: events go to `CLAUDE_PROJECT_DIR`'s log (fore
 - **LOW** `session-lib.mjs` — 5 minor survivors (`!e.kind &&` guard, `/i`, `typeof prompt`, `typeof cwd`, `typeof v` likely equivalent). Worth a look.
 - **LOW** `session-io.mjs` `readIntentMetadataFromBranch` — takes the first branch carrying the id; ambiguous with two. Worth a look: fail naming both.
 
-## Not checked
+### Not checked
 - Hooks firing from a real interactive session (`notification_type` values and ordering, incl. idle after a pending permission prompt).
 - Sessions started from `C:/Users/eric/src`: whether nested hooks load; with `CLAUDE_PROJECT_DIR` preferred, such events would be dropped silently.
 - Hook commands under a non-bash Windows shell.
@@ -47,7 +104,7 @@ All 11 **resolved** and re-probed: events go to `CLAUDE_PROJECT_DIR`'s log (fore
 - The test file on Linux/macOS (`'dir'` symlink branch).
 - Running the suite inside a real git hook (simulated with `GIT_DIR`).
 
-## Verified myself vs. taken on trust
+### Verified myself vs. taken on trust
 - `npm run verify` exit 0 — lint 0/21, 34 files / 579 tests (spawn e2e 9 tests in 3.2 s).
 - `check:intent` PASS; `npm run sessions` lists §27 `in-review`, `+4/-0`, "Ready for /review: §27".
 - `git diff 737bf4e 35d67fb` read in full; real repo's event log still absent, `info/exclude` unchanged.
