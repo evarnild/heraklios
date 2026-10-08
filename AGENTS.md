@@ -28,6 +28,10 @@ context, but keep Claude-specific files and Codex-specific files separate.
 - Parallel sessions (`npm run spawn`, `npm run sessions`) are described in
   `CLAUDE.md` → "Parallel sessions". A worktree under `../heraklios-wt/` belongs to
   the session its `CLAUDE.local.md` names; don't work in it from elsewhere.
+- Merge into `main`, push, delete a branch or remove a worktree only when the
+  owner explicitly asks for that action in the current conversation, and only
+  after the preconditions in `REVIEW-POLICY.md` → "Merging". Never record
+  `live_checked:` in an intent's `metadata.yml`; that gate is the owner's.
 
 ## Verification
 

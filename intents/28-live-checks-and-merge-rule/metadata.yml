@@ -2,7 +2,7 @@
 id: 28
 slug: live-checks-and-merge-rule
 type: feature
-status: in-progress
+status: in-review
 title: Live checks for untested behaviour, and the agent-merge rule
 review_tier: reviewed    # touches REVIEW-POLICY.md, .claude/skills, .claude/agents
 intent_accepted: 2026-10-08

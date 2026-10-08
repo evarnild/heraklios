@@ -58,7 +58,14 @@ and in `intents/README.md` / `REVIEW-POLICY.md` win if they disagree.
 - `/intent` drafts an intent, `/review` runs `REVIEW-POLICY.md` and writes
   `review.md`, `/grid` refreshes `docs/sdlc-grid.md`, `/spawn` and
   `/sessions` run parallel work (below).
-- Merges into `main` are local and done by the owner, never by an agent.
+- Merges into `main` are local. An agent merges, pushes, deletes a branch
+  or removes a worktree only when the owner explicitly asks for that action
+  in the current conversation, never on its own initiative, and only after
+  the preconditions in `REVIEW-POLICY.md` → "Merging".
+- A change to `src/scenes/`, `src/ui/`, `src/map-editor/` or
+  `.claude/settings.json` usually owes a **live check** — the owner runs it
+  and records `live_checked: <date>` before the merge (`REVIEW-POLICY.md` →
+  "Live checks"). An agent's own browser run is evidence, never that gate.
 
 ## Parallel sessions
 
@@ -88,8 +95,8 @@ npm run sessions -- --log 30    # the raw event tail
   reminder shows as `idle`, but never hides a prompt still waiting on you —
   only your next prompt, the turn ending or the session ending clears it.
 - **Only the coordinator** edits `plan.md`, runs `/spawn`, `/sessions` and
-  `/review`, and sends "main moved, rebase" notices. The owner merges, one
-  branch at a time, running `npm run verify` on `main` after each merge.
+  `/review`, and sends "main moved, rebase" notices. The owner merges (or
+  asks the coordinator to, per "Merging"), one branch at a time, running `npm run verify` on `main` after each merge.
 - **A spawned session** works only on its branch and its intent. Its
   `CLAUDE.local.md` (gitignored, written by spawn) says which intent, branch
   and port it has. It never edits `plan.md`, never merges, and sets

@@ -60,13 +60,15 @@ intent, or forward-fix with a new one. Don't rewrite the old folder.
 
 ## Gates
 
-Four of the strategy's six human gates live here; you are the human at each.
+Four of the strategy's six human gates live here, plus heraklios's own
+live check when a review says one is owed; you are the human at each.
 
 | Gate | Recorded as | Meaning |
 | --- | --- | --- |
 | accept the intent | `intent_accepted: <date>` | worth doing, and the problem statement is right |
 | accept the spec | `spec_accepted: <date>` | this is what we will build |
 | approve the plan | `plan_approved: <date>` | this is how — no code before this |
+| live check, when owed | `live_checked: <date>` | you ran it yourself and saw what `review.md` → `## Live check` said you should; no merge before this (`REVIEW-POLICY.md` → "Live checks") |
 | approve the change | `review.md` verdict + the merge commit | you read the report (and the diff, at the Reviewed tier) and take responsibility |
 
 The other two — authorise the release (push to `origin/main` /

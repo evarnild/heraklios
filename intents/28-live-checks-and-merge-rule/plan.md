@@ -135,3 +135,35 @@ in a temp repo).
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-10-08 — subtasks 1–5 (Claude, coordinator session acting as implementer)
+
+- Commits: `aee3d7a` (check:intent, tests first: 12 red → green),
+  `4305434` (REVIEW-POLICY Live checks + Merging), `71a383c` (/review 0.1.2,
+  reviewer and implementer agents, Claude + Codex), then the docs commit
+  (CLAUDE.md, AGENTS.md, sdlc.md, intents/README.md, metadata template).
+- `npm run verify`: 34 files, 600 tests (585 → 600), lint 0 errors /
+  21 warnings (cap unchanged). `check:intent`: PASS. AC1 grep: clean.
+- Spot mutation: removing the `# Round` stop in `parseReviewHeader` fails
+  "stops at # Round even in a report with no ## sections".
+- CLI probe: a temporary `review.md` with `live-check: owed` made
+  `check:intent` FAIL with the `## Live check` message; `not-needed` passed.
+  File removed afterwards.
+
+Diverged from the plan — for the owner to accept or reject in review:
+
+1. **Worktree, not the main checkout.** Built in a spawned worktree
+   (`npm run spawn -- 28`), not on a branch in the main checkout as the
+   plan's Assumptions said: switching branches there is what the §27 work
+   taught us not to do.
+2. **`parseReviewHeader` stops at the first `## ` section** as well as at
+   `# Round`. The plan said "above the first `# Round` heading"; that would
+   also read `key: value` lines in the report body (a pasted
+   `type-check: PASS`, a bare `live-check:` under `## Live check`).
+3. **`/review` exempts one FAIL from automatic rework.** Once a round says
+   `live-check: owed`, re-running `check:intent` FAILs until the owner
+   records the date, and the skill turned any FAIL into `rework`. Added to
+   the skill and both reviewer agents: a FAIL whose only error is the owed
+   live check is the owner's to clear. Not in the plan; follows from B7+B8.
+4. **Empty `live_checked:` parses as `[]`** (parseMetadata's empty-list
+   form), so it is read as "not recorded", not "invalid"; a test pins it.
