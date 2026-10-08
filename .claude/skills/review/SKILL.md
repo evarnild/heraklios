@@ -3,7 +3,7 @@ name: review
 description: Run heraklios's review policy against a branch and write the review report (intents/<id>-<slug>/review.md) with passes, findings, a Not-checked section and an attest/escalate/rework verdict. Use before merging any heraklios branch into main, or to re-review after rework. Invoke as /review [branch].
 metadata:
   owner: evarnild
-  version: 0.1.1
+  version: 0.1.2
   scope: repository
   status: experimental
   review-tier: reviewed
@@ -15,7 +15,7 @@ metadata:
 policy first, every time — it changes, and the version you remember may not
 be current.
 
-Stamp: `<!-- generated-by: heraklios/review@0.1.1 -->` as the first line of
+Stamp: `<!-- generated-by: heraklios/review@0.1.2 -->` as the first line of
 `review.md`.
 
 ## 0. Orient
@@ -47,7 +47,9 @@ If `node_modules` is missing in a worktree, `npm install` there (see
 `plan.md` §4 — never junction into a worktree you'll delete, never trust bare
 `npx tsc`). A red `verify` or a FAIL type check is an immediate `rework`
 verdict; still run the remaining passes you can, so one round catches as
-much as possible.
+much as possible. **One exception:** a FAIL whose only error is "A live
+check is owed and not recorded" (an earlier round set `live-check: owed`)
+is the owner's to clear, not rework. Note it and carry on.
 
 ## 2. Decide the tier
 
@@ -76,6 +78,14 @@ Exactly the format in `REVIEW-POLICY.md` → "The report". Rules:
   with their results.
 - **Verdict:** `rework` if any finding needs rework; else `escalate` if the
   tier is Reviewed; else `attest`.
+- **`live-check:`** — decide it after the passes, by the three rules in
+  `REVIEW-POLICY.md` → "Live checks" (paths; `.claude/settings.json`; a
+  runtime-only Not-checked item). When `owed`, the `## Live check` section
+  gives steps the owner can follow without asking: the exact command and
+  port, the `src/ui/testMode.ts` shortcut or seed, the clicks, and what they
+  should see. When `not-needed`, one line saying why. If you drove the
+  browser yourself, list what you saw under "Verified myself"; it never
+  replaces the owner's check, and you never write `live_checked:`.
 - `sampled:` — count attested reviews in `intents/*/review.md`; if this is
   the 5th, 10th, … attested change, set `sampled: yes` and tell the user a
   post-merge full read is due.
@@ -86,7 +96,10 @@ it is still something else, say so in the report rather than fixing it.
 ## 5. Tell the user
 
 One short block: verdict, tier and why, counts of findings by severity, the
-top finding if any, the Not-checked headline, and what they do next —
-"read the report and merge", "read the diff too (Reviewed)", or "rework, then
-/review again". After they merge, remind them to set `merged:` and
-`status: done` and archive per `plan.md`'s rules.
+top finding if any, the Not-checked headline, "live check owed: <one-line
+summary>" when it is, and what they do next — "read the report and merge",
+"read the diff too (Reviewed)", or "rework, then /review again". A live
+check owed comes before the merge: "do the live check, record
+`live_checked:`, then merge". If they ask you to merge, apply
+`REVIEW-POLICY.md` → "Merging" (its preconditions, then `verify` on `main`
+and the bookkeeping).
