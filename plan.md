@@ -198,12 +198,13 @@ sync when something merges** — it went stale once and the user caught it.
 | [§25](plan-history.md#25-live-defect-save-load-panel-labels-overlap-action-buttons) save/load labels overlap buttons | see [§25.4](plan-history.md#254-outcome) |
 | [§24](plan-history.md#24-turn-status-should-name-the-side-and-unit-color) turn status side + color | `74a169a` |
 | [§19](plan-history.md#19-the-lookahead-tier-is-blind-to-ramming-and-that-now-costs-measurably-more) lookahead tier prices ramming threats (1 open MEDIUM follow-up; see [§19.5](plan-history.md#195-outcome)) | `10a7c21` |
+| [§26](intents/26-ai-sdlc-kit/) AI-native SDLC kit (Reviewed tier, 3 review rounds; see [review.md](intents/26-ai-sdlc-kit/review.md)) | `568f2a6` |
 
 ### In flight
 
 | Item | Type · status |
 | --- | --- |
-| [§26](intents/26-ai-sdlc-kit/) AI-native SDLC kit — verify, lint, intents, review policy, skills, grid | refactor · in-review |
+| [§27](intents/27-parallel-sessions/) Parallel sessions — spawn worktrees, session event log, coordinator view (branch `refactor/27-parallel-sessions`, worktree `../heraklios-wt/27-parallel-sessions`; needs a rebase onto `568f2a6`) | refactor · in-review |
 
 ### Queued
 

@@ -1,7 +1,7 @@
 id: 26
 slug: ai-sdlc-kit
 type: refactor
-status: in-review
+status: done
 title: AI-native SDLC kit — verify, lint, intents, review policy, skills, grid
 review_tier: reviewed    # touches REVIEW-POLICY.md, eslint.config.js, .claude/skills, .claude/agents
 # Approved in conversation with Claude on 2026-10-07 (scope, plan.md/intents
@@ -9,7 +9,7 @@ review_tier: reviewed    # touches REVIEW-POLICY.md, eslint.config.js, .claude/s
 # "read the written files".
 intent_accepted: 2026-10-07
 plan_approved: 2026-10-07
-merged:
+merged: 568f2a6
 links:
   # source documents, outside the repo
   - AI-Native SDLC — strategy (v2), Sept 2026
