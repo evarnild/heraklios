@@ -12,6 +12,8 @@
     "lint": "eslint . --max-warnings 21",
     "check:intent": "node scripts/check-intent.mjs",
     "sdlc:scan": "node scripts/sdlc-scan.mjs",
+    "spawn": "node scripts/spawn-intent.mjs",
+    "sessions": "node scripts/sessions.mjs",
     "verify": "npm run build && npm run lint && npm test"
   },
   "dependencies": {

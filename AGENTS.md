@@ -25,6 +25,9 @@ context, but keep Claude-specific files and Codex-specific files separate.
   `git worktree list`.
 - Use a Codex-created branch/worktree for Codex work when work may overlap with
   Claude Code.
+- Parallel sessions (`npm run spawn`, `npm run sessions`) are described in
+  `CLAUDE.md` → "Parallel sessions". A worktree under `../heraklios-wt/` belongs to
+  the session its `CLAUDE.local.md` names; don't work in it from elsewhere.
 
 ## Verification
 

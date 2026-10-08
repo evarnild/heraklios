@@ -82,6 +82,10 @@ type needs were recorded.
   `metadata.yml`. The skills draft; you decide.
 - **The implementer agent** may only append to the `## Progress` section at
   the end of its item's `plan.md` and set `status: in-review` when done.
+- **A spawned session** (`npm run spawn`, `CLAUDE.md` → "Parallel
+  sessions") is the implementer for its intent, with one addition: if the
+  gates its type needs are not recorded yet, it may draft the missing
+  `spec.md` or `plan.md` with the skills, then stops for you to accept it.
 - **The reviewer / `/review`** writes `review.md` and nothing else here.
 
 ## Stamps

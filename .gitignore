@@ -14,3 +14,6 @@ dist/
 docs/*.jpg
 docs/*.jpeg
 docs/*.png
+
+# Per-worktree session brief written by `npm run spawn` (scripts/spawn-intent.mjs).
+CLAUDE.local.md

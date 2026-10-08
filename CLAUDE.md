@@ -25,6 +25,8 @@ npm run lint       # eslint, capped at the current guardrail-warning count
 npm run verify     # build + lint + test — THE check before a change is done
 npm run check:intent  # does this branch's change match its intent? (intents/README.md)
 npm run sdlc:scan  # the evidence behind docs/sdlc-grid.md
+npm run spawn -- <id>  # parallel session for an intent (see "Parallel sessions")
+npm run sessions   # what every worktree/session is doing
 ```
 
 Run a single test file: `npx vitest run src/engine/combat.test.ts`.
@@ -50,8 +52,49 @@ same commit, or a later change can spend the slack. Never raise it.
   the types, gates and branch naming (`feat/27-…`, `fix/27-…`).
 - No code before the plan's gate is recorded in `metadata.yml`.
 - `/intent` drafts an intent, `/review` runs `REVIEW-POLICY.md` and writes
-  `review.md`, `/grid` refreshes `docs/sdlc-grid.md`.
+  `review.md`, `/grid` refreshes `docs/sdlc-grid.md`, `/spawn` and
+  `/sessions` run parallel work (below).
 - Merges into `main` are local and done by the owner, never by an agent.
+
+## Parallel sessions
+
+Several intents can run at once, each in its own worktree with its own
+Claude Code session. One session, in the main checkout, is the
+**coordinator**.
+
+```
+npm run spawn -- <id>           # worktree ../heraklios-wt/<id>-<slug> on the intent's branch,
+                                # npm ci, dev port 5200+(id mod 100), CLAUDE.local.md brief
+npm run spawn -- <id> --remove  # after merge; refuses if unmerged, dirty or junctioned
+npm run sessions                # every worktree: status, gates, ±main, dirty, session state
+npm run sessions -- --log 30    # the raw event tail
+```
+
+- **State lives in three places, each with one owner.** Intent status and
+  gates are in `metadata.yml` on the intent's branch; `npm run sessions`
+  reads it from each worktree. Git facts (ahead/behind, uncommitted files)
+  come from git. What each session is doing is in
+  `.git/heraklios-sessions.jsonl`, written by the hooks in
+  `.claude/settings.json` on start, prompt, turn end, notification and end.
+  That file is never committed, and no agent writes to it by hand. It holds
+  **no prompt text** — a prompt is logged by its length only. Events are
+  filed under the session's project directory, so a session that `cd`s into
+  another worktree still shows as itself. A permission prompt or question
+  shows as `needs you`; Claude Code's idle "waiting for your input"
+  reminder shows as `idle`, but never hides a prompt still waiting on you —
+  only your next prompt, the turn ending or the session ending clears it.
+- **Only the coordinator** edits `plan.md`, runs `/spawn`, `/sessions` and
+  `/review`, and sends "main moved, rebase" notices. The owner merges, one
+  branch at a time, running `npm run verify` on `main` after each merge.
+- **A spawned session** works only on its branch and its intent. Its
+  `CLAUDE.local.md` (gitignored, written by spawn) says which intent, branch
+  and port it has. It never edits `plan.md`, never merges, and sets
+  `status: in-review` when done.
+- Keep it to about three intent sessions at once. Merges and reviews are
+  serial, so more sessions mostly add rebases.
+- Spawned worktrees live outside the repo on purpose, so vite, vitest and
+  eslint never pick up a nested checkout. They get a real `node_modules`
+  from `npm ci`, never a junction (`plan.md` §4).
 
 ## Architecture
 

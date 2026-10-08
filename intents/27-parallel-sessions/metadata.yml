@@ -1,0 +1,17 @@
+# generated-by: heraklios/intent@0.1.0
+id: 27
+slug: parallel-sessions
+type: refactor
+status: in-review
+title: Parallel sessions — spawn worktrees, session event log, coordinator view
+review_tier: reviewed    # touches .claude/skills and .claude/settings.json (hooks)
+# Recorded by Claude from conversation on 2026-10-07: Eric said "yes please"
+# to the proposal (spawn command, event-log hooks, coordinator rules in
+# CLAUDE.md, as a §27 intent). Re-date either gate if you want it to mean
+# "read the written intent.md / plan.md".
+intent_accepted: 2026-10-07
+plan_approved: 2026-10-07
+merged:
+links:
+  - intents/26-ai-sdlc-kit    builds on; branched from refactor/26-ai-sdlc-kit
+  - plan.md#4-runbook-detailed-launch-hazards-appendix    the hazards spawn automates away
