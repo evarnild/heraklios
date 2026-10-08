@@ -69,9 +69,11 @@ draft it", fill gaps with your best reading and list each one under
    type, `status: draft`, title, `review_tier` from `REVIEW-POLICY.md`'s path
    table for the files the work will likely touch (raise to `reviewed` for a
    feature implementing a new rulebook rule; otherwise leave it empty so the
-   path table decides), links — for a fix, link the folder of the intent that
-   introduced the defect when you can tell (`intents/<id>-<slug>`); that link
-   is how the scan counts follow-ups per review tier. **Leave every gate empty.**
+   path table decides), links — and for a fix, `follows_up: <id>` naming the
+   intent whose change introduced the defect when you can tell (check
+   `git log -S` / `git blame` on the faulty line). That key, not `links:`, is
+   how the scan counts follow-ups per review tier, so only set it for a real
+   cause. **Leave every gate empty.**
 4. Add a one-line row under `plan.md` → Current Queue → Queued:
    `| [§<id>](intents/<id>-<slug>/) <title> | <type> · draft |`
    (create the table header `| Item | Type · status |` if the section is

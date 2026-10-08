@@ -28,8 +28,8 @@ Stamp: `<!-- generated-by: heraklios/review@0.1.1 -->` as the first line of
   is `review.md`.
 - Find the intent: `intents/<id>-*/` from the branch id. Read `intent.md`,
   `spec.md` (if any), `plan.md` including `## Progress`, `metadata.yml`, and
-  any previous `review.md` (this run is round n+1; keep earlier findings with
-  their resolution).
+  any previous `review.md` (this run is round n+1: put the new report at the
+  top and move earlier rounds below `# Round N (history)`, per the policy).
 
 For a substantial branch, delegate the passes to the `heraklios-reviewer`
 agent with this skill's instructions and the policy, then assemble its

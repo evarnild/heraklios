@@ -74,7 +74,9 @@ function stripComment(line) {
     const c = line[i];
     if (quote) {
       if (c === quote) quote = null;
-    } else if (c === '"' || c === "'") {
+    } else if ((c === '"' || c === "'") && /(^|[:-])\s*$/.test(line.slice(0, i))) {
+      // A quote opens only at the start of a value (after `key:` or `- `),
+      // so the apostrophe in `title: it's fine  # note` is just a letter.
       quote = c;
     } else if (c === '#' && (i === 0 || /\s/.test(line[i - 1]))) {
       return line.slice(0, i).trimEnd();

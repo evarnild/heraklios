@@ -81,3 +81,9 @@ See intent.md.
   README and plan.md contradictions fixed. Skills bumped to 0.1.1. Process
   note: a second session created §27's branch in this same checkout while
   the rework was uncommitted — no harm done, and it is §27's motivating case.
+- 2026-10-08 — round-2 review: all 20 round-1 findings verified resolved;
+  verdict `rework` for 1 new MEDIUM (follow-ups were inferred from any
+  `links:` entry) + 6 LOW. Fixed: dedicated `follows_up:` key, per-tier
+  counts only merged intents in the window, clean error for an unknown
+  branch, quote-aware comment stripping no longer trips on apostrophes,
+  anchored-date tests, review.md keeps the current round on top.

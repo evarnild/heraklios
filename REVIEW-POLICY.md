@@ -50,8 +50,9 @@ the Attested tier is suspended for those paths until it is restored.
   missed is a defect in the checker: add a pass or a rule here, or move the
   path to Reviewed.
 - **Quality per tier.** `npm run sdlc:scan` (and so `/grid`) counts, per
-  tier, follow-up fixes — fix intents whose `links:` name the earlier
-  intent's folder, which `/intent` adds when the cause is known — and
+  tier, follow-up fixes — fix intents whose `follows_up:` names the
+  intent whose change caused the defect, which `/intent` sets when the cause
+  is known — and
   reverts whose subject names the reverted `§`. If attested changes need
   follow-ups more often than reviewed ones, the boundary is wrong — move it.
 - **Time-to-approve is not tracked.** Fast approval is not the goal.
@@ -144,6 +145,9 @@ sampled: no
 
 `verdict: attest` means "no findings needing rework — approve if you agree".
 `rework` lists what must change; the implementer fixes it and `/review` runs
-again (`round` increments, the file is updated in place, the previous
-round's findings stay listed with their resolution). `escalate` routes to
+again (`round` increments and the file is updated in place: the current
+round's header and report go at the top, earlier rounds move below a
+`# Round N (history)` heading with their header fields turned into list
+items, so the scan reads only the current verdict; each round's findings
+stay listed with their resolution). `escalate` routes to
 the Reviewed tier.

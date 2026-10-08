@@ -164,10 +164,14 @@ describe('parseMetadata edge cases', () => {
     expect(m.links).toEqual([]);
     expect(m.tag).toBe('a#b');
   });
+
+  it('treats an apostrophe inside an unquoted value as a letter', () => {
+    expect(parseMetadata("title: it's fine  # trailing").title).toBe("it's fine");
+  });
 });
 
 describe('gates must hold a date', () => {
-  for (const value of ['~', 'null', 'TBD', 'no', '2026-10', []]) {
+  for (const value of ['~', 'null', 'TBD', 'no', '2026-10', [], 'x2026-10-07', '2026-10-07x', 'approved 2026-10-07']) {
     it(`rejects plan_approved: ${JSON.stringify(value)} once code changed`, () => {
       const r = checkChange(base({ metadata: meta({ plan_approved: value }) }));
       expect(r.errors.join()).toMatch(/plan_approved.*Code changed before the gate/);

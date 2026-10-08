@@ -47,7 +47,13 @@ compares what arrived against what the type should look like and reports
 `ROUTE` when they disagree — an "adjustment" that touched `src/engine/`, a
 "fix" with no test, a "refactor" that deleted test lines. A route is not a
 block: re-declare the type (and add the missing artefacts) or say in
-`review.md` why the mismatch is fine.
+`review.md` why the mismatch is fine. Expected noise: renaming or moving a
+test file shows as lines deleted from the old path, so a refactor that does
+it routes — say so in `review.md`.
+
+A fix whose defect came from an earlier intent's change records that in
+`metadata.yml` as `follows_up: <id>`. That is what lets `npm run sdlc:scan`
+count follow-ups per review tier, so set it only for a real cause.
 
 If an intent turns out wrong after merge, revert and keep the original
 intent, or forward-fix with a new one. Don't rewrite the old folder.

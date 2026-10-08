@@ -25,6 +25,14 @@ try {
 const git = (...a) => execFileSync('git', a, { encoding: 'utf8' }).trim();
 const fromBranch = opts.branch !== null;
 const branch = opts.branch ?? git('rev-parse', '--abbrev-ref', 'HEAD');
+if (fromBranch) {
+  try {
+    git('rev-parse', '--verify', '--quiet', `${branch}^{commit}`);
+  } catch {
+    console.error(`check-intent: no such branch or commit "${branch}"`);
+    process.exit(1);
+  }
+}
 const parsed = parseBranch(branch);
 
 /** The intents/ listing and file reader, from the named branch or the working tree. */

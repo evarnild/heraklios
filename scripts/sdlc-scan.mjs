@@ -54,8 +54,9 @@ if (existsSync('intents')) {
       const field = (k) => new RegExp(`^${k}:\\s*(\\S+)`, 'm').exec(text)?.[1] ?? null;
       review = { verdict: field('verdict'), tier: field('tier'), round: field('round'), sampled: field('sampled') };
     }
-    const links = Array.isArray(meta.links) ? meta.links : [];
-    intents.push({ dir, id: meta.id, type: meta.type, status: meta.status, files, stamps, review, links });
+    const followsUp = typeof meta.follows_up === 'string' ? meta.follows_up : null;
+    const merged = typeof meta.merged === 'string' ? meta.merged : null;
+    intents.push({ dir, id: meta.id, type: meta.type, status: meta.status, files, stamps, review, followsUp, merged });
   }
 }
 const countBy = (xs, key) => xs.reduce((acc, x) => ((acc[x[key] ?? 'unset'] = (acc[x[key] ?? 'unset'] ?? 0) + 1), acc), {});
@@ -80,21 +81,27 @@ const windowStart = Math.max(new Date(since).getTime(), new Date(firstChange).ge
 const weeks = Math.max(1, (Date.now() - windowStart) / (7 * 86400000));
 
 // --- Quality per review tier (REVIEW-POLICY.md "Against rubber-stamping") --
-// A follow-up is a fix intent whose links name an earlier intent folder; it
-// counts against the tier that earlier change was reviewed at. A revert
-// counts against the tier of the § its subject names.
-const tierOf = new Map(intents.filter((i) => i.review?.tier).map((i) => [String(i.id), i.review.tier]));
+// Only merged changes inside the window count. A follow-up is a fix intent
+// whose `follows_up:` names the intent whose change caused the defect; it
+// counts against the tier that change was reviewed at. A revert counts
+// against the tier of the § its subject names.
+const mergedInWindow = (i) => {
+  if (!i.merged) return false;
+  try {
+    return git('show', '-s', '--format=%as', i.merged) >= since;
+  } catch {
+    return false; // hash not in this clone
+  }
+};
+const tierOf = new Map(intents.filter((i) => i.review?.tier && mergedInWindow(i)).map((i) => [String(i.id), i.review.tier]));
 const perTier = {};
 const bump = (tier, key) => {
   perTier[tier] ??= { changes: 0, followUps: 0, reverts: 0 };
   perTier[tier][key] += 1;
 };
 for (const tier of tierOf.values()) bump(tier, 'changes');
-for (const i of intents.filter((x) => x.type === 'fix')) {
-  for (const link of i.links) {
-    const id = /^intents\/(\d+)-/.exec(link)?.[1];
-    if (id && tierOf.has(id)) bump(tierOf.get(id), 'followUps');
-  }
+for (const i of intents.filter((x) => x.type === 'fix' && x.followsUp)) {
+  if (tierOf.has(i.followsUp)) bump(tierOf.get(i.followsUp), 'followUps');
 }
 for (const c of reverts) {
   const id = /§\s?(\d+)/.exec(c.subject)?.[1];
@@ -146,8 +153,8 @@ if (asJson) {
   console.log('\n## Outcome (first-parent commits on main, plan-only commits excluded)');
   console.log(`changes: ${r.outcome.changesOnMain} · per week: ${r.outcome.perWeek} · reference an intent/§: ${Math.round(r.outcome.intentReferenceRate * 100)}% · reverts: ${r.outcome.reverts} (${(r.outcome.revertRate * 100).toFixed(1)}%)`);
   console.log(`by month: ${Object.entries(r.outcome.byMonth).sort().map(([m, n]) => `${m}=${n}`).join(' ')}`);
-  console.log('\n## Quality per review tier (intents with a review.md only)');
+  console.log('\n## Quality per review tier (merged, reviewed intents in the window)');
   const tiers = Object.entries(r.perTier);
-  if (!tiers.length) console.log('no reviewed intents yet');
+  if (!tiers.length) console.log('no merged, reviewed intents yet');
   for (const [tier, q] of tiers) console.log(`${tier}: ${q.changes} change(s) · ${q.followUps} follow-up fix(es) · ${q.reverts} revert(s)`);
 }
