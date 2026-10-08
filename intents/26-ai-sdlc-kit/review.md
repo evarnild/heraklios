@@ -1,15 +1,68 @@
 <!-- generated-by: heraklios/review@0.1.1 -->
 # §26 review — AI-native SDLC kit — verify, lint, intents, review policy, skills, grid
 
-verdict: rework
+verdict: escalate
 tier: reviewed
-reviewed-commit: b3861a0
-round: 2
+reviewed-commit: 9d932ee
+round: 3
 sampled: no
+
+Tier: **path table** → Reviewed (this round touches `REVIEW-POLICY.md` and `.claude/skills/**`; the branch as a whole also `.claude/agents/**`, `.codex/agents/**`, `eslint.config.js`); `metadata.yml` agrees. Nothing needs rework → `escalate`: the owner reads the diff, then merges.
+
+## Passes
+| # | Pass | Result |
+| --- | --- | --- |
+| 1 | Intent and plan match | pass — `b3861a0..9d932ee` touches scripts, docs, skills only |
+| 2 | Type check | pass (stated reason) — same three 1-line test edits |
+| 3 | Rulebook fidelity | not run — no rule behaviour changed |
+| 4 | Tests prove the rule, not only pass | findings (1, LOW) — 7 mutants: 5 killed, 2 survived (1 equivalent) |
+| 5 | Engine/presentation boundary and conventions | pass — no `src/` change |
+| 6 | Numbers in prose | pass — 541 → 545 matches the 4 new cases |
+| 7 | Documentation | pass |
+| 8 | Guardrails and hygiene | pass — 0 errors, 21/21 warnings |
+| 9 | Repository-specific footguns | pass — `src/` untouched since round 1 |
+
+## Type check
+```
+type-check: ROUTE (intent 26, refactor)
+  route: Declared refactor, but existing tests lost lines (src/engine/combat.test.ts, src/engine/heuristicAgent.test.ts, src/engine/randomAgent.test.ts). Behaviour may have changed — check, or route to feature.
+  note:  29 file(s), 2998 line(s) changed outside intents/.
+```
+Exit 2; accepted as in rounds 1–2.
+
+## Round 2 findings — status
+All 7 **resolved**: `follows_up:` end to end (template → `/intent` → README → policy → scan); `GATE_DATE_RE` anchor mutants killed; test-rename routing documented; unknown branch → one-line error; per-tier counts only merged-in-window; one current header block in `review.md`; apostrophe no longer opens a quote.
+
+## Findings
+- **LOW** `scripts/intent-check-lib.test.mjs` — the `-` alternative in the quote-opening condition (`/(^|[:-])\s*$/`) is untested; `[:-]`→`[:]` survives. Worth a look: test `  - 'a # b'  # c` → `['a # b']`. **Owed** — not fixed post-review.
+- **LOW** `scripts/intent-check-lib.mjs` — `[:-]` matches any hyphen, so `w: well-'q # r` keeps its comment. Contrived; cannot affect gates. **Accepted.**
+
+## Not checked
+- Per-tier scan path with real data (needs a merged intent and a fix with `follows_up:`); a `follows_up` written as `§26` or `26-ai-sdlc-kit` would silently not match — the template says "id".
+- CLI and `sdlc-scan.mjs` still untested; new branches probed, not mutated.
+- As earlier rounds: no browser run, no byte-identity comparison against `main`; §27 untouched.
+
+## Verified myself vs. taken on trust
+- `npm run verify` exit 0 — lint 0/21, vitest 32 files / 545 tests.
+- `check:intent` ROUTE exit 2; `sdlc:scan` window 2026-07-16 → 2026-10-08, per tier "no merged, reviewed intents yet".
+- `git diff b3861a0 9d932ee`: 11 files, +145/−34, read in full; probes of unknown branch, apostrophe, quoted list item, `follows_up: 26`, empty `merged:`, header-line count.
+- 7 lib mutants; backed up, restored with `cmp`, no `git checkout`, `git status --short` clean.
+- Taken on trust: external strategy documents and gate dates.
+
+---
+
+# Round 2 (history)
+
+
+- verdict: rework
+- tier: reviewed
+- reviewed-commit: b3861a0
+- round: 2
+- sampled: no
 
 Tier: **path table** → Reviewed (`REVIEW-POLICY.md`, `.claude/skills/**`, `.claude/agents/**`, `.codex/agents/**`, `eslint.config.js` touched again); `metadata.yml` `review_tier: reviewed` agrees. All 20 round-1 findings verified resolved in code. `rework` only for one new contradiction the rework introduced; fixed, round 3 would be `escalate`.
 
-## Passes
+### Passes
 | # | Pass | Result |
 | --- | --- | --- |
 | 1 | Intent and plan match | pass — `fdbdf43..b3861a0` touches only scripts, docs, skills, agents, config; nothing in `src/` |
@@ -22,7 +75,7 @@ Tier: **path table** → Reviewed (`REVIEW-POLICY.md`, `.claude/skills/**`, `.cl
 | 8 | Guardrails and hygiene | pass — 0 errors, 21/21 warnings, cap unchanged; devDeps justified |
 | 9 | Repository-specific footguns | pass — no `src/` change since round 1 |
 
-## Type check
+### Type check
 ```
 type-check: ROUTE (intent 26, refactor)
   route: Declared refactor, but existing tests lost lines (src/engine/combat.test.ts, src/engine/heuristicAgent.test.ts, src/engine/randomAgent.test.ts). Behaviour may have changed — check, or route to feature.
@@ -30,10 +83,10 @@ type-check: ROUTE (intent 26, refactor)
 ```
 Exit 2; accepted as in round 1.
 
-## Round 1 findings — status
+### Round 1 findings — status
 All 20 **resolved**, each re-probed (CLI `main` → FAIL; bare `--base` → clean error; `--base=X` honoured; named-branch mode read intent 27 from git; untracked probe file counted; `#` in quotes kept; non-date gates rejected). Round 1's claim that `#10-sequenced-queue` was a dead anchor was wrong — `plan.md` defines it.
 
-## Findings
+### Findings
 - **MEDIUM** `intents/_templates/metadata.yml` vs `scripts/sdlc-scan.mjs` and `/intent` — the per-tier follow-up count treated every `intents/<id>-…` link in a fix as "caused by", while the template calls it "related intent"; a fix linking a merely related intent would be charged to that intent's tier. Needs rework: dedicated key.
 - **LOW** `intent-check-lib.mjs` `GATE_DATE_RE` — dropping `^` or `$` survives. Worth a look.
 - **LOW** `check-intent.mjs` — with `--no-renames`, a pure test rename routes "tests lost lines". Worth a look: document it.
@@ -42,21 +95,21 @@ All 20 **resolved**, each re-probed (CLI `main` → FAIL; bare `--base` → clea
 - **LOW** `sdlc-scan.mjs` — reads the first `verdict:` in `review.md`; correct only if the current round's header is at the top. Worth a look.
 - **LOW** `intent-check-lib.mjs` `stripComment` — an apostrophe in an unquoted value opens a quote, keeping a trailing comment. Worth a look.
 
-## Not checked
+### Not checked
 - Mutants of the CLI's `source` / `ls-tree` / untracked-file paths and of the per-tier scan code (no tests; probed end to end instead).
 - Per-tier follow-up and revert counts with real data (no fix intents or reverts exist yet).
 - `refactor/27-parallel-sessions` (out of scope). Until §26 merges, checking §27 needs `--base refactor/26-ai-sdlc-kit`.
 - `until` (UTC date) behaviour around local midnight.
 - As round 1: no browser run, no byte-identity comparison against `main`.
 
-## Verified myself vs. taken on trust
+### Verified myself vs. taken on trust
 - `npm run verify` exit 0 — lint 0/21, vitest 32 files / 541 tests.
 - `check:intent` ROUTE exit 2; `sdlc:scan` window 2026-07-16 → 2026-10-08, 74 changes, 6.15/wk.
 - `git diff fdbdf43 b3861a0`: 19 files, +354/−55, read in full.
 - 26 lib mutants (22 killed, 4 survived); lib backed up and restored with `cmp`, no `git checkout`, `git status --short` clean, §27 worktree untouched.
 - Taken on trust: the external strategy documents and gate dates.
 
-## Round 2 resolution
+### Round 2 resolution
 | Finding | Resolution |
 | --- | --- |
 | M · follow-ups read from `links:` | new `follows_up: <id>` key (template, `/intent`, `intents/README.md`, `REVIEW-POLICY.md`); scan reads only that key |
