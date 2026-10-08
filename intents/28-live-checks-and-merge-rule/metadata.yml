@@ -1,0 +1,15 @@
+# generated-by: heraklios/intent@0.1.1
+id: 28
+slug: live-checks-and-merge-rule
+type: feature
+status: in-progress
+title: Live checks for untested behaviour, and the agent-merge rule
+review_tier: reviewed    # touches REVIEW-POLICY.md, .claude/skills, .claude/agents
+intent_accepted: 2026-10-08
+spec_accepted: 2026-10-08
+plan_approved: 2026-10-08
+merged:
+follows_up:
+links:
+  - intents/26-ai-sdlc-kit    the policy and skills this amends
+  - intents/27-parallel-sessions    its hook check is the live check this formalises
