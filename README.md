@@ -35,6 +35,9 @@ npm run lint    # ESLint
 npm run verify  # build + lint + test — run before considering a change done
 ```
 
+To make a change — intent, plan, build, review, merge — see
+[`sdlc.md`](sdlc.md).
+
 ## How to play
 
 1. **Menu** — pick 2, 3, or 4 players, the land-combat rule variant

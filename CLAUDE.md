@@ -46,6 +46,10 @@ same commit, or a later change can spend the slack. Never raise it.
 
 ## How work flows
 
+`sdlc.md` is the step-by-step version for the owner (intent → spec → plan
+→ build → review → merge, and what each type requires); the rules below
+and in `intents/README.md` / `REVIEW-POLICY.md` win if they disagree.
+
 - `plan.md` is the coordinator view (snapshot, queue, backlog, history map).
   Each work item's detail lives in `intents/<id>-<slug>/` — intent, spec
   (features), plan, review report, metadata. Read `intents/README.md` for
