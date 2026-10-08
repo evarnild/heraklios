@@ -114,3 +114,11 @@ State is split by who owns it:
   branch, merged remove, and the hook's project-dir and no-prompt-text rules.
   Writing it caught a real gap: re-spawning right after a spawn still said
   "Draft it with /intent".
+- 2026-10-08 — round-2 review: all 11 round-1 findings verified resolved;
+  `rework` for 4 MEDIUM + 2 LOW. Fixed: the e2e test strips inherited `GIT_*`
+  variables (it could commit into the parent repo from a git hook) and pins
+  `core.autocrlf`; a second intent proves `--remove` spares other worktrees;
+  both `carryIntentFolder` guards and the two-branch ambiguity (now an error
+  naming both) are tested; an idle reminder no longer hides a pending
+  prompt — chosen over a settings.json matcher, whose `notification_type`
+  matching is unobserved; 5 minor lib survivors targeted.

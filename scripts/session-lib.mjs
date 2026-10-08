@@ -87,11 +87,26 @@ export const EVENT_STATE = {
   SessionEnd: 'closed',
 };
 
-/** Latest event per worktree, keyed by `pathKey`. */
+/**
+ * Latest event per worktree, keyed by `pathKey` — except that an idle
+ * reminder never replaces a prompt still waiting on the owner. Claude Code
+ * can send its "waiting for your input" reminder while a permission prompt
+ * is unanswered; letting it win would hide the block. The owner's next
+ * prompt, the turn ending, or the session ending clears "needs you".
+ */
 export function latestEventByWorktree(events) {
   const out = new Map();
-  for (const e of events) out.set(pathKey(e.worktree), e);
+  for (const e of events) {
+    const key = pathKey(e.worktree);
+    const prev = out.get(key);
+    if (prev && isNotification(prev, 'needs you') && isNotification(e, 'idle')) continue;
+    out.set(key, e);
+  }
   return out;
+}
+
+function isNotification(e, state) {
+  return e.event === 'Notification' && notificationState(e) === state;
 }
 
 /**

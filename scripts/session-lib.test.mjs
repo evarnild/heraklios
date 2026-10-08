@@ -142,7 +142,28 @@ describe('events', () => {
     expect(notificationState({ detail: 'Claude is waiting for your input' })).toBe('idle');
     expect(notificationState({ detail: 'Claude needs your permission to use Bash' })).toBe('needs you');
     expect(notificationState({ kind: 'something_new' })).toBe('needs you');
+    // A typed notification is trusted over its text; the text match ignores case.
+    expect(notificationState({ kind: 'permission_prompt', detail: 'waiting for your input' })).toBe('needs you');
+    expect(notificationState({ detail: 'Claude is WAITING FOR YOUR INPUT' })).toBe('idle');
     expect(sessionState({ event: 'Notification', kind: 'idle_prompt', detail: 'x' }).state).toBe('idle');
+  });
+});
+
+describe('latestEventByWorktree and pending prompts', () => {
+  const ev = (event, extra = {}) => ({ event, worktree: 'C:/w/a', ...extra });
+  const stateAfter = (...events) => sessionState(latestEventByWorktree(events).get(pathKey('C:/w/a'))).state;
+
+  it('keeps "needs you" when an idle reminder follows an unanswered prompt', () => {
+    expect(stateAfter(ev('Notification', { kind: 'permission_prompt' }), ev('Notification', { kind: 'idle_prompt' }))).toBe('needs you');
+    expect(stateAfter(ev('Notification', { detail: 'needs your permission' }), ev('Notification', { detail: 'waiting for your input' }))).toBe('needs you');
+  });
+
+  it('clears "needs you" on the next prompt, turn end, or session end', () => {
+    const ask = ev('Notification', { kind: 'permission_prompt' });
+    expect(stateAfter(ask, ev('UserPromptSubmit'))).toBe('working');
+    expect(stateAfter(ask, ev('Stop'), ev('Notification', { kind: 'idle_prompt' }))).toBe('idle');
+    expect(stateAfter(ask, ev('SessionEnd'))).toBe('closed');
+    expect(stateAfter(ask, ev('Notification', { kind: 'elicitation_dialog', detail: 'newer' }))).toBe('needs you');
   });
 });
 
@@ -154,6 +175,7 @@ describe('eventRecordFrom', () => {
     expect(r.fields).toEqual({ event: 'UserPromptSubmit', session: 's1', promptChars: 23, detail: '23 chars' });
     expect(JSON.stringify(r)).not.toContain('SECRET');
     expect(eventRecordFrom({ ...base, hook_event_name: 'UserPromptSubmit' }).fields.promptChars).toBe(0);
+    expect(eventRecordFrom({ ...base, hook_event_name: 'UserPromptSubmit', prompt: ['not', 'text'] }).fields.promptChars).toBe(0);
   });
 
   it('keeps the notification type and message', () => {
@@ -173,6 +195,7 @@ describe('eventRecordFrom', () => {
     expect(eventRecordFrom(input, { CLAUDE_PROJECT_DIR: 'C:/proj' }, 'C:/fallback').dir).toBe('C:/proj');
     expect(eventRecordFrom(input, {}, 'C:/fallback').dir).toBe('C:/elsewhere');
     expect(eventRecordFrom({ hook_event_name: 'Stop' }, {}, 'C:/fallback').dir).toBe('C:/fallback');
+    expect(eventRecordFrom({ hook_event_name: 'Stop', cwd: 42 }, {}, 'C:/fallback').dir).toBe('C:/fallback');
   });
 
   it('ignores anything that is not a hook payload', () => {

@@ -12,8 +12,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 const here = dirname(fileURLToPath(import.meta.url));
 const SPAWN = join(here, 'spawn-intent.mjs');
 const EVENT = join(here, 'session-event.mjs');
+
+// Drop every inherited GIT_* variable: run from a git hook or `rebase -x`,
+// GIT_DIR / GIT_WORK_TREE / GIT_INDEX_FILE would point the sandbox's git
+// commands at the real repository.
 const GIT_ENV = {
-  ...process.env,
+  ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^GIT_/i.test(k))),
   GIT_AUTHOR_NAME: 't',
   GIT_AUTHOR_EMAIL: 't@example.com',
   GIT_COMMITTER_NAME: 't',
@@ -22,7 +26,7 @@ const GIT_ENV = {
 
 let sandbox;
 let repo;
-let worktree;
+const wt = (name) => join(sandbox, 'heraklios-wt', name);
 
 const git = (cwd, ...args) => execFileSync('git', args, { cwd, env: GIT_ENV, encoding: 'utf8' }).trim();
 const run = (script, args, opts = {}) =>
@@ -31,28 +35,42 @@ const logOf = (root) => {
   const file = join(root, '.git', 'heraklios-sessions.jsonl');
   return existsSync(file) ? readFileSync(file, 'utf8') : '';
 };
+/** Writes an intent folder (metadata + intent.md) under `root`. */
+const writeIntent = (root, id, slug, body = `# §${id}\n`) => {
+  const dir = join(root, 'intents', `${id}-${slug}`);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'metadata.yml'), `id: ${id}\nslug: ${slug}\ntype: fix\nstatus: draft\n`);
+  writeFileSync(join(dir, 'intent.md'), body);
+  return dir;
+};
 
 beforeAll(() => {
   sandbox = mkdtempSync(join(tmpdir(), 'h27-spawn-'));
   repo = join(sandbox, 'repo');
-  worktree = join(sandbox, 'heraklios-wt', '98-probe-thing');
   mkdirSync(repo);
   git(repo, 'init', '-q', '-b', 'main');
+  // Byte-exact checkouts whatever the machine's global core.autocrlf says.
+  git(repo, 'config', 'core.autocrlf', 'false');
   // A base without §27's .gitignore line, like an old --base ref.
   writeFileSync(join(repo, 'README.md'), 'probe\n');
   git(repo, 'add', '.');
   git(repo, 'commit', '-q', '-m', 'init');
-  // An intent drafted in the main checkout but never committed.
-  mkdirSync(join(repo, 'intents', '98-probe-thing'), { recursive: true });
-  writeFileSync(join(repo, 'intents', '98-probe-thing', 'metadata.yml'), 'id: 98\nslug: probe-thing\ntype: fix\nstatus: draft\n');
-  writeFileSync(join(repo, 'intents', '98-probe-thing', 'intent.md'), '# §98 probe\n');
+  // Intents drafted in the main checkout but never committed.
+  writeIntent(repo, 98, 'probe-thing', '# §98 probe\n');
+  writeIntent(repo, 97, 'neighbour');
 });
 
 afterAll(() => {
+  // Remove every linked worktree the tests left, then the whole sandbox.
   try {
-    git(repo, 'worktree', 'remove', '--force', worktree);
+    const paths = git(repo, 'worktree', 'list', '--porcelain')
+      .split(/\r?\n/)
+      .filter((l) => l.startsWith('worktree '))
+      .map((l) => l.slice('worktree '.length))
+      .slice(1);
+    for (const p of paths) git(repo, 'worktree', 'remove', '--force', p);
   } catch {
-    // already removed by the tests
+    // the sandbox goes anyway
   }
   rmSync(sandbox, { recursive: true, force: true });
 });
@@ -61,12 +79,19 @@ describe('npm run spawn', { timeout: 60_000 }, () => {
   it('moves an uncommitted intent into a new worktree, briefs it, and keeps the brief out of git', () => {
     const r = run(SPAWN, ['98', '--no-install']);
     expect(r.status, r.stderr).toBe(0);
-    expect(git(worktree, 'rev-parse', '--abbrev-ref', 'HEAD')).toBe('fix/98-probe-thing');
-    expect(readFileSync(join(worktree, 'intents', '98-probe-thing', 'intent.md'), 'utf8')).toBe('# §98 probe\n');
+    const w = wt('98-probe-thing');
+    expect(git(w, 'rev-parse', '--abbrev-ref', 'HEAD')).toBe('fix/98-probe-thing');
+    expect(readFileSync(join(w, 'intents', '98-probe-thing', 'intent.md'), 'utf8')).toBe('# §98 probe\n');
     expect(existsSync(join(repo, 'intents', '98-probe-thing'))).toBe(false);
-    expect(readFileSync(join(worktree, 'CLAUDE.local.md'), 'utf8')).toContain('You are the session for §98');
-    expect(git(worktree, 'status', '--porcelain')).not.toContain('CLAUDE.local.md');
+    expect(readFileSync(join(w, 'CLAUDE.local.md'), 'utf8')).toContain('You are the session for §98');
+    expect(git(w, 'status', '--porcelain')).not.toContain('CLAUDE.local.md');
     expect(logOf(repo)).toMatch(/"event":"spawned".*"detail":"port 5298"/);
+  });
+
+  it('lists the brief in info/exclude only once however many worktrees are spawned', () => {
+    expect(run(SPAWN, ['97', '--no-install']).status).toBe(0);
+    const exclude = readFileSync(join(repo, '.git', 'info', 'exclude'), 'utf8');
+    expect(exclude.match(/^CLAUDE\.local\.md$/gm)).toHaveLength(1);
   });
 
   it('refuses to spawn over an existing worktree with the right message', () => {
@@ -77,25 +102,26 @@ describe('npm run spawn', { timeout: 60_000 }, () => {
   });
 
   it('refuses to remove an unmerged worktree', () => {
-    git(worktree, 'add', 'intents');
-    git(worktree, 'commit', '-q', '-m', '§98 intent');
+    const w = wt('98-probe-thing');
+    git(w, 'add', 'intents');
+    git(w, 'commit', '-q', '-m', '§98 intent');
     const r = run(SPAWN, ['98', '--remove']);
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/not merged into main/);
-    expect(existsSync(worktree)).toBe(true);
+    expect(existsSync(w)).toBe(true);
   });
 
   it('refuses to remove a worktree whose node_modules is a link, and leaves the link target alone', () => {
     const target = join(sandbox, 'shared-node_modules');
     mkdirSync(target);
     writeFileSync(join(target, 'sentinel'), 'keep me');
-    const nm = join(worktree, 'node_modules');
+    const nm = join(wt('98-probe-thing'), 'node_modules');
     symlinkSync(target, nm, process.platform === 'win32' ? 'junction' : 'dir');
     try {
       const r = run(SPAWN, ['98', '--remove', '--unmerged']);
       expect(r.status).toBe(1);
       expect(r.stderr).toMatch(/is a link/);
-      expect(existsSync(worktree)).toBe(true);
+      expect(existsSync(wt('98-probe-thing'))).toBe(true);
     } finally {
       unlinkSync(nm);
     }
@@ -103,32 +129,76 @@ describe('npm run spawn', { timeout: 60_000 }, () => {
   });
 
   it('refuses to remove a worktree with uncommitted files', () => {
-    writeFileSync(join(worktree, 'scratch.txt'), 'wip');
+    const scratch = join(wt('98-probe-thing'), 'scratch.txt');
+    writeFileSync(scratch, 'wip');
     try {
       const r = run(SPAWN, ['98', '--remove', '--unmerged']);
       expect(r.status).toBe(1);
-      expect(existsSync(join(worktree, 'scratch.txt'))).toBe(true);
+      expect(existsSync(scratch)).toBe(true);
     } finally {
-      rmSync(join(worktree, 'scratch.txt'));
+      rmSync(scratch);
     }
   });
 
-  it('removes with --unmerged, then re-spawns from the intent on its branch', () => {
+  it("removes only the named intent's worktree, then re-spawns it from its branch", () => {
     expect(run(SPAWN, ['98', '--remove', '--unmerged']).status).toBe(0);
-    expect(existsSync(worktree)).toBe(false);
+    expect(existsSync(wt('98-probe-thing'))).toBe(false);
+    expect(existsSync(wt('97-neighbour'))).toBe(true); // §97 untouched
     expect(git(repo, 'branch', '--list', 'fix/98-probe-thing')).toContain('fix/98-probe-thing'); // branch kept
 
     const r = run(SPAWN, ['98', '--no-install']);
     expect(r.status, r.stderr).toBe(0);
-    expect(existsSync(join(worktree, 'intents', '98-probe-thing', 'metadata.yml'))).toBe(true);
+    expect(existsSync(join(wt('98-probe-thing'), 'intents', '98-probe-thing', 'metadata.yml'))).toBe(true);
     expect(existsSync(join(repo, 'intents', '98-probe-thing'))).toBe(false);
   });
 
   it('removes without --unmerged once the branch is merged', () => {
     git(repo, 'merge', '-q', '--no-ff', '-m', 'merge §98', 'fix/98-probe-thing');
     expect(run(SPAWN, ['98', '--remove']).status).toBe(0);
-    expect(existsSync(worktree)).toBe(false);
+    expect(existsSync(wt('98-probe-thing'))).toBe(false);
+    expect(existsSync(wt('97-neighbour'))).toBe(true);
     expect(logOf(repo)).toMatch(/"event":"removed"/);
+  });
+});
+
+describe('npm run spawn — carrying an intent folder', { timeout: 60_000 }, () => {
+  it('leaves an intent that is already committed in the main checkout where it is, and warns about local edits', () => {
+    const dir = writeIntent(repo, 96, 'tracked');
+    git(repo, 'add', 'intents/96-tracked');
+    git(repo, 'commit', '-q', '-m', '§96 intent');
+    writeFileSync(join(dir, 'intent.md'), '# §96 edited locally\n');
+
+    const r = run(SPAWN, ['96', '--no-install']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stderr).toMatch(/uncommitted changes in the main checkout/);
+    expect(readFileSync(join(dir, 'intent.md'), 'utf8')).toBe('# §96 edited locally\n'); // not moved or deleted
+    expect(readFileSync(join(wt('96-tracked'), 'intents', '96-tracked', 'intent.md'), 'utf8')).toBe('# §96\n');
+  });
+
+  it('never overwrites a branch copy with an untracked one from the main checkout', () => {
+    const tmp = join(sandbox, 'tmp-95');
+    git(repo, 'worktree', 'add', '-q', '-b', 'fix/95-both', tmp, 'main');
+    writeIntent(tmp, 95, 'both', '# §95 on the branch\n');
+    git(tmp, 'add', 'intents');
+    git(tmp, 'commit', '-q', '-m', '§95 intent');
+    git(repo, 'worktree', 'remove', tmp);
+    const local = writeIntent(repo, 95, 'both', '# §95 untracked draft\n');
+
+    const r = run(SPAWN, ['95', '--no-install']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stderr).toMatch(/exists both on the branch and untracked/);
+    expect(readFileSync(join(local, 'intent.md'), 'utf8')).toBe('# §95 untracked draft\n');
+    expect(readFileSync(join(wt('95-both'), 'intents', '95-both', 'intent.md'), 'utf8')).toBe('# §95 on the branch\n');
+  });
+
+  it('refuses an intent id that is on two branches instead of guessing', () => {
+    git(repo, 'branch', 'fix/94-a', 'main');
+    git(repo, 'branch', 'feat/94-b', 'main');
+    const r = run(SPAWN, ['94', '--no-install']);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/more than one branch/);
+    expect(r.stderr).toContain('fix/94-a');
+    expect(r.stderr).toContain('feat/94-b');
   });
 });
 

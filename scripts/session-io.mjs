@@ -51,9 +51,14 @@ export function findIntentDir(root, id) {
  * spawn has carried its uncommitted folder into the worktree.
  */
 export function readIntentMetadataFromBranch(root, id) {
-  const branch = git(root, 'for-each-ref', '--format=%(refname:short)', 'refs/heads')
+  const branches = git(root, 'for-each-ref', '--format=%(refname:short)', 'refs/heads')
     .split(/\r?\n/)
-    .find((b) => parseBranch(b)?.id === String(id));
+    .filter((b) => parseBranch(b)?.id === String(id));
+  if (branches.length > 1) {
+    // Picking one by ref order would spawn whichever sorts first.
+    throw new Error(`§${id} is on more than one branch (${branches.join(', ')}). Delete or rename all but one.`);
+  }
+  const [branch] = branches;
   if (!branch) return null;
   let dirs;
   try {
