@@ -199,12 +199,13 @@ sync when something merges** — it went stale once and the user caught it.
 | [§24](plan-history.md#24-turn-status-should-name-the-side-and-unit-color) turn status side + color | `74a169a` |
 | [§19](plan-history.md#19-the-lookahead-tier-is-blind-to-ramming-and-that-now-costs-measurably-more) lookahead tier prices ramming threats (1 open MEDIUM follow-up; see [§19.5](plan-history.md#195-outcome)) | `10a7c21` |
 | [§26](intents/26-ai-sdlc-kit/) AI-native SDLC kit (Reviewed tier, 3 review rounds; see [review.md](intents/26-ai-sdlc-kit/review.md)) | `568f2a6` |
+| [§27](intents/27-parallel-sessions/) parallel sessions — `npm run spawn`, session hooks, `npm run sessions` (Reviewed tier, 3 review rounds; see [review.md](intents/27-parallel-sessions/review.md)) | `eeba9c6` |
 
 ### In flight
 
 | Item | Type · status |
 | --- | --- |
-| [§27](intents/27-parallel-sessions/) Parallel sessions — spawn worktrees, session event log, coordinator view (branch `refactor/27-parallel-sessions`, worktree `../heraklios-wt/27-parallel-sessions`; needs a rebase onto `568f2a6`) | refactor · in-review |
+| _none_ | |
 
 ### Queued
 
