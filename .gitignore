@@ -17,3 +17,7 @@ docs/*.png
 
 # Per-worktree session brief written by `npm run spawn` (scripts/spawn-intent.mjs).
 CLAUDE.local.md
+
+# Playwright output from `npm run e2e`.
+test-results/
+playwright-report/
