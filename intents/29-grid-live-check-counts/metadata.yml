@@ -1,0 +1,15 @@
+# generated-by: heraklios/intent@0.1.1
+id: 29
+slug: grid-live-check-counts
+type: feature
+status: draft
+title: Count live checks in the SDLC scan and grid
+review_tier:
+intent_accepted:
+spec_accepted:
+plan_approved:
+merged:
+follows_up:
+links:
+  - intents/28-live-checks-and-merge-rule    depends on; adds the fields this counts
+  - docs/sdlc-grid.md    where the counts appear

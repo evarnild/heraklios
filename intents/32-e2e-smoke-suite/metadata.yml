@@ -1,0 +1,16 @@
+# generated-by: heraklios/intent@0.1.1
+id: 32
+slug: e2e-smoke-suite
+type: feature
+status: accepted
+title: Browser smoke suite for the game's scenes (npm run e2e)
+review_tier:
+intent_accepted: 2026-10-16    # recorded by Claude on the owner's explicit request in chat
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+follows_up:
+links:
+  - intents/30-browser-test-probe    the probe this builds on; code on exp/30-browser-test-probe
+  - intents/28-live-checks-and-merge-rule    the manual live check it may partly replace

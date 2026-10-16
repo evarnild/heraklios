@@ -215,7 +215,7 @@ sync when something merges** — it went stale once and the user caught it.
 | --- | --- |
 | [§29](intents/29-grid-live-check-counts/) Count live checks in the SDLC scan and grid (after §28) | feature · draft |
 | [§31](intents/31-gate-recording/) Who records a gate, and how (after §28) | feature · draft |
-| [§32](intents/32-e2e-smoke-suite/) Browser smoke suite for the game's scenes (`npm run e2e`), from §30's probe | feature · draft |
+| [§32](intents/32-e2e-smoke-suite/) Browser smoke suite for the game's scenes (`npm run e2e`), from §30's probe | feature · accepted |
 
 All fully-shipped rows that previously lived here (Stage 3b, §17,
 §18, §19, §24 and earlier) are in the [Shipped](#shipped) table above; see
