@@ -2,7 +2,7 @@
 id: 32
 slug: e2e-smoke-suite
 type: feature
-status: in-progress
+status: in-review
 title: Browser smoke suite for the game's scenes (npm run e2e)
 review_tier:
 intent_accepted: 2026-10-16    # recorded by Claude on the owner's explicit request in chat

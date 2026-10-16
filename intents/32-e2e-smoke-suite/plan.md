@@ -173,12 +173,8 @@ this line is the implementer's to edit. -->
   Menu button; AC4 `aiRunning` renamed everywhere (idle() throws by name);
   AC5 DEV guard removed (global setup names `devHook-*.js`).
 
-Not done yet:
-
-- **B1 port check** (a server already on 5232 must fail the run): the
-  mutation run was stopped by Claude Code for low system memory just as it
-  reached this check. Not re-run.
-- **AC1 20-run loop**: not run yet, same reason.
+B1 and AC1 were still to do here: the mutation run was stopped by Claude
+Code for low system memory just as it reached B1. Both are done below.
 
 Diverged from the plan — for the owner to accept in review:
 
@@ -201,3 +197,16 @@ Diverged from the plan — for the owner to accept in review:
    of scope; they are still not *tested*, only answered.
 6. **Save/load compares state without `elapsedMs`**: the game clock ticks
    between capture and save by construction.
+
+### 2026-10-16 — subtask 4 finished: B1 and AC1 (Claude)
+
+- **B1:** a plain HTTP server on `127.0.0.1:5232` (scratchpad `b1.mjs`),
+  then `npm run e2e` → exit 1 in 1 s, `http://127.0.0.1:5232 is already
+  used`. The server was not reused. (A first attempt hung because the
+  script's `spawnSync` blocked its own squatter from answering; that was
+  the script, not the suite.)
+- **AC1:** `npm run e2e` 20 times in a row (scratchpad `ac1.mjs`): 20/20
+  green, 4 passed each time; whole run 13–28 s (the first one is slowest).
+  Correction to the entry above: Playwright's reported time already
+  includes the build check, so a run is ~13 s in all, not 12.9 s + 10 s.
+- `status: in-review`.
