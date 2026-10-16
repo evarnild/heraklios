@@ -99,7 +99,7 @@ session's own `npm run dev` must use another port or be stopped while
    `testMode`. Shared e2e helpers in `e2e/helpers.ts`: seeded `Math.random`
    init script (the engine's LCG constants from `src/engine/rng.ts`),
    `startFromMenu(label)`, `waitIdle()`, `clickHex()`, `clickButton()`,
-   console-error trap.
+   console-error trap. `e2e/global-setup.ts`: the AC5 build check.
 3. **Scenarios** B6 (land move), B7 (ranged + melee), B8 (naval rotate +
    move), B9 (save → move → load), one file each under `e2e/`.
 4. **Prove them.** AC2–AC4 mutations by hand, AC5 build grep, AC1 20-run
@@ -125,7 +125,7 @@ The scenarios are the tests. For each behavioural line, what fails it:
 | B5 mode marker | click the other Menu button in one scenario → mode assertion fails (AC3) |
 | B4 `idle()` coupling | rename `aiRunning` in a scratch copy → `idle()` throws (AC4) |
 | B4 `buttonToCanvas` | zero / several / out-of-range index throw — a Vitest unit test on the pure match-and-order function, factored out of the display-list walk |
-| B4 hook absent in build | `npm run build`, then `grep -r __heraklios dist` is empty (AC5). Manual, recorded in Progress and re-run in `/review` pass 8 (see Assumptions) |
+| B4 hook absent in build | `npm run e2e`'s global setup runs `vite build` into a temp dir and fails if any output file contains `__heraklios` (AC5). Proven by removing the `import.meta.env.DEV` guard: the run must fail before any scenario |
 | B1 no server reuse | start a server on 5232, run `npm run e2e` → it fails on the port |
 
 ## Validation
@@ -134,7 +134,7 @@ The scenarios are the tests. For each behavioural line, what fails it:
   the `buttonToCanvas` unit tests.
 - `npm run e2e` — 4 scenarios pass, 20 runs in a row (AC1).
 - `npm run check:intent` PASS.
-- `npm run build` + `grep -r __heraklios dist` empty (AC5).
+- AC5 runs inside `npm run e2e` (global setup, ~10 s); no separate step.
 - Live check (AC8, owner): `npx playwright test --headed` once, watched;
   then one normal (non-test-mode) turn played by hand in `npm run dev`.
 
@@ -145,9 +145,9 @@ The scenarios are the tests. For each behavioural line, what fails it:
 - The seeded `Math.random` reuses `src/engine/rng.ts`'s LCG constants rather
   than a new generator, so "seed N" means the same thing in the fuzz harness
   and the browser.
-- The B4 build check stays manual (Progress + `/review`), not automated: an
-  automated one means a full `vite build` inside `verify` or `e2e`. Say if
-  you want it automated in `npm run e2e`'s global setup instead (+~10 s).
+- The B4 build check is automated in `npm run e2e`'s global setup (owner's
+  choice, 2026-10-16): a `vite build` to a temp `outDir`, never `dist/`, so
+  it can't clobber a build someone is previewing. Adds ~10 s per run.
 
 ## Progress
 
