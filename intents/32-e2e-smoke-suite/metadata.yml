@@ -6,7 +6,7 @@ status: accepted
 title: Browser smoke suite for the game's scenes (npm run e2e)
 review_tier:
 intent_accepted: 2026-10-16    # recorded by Claude on the owner's explicit request in chat
-spec_accepted:
+spec_accepted: 2026-10-16      # recorded by Claude on the owner's explicit request in chat
 plan_approved:
 live_checked:
 merged:
