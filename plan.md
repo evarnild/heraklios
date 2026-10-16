@@ -200,6 +200,7 @@ sync when something merges** — it went stale once and the user caught it.
 | [§19](plan-history.md#19-the-lookahead-tier-is-blind-to-ramming-and-that-now-costs-measurably-more) lookahead tier prices ramming threats (1 open MEDIUM follow-up; see [§19.5](plan-history.md#195-outcome)) | `10a7c21` |
 | [§26](intents/26-ai-sdlc-kit/) AI-native SDLC kit (Reviewed tier, 3 review rounds; see [review.md](intents/26-ai-sdlc-kit/review.md)) | `568f2a6` |
 | [§27](intents/27-parallel-sessions/) parallel sessions — `npm run spawn`, session hooks, `npm run sessions` (Reviewed tier, 3 review rounds; see [review.md](intents/27-parallel-sessions/review.md)) | `eeba9c6` |
+| [§28](intents/28-live-checks-and-merge-rule/) live checks for untested behaviour, and the agent-merge rule (Reviewed tier, 3 review rounds, live check via the §99 probe; see [review.md](intents/28-live-checks-and-merge-rule/review.md)) | `b61a31a` |
 
 ### In flight
 

@@ -2,7 +2,7 @@
 id: 28
 slug: live-checks-and-merge-rule
 type: feature
-status: in-review
+status: done
 title: Live checks for untested behaviour, and the agent-merge rule
 review_tier: reviewed    # touches REVIEW-POLICY.md, .claude/skills, .claude/agents
 intent_accepted: 2026-10-08
@@ -14,7 +14,7 @@ plan_approved: 2026-10-08
 # set, then PASSed. Probe branch and worktree deleted. Recorded by Claude on
 # the owner's request.
 live_checked: 2026-10-16
-merged:
+merged: b61a31a
 follows_up:
 links:
   - intents/26-ai-sdlc-kit    the policy and skills this amends
