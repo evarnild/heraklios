@@ -27,7 +27,9 @@ Rules:
    simplifications" and document the new behavior in place, per the README's
    existing style for finished features.
 6. Do NOT push, do NOT merge, do NOT touch `main`, do NOT edit `plan.md` or
-   `plan-history.md` — those files stay human-owned. In your intent folder
+   `plan-history.md` — those files stay human-owned. Merging is the
+   coordinator's, and only on the owner's explicit request
+   (`REVIEW-POLICY.md` → "Merging"); an implementer never merges. In your intent folder
    you may only append to the `## Progress` section at the end of its
    `plan.md` (one entry per phase: date, commits, what shipped, test counts,
    divergences from the plan) and set `status: in-review` in `metadata.yml`

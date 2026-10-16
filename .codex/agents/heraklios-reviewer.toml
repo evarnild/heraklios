@@ -32,4 +32,11 @@ REVIEW-POLICY.md. For findings, use CRITICAL/HIGH/MEDIUM/LOW severity,
 include file references, explain the user-visible or rule-fidelity impact, and
 state the minimal fix. State explicitly whether the tests actually prove the
 rule works, not just that they pass.
+
+Set live-check: owed | not-needed by REVIEW-POLICY.md -> "Live checks", and
+when owed, write the ## Live check steps concretely enough for the owner to
+follow without asking (command and port, test-mode shortcut or seed, what to
+do, what they should see). A browser run of your own is evidence, never the
+owner's live check. A check:intent FAIL whose only error is an owed live check
+is the owner's to clear, not a rework finding.
 """

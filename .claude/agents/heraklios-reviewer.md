@@ -125,3 +125,11 @@ the minimal fix for each. State explicitly whether the tests prove the rules
 or merely pass. Say what you verified yourself versus what you took on trust
 — a PASS is made of the checks behind it, and the operator needs to know
 which ones actually ran.
+
+Set `live-check: owed | not-needed` by `REVIEW-POLICY.md` → "Live checks",
+and when owed, write the `## Live check` steps concretely enough for the
+owner to follow without asking (command and port, test-mode shortcut or
+seed, what to do, what they should see). If you drive the browser yourself,
+report what you saw under "verified myself": that is evidence, never the
+owner's live check. A `check:intent` FAIL whose only error is an owed live
+check is the owner's to clear, not a rework finding.

@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { ADJUSTMENT_LIMITS, checkChange, formatResult, parseArgs, parseBranch, parseMetadata } from './intent-check-lib.mjs';
+import {
+  ADJUSTMENT_LIMITS,
+  checkChange,
+  formatResult,
+  parseArgs,
+  parseBranch,
+  parseMetadata,
+  parseReviewHeader,
+} from './intent-check-lib.mjs';
 
 const meta = (over = {}) => ({
   id: '27',
@@ -219,5 +227,107 @@ describe('parseArgs', () => {
     expect(() => parseArgs(['--base='])).toThrow(/needs a value/);
     expect(() => parseArgs(['--bsae', 'main'])).toThrow(/Unknown option/);
     expect(() => parseArgs(['a', 'b'])).toThrow(/at most one branch/);
+  });
+});
+
+describe('parseReviewHeader', () => {
+  const report = [
+    '<!-- generated-by: heraklios/review@0.1.2 -->',
+    '# §27 review — thing',
+    '',
+    'verdict: attest',
+    'tier: attested',
+    'live-check: not-needed',
+    '',
+    '## Findings',
+    '- live-check: owed',
+    'live-check: owed',
+    'type-check: FAIL',
+    '',
+    '# Round 1 (history)',
+    'live-check: owed',
+    '- verdict: rework',
+  ].join('\n');
+
+  it("reads the current round's header fields", () => {
+    expect(parseReviewHeader(report)).toEqual({ verdict: 'attest', tier: 'attested', 'live-check': 'not-needed' });
+  });
+
+  it('ignores everything from the first ## section or # Round heading on', () => {
+    const h = parseReviewHeader(report.replace('live-check: not-needed\n', ''));
+    expect(h['live-check']).toBeUndefined();
+  });
+
+  it('stops at # Round even in a report with no ## sections', () => {
+    expect(parseReviewHeader('verdict: attest\n# Round 1 (history)\nlive-check: owed\n')).toEqual({ verdict: 'attest' });
+  });
+
+  it('reads CRLF reports and strips trailing whitespace', () => {
+    expect(parseReviewHeader('verdict: escalate  \r\nlive-check: owed\r\n')).toEqual({ verdict: 'escalate', 'live-check': 'owed' });
+  });
+});
+
+describe('live checks', () => {
+  const featureMeta = (over = {}) =>
+    meta({ type: 'feature', spec_accepted: '2026-10-07', ...over });
+  const feature = (over = {}) =>
+    base({
+      branch: 'feat/27-drift-log',
+      metadata: featureMeta(),
+      intentFiles: ['intent.md', 'spec.md', 'plan.md', 'metadata.yml', 'review.md'],
+      ...over,
+    });
+
+  it('fails a change whose review owes a live check that is not recorded', () => {
+    const r = checkChange(feature({ review: { 'live-check': 'owed' } }));
+    expect(r.errors.join()).toMatch(/live check is owed.*intents\/27-drift-log\/review\.md → ## Live check/);
+  });
+
+  it('fails an owed live check even when no source code changed', () => {
+    const r = checkChange(feature({ review: { 'live-check': 'owed' }, diff: [{ path: 'README.md', added: 1, deleted: 0 }] }));
+    expect(r.errors.join()).toMatch(/live check is owed/);
+  });
+
+  it('reads an empty live_checked: field as not recorded, not as invalid', () => {
+    const empty = featureMeta({ live_checked: [] });
+    expect(checkChange(feature({ review: { 'live-check': 'not-needed' }, metadata: empty })).errors).toEqual([]);
+    expect(checkChange(feature({ review: { 'live-check': 'owed' }, metadata: empty })).errors.join()).toMatch(/live check is owed/);
+  });
+
+  it('passes once live_checked holds a date', () => {
+    const r = checkChange(feature({ review: { 'live-check': 'owed' }, metadata: featureMeta({ live_checked: '2026-10-09' }) }));
+    expect(r.errors).toEqual([]);
+  });
+
+  for (const value of ['yes', 'done', '2026-10', ['2026-10-09'], '~']) {
+    it(`fails live_checked: ${JSON.stringify(value)} whatever the review says`, () => {
+      for (const review of [null, { 'live-check': 'not-needed' }, { 'live-check': 'owed' }]) {
+        const r = checkChange(feature({ review, metadata: featureMeta({ live_checked: value }) }));
+        expect(r.errors.join()).toMatch(/live_checked.*YYYY-MM-DD/);
+        expect(r.errors).toHaveLength(1); // the date error alone, not also "owed"
+      }
+    });
+  }
+
+  it('adds nothing when no live check is needed or there is no review yet', () => {
+    expect(checkChange(feature({ review: { 'live-check': 'not-needed' } })).errors).toEqual([]);
+    expect(checkChange(feature({ review: null })).errors).toEqual([]);
+    expect(checkChange(feature({ review: { verdict: 'attest' } })).errors).toEqual([]);
+    expect(checkChange(feature()).errors).toEqual([]);
+  });
+
+  it('fails an unknown live-check value instead of reading it as not needed', () => {
+    const r = checkChange(feature({ review: { 'live-check': 'owned' } }));
+    expect(r.errors.join()).toMatch(/live-check: "owed" or "not-needed"/);
+  });
+
+  it('reports a bad date and a bad live-check value together, not just the first', () => {
+    const r = checkChange(feature({ review: { 'live-check': 'owned' }, metadata: featureMeta({ live_checked: 'yes' }) }));
+    expect(r.errors).toHaveLength(2);
+  });
+
+  it('fails a bare live-check: line, a half-written report, instead of reading it as nothing owed', () => {
+    const r = checkChange(feature({ review: { 'live-check': '' } }));
+    expect(r.errors.join()).toMatch(/live-check: "owed" or "not-needed"/);
   });
 });

@@ -112,7 +112,7 @@ const isIntentArtefact = (p) => p.startsWith('intents/');
  *   errors block the change; routes say the declared type does not fit what
  *   arrived (the change should take the fuller path); notes are informational.
  */
-export function checkChange({ branch, metadata, intentDir, intentFiles, diff }) {
+export function checkChange({ branch, metadata, intentDir, intentFiles, diff, review = null }) {
   const errors = [];
   const routes = [];
   const notes = [];
@@ -155,8 +155,51 @@ export function checkChange({ branch, metadata, intentDir, intentFiles, diff }) 
     }
   }
 
+  checkLiveCheck({ review, metadata, intentDir }, errors);
   checkShape(declared, diff, routes, notes);
   return { errors, routes, notes, type: declared, id };
+}
+
+const LIVE_CHECK_VALUES = ['owed', 'not-needed'];
+
+/**
+ * REVIEW-POLICY.md → "Live checks": a review that says `live-check: owed`
+ * blocks the merge until the owner records `live_checked: <date>`. Unlike
+ * the plan gates this does not wait for source code to change: it is a
+ * condition on the merge, and a docs-only change can owe one too.
+ */
+function checkLiveCheck({ review, metadata, intentDir }, errors) {
+  const v = metadata.live_checked;
+  // An empty `live_checked:` parses as [] — not recorded, not invalid.
+  const recorded = v !== undefined && !(Array.isArray(v) && v.length === 0);
+  if (recorded && (typeof v !== 'string' || !GATE_DATE_RE.test(v))) {
+    errors.push(`${intentDir}/metadata.yml: live_checked must be a YYYY-MM-DD date (the day you did the live check), or empty.`);
+  }
+  const state = review?.['live-check'];
+  if (state === undefined) return;
+  if (!LIVE_CHECK_VALUES.includes(state)) {
+    errors.push(`${intentDir}/review.md: live-check: "${state}" is not a value; use live-check: "owed" or "not-needed".`);
+  } else if (state === 'owed' && !recorded) {
+    errors.push(
+      `A live check is owed and not recorded. Do the steps in ${intentDir}/review.md → ## Live check, then set live_checked: <date> in ${intentDir}/metadata.yml.`,
+    );
+  }
+}
+
+/**
+ * The current round's header of a review.md: the `key: value` lines before its
+ * first `## ` section. Stopping there keeps report text (a pasted
+ * `type-check: PASS`) and earlier rounds, below `# Round N (history)`, from
+ * ever being read as the current header.
+ */
+export function parseReviewHeader(text) {
+  const out = {};
+  for (const raw of text.split(/\r?\n/)) {
+    if (/^## |^# Round\b/.test(raw)) break;
+    const kv = /^([a-z][\w-]*):\s*(.*?)\s*$/.exec(raw);
+    if (kv) out[kv[1]] = kv[2];
+  }
+  return out;
 }
 
 /** Compares what arrived against what the declared type should look like. */
