@@ -8,6 +8,12 @@ review_tier: reviewed    # touches REVIEW-POLICY.md, .claude/skills, .claude/age
 intent_accepted: 2026-10-08
 spec_accepted: 2026-10-08
 plan_approved: 2026-10-08
+# AC8 passed (owner, 2026-10-16): probe feat/99-live-check-probe, reviewed
+# with /review 0.1.2 in a fresh session, got live-check: owed (rule 1,
+# src/ui/**) with concrete steps; check:intent FAILed until live_checked was
+# set, then PASSed. Probe branch and worktree deleted. Recorded by Claude on
+# the owner's request.
+live_checked: 2026-10-16
 merged:
 follows_up:
 links:
