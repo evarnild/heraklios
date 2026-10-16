@@ -196,3 +196,20 @@ Diverged from the plan — for the owner to accept or reject in review:
 - `npm run verify`: 35 files, 607 tests, lint 0 errors / 21 warnings.
   `check:intent`: FAIL on the owed live check only — expected, the owner's
   to clear.
+
+### 2026-10-16 — round-2 rework
+
+- Finding 1 (MEDIUM): new CLI test, an uncommitted `review.md` in the
+  branch's own checkout fails the branch-mode check. Mutant M21 (drop
+  `review.md` from the backstop's pathspec) now killed (1 failed).
+- Finding 4 (LOW): `REVIEW-POLICY.md` → "Merging" precondition 1 reads the
+  verdict from the branch's committed `review.md` (`git show`), requires
+  `reviewed-commit` to be an ancestor of the branch (a rebase means a new
+  round), and keeps the `git diff --name-only` end-state check. The
+  backstop stays narrow (named branch checked out); the policy is the rule.
+- Finding 3 (LOW), correcting the round-1 entry above: `git status` can
+  false-alarm after all. With `core.autocrlf true`, rewriting a file with
+  only its line endings changed shows ` M` until git refreshes the index
+  (any `git status`/`commit` does). Rare; the fix is to commit or re-run.
+- Finding 2 (LOW): `spec.md` B2.1 still states the old precondition. Left
+  as is: the spec is the owner's file.

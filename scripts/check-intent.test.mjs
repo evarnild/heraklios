@@ -90,8 +90,24 @@ describe('check:intent and live checks, end to end', { timeout: 60_000 }, () => 
     expect(br.stdout).toMatch(/A live check is owed/); // what git holds still lacks the date
   });
 
-  it('passes once the date is committed, from either checkout', () => {
+  it("fails the branch-mode check while review.md is changed but not committed, in the branch's own checkout", () => {
+    // The round-1 case: a fresh report on disk that the merge check can't see.
+    const committed = metadata('2026-10-16');
+    write('metadata.yml', committed);
     git('commit', '-q', '-am', '§97 live check done');
+    write('review.md', 'verdict: rework\ntier: attested\nlive-check: owed\n');
+    try {
+      const r = check(BRANCH);
+      expect(r.status, r.stdout).toBe(1);
+      expect(r.stdout).toMatch(/changes not committed to feat\/97-probe/);
+    } finally {
+      git('checkout', '-q', '--', join(DIR, 'review.md'));
+    }
+  });
+
+  it('passes once the date is committed, from either checkout', () => {
+    // Committed by the previous test; review.md was restored there.
+    expect(git('status', '--porcelain')).toBe('');
     expect(check(BRANCH).status).toBe(0);
     git('checkout', '-q', 'main');
     const r = check(BRANCH);

@@ -111,9 +111,12 @@ changes.)
 
 Asked to merge, it first checks, and refuses naming the one that failed:
 
-1. the current `review.md` verdict is `attest` or `escalate`, and every
-   commit after its `reviewed-commit` touches only that intent's
-   `review.md` or `metadata.yml` (`git diff --name-only
+1. the verdict in the branch's **committed** `review.md` (`git show
+   <branch>:intents/<id>-<slug>/review.md`, never a copy on disk) is
+   `attest` or `escalate`; its `reviewed-commit` is an ancestor of the
+   branch (`git merge-base --is-ancestor`), so a rebase since the review
+   means a new round; and nothing but that intent's `review.md` or
+   `metadata.yml` differs between the two (`git diff --name-only
    <reviewed-commit> <branch>`): recording the review and the live check
    happens on top of the reviewed commit, anything else is unreviewed;
 2. `npm run check:intent <branch>` reports PASS, or ROUTE with the reason
