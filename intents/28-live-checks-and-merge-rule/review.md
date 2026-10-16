@@ -1,12 +1,257 @@
 <!-- generated-by: heraklios/review@0.1.2 -->
 # §28 review — Live checks for untested behaviour, and the agent-merge rule
 
-verdict: rework
+verdict: escalate
 tier: reviewed
-reviewed-commit: 7f956ae
-round: 2
+reviewed-commit: 951e76b
+round: 3
 sampled: no
 live-check: owed
+
+The tier comes from the **path table**: Reviewed, because the branch touches
+`REVIEW-POLICY.md`, `.claude/skills/**`, `.claude/agents/**` and
+`.codex/agents/**`. `metadata.yml` also says `review_tier: reviewed`.
+Nothing lowers it.
+
+All four round-2 findings are resolved (see "Round 2 (history)" below).
+This round found nothing that needs rework. One new LOW finding is worth a
+look, and there is one nit. The tier is Reviewed, so the verdict is
+`escalate`: read this report **and** the diff (`git diff main...951e76b`).
+A live check is still owed (AC8). Do it and record `live_checked:` before
+the merge.
+
+This run follows the branch's `/review` skill 0.1.2 and its
+`REVIEW-POLICY.md`. The coordinator delegated it to the
+`heraklios-reviewer` agent. That agent is not a fresh session that loaded
+the skill, so this run does not count as AC8 either.
+
+## Passes
+| # | Pass | Result |
+| --- | --- | --- |
+| 1 | Intent and plan match | pass. Since `7f956ae` the diff has the new CLI test, the precondition-1 text, the Progress entry and the owner's amendment of spec B2.1. Nothing else |
+| 2 | Type check | pass. FAIL only on "A live check is owed and not recorded", which is the owner's to clear (skill §1) |
+| 3 | Rulebook fidelity | not run: process change, no rulebook behaviour (spec: "digital-only") |
+| 4 | Tests prove the rule, not only pass | pass. 5/5 mutants killed (M21, M14, M16, M17 in the CLI, plus T1 and T2 in the new test) |
+| 5 | Engine/presentation boundary and conventions | pass: no `src/` change |
+| 6 | Numbers in prose | pass. 608 tests / 35 files / 21 warnings reproduced. "M21 now killed (1 failed)" reproduced. The corrected CRLF claim in Progress matches round 2's probe |
+| 7 | Documentation | findings (1): a nit about the spec's amendment note. Precondition 1 agrees across `REVIEW-POLICY.md`, `spec.md` B2.1 and `sdlc.md`. `CLAUDE.md`, `AGENTS.md`, the skill and the agents point to "Merging" and don't restate it. AC1 grep is clean |
+| 8 | Guardrails and hygiene | findings (1): finding 1 (backstop vs `status.showUntrackedFiles=no`). Lint 0 errors / 21 warnings, cap 21 unchanged, no new dependency |
+| 9 | Repository-specific footguns | not run: no drift, AI-tier or map-editor code touched |
+
+## Type check
+Working-tree mode, `npm run check:intent` in this worktree at `951e76b`,
+before this report was written:
+```
+type-check: FAIL (intent 28, feature)
+  error: A live check is owed and not recorded. Do the steps in intents/28-live-checks-and-merge-rule/review.md → ## Live check, then set live_checked: <date> in intents/28-live-checks-and-merge-rule/metadata.yml.
+  note:  13 file(s), 471 line(s) changed outside intents/.
+```
+Branch mode, `node scripts/check-intent.mjs feat/28-live-checks-and-merge-rule`
+in the same checkout, also before this report: the same FAIL with the same
+single error, exit 1. The owed live check is the only error, so under
+skill §1 it is the owner's to clear and not a rework item. Now that this
+report is written and not yet committed, branch mode also reports "changes
+not committed". That is the backstop working, not a finding.
+
+## Findings
+
+1. **LOW** `scripts/check-intent.mjs:98`. The backstop's `git status
+   --porcelain -- <paths>` follows the user's `status.showUntrackedFiles`
+   setting. I made a temp repo with this branch's script, put an untracked
+   `review.md` in the branch's own checkout, and ran `check:intent
+   <branch>`. With the default setting it FAILs "changes not committed",
+   as it should. With `git config status.showUntrackedFiles no` it
+   **PASSes**. An untracked report is the round-1 case. The setting is
+   uncommon, and the written rule (precondition 1 reads the committed
+   `review.md`) still protects the merge. Worth a look: pass
+   `--untracked-files=all` to that `git status` call.
+
+Nit: `spec.md:38-39` says B2.1 was "amended 2026-10-16 by the owner, after
+review round 1". The wording it now holds, with the ancestor check, came
+from round 2's finding 4. "after review rounds 1 and 2" would be accurate.
+
+Checked and fine:
+- **The new test (`scripts/check-intent.test.mjs:93-106`) proves what it
+  claims.** It commits the date first, so the branch-mode check has
+  nothing to fail on except the dirty `review.md`. Without the dirty write
+  (mutant T1), the test fails. Without `review.md` in the pathspec (M21),
+  it fails too. It does not pass whatever the code does.
+- **Test order.** The file was order-dependent already: test 2 checks out
+  the branch and test 5 checks out `main`. The new test 4 now does the
+  commit that test 5 used to do, and test 5 asserts a clean status. If
+  test 4 stops before its commit, or someone runs test 5 alone, test 5
+  fails loudly. It never passes by accident. Mutant T2 (drop test 4's
+  commit) fails tests 5 and 6. This is fragile only in the way the file
+  already was. Vitest runs one file's tests in order unless
+  `sequence.shuffle` is set, and it isn't set here.
+- **Precondition 1 works as literal commands.** I tried them in a temp
+  repo:
+  - review committed on top of the reviewed commit: `git show
+    <branch>:…/review.md` → `attest`, `merge-base --is-ancestor` exit 0,
+    and `git diff --name-only` lists only `review.md` and `metadata.yml`.
+    Allowed.
+  - an uncommitted edit on disk that says `rework`: `git show` still reads
+    the committed `attest`. That is what the policy says ("never a copy on
+    disk"). The intro paragraph's "committed first" rule covers the
+    newer-report-on-disk case.
+  - `main` merged into the branch: ancestor 0, but the diff lists `b.txt`.
+    Refused.
+  - rebased on `main`: `is-ancestor` exit 1. Refused.
+  - rebased, and the old commit pruned by `gc`: `is-ancestor` exit 128
+    and `git diff` errors with empty output. Because the ancestor check
+    comes first, it is still refused. Someone who ran only the diff
+    command and read empty output as "nothing changed" would be wrong, but
+    the policy orders the checks correctly.
+- **The coordinator's case** (`check:intent <branch>` from `main` while
+  the report sits uncommitted in the spawned worktree) still PASSes. I
+  re-probed this. Round 2 left it to the written rule, and that is what
+  now closes it: precondition 1 reads the committed `review.md`, and
+  "Merging" requires the report and date to be committed first. Not a
+  finding.
+
+## Not checked
+- **Whether `/review` 0.1.2 behaves as written in a live session (AC8).**
+  This run is a delegated reviewer agent following the skill's text, not a
+  fresh session that loaded the skill. It is still owed, and it is why a
+  live check is owed.
+- Whether a real agent asked to merge runs precondition 1's three commands
+  in that order, and refuses on `is-ancestor` exit 1 or 128. I ran the
+  commands myself. Whether an agent follows the text can only be seen in a
+  real session.
+- The Codex agents (`.codex/agents/*.toml`) were not loaded in a Codex
+  session and not run through a TOML parser. Nothing since round 2 touches
+  them.
+- The backstop on a repo whose `review.md` / `metadata.yml` are stored with
+  CRLF in the index. Not probed. Here they are `i/lf`.
+- `sdlc-scan.mjs` / `/grid` reading a report with two history blocks and
+  `live-check:`. Out of scope per the spec; not run.
+- The intent-check-lib mutants from rounds 1–2 (M1–M13, M4c, M5, M18–M22
+  other than M21) were not re-run. `scripts/intent-check-lib.mjs` and
+  `scripts/check-intent.mjs` are unchanged since `7f956ae` (`git diff
+  7f956ae..HEAD --stat` lists neither).
+- "Tests first: 12 red → green" from round 1's Progress is still taken on
+  trust.
+
+## Live check
+- owed: rule 3, from the Not-checked item "whether `/review` 0.1.2 behaves
+  as written in a live session" (AC8). The branch touches no rule 1 or
+  rule 2 path (`git diff --stat main...HEAD -- src index.html
+  map-editor.html vite.config.ts .claude/settings.json` is empty).
+- steps: in the main checkout (`C:\Users\eric\src\heraklios`), make a
+  scratch branch from this one:
+  `git switch -c feat/99-live-check-probe feat/28-live-checks-and-merge-rule`.
+  Copy `intents/_templates/` to `intents/99-live-check-probe/`, set
+  `id: 99`, `slug: live-check-probe`, `type: feature` and today's date in
+  the three gates, add a one-line `intent.md`, `spec.md` and `plan.md`, and
+  change one comment line in `src/ui/session.ts`. Commit. Then open a
+  **fresh** Claude Code session in that checkout, so it loads skill 0.1.2,
+  and run `/review feat/99-live-check-probe`. Afterwards:
+  `git switch main` and `git branch -D feat/99-live-check-probe`. Don't
+  commit the probe's `review.md` anywhere.
+- you should see:
+  - The probe's `review.md` starts with `<!-- generated-by:
+    heraklios/review@0.1.2 -->` and has `live-check: owed` citing rule 1
+    (`src/ui/**`).
+  - Its `## Live check` section gives a command with port (`npm run dev`),
+    a `src/ui/testMode.ts` shortcut, the clicks, and what to see.
+  - The closing message contains "live check owed: …".
+  - `npm run check:intent` on the probe branch FAILs naming
+    `## Live check`, and passes once `live_checked: <today>` is in its
+    `metadata.yml`.
+
+  If all of that holds, record `live_checked: <date>` in **this** intent's
+  `metadata.yml` and commit it together with this `review.md`. Nothing
+  else may be committed on top of `951e76b` (precondition 1).
+
+## Verified myself vs. taken on trust
+- Orientation: HEAD `951e76b`, branch `feat/28-live-checks-and-merge-rule`,
+  checked out in this worktree. `git status --short` was clean at the
+  start.
+- `git diff 7f956ae..HEAD`: `REVIEW-POLICY.md` (precondition 1),
+  `check-intent.test.mjs` (+1 test, test 5 reworded), `spec.md` B2.1,
+  plan.md Progress, and `review.md` (round 2). `scripts/check-intent.mjs`
+  and `scripts/intent-check-lib.mjs` are unchanged.
+- `npm run verify` at `951e76b`: build OK, lint OK, **35 files / 608
+  tests passed**, exit 0. That is 607 + 1 new test.
+- `npx eslint .`: **0 errors, 21 warnings**. `package.json` `lint` is still
+  `--max-warnings 21`. `git diff --stat main...HEAD -- package.json
+  eslint.config.js src index.html map-editor.html vite.config.ts
+  .claude/settings.json` is empty.
+- `npm run check:intent` and branch mode in the same checkout, both before
+  this report: **FAIL, exit 1**, with the owed live check as the only
+  error (output above).
+- AC1: `grep -rn -i "never by an agent" --include=*.md --include=*.toml .`
+  excluding `node_modules` and `intents/2[678]-*` finds **nothing**.
+- Precondition wording: I grepped `reviewed-commit|is-ancestor|git
+  show|precondition|Merging` over `*.md`, `*.toml` and `*.mjs`. Only
+  `REVIEW-POLICY.md:114-121` and `spec.md:35-39` state precondition 1, and
+  they agree. `sdlc.md:83-86` summarises it ("nothing but the review and
+  the metadata changed after the reviewed commit") and points to the
+  policy. `CLAUDE.md:64`, `:101`, `AGENTS.md:33`, the skill (`:104`) and
+  both implementer agents point to "Merging".
+- Temp-repo probes of precondition 1's commands: the five cases under
+  "Checked and fine".
+- Temp-repo probes of the backstop with this branch's unmutated
+  `scripts/check-intent.mjs`:
+  - clean → PASS
+  - untracked `review.md` in the branch checkout → FAIL "changes not
+    committed"
+  - the same with `status.showUntrackedFiles=no` → **PASS** (finding 1)
+  - from a `main` worktree → PASS (the known coordinator case)
+
+  An earlier attempt at this probe ran while mutant M21 was applied, and
+  it read PASS for the default setting too. I discarded it and re-ran the
+  probe after the restore. The results above come from the re-run.
+- Mutation pass (pass 4): scratchpad node scripts, one mutant at a time,
+  **full `npx vitest run`** each. Before each run the script checks that
+  `git diff --quiet` exits 1. It restores the original bytes afterwards
+  (CRLF kept for `check-intent.mjs`, which is `i/lf w/crlf`) and checks
+  they are equal. `git status --short` was empty after both runs.
+  - **M21** drop `review.md` from the backstop pathspec: killed (1 failed,
+    the new test)
+  - **M14** CLI never reads `review.md`: killed (3)
+  - **M16** backstop error dropped: killed (2, both backstop tests)
+  - **M17** `HEAD === branch` dropped: killed (1, "ignores another
+    checkout's…")
+  - **T1** new test without its dirty `review.md` write: killed (1, the
+    test itself)
+  - **T2** new test without its commit: killed (2, tests 5 and 6)
+  - Two further test-side patterns failed to match and were skipped, not
+    scored. T1 was then re-run by line number.
+- Taken on trust: "12 red → green" (round 1 Progress). Also that the owner
+  approved the B2.1 amendment. Commit `951e76b` and the spec's note say
+  so, but I can't see that conversation.
+
+# Round 2 (history)
+
+- generated-by: heraklios/review@0.1.2
+- verdict: rework
+- tier: reviewed
+- reviewed-commit: 7f956ae
+- round: 2
+- sampled: no
+- live-check: owed
+
+### Resolution of round-2 findings (checked in round 3 against `951e76b`)
+1. MEDIUM, M21 survives (uncommitted `review.md` untested): **resolved**.
+   `check-intent.test.mjs:93-106` dirties `review.md` after committing the
+   date, so the backstop is the only possible error. M21 is now killed
+   (1 failed), and T1 shows the test fails without its dirty write.
+2. LOW, spec B2.1 stale: **resolved** by the owner in `951e76b`. B2.1 now
+   matches `REVIEW-POLICY.md` precondition 1 (the round-3 nit is about its
+   amendment note only).
+3. LOW, the "CRLF can't false-alarm" claim: **resolved**. The 2026-10-16
+   round-2 Progress entry corrects it: a line-ending-only rewrite shows
+   ` M` until git refreshes the index. That matches round 2's probe. The
+   code was left as is, which is acceptable for a rare case.
+4. LOW, the backstop is narrower than the rule: **resolved** in the
+   policy. Precondition 1 reads the verdict from `git show
+   <branch>:…/review.md`, requires `reviewed-commit` to be an ancestor
+   (`git merge-base --is-ancestor`), and keeps the `git diff --name-only`
+   end-state check. Probed as literal commands (round 3, "Checked and
+   fine"). The optional `git worktree list` lookup was declined ("the
+   policy is the rule"), so the detached-HEAD and coordinator cases still
+   PASS `check:intent`. The written precondition covers them.
 
 The tier comes from the **path table**: Reviewed, because the branch touches
 `REVIEW-POLICY.md`, `.claude/skills/**`, `.claude/agents/**` and
