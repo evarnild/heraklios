@@ -6,7 +6,7 @@ status: done
 title: "Probe: can a browser test drive the game's scenes?"
 review_tier:
 intent_accepted: 2026-10-08
-merged:
+merged: f755609    # findings only; probe code stays on exp/30-browser-test-probe
 links:
   - intents/28-live-checks-and-merge-rule    the manual live check this might partly replace
   - src/ui/testMode.ts    the shortcuts a test would start from

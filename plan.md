@@ -201,6 +201,7 @@ sync when something merges** — it went stale once and the user caught it.
 | [§26](intents/26-ai-sdlc-kit/) AI-native SDLC kit (Reviewed tier, 3 review rounds; see [review.md](intents/26-ai-sdlc-kit/review.md)) | `568f2a6` |
 | [§27](intents/27-parallel-sessions/) parallel sessions — `npm run spawn`, session hooks, `npm run sessions` (Reviewed tier, 3 review rounds; see [review.md](intents/27-parallel-sessions/review.md)) | `eeba9c6` |
 | [§28](intents/28-live-checks-and-merge-rule/) live checks for untested behaviour, and the agent-merge rule (Reviewed tier, 3 review rounds, live check via the §99 probe; see [review.md](intents/28-live-checks-and-merge-rule/review.md)) | `b61a31a` |
+| [§30](intents/30-browser-test-probe/) browser-test probe — experiment; findings only, recommends §32 (see [findings.md](intents/30-browser-test-probe/findings.md)) | `f755609` |
 
 ### In flight
 
@@ -210,7 +211,13 @@ sync when something merges** — it went stale once and the user caught it.
 
 ### Queued
 
-Empty. All fully-shipped rows that previously lived here (Stage 3b, §17,
+| Item | Type · status |
+| --- | --- |
+| [§29](intents/29-grid-live-check-counts/) Count live checks in the SDLC scan and grid (after §28) | feature · draft |
+| [§31](intents/31-gate-recording/) Who records a gate, and how (after §28) | feature · draft |
+| [§32](intents/32-e2e-smoke-suite/) Browser smoke suite for the game's scenes (`npm run e2e`), from §30's probe | feature · draft |
+
+All fully-shipped rows that previously lived here (Stage 3b, §17,
 §18, §19, §24 and earlier) are in the [Shipped](#shipped) table above; see
 the History Map for their postmortems.
 
