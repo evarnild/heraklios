@@ -18,7 +18,7 @@ function filesUnder(dir: string): string[] {
 export default async function globalSetup(): Promise<void> {
   const outDir = mkdtempSync(join(tmpdir(), 'h32-build-'));
   try {
-    await build({ logLevel: 'warn', build: { outDir, emptyOutDir: true } });
+    await build({ logLevel: 'error', build: { outDir, emptyOutDir: true } });
     const leaks = filesUnder(outDir).filter((f) => readFileSync(f, 'utf8').includes(HOOK));
     if (leaks.length) {
       throw new Error(`The production build contains the dev-only test hook "${HOOK}" in: ${leaks.join(', ')}`);

@@ -20,3 +20,10 @@ const game = new Phaser.Game(config);
 // scrolls or pinch-zooms (trackpad) over the map — MapView handles wheel
 // events itself to zoom the camera instead.
 game.canvas?.addEventListener('wheel', (e) => e.preventDefault(), { passive: false });
+
+// Browser smoke suite (`npm run e2e`): the test hook exists only on the dev
+// server. The dynamic import under this guard is dropped from production
+// builds, and e2e/global-setup.ts fails the run if it ever isn't.
+if (import.meta.env.DEV) {
+  void import('./ui/devHook').then(({ installDevHook }) => installDevHook(game));
+}
