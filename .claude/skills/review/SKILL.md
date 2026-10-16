@@ -3,7 +3,7 @@ name: review
 description: Run heraklios's review policy against a branch and write the review report (intents/<id>-<slug>/review.md) with passes, findings, a Not-checked section and an attest/escalate/rework verdict. Use before merging any heraklios branch into main, or to re-review after rework. Invoke as /review [branch].
 metadata:
   owner: evarnild
-  version: 0.1.2
+  version: 0.1.3
   scope: repository
   status: experimental
   review-tier: reviewed
@@ -15,7 +15,7 @@ metadata:
 policy first, every time — it changes, and the version you remember may not
 be current.
 
-Stamp: `<!-- generated-by: heraklios/review@0.1.2 -->` as the first line of
+Stamp: `<!-- generated-by: heraklios/review@0.1.3 -->` as the first line of
 `review.md`.
 
 ## 0. Orient
@@ -41,6 +41,8 @@ not trust a sub-agent's either: re-run the commands whose results you quote.
 ```bash
 npm run verify          # build + lint + test; must be green
 npm run check:intent    # PASS / ROUTE / FAIL — paste the output
+npm run e2e             # only when the diff touches src/scenes, src/ui, src/main.ts or e2e/
+
 ```
 
 If `node_modules` is missing in a worktree, `npm install` there (see
@@ -86,6 +88,11 @@ Exactly the format in `REVIEW-POLICY.md` → "The report". Rules:
   should see. When `not-needed`, one line saying why. If you drove the
   browser yourself, list what you saw under "Verified myself"; it never
   replaces the owner's check, and you never write `live_checked:`.
+  **The smoke suite** is the one exception the policy allows: if the check
+  is owed by the path rule alone, a named `e2e/` scenario already covers
+  the changed behaviour, the change is neither new nor visual, and your own
+  `npm run e2e` passed, set `not-needed` and name the scenario and the run.
+  A failing scenario is a finding.
 - `sampled:` — count attested reviews in `intents/*/review.md`; if this is
   the 5th, 10th, … attested change, set `sampled: yes` and tell the user a
   post-merge full read is due.

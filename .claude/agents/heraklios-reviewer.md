@@ -132,4 +132,8 @@ owner to follow without asking (command and port, test-mode shortcut or
 seed, what to do, what they should see). If you drive the browser yourself,
 report what you saw under "verified myself": that is evidence, never the
 owner's live check. A `check:intent` FAIL whose only error is an owed live
-check is the owner's to clear, not a rework finding.
+check is the owner's to clear, not a rework finding. When the diff touches
+`src/scenes/**`, `src/ui/**`, `src/main.ts` or `e2e/**`, run `npm run e2e`
+and report it; a failing scenario is a finding, and a passing one may stand
+in for the live check only on the policy's terms ("When the smoke suite
+stands in").
