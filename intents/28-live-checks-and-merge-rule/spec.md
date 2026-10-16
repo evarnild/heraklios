@@ -32,9 +32,11 @@ sources are the process documents it amends.
   anything about merging.
 - **B2 — Preconditions an agent checks before merging on request.** It
   refuses, and says which one failed, unless all hold:
-  1. `review.md`'s current verdict is `attest` or `escalate`, and its
-     `reviewed-commit` is the branch's current HEAD (no unreviewed commits on
-     top);
+  1. the verdict in the branch's committed `review.md` is `attest` or
+     `escalate`; its `reviewed-commit` is an ancestor of the branch (a
+     rebase means a new round); and nothing but that intent's `review.md`
+     or `metadata.yml` changed after it (amended 2026-10-16 by the owner,
+     after review round 1);
   2. `npm run check:intent <branch>` reports PASS (or ROUTE with the reason
      already stated in `review.md`);
   3. if a live check is owed (B3), `live_checked:` is recorded (B5).
