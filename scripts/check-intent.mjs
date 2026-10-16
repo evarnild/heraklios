@@ -91,6 +91,15 @@ if (!fromBranch) {
 }
 
 const result = checkChange({ branch, metadata, intentDir, intentFiles, diff, review });
+if (fromBranch && intentDir && git('rev-parse', '--abbrev-ref', 'HEAD') === branch) {
+  // Branch mode reads git, so a review.md or live_checked: date still sitting
+  // uncommitted in this checkout would be invisible to the merge check
+  // (REVIEW-POLICY.md → "Merging": both are committed before it runs).
+  const pending = git('status', '--porcelain', '--', `${intentDir}/review.md`, `${intentDir}/metadata.yml`);
+  if (pending) {
+    result.errors.push(`${intentDir}: review.md or metadata.yml has changes not committed to ${branch}. Commit them, then re-run.`);
+  }
+}
 const { verdict, text } = formatResult(result);
 console.log(text);
 process.exit(verdict === 'FAIL' ? 1 : verdict === 'ROUTE' ? 2 : 0);

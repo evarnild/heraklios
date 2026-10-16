@@ -304,6 +304,7 @@ describe('live checks', () => {
       for (const review of [null, { 'live-check': 'not-needed' }, { 'live-check': 'owed' }]) {
         const r = checkChange(feature({ review, metadata: featureMeta({ live_checked: value }) }));
         expect(r.errors.join()).toMatch(/live_checked.*YYYY-MM-DD/);
+        expect(r.errors).toHaveLength(1); // the date error alone, not also "owed"
       }
     });
   }
@@ -317,6 +318,16 @@ describe('live checks', () => {
 
   it('fails an unknown live-check value instead of reading it as not needed', () => {
     const r = checkChange(feature({ review: { 'live-check': 'owned' } }));
+    expect(r.errors.join()).toMatch(/live-check: "owed" or "not-needed"/);
+  });
+
+  it('reports a bad date and a bad live-check value together, not just the first', () => {
+    const r = checkChange(feature({ review: { 'live-check': 'owned' }, metadata: featureMeta({ live_checked: 'yes' }) }));
+    expect(r.errors).toHaveLength(2);
+  });
+
+  it('fails a bare live-check: line, a half-written report, instead of reading it as nothing owed', () => {
+    const r = checkChange(feature({ review: { 'live-check': '' } }));
     expect(r.errors.join()).toMatch(/live-check: "owed" or "not-needed"/);
   });
 });

@@ -53,14 +53,19 @@ Run `/review` from the coordinator. It runs `npm run verify`,
 - **rework** — fix, then `/review` again;
 - **attest** or **escalate** — go to step 6.
 
-The report also says `live-check: owed` or `not-needed`. It's owed for
-changes to scenes, UI, the map editor or `.claude/settings.json`, and for
+The report also says `live-check: owed` or `not-needed`. It's always owed
+for changes to scenes, UI, the map editor, `index.html`,
+`map-editor.html`, `vite.config.ts` or `.claude/settings.json`, and for
 anything else only a live run can show. When owed, its `## Live check`
 section gives the steps: run them yourself (`npm run dev` on the
 worktree's port, a test-mode shortcut), then record
 `live_checked: <date>` in `metadata.yml`. If you find a defect, leave the
 date empty and send it back to rework. `check:intent` blocks the merge
 until the date is there.
+
+Commit `review.md` and the `live_checked:` date to the branch before the
+merge: the merge check reads the branch from git and can't see
+uncommitted files.
 
 **6. Approve and merge — your gate**
 
@@ -75,9 +80,10 @@ Merging is: `git merge --no-ff` on `main` → `npm run verify` on `main` → set
 `plan.md` row to Shipped → push → `npm run spawn -- <id> --remove` if you
 used a worktree. You can ask Claude to do the merge, the push or the
 removal — each only when you ask for it, for that change, in the current
-conversation. It first checks that the review covers the branch's latest
-commit, that `check:intent` passes, and that any owed live check is
-recorded, and refuses if not (`REVIEW-POLICY.md` → "Merging").
+conversation. It first checks that nothing but the review and the
+metadata changed after the reviewed commit, that `check:intent` passes,
+and that any owed live check is recorded, and refuses if not
+(`REVIEW-POLICY.md` → "Merging").
 
 ## What each type requires
 

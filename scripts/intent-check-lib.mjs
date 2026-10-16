@@ -174,7 +174,6 @@ function checkLiveCheck({ review, metadata, intentDir }, errors) {
   const recorded = v !== undefined && !(Array.isArray(v) && v.length === 0);
   if (recorded && (typeof v !== 'string' || !GATE_DATE_RE.test(v))) {
     errors.push(`${intentDir}/metadata.yml: live_checked must be a YYYY-MM-DD date (the day you did the live check), or empty.`);
-    return;
   }
   const state = review?.['live-check'];
   if (state === undefined) return;

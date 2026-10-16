@@ -167,3 +167,32 @@ Diverged from the plan — for the owner to accept or reject in review:
    live check is the owner's to clear. Not in the plan; follows from B7+B8.
 4. **Empty `live_checked:` parses as `[]`** (parseMetadata's empty-list
    form), so it is read as "not recorded", not "invalid"; a test pins it.
+
+### 2026-10-16 — round-1 rework (Claude; owner said "fix and run round 2")
+
+- Finding 1 (MEDIUM): `REVIEW-POLICY.md` → "Merging" precondition 1 now
+  allows commits after `reviewed-commit` that touch only the intent's
+  `review.md` / `metadata.yml`, and says both are committed before the merge
+  check. `sdlc.md` step 5–6 says the same. This changes spec B2.1, with the
+  owner's go-ahead. Backstop added: `check:intent <branch>` run in that
+  branch's own checkout FAILs while either file has uncommitted changes
+  (`git status`, so CRLF conversion can't false-alarm).
+- Finding 2 (MEDIUM): new `scripts/check-intent.test.mjs`, the CLI end to
+  end in a temp repo (5 tests): branch mode from another checkout, working
+  tree mode, the uncommitted-date backstop, committed date passes, and a
+  stray file in another checkout is ignored.
+- Finding 3 (LOW): a bare `live-check:` line is pinned as an error.
+- Finding 4 (LOW): round 1's reading was off — dropping the early `return`
+  never added an "owed" error (an invalid date already counts as
+  recorded); it only hid a bad `live-check:` value. Removed the `return`
+  so both problems are reported, pinned by a test, and the invalid-date
+  loop asserts exactly one error.
+- Finding 5 (LOW) + nit: `CLAUDE.md` and `sdlc.md` say "always owes" and
+  list `index.html`, `map-editor.html`, `vite.config.ts`; the long
+  `CLAUDE.md` line is rewrapped.
+- Mutants re-run (scratchpad script, full `scripts/` suite each, file
+  restored after each, `git status` clean): M14, M15, M5 killed; new
+  backstop mutants M16 (error dropped) and M17 (HEAD check dropped) killed.
+- `npm run verify`: 35 files, 607 tests, lint 0 errors / 21 warnings.
+  `check:intent`: FAIL on the owed live check only — expected, the owner's
+  to clear.

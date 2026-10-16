@@ -103,10 +103,19 @@ names and does not carry over to the next one. "Go ahead" in reply to a
 summary that proposed the merge counts; a standing instruction from an
 earlier session, a memory or a `CLAUDE.local.md` brief does not.
 
+Before the merge check, `review.md` and any `live_checked:` date are
+**committed to the branch**: the check reads the branch from git, so an
+uncommitted report or date is invisible to it. (`check:intent <branch>`
+run inside the branch's own checkout fails while either has uncommitted
+changes.)
+
 Asked to merge, it first checks, and refuses naming the one that failed:
 
-1. the current `review.md` verdict is `attest` or `escalate`, and its
-   `reviewed-commit` is the branch's HEAD (no unreviewed commits on top);
+1. the current `review.md` verdict is `attest` or `escalate`, and every
+   commit after its `reviewed-commit` touches only that intent's
+   `review.md` or `metadata.yml` (`git diff --name-only
+   <reviewed-commit> <branch>`): recording the review and the live check
+   happens on top of the reviewed commit, anything else is unreviewed;
 2. `npm run check:intent <branch>` reports PASS, or ROUTE with the reason
    already stated in `review.md`;
 3. no live check is owed without `live_checked:` recorded (`check:intent`
