@@ -67,19 +67,19 @@ export const TERRAIN_COLORS: Record<string, number> = {
 
 export const RIVER_COLOR = 0x2a78dc;
 
-/** French labels for each terrain type, as used in the map editor palette. */
+/** English labels for each terrain type, shown by the game's hex tooltip. */
 export const TERRAIN_LABELS: Record<string, string> = {
-  plain: 'Plaine',
-  'river-wide': 'Rivière large',
-  'steep-flank': 'Flancs abrupts',
-  plateau: 'Plateaux',
-  marsh: 'Marais',
-  coast: 'Frange côtière',
+  plain: 'Plain',
+  'river-wide': 'Wide river',
+  'steep-flank': 'Steep flanks',
+  plateau: 'Plateau',
+  marsh: 'Marsh',
+  coast: 'Coastal fringe',
   'zone-anse-hypnos': "Anse d'Hypnos",
   'zone-pointe-eole': "Pointe d'Eole",
   'zone-baie-argos': "Baie d'Argos",
   'zone-cap-zenon': 'Cap Zénon',
-  sea: 'Pleine mer',
+  sea: 'High seas',
 };
 
 /** Display order for the map editor's terrain palette. */
