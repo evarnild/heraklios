@@ -2506,11 +2506,11 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   }
 
   private static readonly RESULT_LABELS: Record<string, string> = {
-    AE: 'AE — Attaquant Éliminé (attacker destroyed)',
-    AR: 'AR — Attaquant Recule (attacker retreats)',
-    DE: 'DE — Défense Éliminée (defender destroyed)',
-    DR: 'DR — Défense Recule (defender retreats)',
-    EX: 'EX — Échange (exchange)',
+    AE: 'AE — attacker eliminated',
+    AR: 'AR — attacker retreats',
+    DE: 'DE — defender eliminated',
+    DR: 'DR — defender retreats',
+    EX: 'EX — exchange',
   };
 
   private logCombatOutcome(
