@@ -111,7 +111,7 @@ To make a change — intent, plan, build, review, merge — see
    agreed to (see "Ending the game" below).
 
 On both the Placement and Board screens, hovering any hex shows a small
-tooltip with its coordinate and terrain type (e.g. "(4, 9) — Plateaux") —
+tooltip with its coordinate and terrain type (e.g. "(4, 9) — Plateau") —
 useful for telling plain from plateau or marsh at a glance, or for pinning
 down exactly which hex a rule, a bug, or a screenshot is talking about.
 
