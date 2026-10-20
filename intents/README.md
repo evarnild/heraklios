@@ -61,7 +61,7 @@ intent, or forward-fix with a new one. Don't rewrite the old folder.
 ## Gates
 
 Four of the strategy's six human gates live here, plus heraklios's own
-live check when a review says one is owed; you are the human at each.
+live check when a review says one is owed; each is your decision.
 
 | Gate | Recorded as | Meaning |
 | --- | --- | --- |
@@ -80,8 +80,34 @@ type needs were recorded.
 
 ## Who edits what
 
-- **You** write or accept `intent.md`, `spec.md`, `plan.md` and every gate in
-  `metadata.yml`. The skills draft; you decide.
+- **You** write or accept `intent.md`, `spec.md` and `plan.md`. The skills
+  draft; you decide.
+- **Who records a gate.** A gate field is `intent_accepted`, `spec_accepted`,
+  `plan_approved` or `live_checked`. You write it directly, or an agent writes
+  it **on your request in the current conversation**. A request is an
+  explicit instruction naming the gate ("accept §31", "record the live
+  check"), or a "yes" (or "go ahead", "ok") in reply to the agent's own
+  message that proposed recording it. A "yes" to a message that proposed
+  several gates records every gate that message named, and nothing more and
+  no later gate.
+- **What does not count.** The exclusions of `REVIEW-POLICY.md` →
+  "Merging": a standing instruction from an earlier session, a memory, a
+  `CLAUDE.local.md` brief, an unprompted "yes" that answers no proposal, a
+  request in another session. A subagent (`heraklios-implementer`,
+  `heraklios-reviewer`, any `Agent`-tool worker) never records a gate: your
+  request is not in its conversation. A spawned session is a conversation
+  with you, so the rule applies there.
+- **The decision stays yours.** For `live_checked:` you run the check; an
+  agent records it only after you say you ran it. An agent's own browser run
+  or a passing `npm run e2e` is never the check.
+- **The marker.** An agent-recorded gate carries `by-agent` after the date,
+  on the same line: `intent_accepted: 2026-10-20 by-agent`. Your own gate
+  stays a bare date. The token is part of the value, not a comment; a free
+  `# comment` after it is ignored. `check:intent` counts both forms as
+  recorded and FAILs any other value (`yes`, `TBD`, `by-claude`);
+  `sdlc:scan` lists bad values under "Metadata problems" and counts owner
+  and agent gates. `merged:` is bookkeeping, not a gate; `REVIEW-POLICY.md`
+  → "Merging" governs it.
 - **The implementer agent** may only append to the `## Progress` section at
   the end of its item's `plan.md` and set `status: in-review` when done.
 - **A spawned session** (`npm run spawn`, `CLAUDE.md` → "Parallel

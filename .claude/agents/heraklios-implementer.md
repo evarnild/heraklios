@@ -33,7 +33,7 @@ Rules:
    you may only append to the `## Progress` section at the end of its
    `plan.md` (one entry per phase: date, commits, what shipped, test counts,
    divergences from the plan) and set `status: in-review` in `metadata.yml`
-   when done. Never record a gate. If the plan is wrong, stop and report —
+   when done. Never record a gate: the owner's request is not in a subagent's conversation. If the plan is wrong, stop and report —
    don't rewrite it.
 7. If the rulebook (`docs/research/`) is ambiguous, implement the most
    literal reading and record the interpretation in a code comment — see

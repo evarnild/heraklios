@@ -93,8 +93,9 @@ recording that you did, before the merge.
   steps: the command (`npm run dev`, or the worktree's port), the test-mode
   shortcut or seed to start from, what to do, what you should see. When not
   needed, one line saying why.
-- **Who records it.** You, after doing the steps: `live_checked: <date>` in
-  `metadata.yml`, like the other gates. If it finds a defect, leave the date
+- **Who records it.** You, after doing the steps, or an agent on your
+  request once you say you ran them (`intents/README.md` → "Who edits
+  what"): `live_checked: <date>` in `metadata.yml`, like the other gates. If it finds a defect, leave the date
   empty and send the change back to rework (or open a fix intent if the
   defect is out of scope).
 - **An agent's browser run is evidence, not the gate.** The reviewer or

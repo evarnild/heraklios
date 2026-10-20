@@ -19,7 +19,7 @@ number after the highest one in `plan.md` / `plan-history.md`.
 - Run `/intent` and describe the problem in your own words.
 - It creates `intents/<id>-<slug>/` with `intent.md` and `metadata.yml`, and
   proposes a type. When in doubt, the type is feature.
-- Read it. If it's right, record `intent_accepted: <date>` — gate 1, yours.
+- Read it. If it's right, `intent_accepted: <date>` is gate 1: your decision; you or the agent you ask records it.
 
 **2. Spec — features only**
 
@@ -29,7 +29,7 @@ number after the highest one in `plan.md` / `plan-history.md`.
 **3. Plan: how it will be built**
 
 - `plan.md` lists the files, the tests and the steps.
-- You record `plan_approved`. No code before this gate: `check:intent` fails
+- `plan_approved` is your decision; you or the agent you ask records it. No code before this gate: `check:intent` fails
   a change whose code came first.
 
 **4. Build** — either way:

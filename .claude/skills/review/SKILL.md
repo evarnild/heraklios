@@ -3,7 +3,7 @@ name: review
 description: Run heraklios's review policy against a branch and write the review report (intents/<id>-<slug>/review.md) with passes, findings, a Not-checked section and an attest/escalate/rework verdict. Use before merging any heraklios branch into main, or to re-review after rework. Invoke as /review [branch].
 metadata:
   owner: evarnild
-  version: 0.1.3
+  version: 0.1.4
   scope: repository
   status: experimental
   review-tier: reviewed
@@ -15,7 +15,7 @@ metadata:
 policy first, every time — it changes, and the version you remember may not
 be current.
 
-Stamp: `<!-- generated-by: heraklios/review@0.1.3 -->` as the first line of
+Stamp: `<!-- generated-by: heraklios/review@0.1.4 -->` as the first line of
 `review.md`.
 
 ## 0. Orient
@@ -87,7 +87,7 @@ Exactly the format in `REVIEW-POLICY.md` → "The report". Rules:
   port, the `src/ui/testMode.ts` shortcut or seed, the clicks, and what they
   should see. When `not-needed`, one line saying why. If you drove the
   browser yourself, list what you saw under "Verified myself"; it never
-  replaces the owner's check, and you never write `live_checked:`.
+  replaces the owner's check, and you never write `live_checked:` unless the owner asks you to, after running the check themselves.
   **The smoke suite** is the one exception the policy allows: if the check
   is owed by the path rule alone, a named `e2e/` scenario already covers
   the changed behaviour, the change is neither new nor visual, and your own
