@@ -85,8 +85,25 @@ function stripComment(line) {
   return line;
 }
 
-/** A gate counts as recorded only when it holds a date — not TBD, no, ~, null or empty. */
-export const GATE_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+/** The four gate fields of metadata.yml (intents/README.md → "Gates"). */
+export const GATE_FIELDS = ['intent_accepted', 'spec_accepted', 'plan_approved', 'live_checked'];
+
+const GATE_RE = /^(\d{4}-\d{2}-\d{2})( by-agent)?$/;
+
+/**
+ * Reads one gate value. Empty (absent, `[]`) is not recorded; a bare date was
+ * written by the owner; `<date> by-agent` was written by an agent on the
+ * owner's request (intents/README.md → "Who edits what"); anything else
+ * (TBD, yes, ~, a date plus another token) is malformed, never "not recorded".
+ *
+ * @returns {{state:'empty'}|{state:'recorded',date:string,by:'owner'|'agent'}|{state:'malformed',value:unknown}}
+ */
+export function parseGate(value) {
+  if (value === undefined || (Array.isArray(value) && value.length === 0)) return { state: 'empty' };
+  const m = typeof value === 'string' ? GATE_RE.exec(value) : null;
+  if (!m) return { state: 'malformed', value };
+  return { state: 'recorded', date: m[1], by: m[2] ? 'agent' : 'owner' };
+}
 
 function unquote(v) {
   const s = v.trim();
@@ -145,13 +162,19 @@ export function checkChange({ branch, metadata, intentDir, intentFiles, diff, re
   }
   const touchesSource = diff.some((d) => isSource(d.path));
   for (const gate of rules.gates) {
-    const v = metadata[gate];
-    if (typeof v !== 'string' || !GATE_DATE_RE.test(v)) {
-      // A plan that is not approved yet is fine while only artefacts change;
-      // it is a gate violation once code arrives.
-      const msg = `Gate "${gate}" is not recorded (as YYYY-MM-DD) in ${intentDir}/metadata.yml.`;
-      if (touchesSource) errors.push(`${msg} Code changed before the gate was passed.`);
-      else notes.push(msg);
+    if (parseGate(metadata[gate]).state === 'recorded') continue;
+    // A gate not passed yet is fine while only artefacts change; it is a gate
+    // violation once code arrives. A malformed one is reported below either way.
+    if (parseGate(metadata[gate]).state === 'malformed') continue;
+    const msg = `Gate "${gate}" is not recorded (as YYYY-MM-DD) in ${intentDir}/metadata.yml.`;
+    if (touchesSource) errors.push(`${msg} Code changed before the gate was passed.`);
+    else notes.push(msg);
+  }
+  for (const gate of GATE_FIELDS) {
+    if (parseGate(metadata[gate]).state === 'malformed') {
+      errors.push(
+        `${intentDir}/metadata.yml: ${gate} must be empty, a YYYY-MM-DD date (you recorded it), or a date plus "by-agent" (an agent recorded it on your request); got ${JSON.stringify(metadata[gate])}.`,
+      );
     }
   }
 
@@ -164,17 +187,13 @@ const LIVE_CHECK_VALUES = ['owed', 'not-needed'];
 
 /**
  * REVIEW-POLICY.md → "Live checks": a review that says `live-check: owed`
- * blocks the merge until the owner records `live_checked: <date>`. Unlike
+ * blocks the merge until the owner records `live_checked: <date>` (or an agent on their request). Unlike
  * the plan gates this does not wait for source code to change: it is a
  * condition on the merge, and a docs-only change can owe one too.
  */
 function checkLiveCheck({ review, metadata, intentDir }, errors) {
-  const v = metadata.live_checked;
-  // An empty `live_checked:` parses as [] — not recorded, not invalid.
-  const recorded = v !== undefined && !(Array.isArray(v) && v.length === 0);
-  if (recorded && (typeof v !== 'string' || !GATE_DATE_RE.test(v))) {
-    errors.push(`${intentDir}/metadata.yml: live_checked must be a YYYY-MM-DD date (the day you did the live check), or empty.`);
-  }
+  // A malformed value is reported with the other gates, so it is not also "owed".
+  const recorded = parseGate(metadata.live_checked).state !== 'empty';
   const state = review?.['live-check'];
   if (state === undefined) return;
   if (!LIVE_CHECK_VALUES.includes(state)) {

@@ -2,7 +2,7 @@
 // sessions` and the session-event hook. Kept free of git/fs calls so it can
 // be unit-tested; see session-lib.test.mjs. The workflow it serves is written
 // down for humans in CLAUDE.md → "Parallel sessions".
-import { GATE_DATE_RE, PREFIX_TO_TYPE, TYPE_RULES } from './intent-check-lib.mjs';
+import { parseGate, PREFIX_TO_TYPE, TYPE_RULES } from './intent-check-lib.mjs';
 
 /** Name of the shared event log, inside the git common dir (never committed). */
 export const EVENT_LOG = 'heraklios-sessions.jsonl';
@@ -179,9 +179,9 @@ export function gateSummary(metadata) {
   return gates.map((key) => (isRecorded(metadata[key]) ? GATE_LETTERS[key] : '-')).join('·');
 }
 
-/** Same rule as check-intent: a gate is recorded only as a YYYY-MM-DD date. */
+/** Same rule as check-intent: both forms of a dated gate count (parseGate). */
 function isRecorded(v) {
-  return typeof v === 'string' && GATE_DATE_RE.test(v);
+  return parseGate(v).state === 'recorded';
 }
 
 /** Rows that need the owner sort first, then work in flight, then the rest. */

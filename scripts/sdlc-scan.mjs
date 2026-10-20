@@ -9,7 +9,8 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseMetadata } from './intent-check-lib.mjs';
+import { GATE_FIELDS, parseMetadata } from './intent-check-lib.mjs';
+import { gateShares, metadataProblems } from './scan-lib.mjs';
 
 const args = process.argv.slice(2);
 const flag = (name) => {
@@ -56,7 +57,8 @@ if (existsSync('intents')) {
     }
     const followsUp = typeof meta.follows_up === 'string' ? meta.follows_up : null;
     const merged = typeof meta.merged === 'string' ? meta.merged : null;
-    intents.push({ dir, id: meta.id, type: meta.type, status: meta.status, files, stamps, review, followsUp, merged });
+    const gates = Object.fromEntries(GATE_FIELDS.map((k) => [k, meta[k]]));
+    intents.push({ dir, id: meta.id, type: meta.type, status: meta.status, files, stamps, review, followsUp, merged, gates });
   }
 }
 const countBy = (xs, key) => xs.reduce((acc, x) => ((acc[x[key] ?? 'unset'] = (acc[x[key] ?? 'unset'] ?? 0) + 1), acc), {});
@@ -85,13 +87,18 @@ const weeks = Math.max(1, (Date.now() - windowStart) / (7 * 86400000));
 // whose `follows_up:` names the intent whose change caused the defect; it
 // counts against the tier that change was reviewed at. A revert counts
 // against the tier of the § its subject names.
-const mergedInWindow = (i) => {
-  if (!i.merged) return false;
+const isCommit = (hash) => {
   try {
-    return git('show', '-s', '--format=%as', i.merged) >= since;
+    git('rev-parse', '--verify', `${hash}^{commit}`);
+    return true;
   } catch {
     return false; // hash not in this clone
   }
+};
+const problems = metadataProblems(intents, isCommit);
+const mergedInWindow = (i) => {
+  if (!i.merged || !isCommit(i.merged)) return false;
+  return git('show', '-s', '--format=%as', i.merged) >= since;
 };
 const tierOf = new Map(intents.filter((i) => i.review?.tier && mergedInWindow(i)).map((i) => [String(i.id), i.review.tier]));
 const perTier = {};
@@ -137,6 +144,8 @@ const report = {
     byMonth,
   },
   perTier,
+  problems,
+  gateShares: gateShares(intents),
 };
 
 if (asJson) {
