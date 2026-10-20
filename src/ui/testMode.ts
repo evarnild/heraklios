@@ -37,6 +37,7 @@ export function startTestGame(): void {
   unitCounter = 0;
   session.playerCount = 2;
   session.testMode = true;
+  session.testScenario = 'test';
   session.edges = ['W', 'E'];
   // These shortcuts build units directly, bypassing `ArmyBuilder`/
   // `resetSession` entirely — so unlike a real game, nothing else ever sizes
@@ -107,6 +108,7 @@ export function startCloseCombatTestGame(): void {
   unitCounter = 0;
   session.playerCount = 2;
   session.testMode = true;
+  session.testScenario = 'close-combat';
   session.edges = ['W', 'E'];
   // These shortcuts build units directly, bypassing `ArmyBuilder`/
   // `resetSession` entirely — so unlike a real game, nothing else ever sizes

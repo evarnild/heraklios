@@ -33,7 +33,12 @@ npm test    # run the engine's unit tests (Vitest)
 npm run build   # production build
 npm run lint    # ESLint
 npm run verify  # build + lint + test — run before considering a change done
+npm run e2e     # browser smoke suite: four test-mode scenarios in Chromium
 ```
+
+`npm run e2e` needs a one-off `npx playwright install chromium` (about
+720 MB, outside the repo) and port 5232 free. It is separate from
+`verify`.
 
 To make a change — intent, plan, build, review, merge — see
 [`sdlc.md`](sdlc.md).

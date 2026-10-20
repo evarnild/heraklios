@@ -21,6 +21,8 @@ export default tseslint.config(
       '.codex/',
       'tools/map-extract/',
       '**/*.tsbuildinfo',
+      'test-results/',
+      'playwright-report/',
     ],
   },
   js.configs.recommended,

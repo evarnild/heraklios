@@ -49,9 +49,13 @@ probe and the process documents it amends.
   - `reachable(unitId)` — the engine's `reachableHexes` keys;
   - `hexToCanvas(hex)` — canvas pixel of a hex centre, centring the camera
     first if it is off-viewport, `null` only if it still isn't visible;
-  - `buttonToCanvas(label)` — canvas pixel of the one interactive Phaser text
-    object in the active scenes whose text equals `label`; throws if there
-    are zero or several;
+  - `buttonToCanvas(label, index?)` — canvas pixel of an interactive Phaser
+    text object in the active scenes whose text equals `label`. Without
+    `index` it throws if there are zero or several; with it, it picks the
+    n-th match in reading order (top-to-bottom, then left-to-right) and
+    throws if out of range. `buttonCount(label)` says how many match.
+    (Amended with the plan: labels repeat — `'Turn'` ×2, `'Save'`/`'Load'`
+    per slot.)
   - `idle()` — true when no AI turn, pending decision, retreat or drift
     choice, and no tween is running on the board. It reads `BoardScene`'s
     existing fields by name and **throws** if any of them is missing, so a
@@ -73,8 +77,9 @@ any `pageerror` or `console.error`.
   the screen region at both hexes changed (§30's small-region check).
 - **B7 — Attacks:** "Mode test combat" → one ranged attack and one melee
   attack, through the board's own combat UI → for each, an attack resolved:
-  the combat log gained an entry and the attacked unit's state or position is
-  consistent with *some* result (no roll-specific outcome asserted).
+  the attacked unit's `defendedThisPhase` is `true` (no roll-specific outcome
+  asserted). (Amended with the plan: the combat log is scene text, not
+  `GameState`.)
 - **B8 — Naval:** "Mode test combat" → rotate a ship once and move it one hex
   → its facing and position changed as clicked.
 - **B9 — Save → load:** "Mode test" → make one move, save to a slot through
@@ -123,9 +128,9 @@ any `pageerror` or `console.error`.
 - **AC3** — Clicking the other Menu shortcut fails the mode assertion (B5).
   (mutation)
 - **AC4** — Renaming `aiRunning` makes `idle()` throw. (mutation)
-- **AC5** — `npm run build` output has no `__heraklios`.
-  (`grep -r __heraklios dist` empty — a Vitest test or a check in the e2e
-  config, decided in the plan)
+- **AC5** — a production build has no `__heraklios`, checked automatically
+  by `npm run e2e`'s global setup (a `vite build` to a temp directory) before
+  any scenario runs. (Amended with the plan, owner's choice.)
 - **AC6** — `npm run verify` green, lint cap unchanged at 21 or lower, and
   Vitest's test count unchanged by `e2e/`.
 - **AC7** — `REVIEW-POLICY.md`, the `/review` skill and both reviewer agents

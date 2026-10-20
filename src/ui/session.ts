@@ -59,6 +59,13 @@ export interface SessionState {
    * while developing without restarting a game.
    */
   testMode: boolean;
+  /**
+   * Which test-mode shortcut started this game (`ui/testMode.ts`), or null.
+   * Read only by the dev-only browser-test hook (`ui/devHook.ts`), so a
+   * smoke test can assert it started where it meant to (§32 spec B5).
+   * Inert in normal play, and not part of `GameState`, so saves never carry it.
+   */
+  testScenario: 'test' | 'close-combat' | null;
   gameState: GameState | null;
 }
 
@@ -73,6 +80,7 @@ export const session: SessionState = {
   roundLimit: null,
   seatControls: Array.from({ length: MAX_PLAYERS }, (): SeatControl => 'human'),
   testMode: false,
+  testScenario: null,
   gameState: null,
 };
 
@@ -92,6 +100,7 @@ export function setSeatControls(controls: unknown): void {
 export function resetSession(playerCount: number): void {
   session.playerCount = playerCount;
   session.testMode = false;
+  session.testScenario = null;
   session.armySelections = Array.from({ length: playerCount }, () => emptySelection());
   session.gameState = null;
   assignEdgesRandomly(playerCount);
@@ -179,6 +188,7 @@ function assignEdgesRandomly(playerCount: number): void {
 export function resetToMenu(): void {
   session.gameState = null;
   session.testMode = false;
+  session.testScenario = null;
   session.armySelections = [];
 }
 

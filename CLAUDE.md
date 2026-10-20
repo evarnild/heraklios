@@ -27,7 +27,15 @@ npm run check:intent  # does this branch's change match its intent? (intents/REA
 npm run sdlc:scan  # the evidence behind docs/sdlc-grid.md
 npm run spawn -- <id>  # parallel session for an intent (see "Parallel sessions")
 npm run sessions   # what every worktree/session is doing
+npm run e2e        # browser smoke suite (Playwright, port 5232) — not part of verify;
+                   # once per machine: npx playwright install chromium
 ```
+
+`npm run e2e` drives the real game in Chromium through a dev-only hook
+(`src/ui/devHook.ts`, `window.__heraklios`, never in a production build —
+its global setup checks). Scenarios live in `e2e/`, start from a
+`src/ui/testMode.ts` shortcut and act by canvas clicks. It never reuses a
+server already on 5232, so stop a dev server there first.
 
 Run a single test file: `npx vitest run src/engine/combat.test.ts`.
 Run tests matching a name: `npx vitest run -t "pattern"`.
@@ -62,12 +70,18 @@ and in `intents/README.md` / `REVIEW-POLICY.md` win if they disagree.
   or removes a worktree only when the owner explicitly asks for that action
   in the current conversation, never on its own initiative, and only after
   the preconditions in `REVIEW-POLICY.md` → "Merging".
-- A change to `src/scenes/`, `src/ui/`, `src/map-editor/`, `index.html`,
-  `map-editor.html`, `vite.config.ts` or `.claude/settings.json` always owes
-  a **live check**, and so does any other change whose "Not checked" list
-  holds behaviour only a live run can show. The owner runs it and records
-  `live_checked: <date>` before the merge (`REVIEW-POLICY.md` → "Live
-  checks"). An agent's own browser run is evidence, never that gate.
+- A change to `src/scenes/`, `src/ui/`, `src/map-editor/`, `src/main.ts`,
+  `index.html`, `map-editor.html`, `vite.config.ts` or
+  `.claude/settings.json` owes a **live check**, and so does any other
+  change whose "Not checked" list holds behaviour only a live run can show.
+  The owner runs the live check and records `live_checked: <date>` before
+  the merge (`REVIEW-POLICY.md` → "Live checks"). An agent's own browser
+  run is evidence, never that gate. The only exception, when all of these
+  hold (`REVIEW-POLICY.md` → "When the smoke suite stands in"): the check
+  is owed by the path rule alone; a named `npm run e2e` scenario already
+  covers the changed behaviour; the change is neither new nor visual; and
+  `/review` ran `npm run e2e` itself and it passed. Then `/review` says
+  `live-check: not-needed` and names the scenario.
 
 ## Parallel sessions
 

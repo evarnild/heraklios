@@ -70,7 +70,7 @@ recording that you did, before the merge.
 
 - **When one is owed.** `/review` sets `live-check: owed` when any of:
   1. the diff touches `src/scenes/**`, `src/ui/**`, `src/map-editor/**`,
-     `index.html`, `map-editor.html` or `vite.config.ts`;
+     `src/main.ts`, `index.html`, `map-editor.html` or `vite.config.ts`;
   2. the diff touches `.claude/settings.json` (hooks run in every session);
   3. a "Not checked" item is runtime behaviour only a live run can show —
      browser behaviour, hooks, a real `npm ci`, a dev-server path. The
@@ -78,6 +78,17 @@ recording that you did, before the merge.
 
   Otherwise `live-check: not-needed`. A change to `src/engine/**` or
   `src/data/**` alone is never owed by rule 1, but can be by rule 3.
+- **When the smoke suite stands in.** `npm run e2e` (the browser smoke
+  suite, `e2e/`) may replace a live check only when all of these hold: it
+  is owed by rule 1 alone; the changed behaviour is already covered by a
+  named scenario; the change is neither new behaviour nor visual; and
+  `/review` ran `npm run e2e` itself and it passed. Then `/review` sets
+  `live-check: not-needed`, naming the scenario and the run. Anything else
+  stays `owed`. You can always set it back to `owed`; at the Attested tier
+  that is part of reading the report.
+- **`/review` runs the suite** whenever the diff touches `src/scenes/**`,
+  `src/ui/**`, `src/main.ts` or `e2e/**`, and reports the result under
+  "Verified myself". A failing scenario is a finding.
 - **What the report says.** When owed, `## Live check` lists concrete
   steps: the command (`npm run dev`, or the worktree's port), the test-mode
   shortcut or seed to start from, what to do, what you should see. When not

@@ -154,3 +154,75 @@ The scenarios are the tests. For each behavioural line, what fails it:
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-10-16 — subtasks 1–3, 5 and most of 4 (Claude)
+
+- Commits: `409d086` scaffold (Playwright 1.64.0, `npm run e2e`, port 5232,
+  `reuseExistingServer: false`, AC5 build check in global setup, spec B4/B7/
+  AC5 amended as approved), `d4e5bd5` hook + four scenarios, then the
+  policy/docs commit (REVIEW-POLICY "When the smoke suite stands in" and
+  rule 1 + `src/main.ts`; `/review` 0.1.3 and both reviewer agents;
+  `CLAUDE.md`, `README.md`, `sdlc.md`).
+- `npm run e2e`: 4 passed (12.9 s after the ~10 s build check).
+  `npm run verify`: 36 files, 615 Vitest tests (608 + 7 for
+  `devHookMatch`), lint 0 errors / 21 warnings.
+- Attack scenario across 16 seeds (`H32_SEEDS=1..16`): 16/16 passed.
+- Mutations (scratchpad `mut32.mjs`, one at a time, file restored after
+  each, tree clean afterwards) — all **killed**: AC2 land move stubbed,
+  Resolve attack stubbed, rotation stubbed, `adoptSave` stubbed; AC3 wrong
+  Menu button; AC4 `aiRunning` renamed everywhere (idle() throws by name);
+  AC5 DEV guard removed (global setup names `devHook-*.js`).
+
+B1 and AC1 were still to do here: the mutation run was stopped by Claude
+Code for low system memory just as it reached B1. Both are done below.
+
+Diverged from the plan — for the owner to accept in review:
+
+1. **`@types/node` added** (second dev dependency, types only): needed to
+   type-check `e2e/global-setup.ts` under `tsc -b`.
+2. **`src/vite-env.d.ts`** (`/// <reference types="vite/client" />`) for
+   `import.meta.env`, as the probe needed.
+3. **Seeding via the hook, not `addInitScript`.** `createSeededRng` calls a
+   private helper, so it can't be shipped as source text; the hook's
+   `seed(n)` sets `Math.random = createSeededRng(n)` before the Menu click,
+   using the engine's real generator. Same effect for B3.
+4. **Two hook additions:** `busy()` (names what's pending — `idle()` is
+   `busy().length === 0`), and `pendingHexes()` (a retreat or push choice's
+   highlighted hexes).
+5. **Prompts are answered, not avoided.** The ranged attack ended in a
+   defender retreat choice on 16/16 seeds, so choosing a prompt-free seed
+   would have made B7 depend on the roll, which the spec forbids.
+   `settle()` answers retreat/push (first highlighted hex) and advance
+   ("Don't advance") by canvas clicks. The spec listed these prompts as out
+   of scope; they are still not *tested*, only answered.
+6. **Save/load compares state without `elapsedMs`**: the game clock ticks
+   between capture and save by construction.
+
+### 2026-10-16 — subtask 4 finished: B1 and AC1 (Claude)
+
+- **B1:** a plain HTTP server on `127.0.0.1:5232` (scratchpad `b1.mjs`),
+  then `npm run e2e` → exit 1 in 1 s, `http://127.0.0.1:5232 is already
+  used`. The server was not reused. (A first attempt hung because the
+  script's `spawnSync` blocked its own squatter from answering; that was
+  the script, not the suite.)
+- **AC1:** `npm run e2e` 20 times in a row (scratchpad `ac1.mjs`): 20/20
+  green, 4 passed each time; whole run 13–28 s (the first one is slowest).
+  Correction to the entry above: Playwright's reported time already
+  includes the build check, so a run is ~13 s in all, not 12.9 s + 10 s.
+- `status: in-review`.
+
+### 2026-10-20 — review round 1 rework (Claude)
+
+- **Headed runs:** `startFromMenu`'s console trap (`e2e/helpers.ts`) now
+  ignores a console error whose `location().url` ends in `/favicon.ico` —
+  full Chromium requests it, `index.html` declares no icon, Vite answers
+  404. Every other 404 stays fatal; no icon added.
+  `npx playwright test --headed`: 4 passed (14.1 s).
+  `npm run e2e`: 4 passed (13.4 s).
+- **Docs match REVIEW-POLICY "When the smoke suite stands in":** `CLAUDE.md`
+  now lists all four conditions (owed by the path rule alone; a named
+  scenario covers it; neither new nor visual; `/review` ran `npm run e2e`
+  itself and it passed) and puts "The owner runs the live check…" before
+  the exception. `sdlc.md` adds "owed only because of the paths it
+  touches".
+- `status: in-review` unchanged.
