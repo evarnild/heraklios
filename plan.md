@@ -205,6 +205,7 @@ sync when something merges** — it went stale once and the user caught it.
 | [§32](intents/32-e2e-smoke-suite/) browser smoke suite — `npm run e2e`, dev-only hook, when it stands in for a live check (Reviewed tier, 2 review rounds, 1 MEDIUM + 3 LOW left as worth-a-look; see [review.md](intents/32-e2e-smoke-suite/review.md)) | `a66d4d4` |
 | [§31](intents/31-gate-recording/) who records a gate — agent on request, `by-agent` marker, `parseGate`, scan "Metadata problems" (Reviewed tier, 1 review round, 3 LOW worth-a-look; see [review.md](intents/31-gate-recording/review.md)) | `597a07d` |
 | [§33](intents/33-placement-label-background/) placement prompt label background (adjustment, Attested, 2 review rounds; see [review.md](intents/33-placement-label-background/review.md)) | `8ce74c8` |
+| [§34](intents/34-english-game-text/) English game text — Menu, tooltip and combat-log labels; editor palette stays French (feature, Attested, 1 review round, 2 LOW worth-a-look; see [review.md](intents/34-english-game-text/review.md)) | `d36e7b5` |
 
 ### In flight
 
@@ -217,7 +218,6 @@ sync when something merges** — it went stale once and the user caught it.
 | Item | Type · status |
 | --- | --- |
 | [§29](intents/29-grid-live-check-counts/) Count live checks in the SDLC scan and grid (after §28) | feature · draft |
-| [§34](intents/34-english-game-text/) English for all game text except unit and country names | feature · accepted |
 | [§35](intents/35-game-languages/) Play the game in several languages, French and English first | feature · accepted |
 
 All fully-shipped rows that previously lived here (Stage 3b, §17,

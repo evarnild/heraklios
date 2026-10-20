@@ -2,14 +2,14 @@
 id: 34
 slug: english-game-text
 type: feature
-status: in-review
+status: done
 title: English for all game text except unit and country names
 review_tier:
 intent_accepted: 2026-10-20 by-agent    # owner's "yes" in chat
 spec_accepted: 2026-10-20 by-agent    # owner's "yes" in chat
 plan_approved: 2026-10-20 by-agent    # owner's "yes" in chat
 live_checked: 2026-10-20 by-agent    # owner: "live check done"
-merged:
+merged: d36e7b5    # 2026-10-20, merged by Claude on the owner's explicit request in chat
 follows_up:
 links:
   - intents/33-placement-label-background    the previous presentation-text change in the same scenes
