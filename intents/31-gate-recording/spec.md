@@ -75,9 +75,10 @@ and the gate history in `intents/*/metadata.yml`.
   date, and who recorded it (`owner` for a bare date, `agent` with the
   token). `check:intent` counts both forms as recorded. Every check that
   reads a gate goes through one shared function in
-  `scripts/intent-check-lib.mjs`: the gates-before-code check and
-  `live_checked`'s owed check. Nothing matches `GATE_DATE_RE` by hand any
-  more.
+  `scripts/intent-check-lib.mjs`: the gates-before-code check,
+  `live_checked`'s owed check, and `npm run sessions`' gate column
+  (`session-lib.mjs`). Nothing matches the date pattern by hand any
+  more, and `GATE_DATE_RE` is no longer exported.
 
 ### Value checks
 

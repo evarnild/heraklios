@@ -9,8 +9,8 @@ review_tier: reviewed    # touches .claude/skills and .claude/settings.json (hoo
 # to the proposal (spawn command, event-log hooks, coordinator rules in
 # CLAUDE.md, as a §27 intent). Re-date either gate if you want it to mean
 # "read the written intent.md / plan.md".
-intent_accepted: 2026-10-07
-plan_approved: 2026-10-07
+intent_accepted: 2026-10-07 by-agent
+plan_approved: 2026-10-07 by-agent
 merged: eeba9c6
 links:
   - intents/26-ai-sdlc-kit    builds on; branched from refactor/26-ai-sdlc-kit

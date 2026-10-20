@@ -244,6 +244,7 @@ describe('status table', () => {
     const d = '2026-10-07';
     expect(gateSummary({ type: 'feature', intent_accepted: d, spec_accepted: d, plan_approved: d })).toBe('I·S·P');
     expect(gateSummary({ type: 'feature', intent_accepted: '~', spec_accepted: 'null', plan_approved: 'TBD' })).toBe('-·-·-');
+    expect(gateSummary({ type: 'feature', intent_accepted: `${d} by-agent`, spec_accepted: d, plan_approved: `${d} by-agent` })).toBe('I·S·P');
     expect(gateSummary({ type: 'experiment', intent_accepted: d })).toBe('I');
     expect(gateSummary({ type: 'chore' })).toBe('');
     expect(gateSummary(null)).toBe('');

@@ -5,10 +5,10 @@ type: feature
 status: done
 title: Browser smoke suite for the game's scenes (npm run e2e)
 review_tier:
-intent_accepted: 2026-10-16    # recorded by Claude on the owner's explicit request in chat
-spec_accepted: 2026-10-16      # recorded by Claude on the owner's explicit request in chat
-plan_approved: 2026-10-16      # recorded by Claude on the owner's explicit request in chat, with the two spec changes and an automated AC5
-live_checked: 2026-10-20     # owner ran the live check (AC8: headed suite + one normal turn); recorded by Claude on the owner's explicit request in chat
+intent_accepted: 2026-10-16 by-agent     # recorded by Claude on the owner's explicit request in chat
+spec_accepted: 2026-10-16 by-agent       # recorded by Claude on the owner's explicit request in chat
+plan_approved: 2026-10-16 by-agent       # recorded by Claude on the owner's explicit request in chat, with the two spec changes and an automated AC5
+live_checked: 2026-10-20 by-agent      # owner ran the live check (AC8: headed suite + one normal turn); recorded by Claude on the owner's explicit request in chat
 merged: a66d4d4              # 2026-10-20, merged by Claude on the owner's explicit request in chat
 follows_up:
 links:

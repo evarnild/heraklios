@@ -66,6 +66,9 @@ and in `intents/README.md` / `REVIEW-POLICY.md` win if they disagree.
 - `/intent` drafts an intent, `/review` runs `REVIEW-POLICY.md` and writes
   `review.md`, `/grid` refreshes `docs/sdlc-grid.md`, `/spawn` and
   `/sessions` run parallel work (below).
+- An agent records a gate (`metadata.yml`) only on the owner's request in
+  the current conversation, with `by-agent` after the date; a subagent never
+  does (`intents/README.md` → "Who edits what").
 - Merges into `main` are local. An agent merges, pushes, deletes a branch
   or removes a worktree only when the owner explicitly asks for that action
   in the current conversation, never on its own initiative, and only after
@@ -74,8 +77,8 @@ and in `intents/README.md` / `REVIEW-POLICY.md` win if they disagree.
   `index.html`, `map-editor.html`, `vite.config.ts` or
   `.claude/settings.json` owes a **live check**, and so does any other
   change whose "Not checked" list holds behaviour only a live run can show.
-  The owner runs the live check and records `live_checked: <date>` before
-  the merge (`REVIEW-POLICY.md` → "Live checks"). An agent's own browser
+  The owner runs the live check; `live_checked: <date>` is recorded, by the
+  owner or by an agent on their request, before the merge (`REVIEW-POLICY.md` → "Live checks"). An agent's own browser
   run is evidence, never that gate. The only exception, when all of these
   hold (`REVIEW-POLICY.md` → "When the smoke suite stands in"): the check
   is owed by the path rule alone; a named `npm run e2e` scenario already

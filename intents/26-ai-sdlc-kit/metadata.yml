@@ -7,8 +7,8 @@ review_tier: reviewed    # touches REVIEW-POLICY.md, eslint.config.js, .claude/s
 # Approved in conversation with Claude on 2026-10-07 (scope, plan.md/intents
 # coexistence, local merges, linting). Re-date if you want the gate to mean
 # "read the written files".
-intent_accepted: 2026-10-07
-plan_approved: 2026-10-07
+intent_accepted: 2026-10-07 by-agent
+plan_approved: 2026-10-07 by-agent
 merged: 568f2a6
 links:
   # source documents, outside the repo

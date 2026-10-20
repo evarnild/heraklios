@@ -5,7 +5,7 @@ type: experiment
 status: done
 title: "Probe: can a browser test drive the game's scenes?"
 review_tier:
-intent_accepted: 2026-10-08
+intent_accepted: 2026-10-08 by-agent    # typed in Claude's probe commit 6de3853; no request on record
 merged: f755609    # findings only; probe code stays on exp/30-browser-test-probe
 links:
   - intents/28-live-checks-and-merge-rule    the manual live check this might partly replace
