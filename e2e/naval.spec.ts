@@ -1,4 +1,4 @@
-// Spec B8: from "Mode test combat", turn a ship once and move it one hex
+// Spec B8: from "Combat test mode", turn a ship once and move it one hex
 // forward, by canvas clicks on the board's own Turn buttons and map.
 //
 // The ships start bow-on to the enemy (testMode.ts), so one step straight

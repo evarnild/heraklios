@@ -1,4 +1,4 @@
-// Spec B7: from "Mode test combat", one ranged and one melee attack through
+// Spec B7: from "Combat test mode", one ranged and one melee attack through
 // the board's own combat UI. The assertion never depends on the roll: an
 // attack that resolved marks its defender `defendedThisPhase`.
 //

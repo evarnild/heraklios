@@ -1039,7 +1039,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         // recovery copy (see `autosave`'s doc comment), and a player who
         // abandons by mistake — or to escape a wedged board, the other
         // reason this control exists — can still get the game back via the
-        // Menu's "Charger une partie" > Autosave row. Clearing it would risk
+        // Menu's "Load a game" > Autosave row. Clearing it would risk
         // the strictly worse outcome the plan calls out: silently
         // discarding a game the player might have wanted back. Leaving it
         // costs nothing either way: `create()` calls `autosave()`

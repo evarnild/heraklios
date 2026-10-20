@@ -13,8 +13,8 @@ declare global {
 
 export type Hex = { q: number; r: number };
 
-export const MENU_TEST = 'Mode test (2 joueurs, armées prêtes)';
-export const MENU_CLOSE_COMBAT = 'Mode test combat (unités face à face, 2 cases)';
+export const MENU_TEST = 'Test mode (2 players, armies ready)';
+export const MENU_CLOSE_COMBAT = 'Combat test mode (units face to face, 2 hexes)';
 
 /**
  * Opens the game, seeds the dice, clicks a Menu shortcut and waits for an

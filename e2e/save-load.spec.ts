@@ -1,4 +1,4 @@
-// Spec B9: from "Mode test", save to a slot through the save/load panel,
+// Spec B9: from "Test mode", save to a slot through the save/load panel,
 // make another move, load the slot back — the board returns to the saved
 // position. `localStorage` slots only (each test gets a fresh browser
 // context, so the slots start empty).
