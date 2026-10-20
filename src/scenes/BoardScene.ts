@@ -1753,24 +1753,25 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       .setScrollFactor(0)
       .setDepth(21);
     const yesBtn = this.add
-      .text(width / 2 - 60, height / 2 + 25, messages().board.ram, {
+      .text(width / 2 - 6, height / 2 + 25, messages().board.ram, {
         fontSize: '16px',
         color: '#fff',
         backgroundColor: '#802020',
         padding: { x: 12, y: 6 },
       })
-      .setOrigin(0.5)
+      // The pair grows outward from the middle, so a longer label never meets the other button.
+      .setOrigin(1, 0.5)
       .setScrollFactor(0)
       .setDepth(21)
       .setInteractive({ useHandCursor: true });
     const noBtn = this.add
-      .text(width / 2 + 60, height / 2 + 25, messages().board.holdOff, {
+      .text(width / 2 + 6, height / 2 + 25, messages().board.holdOff, {
         fontSize: '16px',
         color: '#fff',
         backgroundColor: '#2a5a2a',
         padding: { x: 12, y: 6 },
       })
-      .setOrigin(0.5)
+      .setOrigin(0, 0.5)
       .setScrollFactor(0)
       .setDepth(21)
       .setInteractive({ useHandCursor: true });

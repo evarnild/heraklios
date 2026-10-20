@@ -161,12 +161,12 @@ export class MenuScene extends Phaser.Scene {
     for (let i = 0; i < MAX_PLAYERS; i++) {
       const seatLabel = () => t.menu.seatLabel(countryNames()[i]!, seatControlName(seatControlFor(i)));
       const btn = this.add
-        .text(width / 2 - 240 + i * 160, 518, seatLabel(), {
+        .text(width / 2 - 321 + i * 214, 518, seatLabel(), {
           fontSize: '12px',
           color: '#ffffff',
           backgroundColor: seatButtonColor(i),
           padding: { x: 10, y: 6 },
-          fixedWidth: 150,
+          fixedWidth: 208,
           align: 'center',
         })
         .setOrigin(0.5)

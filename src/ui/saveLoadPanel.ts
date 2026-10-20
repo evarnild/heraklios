@@ -33,11 +33,11 @@ export interface SaveLoadPanelConfig {
 
 const PANEL_WIDTH = 720;
 const ROW_HEIGHT = 44;
-const SLOT_NAME_WIDTH = 90;
-const ACTION_BUTTON_X = 400;
+const SLOT_NAME_WIDTH = 140;
+const ACTION_BUTTON_X = 440;
 const ACTION_BUTTON_GAP = 16;
 const SAVE_DESCRIPTION_WIDTH = ACTION_BUTTON_X - SLOT_NAME_WIDTH - ACTION_BUTTON_GAP;
-const SAVE_DESCRIPTION_HEIGHT = 20;
+const SAVE_DESCRIPTION_HEIGHT = 36;
 const TEXT_COLOR = '#e8d9b0';
 const MUTED_COLOR = '#8a7c5c';
 
@@ -141,8 +141,8 @@ export class SaveLoadPanel {
     const footerY = top + panelHeight - 28;
     let footerX = left;
     if (this.config.mode === 'manage') {
-      this.button(footerX, footerY, messages().saves.exportFile, '#4a3f2a', () => this.exportToFile());
-      footerX += 130;
+      const exportBtn = this.button(footerX, footerY, messages().saves.exportFile, '#4a3f2a', () => this.exportToFile());
+      footerX += exportBtn.width + 12;
     }
     this.button(footerX, footerY, messages().saves.importFile, '#4a3f2a', () => this.importFromFile());
     this.button(width / 2 + PANEL_WIDTH / 2 - 90, footerY, messages().common.close, '#5a2a2a', () => this.close());
@@ -179,13 +179,14 @@ export class SaveLoadPanel {
     // The autosave slot is written by the game, never by hand — offering
     // "Save" there would just invite overwriting the crash-recovery copy.
     if (this.config.mode === 'manage' && slot !== 'autosave') {
-      buttons.push(this.button(x, y, messages().saves.save, '#2a5a2a', () => this.saveInto(slot)));
-      x += 62;
+      const saveBtn = this.button(x, y, messages().saves.save, '#2a5a2a', () => this.saveInto(slot));
+      buttons.push(saveBtn);
+      x += saveBtn.width + 8;
     }
     const loadBtn = this.button(x, y, messages().saves.load, '#3a3a55', () => this.loadFrom(slot));
     this.needsSave.add(loadBtn);
     buttons.push(loadBtn);
-    x += 62;
+    x += loadBtn.width + 8;
     if (this.config.mode === 'manage') {
       const deleteBtn = this.button(x, y, messages().saves.delete, '#5a2a2a', () => this.deleteSlot(slot));
       this.needsSave.add(deleteBtn);
@@ -202,7 +203,7 @@ export class SaveLoadPanel {
     const key = this.slotKey(slot);
     const save = readSlot(slot);
     const label = this.rowLabels.get(key);
-    label?.setText(save ? `${describeSlot(save)} · ${formatSavedAt(save.savedAt)}` : messages().saves.empty);
+    label?.setText(save ? `${describeSlot(save)}\n${formatSavedAt(save.savedAt)}` : messages().saves.empty);
     label?.setColor(save ? TEXT_COLOR : MUTED_COLOR);
     for (const btn of this.rowButtons.get(key) ?? []) {
       btn.setAlpha(this.needsSave.has(btn) && !save ? 0.4 : 1);

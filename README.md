@@ -52,12 +52,23 @@ To make a change — intent, plan, build, review, merge — see
    (see "Ending the game" below; both off by default), and which seats the
    computer should play (see "Computer opponent" below; defaults to all
    human).
+
+   **Language.** The game is played in English or French. The Menu's
+   **English | Français** switch (top right) changes it at once and the
+   choice is remembered in the browser; with nothing remembered the game
+   follows the browser's language (French for `fr*`, English otherwise). It
+   is set from the Menu only — a game plays in the language it started in,
+   and a loaded game keeps the player names it was saved with. Every text
+   the game shows, including unit and place names, comes from the two tables
+   in `src/ui/i18n/`; the rules writeup here and the map editor stay as they
+   are.
 2. **Army Builder** — each player spends 400 purchase points on units from
    the shared roster (archers, infantry, cavalry, chariots, elephants,
    phalanxes, and four tiers of warships), subject to per-unit quantity
    caps, one player at a time ("pass the device"). The budget must be spent
    exactly — "Confirm army" stays dimmed and inert while any points are
-   unspent or overspent — and a "Use default army" button offers a
+   unspent or overspent, and the reason (over a unit's maximum, over or
+   under budget) is written under the total — and a "Use default army" button offers a
    ready-made 400-point army as a starting point that can still be
    hand-adjusted afterward.
 3. **Placement** — each player deploys their purchased units within their

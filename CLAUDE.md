@@ -207,6 +207,13 @@ and rendering.
   boarding, or an elephant's drift direction clears the history stack outside
   test mode (`session.testMode`), so results can't be re-rolled by undoing.
   Phase changes are also a boundary.
+- **Player-facing text lives in `src/ui/i18n/`** (English and French tables;
+  `messages()` for a fixed text or a sentence function, `unitName`/`terrainName`
+  etc. in `names.ts`, formatters for the engine's structured results in
+  `format.ts`). The engine returns data (army errors, drift events, save
+  errors), never display text. `noLiterals.test.ts` fails on a literal passed
+  to `.text(`/`setText(`/`log(`… in `src/scenes` and `src/ui`; a new message
+  goes into `en.ts` and `fr.ts` (typed, so a missing one is a build error).
 - **Ambiguous or inconsistent rulebook passages get a code comment recording
   the interpretation** at the point they're implemented — see
   `src/data/navalRamming.ts` for the convention (and `README.md`'s "Naval

@@ -2,7 +2,7 @@
 id: 35
 slug: game-languages
 type: feature
-status: accepted
+status: in-review
 title: Play the game in several languages, French and English first
 review_tier: reviewed    # spec: describeSave leaves src/engine/saveGame.ts (Reviewed path); owner agreed
 intent_accepted: 2026-10-20 by-agent    # owner's "yes" in chat
