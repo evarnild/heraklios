@@ -84,9 +84,19 @@ these are the only names there are.)
 - Undo/redo labels ("Move Galleys" / "Déplacer Galères") are made in the
   language of the moment and kept in the history as text.
 
-**B8 — Place names stay as they are.** Anse d'Hypnos, Pointe d'Eole,
-Baie d'Argos, Cap Zénon are proper names of a fictional coast and read
-the same in both languages. The title "HÉRAKLIOS" and the source line's
+**B8 — Place names per language** (owner's decision, 2026-10-20). The
+four named zones are shown in the hex tooltip through the table:
+
+| Zone | French (as today) | English |
+| --- | --- | --- |
+| zone-anse-hypnos | Anse d'Hypnos | Hypnos Cove |
+| zone-pointe-eole | Pointe d'Eole | Aeolus Point |
+| zone-baie-argos | Baie d'Argos | Bay of Argos |
+| zone-cap-zenon | Cap Zénon | Cape Zeno |
+
+Éole and Zénon take their usual English forms (Aeolus, Zeno); Hypnos
+and Argos are the same in both. The map editor keeps its French palette
+(§34 B4). The title "HÉRAKLIOS" and the source line's
 "Jeux & Stratégie #6 (1980)" are unchanged; the rest of that line is
 translated.
 
@@ -133,7 +143,7 @@ No rulebook passage is involved. Two choices without another home:
   `i18n/` itself) and fails on a string or template literal containing
   a word of two or more letters passed to `.text(`, `setText(`,
   `log(`, `appendLine(`, `recordAction(`, `history.push(`, `status(` or
-  assigned to `textContent`. An allow-list names the exceptions (B8's
+  assigned to `textContent`. An allow-list names the exceptions (the
   title and source, font names, colour strings, texture keys) with a
   reason each.
 - **AC2 — tables complete** (B2). `tsc` in `npm run verify`; the
@@ -143,8 +153,8 @@ No rulebook passage is involved. Two choices without another home:
   (`resolveLanguage(stored, navigatorLanguage)`): stored `fr` / `en`
   wins; unknown stored value → navigator; `fr-CA` → `fr`; `de-DE` →
   `en`; nothing at all → `en`.
-- **AC4 — unit and country names** (B5, B6). Test: every unit type in
-  `UNIT_TYPES` has a name in both tables; the English names equal B5's;
+- **AC4 — unit, country and place names** (B5, B6, B8). Test: every unit type in
+  `UNIT_TYPES` has a name in both tables; the English names equal B5's and the zone names B8's;
   the French equal `units.ts`'s `name:`; `resetSession` in French gives
   the French defaults, in English the English ones.
 - **AC5 — engine is language-free** (B9). Tests of `army.ts`,
@@ -202,8 +212,8 @@ No rulebook passage is involved. Two choices without another home:
   (archers, phalanxes, cavalry, elephants, chariots, galleys) and are my
   translation elsewhere (Infantry, Infantry-archers, Heavy infantry,
   Biremes, Triremes, Quinqueremes).
-- Place names are kept in both languages (B8). The intent left this
-  open; say if you want English ones.
+- The English place names (B8): "Cove" for *anse*, "Point" for
+  *pointe*, "Bay of" for *baie*, "Cape" for *cap*.
 - A game keeps the names it started with (B6) rather than renaming its
   players when it is loaded in the other language.
 - Removing `describeSave` from the engine is worth making the change
