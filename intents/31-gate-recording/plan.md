@@ -180,3 +180,11 @@ the spec, the spec gets corrected, not the data.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-10-20 — all subtasks
+
+- Commits: parser + FAIL on malformed gates; `scan-lib.mjs` and scan wiring; documents and §31's own gates; B9 re-marking of §26, §27, §30, §32 (on the owner's "go ahead").
+- `npm run verify` green (633 tests; scripts tests 113, up by the `parseGate`, `checkChange`, `gateSummary` and `scan-lib` tests); lint cap unchanged at 21. `check:intent` PASS.
+- Divergences: the old "gates must hold a date" tests now expect the "must be empty, a date…" error for malformed values (B7); an empty gate keeps the "Code changed before the gate" error. `sdlc.md:75` ("Approve and merge — your gate") left as is: it is the change-approval gate, unchanged by the spec.
+- AC3/AC4 manual `npm run sdlc:scan`: Metadata problems: none. Gates (owner / agent): intent_accepted 1 / 5; spec_accepted 1 / 2; plan_approved 1 / 4; live_checked 1 / 1. Matches B9's table.
+- AC6 grep (`never record a gate|Who records it|every gate in`, outside intents/3x and plan-history): only `REVIEW-POLICY.md:96` "Who records it", new wording.
