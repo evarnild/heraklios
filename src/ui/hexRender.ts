@@ -67,21 +67,6 @@ export const TERRAIN_COLORS: Record<string, number> = {
 
 export const RIVER_COLOR = 0x2a78dc;
 
-/** English labels for each terrain type, shown by the game's hex tooltip. */
-export const TERRAIN_LABELS: Record<string, string> = {
-  plain: 'Plain',
-  'river-wide': 'Wide river',
-  'steep-flank': 'Steep flanks',
-  plateau: 'Plateau',
-  marsh: 'Marsh',
-  coast: 'Coastal fringe',
-  'zone-anse-hypnos': "Anse d'Hypnos",
-  'zone-pointe-eole': "Pointe d'Eole",
-  'zone-baie-argos': "Baie d'Argos",
-  'zone-cap-zenon': 'Cap Zénon',
-  sea: 'High seas',
-};
-
 /** Display order for the map editor's terrain palette. */
 export const TERRAIN_ORDER: readonly TerrainType[] = [
   'plain',
@@ -98,7 +83,8 @@ export const TERRAIN_ORDER: readonly TerrainType[] = [
 ];
 
 /** Player index -> counter color, matching the 4 physical counter sets
- * (public/markers/{color}/) and the fallback text/UI colors. */
+ * (public/markers/{color}/) and the fallback text/UI colors. These are texture
+ * keys, not display words — those come from `i18n/names.ts`'s `colorName`. */
 export const PLAYER_COLOR_NAMES: readonly string[] = ['yellow', 'red', 'blue', 'green'];
 export const PLAYER_COLORS_HEX: readonly string[] = ['#ffd54a', '#ff5a5a', '#5ab4ff', '#5aff7a'];
 

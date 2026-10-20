@@ -1,4 +1,5 @@
 import { session } from './session';
+import { countryNames } from './i18n/names';
 import { deploymentBand, seaZoneNear } from './mapBounds';
 import { createInitialState } from '../engine/turnManager';
 import { emptySelection } from '../engine/army';
@@ -51,6 +52,8 @@ export function startTestGame(): void {
   // too, since `session.test.ts` made the pre-existing mismatch easy to
   // assert against.
   session.armySelections = Array.from({ length: 2 }, () => emptySelection());
+  // Named in the language of the moment, like `resetSession` does for a real game.
+  session.playerNames = countryNames();
 
   const players: Player[] = [
     { id: 0 as PlayerId, name: session.playerNames[0]!, edge: 'W', purchasePoints: 400, eliminated: false },
@@ -122,6 +125,8 @@ export function startCloseCombatTestGame(): void {
   // too, since `session.test.ts` made the pre-existing mismatch easy to
   // assert against.
   session.armySelections = Array.from({ length: 2 }, () => emptySelection());
+  // Named in the language of the moment, like `resetSession` does for a real game.
+  session.playerNames = countryNames();
 
   const players: Player[] = [
     { id: 0 as PlayerId, name: session.playerNames[0]!, edge: 'W', purchasePoints: 400, eliminated: false },

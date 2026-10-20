@@ -1,8 +1,26 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { formatHexTooltip } from './hexTooltip';
 import { MAP_TERRAIN } from '../data/map';
+import { resetLanguageForTests, setLanguage } from './i18n';
 
 describe('formatHexTooltip', () => {
+  beforeEach(() => {
+    vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => undefined });
+    setLanguage('en');
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    resetLanguageForTests();
+  });
+
+  it('names a zone in the current language', () => {
+    const zone = [...MAP_TERRAIN.entries()].find(([, terrain]) => terrain === 'zone-cap-zenon')!;
+    const [q, r] = zone[0].split(',').map(Number);
+    expect(formatHexTooltip({ q: q!, r: r! })).toBe(`(${q}, ${r}) — Cape Zeno`);
+    setLanguage('fr');
+    expect(formatHexTooltip({ q: q!, r: r! })).toBe(`(${q}, ${r}) — Cap Zénon`);
+  });
+
   it('shows the coordinate and terrain label for a real map hex', () => {
     // (4,9) is 'plateau' on the shipped map — see combat.test.ts's "(4,9) on
     // the shipped map" tests for the same fixed point.
