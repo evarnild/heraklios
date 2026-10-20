@@ -7,7 +7,7 @@ title: Who records a gate, and how
 review_tier: reviewed    # will touch .claude/skills and likely REVIEW-POLICY.md
 intent_accepted: 2026-10-20    # recorded by Claude: owner's "yes" to the proposal in chat
 spec_accepted: 2026-10-20      # recorded by Claude: owner's "yes" to the proposal in chat; becomes by-agent under B9
-plan_approved:
+plan_approved: 2026-10-20      # recorded by Claude: owner's "yes" to the proposal in chat, with the session-lib spec change; becomes by-agent under B9
 live_checked:
 merged:
 follows_up:
