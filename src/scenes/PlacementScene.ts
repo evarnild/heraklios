@@ -353,7 +353,7 @@ export class PlacementScene extends Phaser.Scene {
     if (this.pendingShip) {
       const t = getUnitType(this.pendingShip.typeId);
       this.infoText.setText(
-        `Placing ${t.name}: pick a facing (Turn buttons), then "Confirm facing" — or "Cancel" to pick a different hex.`,
+        `Placing ${t.name}: turn it with "Turn", then "Confirm facing" (or "Cancel").`,
       );
       return;
     }
