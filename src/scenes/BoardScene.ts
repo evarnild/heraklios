@@ -23,7 +23,8 @@ import {
 import { formatRemainingClock } from '../engine/gameEndSettings';
 import { applyAction, legalActions, type Action } from '../engine/actions';
 import type { PlayerAgent, ActionObserver, DrivingAgent } from '../engine/agent';
-import { createSeatAgent, isAiSeat, seatControlLabel } from '../engine/seatControl';
+import { createSeatAgent, isAiSeat } from '../engine/seatControl';
+import { seatControlName } from '../ui/i18n/names';
 import { routeBySeat } from '../engine/seatRouter';
 import { rollDie as engineRollDie } from '../engine/dice';
 import {
@@ -1340,7 +1341,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // e.g. `ship.owner`/`markerTextureKey` callers) — so the name always
     // matches the color shown on the board.
     const seatLabel = `${player.name} (${player.edge}, ${PLAYER_COLOR_NAMES[activeId] ?? 'unknown'})`;
-    const who = isAiSeat(control) ? `${seatLabel} [${seatControlLabel(control)}]` : seatLabel;
+    const who = isAiSeat(control) ? `${seatLabel} [${seatControlName(control)}]` : seatLabel;
     // plan.md §9.2.2 #6: tell the player when a trigger (clock, round limit,
     // or the button below) has fired, since the game does NOT end on the
     // spot — every seat still finishes this round (see `pendingGameEnd`'s

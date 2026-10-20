@@ -4,10 +4,14 @@ import { validateArmy, defaultArmySelection, ARMY_BUDGET } from '../engine/army'
 import { session, resetToMenu } from '../ui/session';
 import { skipAiArmySeats } from '../ui/aiSetup';
 import { showConfirmDialog } from '../ui/confirmDialog';
+import { messages } from '../ui/i18n';
+import { formatArmyError } from '../ui/i18n/format';
+import { edgeName, unitName } from '../ui/i18n/names';
 
 export class ArmyBuilderScene extends Phaser.Scene {
   private playerIndex = 0;
   private totalText!: Phaser.GameObjects.Text;
+  private errorText!: Phaser.GameObjects.Text;
   private confirmBtn!: Phaser.GameObjects.Text;
   private countTexts: Record<string, Phaser.GameObjects.Text> = {};
 
@@ -32,18 +36,19 @@ export class ArmyBuilderScene extends Phaser.Scene {
     this.playerIndex = firstHumanSeat;
 
     const { width } = this.scale;
+    const t = messages();
     const playerName = session.playerNames[this.playerIndex]!;
     const edge = session.edges[this.playerIndex]!;
 
     this.add
-      .text(width / 2, 24, `${playerName} — build your army (edge: ${edge})`, {
+      .text(width / 2, 24, t.builder.title(playerName, edgeName(edge)), {
         fontSize: '22px',
         color: '#e8d9b0',
       })
       .setOrigin(0.5);
 
     const abandonBtn = this.add
-      .text(20, 24, 'Abandon', {
+      .text(20, 24, t.common.abandon, {
         fontSize: '14px',
         color: '#fff',
         backgroundColor: '#5a2a2a',
@@ -54,9 +59,9 @@ export class ArmyBuilderScene extends Phaser.Scene {
     abandonBtn.on('pointerdown', () => {
       showConfirmDialog({
         scene: this,
-        message: 'Abandon this game and return to the menu?\nArmy selections made so far will be lost.',
-        confirmLabel: 'Abandon',
-        cancelLabel: 'Keep building',
+        message: t.common.abandonMessage(t.builder.abandonMessage),
+        confirmLabel: t.common.abandon,
+        cancelLabel: t.builder.keepBuilding,
         onConfirm: () => {
           resetToMenu();
           this.scene.start('Menu');
@@ -70,7 +75,7 @@ export class ArmyBuilderScene extends Phaser.Scene {
     // controls below remain fully live afterward, so this is just a
     // starting point the player can still hand-adjust like any other.
     const defaultArmyBtn = this.add
-      .text(width - 20, 24, 'Use default army', {
+      .text(width - 20, 24, t.builder.useDefault, {
         fontSize: '14px',
         color: '#fff',
         backgroundColor: '#3a3a55',
@@ -88,8 +93,8 @@ export class ArmyBuilderScene extends Phaser.Scene {
     const rowH = 32;
     UNIT_TYPES.forEach((unit, i) => {
       const y = startY + i * rowH;
-      this.add.text(20, y, unit.name, { fontSize: '15px', color: '#ffffff' });
-      this.add.text(220, y, `${unit.cost}pt  (max ${unit.maxCount})`, { fontSize: '13px', color: '#a89878' });
+      this.add.text(20, y, unitName(unit.id), { fontSize: '15px', color: '#ffffff' });
+      this.add.text(220, y, t.builder.costAndMax(unit.cost, unit.maxCount), { fontSize: '13px', color: '#a89878' });
 
       const minus = this.add
         .text(400, y, '-', { fontSize: '18px', color: '#fff', backgroundColor: '#553', padding: { x: 10, y: 2 } })
@@ -119,13 +124,21 @@ export class ArmyBuilderScene extends Phaser.Scene {
       color: '#ffe08a',
     });
 
+    this.errorText = this.add.text(20, startY + UNIT_TYPES.length * rowH + 56, '', {
+      fontSize: '13px',
+      color: '#ff9a9a',
+      wordWrap: { width: width - 40 },
+    });
+
     this.confirmBtn = this.add
-      .text(width - 160, startY + UNIT_TYPES.length * rowH + 20, 'Confirm army', {
+      .text(width - 20, startY + UNIT_TYPES.length * rowH + 20, t.builder.confirm, {
         fontSize: '18px',
         color: '#fff',
         backgroundColor: '#2a5a2a',
         padding: { x: 14, y: 8 },
       })
+      // Right-aligned like "Use default army", so a longer label (French) grows leftwards.
+      .setOrigin(1, 0)
       .setInteractive({ useHandCursor: true });
 
     this.confirmBtn.on('pointerdown', () => {
@@ -149,7 +162,8 @@ export class ArmyBuilderScene extends Phaser.Scene {
     }
     const result = validateArmy(selection);
     this.totalText.setColor(result.valid ? '#ffe08a' : '#ff6a6a');
-    this.totalText.setText(`Total: ${result.totalCost} / ${ARMY_BUDGET}`);
+    this.totalText.setText(messages().builder.total(result.totalCost, ARMY_BUDGET));
+    this.errorText.setText(result.errors.map((e) => formatArmyError(e)).join('\n'));
     this.confirmBtn.setAlpha(result.valid ? 1 : 0.4);
   }
 }

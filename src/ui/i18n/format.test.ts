@@ -4,7 +4,7 @@ import type { DriftEvent } from '../../engine/drift';
 import { buildSavedGame } from '../../engine/saveGame';
 import { createInitialState } from '../../engine/turnManager';
 import type { Player, PlayerId, Unit } from '../../engine/state';
-import { describeSlot, formatArmyError, formatDriftEvent, formatSaveError } from './format';
+import { clockLimitText, describeSlot, formatArmyError, formatDriftEvent, formatSaveError, roundLimitText } from './format';
 import { messagesFor, type Language } from './index';
 
 const LANGS: Language[] = ['en', 'fr'];
@@ -158,5 +158,20 @@ describe('formatSaveError', () => {
       "Save file version 99 isn't supported (expected 3).",
     );
     expect(formatSaveError({ kind: 'unsupportedVersion', version: 99, expected: 3 }, messagesFor('fr'))).toContain('99');
+  });
+});
+
+describe('clockLimitText and roundLimitText', () => {
+  it('label every preset in both languages', () => {
+    const en = messagesFor('en');
+    const fr = messagesFor('fr');
+    expect(clockLimitText(null, en)).toBe('Off');
+    expect(clockLimitText(null, fr)).toBe('Aucune');
+    expect(clockLimitText(30 * 60_000, en)).toBe('30 min');
+    expect(clockLimitText(60 * 60_000, fr)).toBe('1 h');
+    expect(clockLimitText(120 * 60_000, en)).toBe('2 h');
+    expect(roundLimitText(null, en)).toBe('Off');
+    expect(roundLimitText(6, en)).toBe('6 rounds');
+    expect(roundLimitText(12, fr)).toBe('12 manches');
   });
 });

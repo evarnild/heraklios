@@ -106,11 +106,11 @@ export const fr: Messages = {
     title: (name, edge) => `${name} — placez votre armée (bord ${edge})`,
     abandonMessage: 'Le placement fait jusqu’ici sera perdu.',
     keepPlacing: 'Continuer',
-    donePlacing: 'Placement terminé',
+    donePlacing: 'Terminé',
     confirmFacing: 'Valider l’orientation',
     placeAction: (unit) => `Placer ${unit}`,
     placingShip: (unit) => `Placement : ${unit} — orientez-le avec « Pivoter », puis « Valider l’orientation » (ou « Annuler »).`,
-    allPlaced: 'Toutes les unités sont placées. Cliquez sur « Placement terminé » pour continuer.',
+    allPlaced: 'Toutes les unités sont placées. Cliquez sur « Terminé » pour continuer.',
     placing: (unit, left) => `Placement : ${unit} (${left} restant) — cliquez sur un hexagone en surbrillance`,
   },
 

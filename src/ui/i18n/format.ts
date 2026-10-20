@@ -64,6 +64,18 @@ export function formatSaveError(error: SaveError | { kind: 'unreadable' }, m: Me
   }
 }
 
+/** "Off" / "30 min" / "1 h" / "2 h" — the Menu button's label for the clock limit. */
+export function clockLimitText(ms: number | null, m: Messages = messages()): string {
+  if (ms === null) return m.menu.off;
+  const minutes = ms / 60_000;
+  return minutes < 60 ? m.menu.minutes(minutes) : m.menu.hours(minutes / 60);
+}
+
+/** "Off" / "6 rounds" / … — the Menu button's label for the round limit. */
+export function roundLimitText(rounds: number | null, m: Messages = messages()): string {
+  return rounds === null ? m.menu.off : m.menu.roundCount(rounds);
+}
+
 function unitNameIn(m: Messages, typeId: string): string {
   return (m.units as Record<string, string>)[typeId] ?? typeId;
 }

@@ -62,6 +62,12 @@ export const en = {
     abandonMessage: (progressLost: string) => `Abandon this game and return to the menu?\n${progressLost}`,
   },
 
+  /** Short labels for the Menu button and the Board's status line. The first
+   * three difficulty names describe *strength*, not the implementation tier.
+   * `ai-lookahead` is deliberately "cautious", not "expert": it shares
+   * `ai-ev`'s combat logic and only adds a bounded threat check to movement,
+   * and measurement (`heuristicSoak.test.ts`, plan-history.md §6.14) could not
+   * show it is reliably stronger — only more defensive. */
   seat: {
     human: 'Human',
     'ai-random': 'AI — easy',

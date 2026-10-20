@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { session, resetToMenu } from '../ui/session';
 import { armyValue } from '../engine/state';
+import { messages } from '../ui/i18n';
 
 export class GameOverScene extends Phaser.Scene {
   constructor() {
@@ -9,6 +10,7 @@ export class GameOverScene extends Phaser.Scene {
 
   create(): void {
     const { width, height } = this.scale;
+    const t = messages();
     const state = session.gameState!;
     // `winnerIds` is 0 (nobody left — full mutual elimination), 1 (an
     // outright win) or 2+ (a draw between that many tied players) — see its
@@ -16,10 +18,10 @@ export class GameOverScene extends Phaser.Scene {
     const winners = state.players.filter((p) => state.winnerIds.includes(p.id));
     const headline =
       winners.length === 1
-        ? `${winners[0]!.name} wins!`
+        ? t.gameOver.wins(winners[0]!.name)
         : winners.length > 1
-          ? `Draw between ${joinNames(winners.map((p) => p.name))}!`
-          : 'Game over';
+          ? t.gameOver.draw(winners.map((p) => p.name))
+          : t.gameOver.over;
 
     this.add
       .text(width / 2, height / 2 - 60, headline, {
@@ -30,7 +32,7 @@ export class GameOverScene extends Phaser.Scene {
 
     state.players.forEach((p, i) => {
       this.add
-        .text(width / 2, height / 2 - 10 + i * 26, `${p.name}: ${armyValue(state, p.id)} points remaining`, {
+        .text(width / 2, height / 2 - 10 + i * 26, t.gameOver.pointsRemaining(p.name, armyValue(state, p.id)), {
           fontSize: '16px',
           color: '#ffffff',
         })
@@ -38,7 +40,7 @@ export class GameOverScene extends Phaser.Scene {
     });
 
     const restartBtn = this.add
-      .text(width / 2, height / 2 + 140, 'Back to menu', {
+      .text(width / 2, height / 2 + 140, t.gameOver.backToMenu, {
         fontSize: '18px',
         color: '#fff',
         backgroundColor: '#2a5a2a',
@@ -57,12 +59,4 @@ export class GameOverScene extends Phaser.Scene {
       this.scene.start('Menu');
     });
   }
-}
-
-/** "A and B" for two names, "A, B and C" for three or more — purely a
- * display nicety for the draw headline above, so it isn't pure/tested
- * elsewhere the way engine formatting helpers are. */
-function joinNames(names: string[]): string {
-  if (names.length <= 1) return names.join('');
-  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 }
