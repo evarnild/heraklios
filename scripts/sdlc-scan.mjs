@@ -154,11 +154,16 @@ if (asJson) {
   const yes = (b) => (b ? 'yes' : 'no');
   const r = report;
   console.log(`# SDLC scan (main, window ${r.window.from} → ${r.window.to})\n`);
-  console.log('## Agent-readiness');
+  console.log('## Metadata problems');
+  if (!r.problems.length) console.log('none');
+  for (const p of r.problems) console.log(`§${p.id} ${p.field}: ${JSON.stringify(p.value)} — ${p.why}`);
+  console.log('\n## Agent-readiness');
   console.log(`context file: ${yes(r.readiness.contextFile)} · verify: ${yes(r.readiness.verifyCommand)} · lint: ${yes(r.readiness.lint)} · review policy: ${yes(r.readiness.reviewPolicy)} · type check: ${yes(r.readiness.typeCheck)}\n`);
   console.log('## Intents');
   console.log(`total: ${r.intents.total} · by type: ${JSON.stringify(r.intents.byType)} · by status: ${JSON.stringify(r.intents.byStatus)} · skill-stamped: ${r.intents.withSkillStamp}`);
   for (const rv of r.intents.reviews) console.log(`  review §${rv.id}: verdict ${rv.verdict}, tier ${rv.tier}, round ${rv.round}, sampled ${rv.sampled}`);
+  console.log('\n## Gates recorded (owner / agent)');
+  for (const [field, n] of Object.entries(r.gateShares)) console.log(`${field}: ${n.owner} owner · ${n.agent} agent`);
   console.log('\n## Outcome (first-parent commits on main, plan-only commits excluded)');
   console.log(`changes: ${r.outcome.changesOnMain} · per week: ${r.outcome.perWeek} · reference an intent/§: ${Math.round(r.outcome.intentReferenceRate * 100)}% · reverts: ${r.outcome.reverts} (${(r.outcome.revertRate * 100).toFixed(1)}%)`);
   console.log(`by month: ${Object.entries(r.outcome.byMonth).sort().map(([m, n]) => `${m}=${n}`).join(' ')}`);
