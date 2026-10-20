@@ -7,7 +7,7 @@ title: English for all game text except unit and country names
 review_tier:
 intent_accepted: 2026-10-20 by-agent    # owner's "yes" in chat
 spec_accepted: 2026-10-20 by-agent    # owner's "yes" in chat
-plan_approved:
+plan_approved: 2026-10-20 by-agent    # owner's "yes" in chat
 live_checked:
 merged:
 follows_up:
