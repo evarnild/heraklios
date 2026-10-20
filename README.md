@@ -57,8 +57,9 @@ To make a change — intent, plan, build, review, merge — see
    **English | Français** switch (top right) changes it at once and the
    choice is remembered in the browser; with nothing remembered the game
    follows the browser's language (French for `fr*`, English otherwise). It
-   is set from the Menu only — a game plays in the language it started in,
-   and a loaded game keeps the player names it was saved with. Every text
+   is set from the Menu only, so a game plays in the language chosen before
+   it began; a loaded game is shown in the language current at that moment
+   but keeps the player names it was saved with. Every text
    the game shows, including unit and place names, comes from the two tables
    in `src/ui/i18n/`; the rules writeup here and the map editor stay as they
    are.

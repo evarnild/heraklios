@@ -58,7 +58,7 @@ describe('combat report', () => {
         '  Archers (att 2)',
         'DÉFENSEURS (total 5) :',
         '  Phalanxes (déf 5)',
-        'Rapport : 3:2 (colonne TRC « 3-2 », colonne 6 sur 9, indice 5)',
+        'Rapport : 3:2 (colonne « 3-2 » de la table des résultats, colonne 6 sur 9, indice 5)',
         'Dé : 4 + 1 (1 Plateau at (4, 9) + 1 river crossing) = 5',
         'Résultat : DR — défenseur recule',
       ].join('\n'),
@@ -98,7 +98,7 @@ describe('ram report', () => {
   it('is written in French, singular and plural', () => {
     expect(fr.log.ramReport(RAM)).toContain('(1 point de mouvement inutilisé)');
     expect(fr.log.ramReport({ ...RAM, unusedMovement: 2 })).toContain('(2 points de mouvement inutilisés)');
-    expect(fr.log.ramReport(RAM)).toContain('Dé : 5 -> COULÉ !');
+    expect(fr.log.ramReport(RAM)).toContain('Dé : 5 -> NAVIRE COULÉ !');
   });
 });
 
@@ -133,7 +133,10 @@ describe('boarding report', () => {
 
   it('words a no-effect roll and the French side names', () => {
     expect(en.log.boardingReport({ ...BOARDING, side: null, defenderSunk: false })).toContain('Die: 4 -> no decisive effect');
-    expect(fr.log.boardingReport(BOARDING)).toContain('Dé : 4 -> le défenseur perd 3 d’équipement');
+    expect(fr.log.boardingReport(BOARDING)).toContain('Dé : 4 -> le défenseur perd 3 d’équipage');
+    expect(fr.log.boardingReport(BOARDING)).toContain('Colonne de la table des résultats : « 1-2 »');
+    expect(fr.log.boardingReport(BOARDING)).toContain('  L’unité Biremes est COULÉE !');
+    expect(fr.log.boardingReport(BOARDING)).toContain('3/4 -> 1/4 d’équipage');
     expect(fr.log.boardingReport({ ...BOARDING, side: 'attacker' })).toContain('l’attaquant perd');
   });
 });

@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { UNIT_TYPES } from '../../data/units';
 import { resetSession, session } from '../session';
-import { TERRAIN_ORDER } from '../hexRender';
+import { PLAYER_COLOR_NAMES, TERRAIN_ORDER } from '../hexRender';
 import { messagesFor, resetLanguageForTests, setLanguage, type Language } from './index';
-import { countryNames, terrainName, unitName } from './names';
+import { colorName, countryNames, edgeName, phaseName, seatControlName, terrainName, unitName } from './names';
 
 const ENGLISH_UNITS: Record<string, string> = {
   archers: 'Archers',
@@ -86,5 +86,25 @@ describe('names', () => {
     expect(unitName('fantassins')).toBe('Fantassins');
     expect(terrainName('zone-cap-zenon')).toBe('Cap Zénon');
     expect(unitName('no-such-unit')).toBe('no-such-unit');
+  });
+
+  it('words edges, phases and seats in the current language', () => {
+    vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => undefined });
+    setLanguage('en');
+    expect([edgeName('W'), phaseName('movement'), seatControlName('ai-ev')]).toEqual(['W', 'movement', 'AI — hard']);
+    setLanguage('fr');
+    expect([edgeName('W'), phaseName('combat'), seatControlName('ai-lookahead')]).toEqual(['O', 'combat', 'IA — prudente']);
+    expect(edgeName('X')).toBe('X');
+  });
+
+  it('keeps the colour words in the order of the counter colours', () => {
+    vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => undefined });
+    const english = ['yellow', 'red', 'blue', 'green'];
+    expect(PLAYER_COLOR_NAMES).toEqual(english);
+    setLanguage('en');
+    expect(PLAYER_COLOR_NAMES.map((_, i) => colorName(i))).toEqual(english);
+    setLanguage('fr');
+    expect(PLAYER_COLOR_NAMES.map((_, i) => colorName(i))).toEqual(['jaune', 'rouge', 'bleu', 'vert']);
+    expect(colorName(9)).toBe('?');
   });
 });

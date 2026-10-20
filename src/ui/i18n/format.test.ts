@@ -55,7 +55,7 @@ describe('formatDriftEvent', () => {
     {
       event: { kind: 'driftStarted', elephant: e, remainingSteps: 3 },
       en: 'Elephants is forced to retreat - instead it drifts!',
-      fr: 'Éléphants doit reculer — il dérive à la place !',
+      fr: 'L’unité Éléphants doit reculer — elle dérive à la place !',
     },
     {
       event: { kind: 'directionRolled', elephant: e, dieRoll: 4, direction: { q: 1, r: 0 }, remainingSteps: 2 },
@@ -65,32 +65,32 @@ describe('formatDriftEvent', () => {
     {
       event: { kind: 'moved', elephant: e, hex: { q: 6, r: 15 } },
       en: 'Elephants moves to (6, 15).',
-      fr: 'Éléphants se déplace en (6, 15).',
+      fr: 'L’unité Éléphants se déplace en (6, 15).',
     },
     {
       event: { kind: 'stopped', elephant: e },
       en: 'Elephants has used up its movement and stops drifting.',
-      fr: 'Éléphants a épuisé son déplacement et cesse de dériver.',
+      fr: 'L’unité Éléphants a épuisé son déplacement et cesse de dériver.',
     },
     {
       event: { kind: 'eliminatedLeavingLandZone', elephant: e, hex: { q: 7, r: 15 } },
       en: 'Elephants drifts into the marsh and is eliminated!',
-      fr: 'Éléphants dérive dans les marais et est éliminé !',
+      fr: 'L’unité Éléphants dérive dans les marais et est éliminée !',
     },
     {
       event: { kind: 'eliminatedLeavingLandZone', elephant: e, hex: { q: 9999, r: 9999 } },
       en: 'Elephants drifts off the map and is eliminated!',
-      fr: 'Éléphants dérive hors de la carte et est éliminé !',
+      fr: 'L’unité Éléphants dérive hors de la carte et est éliminée !',
     },
     {
       event: { kind: 'driftElephantDestroyed', elephant: e },
       en: 'Elephants is destroyed.',
-      fr: 'Éléphants est détruit.',
+      fr: 'L’unité Éléphants est détruite.',
     },
     {
       event: { kind: 'repelled', elephant: e },
       en: 'Elephants is repelled and must drift again!',
-      fr: 'Éléphants est repoussé et doit dériver à nouveau !',
+      fr: 'L’unité Éléphants est repoussée et doit dériver à nouveau !',
     },
   ];
   it.each(cases.map((c, i) => ({ ...c, name: `${i} ${c.event.kind}` })))('narrates $name', ({ event, en, fr }) => {
@@ -98,11 +98,19 @@ describe('formatDriftEvent', () => {
     expect(formatDriftEvent(event, messagesFor('fr'))).toBe(fr);
   });
 
-  it('words the sea exit for a hex on the map that is not marsh', () => {
-    const event: DriftEvent = { kind: 'eliminatedLeavingLandZone', elephant: e, hex: { q: 0, r: 0 } };
-    // (0,0) is a map hex on the shipped board; whichever of sea/off-map it is,
-    // it must not read as the marsh.
-    expect(formatDriftEvent(event, messagesFor('en'))).not.toContain('marsh');
+  it('words the sea exit', () => {
+    // (23,3) is a sea hex on the shipped map (see drift.test.ts's off-map-or-sea case).
+    const event: DriftEvent = { kind: 'eliminatedLeavingLandZone', elephant: e, hex: { q: 23, r: 3 } };
+    expect(formatDriftEvent(event, messagesFor('en'))).toBe('Elephants drifts into the sea and is eliminated!');
+    expect(formatDriftEvent(event, messagesFor('fr'))).toBe('L’unité Éléphants dérive dans la mer et est éliminée !');
+  });
+
+  it('agrees with a feminine unit and a plural one alike, because the sentence is about "l’unité"', () => {
+    const feminine = { ...e, typeId: 'cavalerie-legere' };
+    const plural = { ...e, typeId: 'chars-lourds' };
+    const fr = messagesFor('fr');
+    expect(formatDriftEvent({ kind: 'repelled', elephant: feminine }, fr)).toBe('L’unité Cavalerie Légère est repoussée et doit dériver à nouveau !');
+    expect(formatDriftEvent({ kind: 'driftElephantDestroyed', elephant: plural }, fr)).toBe('L’unité Chars Lourds est détruite.');
   });
 
   it('narrates nothing for the beats that were never logged', () => {

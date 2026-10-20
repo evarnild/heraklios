@@ -8,7 +8,7 @@ review_tier: reviewed    # spec: describeSave leaves src/engine/saveGame.ts (Rev
 intent_accepted: 2026-10-20 by-agent    # owner's "yes" in chat
 spec_accepted: 2026-10-20 by-agent    # owner's "yes" in chat (with Reviewed tier and saved names kept)
 plan_approved: 2026-10-20 by-agent    # owner's "yes" in chat
-live_checked: 2026-10-20 by-agent    # owner: "live check done" in chat
+live_checked:
 merged:
 follows_up:
 links:

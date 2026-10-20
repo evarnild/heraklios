@@ -234,9 +234,10 @@ pending list and one allow-list entry (the title); B3–B12 as specified.
 - **Report sentences take structured values** (`reports.ts`: `CombatReport`,
   `RamReport`, `BoardingReport`) so each language writes the whole multi-line
   report. English text is pinned line for line in `reports.test.ts`.
-- **One English text changed:** the terrain named in a combat's die modifier
-  was the raw id (`1 steep-flank at (4, 9)`); it is now the terrain's name
-  (`1 Steep flanks at (4, 9)`), because the id cannot be translated.
+- **One English text changed:** a combat report's die-modifier line named
+  the terrain by its internal id (`1 steep-flank at (4, 9)`); it now shows the
+  terrain's display name from the table (`1 Steep flanks at (4, 9)`), the only
+  way to put it in French. No other English string differs from `main`.
 - **French labels shortened where the English-sized slot did not fit** (from
   screenshots at 1100×750): placement "Terminé", ship facing "Valider",
   save/delete "Sauver"/"Effacer".
@@ -258,3 +259,36 @@ could reach always retreated, which replaces the report with the retreat prompt
 — and the advance, exchange and boarding prompts, which need results I could
 not force. By line count the French reports end above the panel buttons, and
 the existing code already puts the buttons on top of a long log.
+
+### 2026-10-20 — rework after review round 1
+
+Fixed the review's MEDIUM and French-wording findings; `npm run verify` green
+(lint 21), `e2e` unchanged (English only, not re-run: no English text moved).
+
+- **Drift hook order (MEDIUM).** `drift.test.ts` records every hook
+  (`onDriftStart`, `onNarrate:<kind>`, `onDirectionRolled`, `onDriftMoved`,
+  `onRender`, `onCombat`, `onStep`) and pins the exact sequence for a move-and-stop
+  drift, a combat that destroys the elephant, and one that repels it. Checked by
+  mutation: deleting each of the seven `onNarrate` calls in `drift.ts` fails
+  the new tests (7/7 killed).
+- **French agreement.** Sentences with a unit as subject now say "L'unité
+  <nom> …" (feminine singular), so they agree whatever the unit is called —
+  "L'unité Éléphants est détruite.", "L'unité Cavalerie Légère est repoussée…"
+  (both pinned in `format.test.ts`). The ram result reads "NAVIRE COULÉ !"; a
+  sunk unit in a boarding is "L'unité X est COULÉE !".
+- **Wording:** "table des résultats" (not TRC), "points d'équipage" (not
+  d'équipement), "Tiré au sort à chaque tour", "restant/restants" agrees with the
+  count, "Qui joue chaque camp" / "Les camps au-delà … sont ignorés".
+- **LOW items taken:** README's loaded-game sentence corrected (a loaded game is
+  shown in the current language, keeps its saved names); the stale
+  `PLAYER_COLOR_NAMES` comment in `BoardScene` rewritten; `names.test.ts` now
+  covers `edgeName`, `phaseName`, `seatControlName` and pins `en.colors` /
+  `colorName` against `PLAYER_COLOR_NAMES`' order; the sea-exit sentence is
+  pinned in both languages.
+- **Fit re-checked** (Chromium, 1100×750): the Menu with "Qui joue chaque camp"
+  and the four seat buttons still fit (widest label "Macédoine : IA — prudente"
+  in a 208 px button); the longer drift/combat sentences are log text in the
+  268 px wrapped panel, which wraps rather than clips. The French combat and
+  boarding reports are now about three lines longer (by count, ending near y≈450
+  of the panel's 583 px button row); still not seen live — the owner's re-check.
+- `live_checked` cleared: the French texts changed after the owner's check.

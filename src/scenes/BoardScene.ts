@@ -1335,11 +1335,10 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     const control = seatControlFor(activeId);
     // plan.md §24: in hotseat play the army name alone doesn't always let a
     // player quickly identify the active seat, so the status line also names
-    // the map edge the seat owns and the on-board color of its units. Index
-    // into PLAYER_COLOR_NAMES with `activeId` — the same player index used to
-    // look up PLAYER_COLORS_HEX for actually rendering the seat's units (see
-    // e.g. `ship.owner`/`markerTextureKey` callers) — so the name always
-    // matches the color shown on the board.
+    // the map edge the seat owns and the on-board color of its units. The
+    // color word is looked up with `activeId` (`colorName`, same order as
+    // `PLAYER_COLOR_NAMES`/`PLAYER_COLORS_HEX`, which render the units — see
+    // `names.test.ts`) so the name always matches the color shown on the board.
     const t = messages().board;
     const seatLabel = t.seat(player.name, edgeName(player.edge), colorName(activeId));
     const who = isAiSeat(control) ? t.seatWithControl(seatLabel, seatControlName(control)) : seatLabel;
