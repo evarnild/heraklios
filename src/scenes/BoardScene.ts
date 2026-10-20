@@ -1,7 +1,9 @@
 import Phaser from 'phaser';
 import { MapView, drawFacingArrowhead } from '../ui/MapView';
-import { PLAYER_COLORS_HEX, PLAYER_COLOR_NAMES } from '../ui/hexRender';
+import { PLAYER_COLORS_HEX } from '../ui/hexRender';
+import { messages } from '../ui/i18n';
 import { formatDriftEvent } from '../ui/i18n/format';
+import type { BoardingReport, CombatReport, RamReport } from '../ui/i18n/reports';
 import { session, resetToMenu, seatControlFor } from '../ui/session';
 import { showConfirmDialog } from '../ui/confirmDialog';
 import { SaveLoadPanel } from '../ui/saveLoadPanel';
@@ -24,7 +26,7 @@ import { formatRemainingClock } from '../engine/gameEndSettings';
 import { applyAction, legalActions, type Action } from '../engine/actions';
 import type { PlayerAgent, ActionObserver, DrivingAgent } from '../engine/agent';
 import { createSeatAgent, isAiSeat } from '../engine/seatControl';
-import { seatControlName } from '../ui/i18n/names';
+import { colorName, edgeName, phaseName, seatControlName, terrainName, unitName } from '../ui/i18n/names';
 import { routeBySeat } from '../engine/seatRouter';
 import { rollDie as engineRollDie } from '../engine/dice';
 import {
@@ -294,9 +296,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         onRender: () => this.renderAllUnits(),
         onStep: this.driftOnStepHook(),
         onCombat: (detail, outcome, drifting, occupant, hex) => {
-          this.appendLine(
-            `${unitType(drifting).name} tramples into ${unitType(occupant).name} at (${hex.q}, ${hex.r}).`,
-          );
+          this.appendLine(messages().log.tramples(nameOf(drifting), nameOf(occupant), hex.q, hex.r));
           this.appendLine(
             this.formatCombatOutcome(
               [drifting],
@@ -309,17 +309,17 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         },
         onRetreat: (unit, _hex, isPushedLink) => {
           this.decisionPending = false;
-          if (!isPushedLink) this.appendLine(`${unitType(unit).name} retreats.`);
+          if (!isPushedLink) this.appendLine(messages().log.retreats(nameOf(unit)));
           this.renderAllUnits();
         },
         onPush: (unit, pushed) => {
           this.decisionPending = false;
-          this.appendLine(`${unitType(pushed).name} retreats, making room for ${unitType(unit).name}.`);
+          this.appendLine(messages().log.retreatsMakingRoom(nameOf(pushed), nameOf(unit)));
           this.renderAllUnits();
         },
         onEliminated: (unit) => {
           this.decisionPending = false;
-          this.appendLine(`${unitType(unit).name} had nowhere to retreat and was eliminated.`);
+          this.appendLine(messages().log.eliminatedNowhere(nameOf(unit)));
           this.renderAllUnits();
         },
       },
@@ -590,6 +590,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.buildSeatAgents();
 
     const { width, height } = this.scale;
+    const t = messages().board;
     this.mapView = new MapView(this, width, height, PANEL_WIDTH);
     this.renderAllUnits();
 
@@ -600,7 +601,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       .setDepth(25);
 
     const endBtn = this.add
-      .text(PANEL_WIDTH / 2, 24, 'End phase', {
+      .text(PANEL_WIDTH / 2, 24, t.endPhase, {
         fontSize: '15px',
         color: '#fff',
         backgroundColor: '#2a5a2a',
@@ -613,7 +614,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     endBtn.on('pointerdown', () => this.endPhase());
 
     this.resolveBtn = this.add
-      .text(PANEL_WIDTH / 2, 64, 'Resolve attack', {
+      .text(PANEL_WIDTH / 2, 64, t.resolveAttack, {
         fontSize: '15px',
         color: '#fff',
         backgroundColor: '#5a2a2a',
@@ -632,7 +633,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // (always 1 point per 60° turn, `navalMovement.ts:69-70`) — direction is
     // the informative half per the design decision, not cost.
     this.rotateCCWBtn = this.add
-      .text(76, 96, 'Turn', {
+      .text(76, 96, messages().common.turn, {
         fontSize: '12px',
         color: '#fff',
         backgroundColor: '#3a3a55',
@@ -646,7 +647,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.rotateCCWBtn.on('pointerdown', () => this.rotateSelectedShip(-1));
 
     this.rotateCWBtn = this.add
-      .text(160, 96, 'Turn', {
+      .text(160, 96, messages().common.turn, {
         fontSize: '12px',
         color: '#fff',
         backgroundColor: '#3a3a55',
@@ -665,7 +666,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.turnCwGlyph = this.add.graphics().setScrollFactor(0).setDepth(31);
 
     this.ramNowBtn = this.add
-      .text(244, 96, 'Ram!', {
+      .text(244, 96, t.ram, {
         fontSize: '12px',
         color: '#fff',
         backgroundColor: '#802020',
@@ -679,7 +680,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.ramNowBtn.on('pointerdown', () => this.attemptImmediateRam());
 
     this.undoBtn = this.add
-      .text(16, height - 72, '↶ Undo', {
+      .text(16, height - 72, messages().common.undo, {
         fontSize: '12px',
         color: '#fff',
         backgroundColor: '#3a3a55',
@@ -692,7 +693,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.undoBtn.on('pointerdown', () => this.undo());
 
     this.redoBtn = this.add
-      .text(16, height - 40, '↷ Redo', {
+      .text(16, height - 40, messages().common.redo, {
         fontSize: '12px',
         color: '#fff',
         backgroundColor: '#3a3a55',
@@ -705,7 +706,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.redoBtn.on('pointerdown', () => this.redo());
 
     const saveLoadBtn = this.add
-      .text(16, height - 104, '💾 Save / Load', {
+      .text(16, height - 104, t.saveLoad, {
         fontSize: '12px',
         color: '#fff',
         backgroundColor: '#4a3f2a',
@@ -717,7 +718,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     saveLoadBtn.on('pointerdown', () => this.openSaveLoad());
 
     this.abandonBtn = this.add
-      .text(16, height - 136, '✕ Abandon game', {
+      .text(16, height - 136, t.abandonGame, {
         fontSize: '12px',
         color: '#fff',
         backgroundColor: '#5a2a2a',
@@ -732,7 +733,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // confirm dialog as Abandon — but unlike Abandon it does NOT end the game
     // on the spot; see `confirmEndGame`.
     this.endGameBtn = this.add
-      .text(16, height - 168, '⚑ End game', {
+      .text(16, height - 168, t.endGame, {
         fontSize: '12px',
         color: '#fff',
         backgroundColor: '#5a4a1a',
@@ -750,7 +751,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // guard against an AI seat's turn or a pending choice — pausing only
     // stops `elapsedMs` from advancing.
     this.pauseBtn = this.add
-      .text(16, height - 200, '⏸ Pause clock', {
+      .text(16, height - 200, t.pauseClock, {
         fontSize: '12px',
         color: '#fff',
         backgroundColor: '#2a4a4a',
@@ -770,7 +771,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // promise via `resolveDriftContinue`. Hidden by default; only shown while
     // `driftContinueResolve` is actually pending (see `awaitDriftContinue`).
     this.driftContinueBtn = this.add
-      .text(16, height - 232, '▶ Continue', {
+      .text(16, height - 232, t.continue, {
         fontSize: '12px',
         color: '#fff',
         backgroundColor: '#4a2a5a',
@@ -860,7 +861,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.refreshStatus();
     this.refreshUndoRedoButtons();
     this.autosave();
-    if (staged) this.log('Game loaded.');
+    if (staged) this.log(messages().log.gameLoaded);
     // Last: a game whose first (or resumed) seat is an AI plays itself
     // straight away, with no human input needed to get it going.
     this.maybeStartAiTurn();
@@ -962,7 +963,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.renderAllUnits();
     this.refreshStatus();
     this.refreshUndoRedoButtons();
-    this.log('Game loaded.');
+    this.log(messages().log.gameLoaded);
     this.maybeStartAiTurn();
   }
 
@@ -983,11 +984,11 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // being mutated between frames, so a save taken mid-turn would capture an
     // arbitrary half-finished position.
     if (this.aiRunning) {
-      this.log("Wait for the computer's turn to finish before saving or loading.");
+      this.log(messages().log.waitComputerSave);
       return;
     }
     if (this.retreatChoice || this.driftState || this.decisionPending) {
-      this.log('Resolve the pending retreat/drift before saving or loading.');
+      this.log(messages().log.resolvePendingSave);
       return;
     }
     new SaveLoadPanel(this, {
@@ -1035,9 +1036,9 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   private confirmAbandon(): void {
     showConfirmDialog({
       scene: this,
-      message: 'Abandon this game and return to the menu?\nProgress since your last save will be lost.',
-      confirmLabel: 'Abandon',
-      cancelLabel: 'Keep playing',
+      message: messages().common.abandonMessage(messages().board.abandonMessage),
+      confirmLabel: messages().common.abandon,
+      cancelLabel: messages().board.keepPlaying,
       excludeFromMainCamera: (objects) => this.mapView.excludeFromMainCamera(objects),
       onConfirm: () => {
         // Deliberately NOT clearing the autosave here. It's the crash-
@@ -1081,23 +1082,22 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   private confirmEndGame(): void {
     const state = this.state();
     if (this.aiRunning) {
-      this.log("Wait for the computer's turn to finish before ending the game.");
+      this.log(messages().log.waitComputerEnd);
       return;
     }
     if (this.retreatChoice || this.driftState || this.decisionPending) {
-      this.log('Resolve the pending retreat/drift before ending the game.');
+      this.log(messages().log.resolvePendingEnd);
       return;
     }
     if (state.pendingGameEnd) {
-      this.log('The game is already ending after this round.');
+      this.log(messages().log.alreadyEnding);
       return;
     }
     showConfirmDialog({
       scene: this,
-      message:
-        'End the game now?\nEvery player still finishes their current round — the highest remaining army value wins, and a tie is a draw.',
-      confirmLabel: 'End game',
-      cancelLabel: 'Keep playing',
+      message: messages().board.endGameMessage,
+      confirmLabel: messages().board.endGameConfirm,
+      cancelLabel: messages().board.keepPlaying,
       excludeFromMainCamera: (objects) => this.mapView.excludeFromMainCamera(objects),
       onConfirm: () => {
         requestGameEnd(this.state());
@@ -1108,7 +1108,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         this.history.clear();
         this.refreshUndoRedoButtons();
         this.refreshStatus();
-        this.log('The game will end once every player has finished this round.');
+        this.log(messages().log.willEnd);
         this.autosave();
       },
     });
@@ -1218,38 +1218,38 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       // *into* an AI turn or past it as a whole; the answer that falls out of
       // the existing rule is neither: it stops at the handoff, exactly as it
       // already does between two human seats.
-      this.log("Can't undo during the computer's turn.");
+      this.log(messages().log.cantUndoComputer);
       return;
     }
     if (this.retreatChoice || this.driftState || this.decisionPending) {
-      this.log('Resolve the pending retreat/drift before undoing.');
+      this.log(messages().log.resolvePendingUndo);
       return;
     }
     const entry = this.history.undo(this.captureSnapshot());
     if (!entry) {
-      this.log('Nothing to undo.');
+      this.log(messages().log.nothingToUndo);
       return;
     }
     this.restoreSnapshot(entry.payload);
-    this.log(`Undone: ${entry.label}`);
+    this.log(messages().log.undone(entry.label));
   }
 
   private redo(): void {
     if (this.aiRunning) {
-      this.log("Can't redo during the computer's turn.");
+      this.log(messages().log.cantRedoComputer);
       return;
     }
     if (this.retreatChoice || this.driftState || this.decisionPending) {
-      this.log('Resolve the pending retreat/drift before redoing.');
+      this.log(messages().log.resolvePendingRedo);
       return;
     }
     const entry = this.history.redo(this.captureSnapshot());
     if (!entry) {
-      this.log('Nothing to redo.');
+      this.log(messages().log.nothingToRedo);
       return;
     }
     this.restoreSnapshot(entry.payload);
-    this.log(`Redone: ${entry.label}`);
+    this.log(messages().log.redone(entry.label));
   }
 
   /**
@@ -1319,8 +1319,8 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   private refreshUndoRedoButtons(): void {
     const undoLabel = this.history.undoLabel;
     const redoLabel = this.history.redoLabel;
-    this.undoBtn.setText(undoLabel ? `↶ Undo: ${undoLabel}` : '↶ Undo');
-    this.redoBtn.setText(redoLabel ? `↷ Redo: ${redoLabel}` : '↷ Redo');
+    this.undoBtn.setText(undoLabel ? messages().common.undoWith(undoLabel) : messages().common.undo);
+    this.redoBtn.setText(redoLabel ? messages().common.redoWith(redoLabel) : messages().common.redo);
     this.undoBtn.setAlpha(!this.aiRunning && this.history.canUndo ? 1 : 0.4);
     this.redoBtn.setAlpha(!this.aiRunning && this.history.canRedo ? 1 : 0.4);
   }
@@ -1340,23 +1340,21 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // look up PLAYER_COLORS_HEX for actually rendering the seat's units (see
     // e.g. `ship.owner`/`markerTextureKey` callers) — so the name always
     // matches the color shown on the board.
-    const seatLabel = `${player.name} (${player.edge}, ${PLAYER_COLOR_NAMES[activeId] ?? 'unknown'})`;
-    const who = isAiSeat(control) ? `${seatLabel} [${seatControlName(control)}]` : seatLabel;
+    const t = messages().board;
+    const seatLabel = t.seat(player.name, edgeName(player.edge), colorName(activeId));
+    const who = isAiSeat(control) ? t.seatWithControl(seatLabel, seatControlName(control)) : seatLabel;
     // plan.md §9.2.2 #6: tell the player when a trigger (clock, round limit,
     // or the button below) has fired, since the game does NOT end on the
     // spot — every seat still finishes this round (see `pendingGameEnd`'s
     // doc comment on `GameState`).
-    const finalRoundSuffix = state.pendingGameEnd ? ' — FINAL ROUND' : '';
-    this.statusText.setText(
-      `Turn ${state.turnNumber} — ${who} — ${state.phase.toUpperCase()} phase${finalRoundSuffix}`,
-    );
+    this.statusText.setText(t.status(state.turnNumber, who, phaseName(state.phase), state.pendingGameEnd));
     this.resolveBtn.setVisible(state.phase === 'combat' && !this.aiRunning);
-    this.endGameBtn.setText(state.pendingGameEnd ? '⚑ Ending after this round' : '⚑ End game');
+    this.endGameBtn.setText(state.pendingGameEnd ? t.endingAfterRound : t.endGame);
     this.endGameBtn.setAlpha(state.pendingGameEnd ? 0.6 : 1);
     // Only shown when Mode A is actually in use — pausing a clock that isn't
     // running has nothing to do.
     this.pauseBtn.setVisible(state.clockLimitMs !== null);
-    this.pauseBtn.setText(state.paused ? '▶ Resume clock' : '⏸ Pause clock');
+    this.pauseBtn.setText(state.paused ? t.resumeClock : t.pauseClock);
     this.refreshClockText();
   }
 
@@ -1378,8 +1376,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     if (seconds === this.lastClockDisplaySeconds && state.paused === this.lastClockDisplayPaused) return;
     this.lastClockDisplaySeconds = seconds;
     this.lastClockDisplayPaused = state.paused;
-    const pausedSuffix = state.paused ? ' (paused)' : '';
-    this.clockText.setText(`Clock: ${formatRemainingClock(remaining)} remaining${pausedSuffix}`);
+    this.clockText.setText(messages().board.clock(formatRemainingClock(remaining), state.paused));
   }
 
   /**
@@ -1482,12 +1479,12 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       const reachable = reachableHexes(state, this.selected);
       const key = `${hex.q},${hex.r}`;
       if (reachable.has(key)) {
-        const unitName = unitType(this.selected).name;
-        this.recordAction(`Move ${unitName}`);
+        const movedName = nameOf(this.selected);
+        this.recordAction(messages().actions.move(movedName));
         const action: Action = { kind: 'landMove', unitId: this.selected.id, to: hex };
         const result = applyAction(state, action);
         this.reportAction(action);
-        if (result.charged) this.log(`${unitName} charges!`);
+        if (result.charged) this.log(messages().log.charges(movedName));
         this.renderAllUnits();
         this.deselectMovement();
       }
@@ -1638,10 +1635,10 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     const ship = this.selected;
     if (!ship || unitType(ship).domain !== 'naval' || this.rammedThisTurn.has(ship.id)) return;
     if (ship.movementLeft < 1) {
-      this.log('No movement left to rotate.');
+      this.log(messages().log.noMovementToRotate);
       return;
     }
-    this.recordAction(`Turn ${unitType(ship).name}`);
+    this.recordAction(messages().actions.turn(nameOf(ship)));
     const action: Action = { kind: 'navalRotate', unitId: ship.id, direction };
     applyAction(this.state(), action);
     this.reportAction(action);
@@ -1705,7 +1702,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         .sort((a, b) => a.cost - b.cost)[0];
       const action: Action = { kind: 'navalMove', unitId: ship.id, to: hex, facing: ship.facing };
       if (contact) {
-        this.recordAction(`Move ${unitType(ship).name} into contact`);
+        this.recordAction(messages().actions.moveIntoContact(nameOf(ship)));
         applyAction(state, action);
         this.reportAction(action);
         this.renderAllUnits();
@@ -1714,7 +1711,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       }
       const dest = reachableNavalHexes(state, ship).get(hexKey(hex));
       if (!dest) return;
-      this.recordAction(`Move ${unitType(ship).name}`);
+      this.recordAction(messages().actions.move(nameOf(ship)));
       applyAction(state, action);
       this.reportAction(action);
       this.renderAllUnits();
@@ -1728,7 +1725,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // testable) rather than inline here.
     const resolved = resolveNavalAutoPathClick(state, ship, hex, this.navalContacts);
     if (!resolved) return;
-    this.recordAction(`Move ${unitType(ship).name}`);
+    this.recordAction(messages().actions.move(nameOf(ship)));
     const action: Action = { kind: 'navalMove', unitId: ship.id, to: resolved.to, facing: resolved.facing };
     applyAction(state, action);
     this.reportAction(action);
@@ -1746,7 +1743,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     const { width, height } = this.scale;
     const panel = this.add.rectangle(width / 2, height / 2, 280, 130, 0x1a1408, 0.95).setScrollFactor(0).setDepth(20);
     const label = this.add
-      .text(width / 2, height / 2 - 40, `Ram ${unitType(defender).name}?\n(bonus +${bonus})`, {
+      .text(width / 2, height / 2 - 40, messages().board.ramPrompt(nameOf(defender), bonus), {
         fontSize: '14px',
         color: '#fff',
         align: 'center',
@@ -1756,7 +1753,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       .setScrollFactor(0)
       .setDepth(21);
     const yesBtn = this.add
-      .text(width / 2 - 60, height / 2 + 25, 'Ram!', {
+      .text(width / 2 - 60, height / 2 + 25, messages().board.ram, {
         fontSize: '16px',
         color: '#fff',
         backgroundColor: '#802020',
@@ -1767,7 +1764,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       .setDepth(21)
       .setInteractive({ useHandCursor: true });
     const noBtn = this.add
-      .text(width / 2 + 60, height / 2 + 25, 'Hold off', {
+      .text(width / 2 + 60, height / 2 + 25, messages().board.holdOff, {
         fontSize: '16px',
         color: '#fff',
         backgroundColor: '#2a5a2a',
@@ -1806,7 +1803,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * mode plan.md §11 already caught once).
    */
   private commitRam(attacker: Unit, defender: Unit): void {
-    this.recordAction(`Ram ${unitType(defender).name}`);
+    this.recordAction(messages().actions.ram(nameOf(defender)));
     const attackerType = attacker.typeId as ShipTypeId;
     const defenderType = defender.typeId as ShipTypeId;
     // `applyAction`'s 'ram' case zeroes `attacker.movementLeft` once the ram
@@ -1829,21 +1826,18 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // ceiling exists. The one thing worth calling out here beyond the plain
     // "succeeds on N-M" line is that ceiling: once the effective range
     // covers every face, the ram cannot possibly miss.
-    let tableNote: string;
-    if (effectiveRange.length === HIGHEST_DIE_FACE) {
-      tableNote = `printed table row: ${printedRange.join('-')} — bonus pushes the upper bound to a d6's 6th face, so every roll hits`;
-    } else if (result.bonus > 0) {
-      tableNote = `printed table row: ${printedRange.join('-')} — bonus +${result.bonus} extends the upper bound`;
-    } else {
-      tableNote = `printed table row: ${printedRange.join('-')}`;
-    }
-    const pointWord = unusedMovement === 1 ? 'point' : 'points';
-    this.log(
-      `Ramming: ${unitType(attacker).name} vs ${unitType(defender).name}, bonus +${result.bonus} ` +
-        `(${unusedMovement} unused movement ${pointWord})\n` +
-        `Succeeds on: ${effectiveRange.join('-')}   (${tableNote})\n` +
-        `Die: ${result.dieRoll} -> ${result.hit ? 'SUNK!' : 'missed'}`,
-    );
+    const report: RamReport = {
+      attacker: nameOf(attacker),
+      defender: nameOf(defender),
+      bonus: result.bonus,
+      unusedMovement,
+      successRange: effectiveRange.join('-'),
+      printedRange: printedRange.join('-'),
+      note: effectiveRange.length === HIGHEST_DIE_FACE ? 'everyFace' : result.bonus > 0 ? 'bonus' : 'plain',
+      die: result.dieRoll,
+      hit: result.hit,
+    };
+    this.log(messages().log.ramReport(report));
     this.renderAllUnits();
     this.deselectMovement();
   }
@@ -1857,12 +1851,12 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
 
   private toggleAttacker(unit: Unit): void {
     if (this.attackedThisPhase.has(unit.id)) {
-      this.log(`${unitType(unit).name} has already attacked this phase.`);
+      this.log(messages().log.alreadyAttacked(nameOf(unit)));
       return;
     }
     const idx = this.attackGroup.findIndex((u) => u.id === unit.id);
     if (idx >= 0) {
-      this.recordAction(`Deselect ${unitType(unit).name}`);
+      this.recordAction(messages().actions.deselect(nameOf(unit)));
       this.attackGroup.splice(idx, 1);
       this.pruneIllegalCombatSelections();
       this.refreshCombatHighlights();
@@ -1873,11 +1867,11 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     const groupIsNaval = this.attackGroup.length > 0 && unitType(this.attackGroup[0]!).domain === 'naval';
     if (candidateT.domain === 'naval' || groupIsNaval) {
       if (this.rammedThisTurn.has(unit.id)) {
-        this.log(`${candidateT.name} already rammed this turn and can't also board.`);
+        this.log(messages().log.alreadyRammed(nameOf(unit)));
         return;
       }
       // Boarding is inherently one ship vs one ship — no combining.
-      this.recordAction(`Select ${candidateT.name}`);
+      this.recordAction(messages().actions.select(nameOf(unit)));
       this.attackGroup = [unit];
       this.defenderGroup = [];
       this.refreshCombatHighlights();
@@ -1886,18 +1880,18 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
 
     const state = this.state();
     if (!attackerCanJoin(state, unit, this.defenderGroup, state.combatMode)) {
-      this.log(`${candidateT.name} can't reach the current target(s).`);
+      this.log(messages().log.cantReachTargets(nameOf(unit)));
       return;
     }
     if (this.defenderGroup.length === 0 && state.combatMode === 'single-defender') {
       // No target chosen yet: still require the whole group to share at
       // least one common reachable target, so it never becomes unresolvable.
       if (commonValidTargets(state, [...this.attackGroup, unit]).length === 0) {
-        this.log(`${candidateT.name} has no eligible target in common with the current group.`);
+        this.log(messages().log.noCommonTarget(nameOf(unit)));
         return;
       }
     }
-    this.recordAction(`Select ${candidateT.name}`);
+    this.recordAction(messages().actions.select(nameOf(unit)));
     this.attackGroup.push(unit);
     this.refreshCombatHighlights();
   }
@@ -1924,20 +1918,18 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     if (dropped.length === 0) return;
     this.attackGroup = attackers;
     this.defenderGroup = defenders;
-    this.log(
-      `Removed from the combat (nothing left in range): ${dropped.map((u) => unitType(u).name).join(', ')}.`,
-    );
+    this.log(messages().log.removedFromCombat(dropped.map(nameOf)));
   }
 
   private toggleDefender(unit: Unit): void {
     if (this.attackGroup.length === 0) return;
     if (unit.defendedThisPhase) {
-      this.log(`${unitType(unit).name} has already been attacked this phase.`);
+      this.log(messages().log.alreadyAttackedTarget(nameOf(unit)));
       return;
     }
     const idx = this.defenderGroup.findIndex((u) => u.id === unit.id);
     if (idx >= 0) {
-      this.recordAction(`Untarget ${unitType(unit).name}`);
+      this.recordAction(messages().actions.untarget(nameOf(unit)));
       this.defenderGroup.splice(idx, 1);
       this.pruneIllegalCombatSelections();
       this.refreshCombatHighlights();
@@ -1948,7 +1940,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     const attackerT = unitType(this.attackGroup[0]!);
     if (attackerT.domain === 'naval') {
       if (!validTargets(state, this.attackGroup[0]!).some((u) => u.id === unit.id)) {
-        this.log(`${unitType(unit).name} isn't adjacent with a parallel facing — not a legal boarding target.`);
+        this.log(messages().log.notBoardable(nameOf(unit)));
         return;
       }
       this.navalAttackPrompt(this.attackGroup[0]!, unit);
@@ -1956,7 +1948,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     }
 
     if (state.combatMode === 'single-defender' && this.defenderGroup.length >= 1) {
-      this.log('Single-defender mode: only one target per attack — resolve or deselect it first.');
+      this.log(messages().log.singleTargetOnly);
       return;
     }
     if (!defenderCanJoin(state, unit, this.attackGroup, state.combatMode)) {
@@ -1966,13 +1958,13 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       // groupmate could in fact reach this unit just fine (see
       // `defenderCanJoin`'s doc comment in engine/combat.ts).
       if (this.attackGroup.some((a) => !cavalryMayAttack(a, unit))) {
-        this.log(`${unitType(unit).name} can't be attacked by cavalry — remove the cavalry from the group first.`);
+        this.log(messages().log.cavalryCantAttack(nameOf(unit)));
       } else {
-        this.log(`${unitType(unit).name} isn't reachable by the current attack group.`);
+        this.log(messages().log.notReachable(nameOf(unit)));
       }
       return;
     }
-    this.recordAction(`Target ${unitType(unit).name}`);
+    this.recordAction(messages().actions.target(nameOf(unit)));
     this.defenderGroup.push(unit);
     this.refreshCombatHighlights();
   }
@@ -2109,11 +2101,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     const state = this.state();
     const legalHexes = legalRetreatHexes(state, unit);
     if (legalHexes.length > 0) {
-      this.appendLine(
-        isPushedLink
-          ? `${unitType(unit).name} must retreat to make room — click a highlighted hex.`
-          : `${unitType(unit).name} must retreat — click a highlighted hex.`,
-      );
+      this.appendLine(isPushedLink ? messages().log.mustRetreatRoom(nameOf(unit)) : messages().log.mustRetreat(nameOf(unit)));
       this.seatRouter.chooseRetreat(state, unit, legalHexes).then((hex) => {
         // `decisionPending` must clear even if the mutation below throws —
         // otherwise every guard it gates (undo, autosave, onHexClick, ...)
@@ -2135,7 +2123,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
           // Only the TOP-level retreater gets its own "X retreats." line —
           // a pushed unit's move is narrated once, by the pusher's `onDone`
           // below ("X retreats, making room for Y"), not twice.
-          if (!isPushedLink) this.appendLine(`${unitType(unit).name} retreats.`);
+          if (!isPushedLink) this.appendLine(messages().log.retreats(nameOf(unit)));
           this.renderAllUnits();
         } finally {
           this.decisionPending = false;
@@ -2154,10 +2142,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       // in the common case (one friendly neighbour, five enemies). The count
       // is stated because the player is about to be asked to click one of
       // them.
-      const roomMakers = pushTargets.length === 1 ? 'one neighboring friendly unit can' : `${pushTargets.length} neighboring friendly units can`;
-      this.appendLine(
-        `${unitType(unit).name} has nowhere to retreat — ${roomMakers} make room. Click one to push it.`,
-      );
+      this.appendLine(messages().log.nowhereToRetreat(nameOf(unit), pushTargets.length));
       this.seatRouter.choosePushTarget(state, unit, pushTargets).then((pushed) => {
         // Unlike the direct-retreat leaf above, this one can't just clear
         // `decisionPending` in a `finally`: it's already `true` from
@@ -2179,7 +2164,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
             pushed,
             () => {
               completePush(unit, vacatedHex);
-              this.appendLine(`${unitType(pushed).name} retreats, making room for ${unitType(unit).name}.`);
+              this.appendLine(messages().log.retreatsMakingRoom(nameOf(pushed), nameOf(unit)));
               this.renderAllUnits();
               onDone();
             },
@@ -2205,7 +2190,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // terminal state with no further prompt left to clear it otherwise.
     unit.destroyed = true;
     this.decisionPending = false;
-    this.appendLine(`${unitType(unit).name} had nowhere to retreat and was eliminated.`);
+    this.appendLine(messages().log.eliminatedNowhere(nameOf(unit)));
     this.renderAllUnits();
     onDone();
   }
@@ -2300,7 +2285,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       try {
         if (chosen) {
           chosen.position = vacatedHex;
-          this.log(`${unitType(chosen).name} advances into the vacated hex.`);
+          this.log(messages().log.advances(nameOf(chosen)));
           this.renderAllUnits();
         }
       } finally {
@@ -2328,7 +2313,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         .setScrollFactor(0)
         .setDepth(20);
       const title = this.add
-        .text(width / 2, top + 20, 'Advance into the vacated hex?', {
+        .text(width / 2, top + 20, messages().board.advanceTitle, {
           fontSize: '13px',
           color: '#fff',
           align: 'center',
@@ -2351,7 +2336,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
 
       candidates.forEach((unit, i) => {
         const btn = this.add
-          .text(width / 2, top + 48 + i * rowHeight, `${choiceLetter(i)} — Advance ${unitType(unit).name}`, {
+          .text(width / 2, top + 48 + i * rowHeight, messages().board.advanceUnit(choiceLetter(i), nameOf(unit)), {
             fontSize: '13px',
             color: '#fff',
             backgroundColor: '#553',
@@ -2369,7 +2354,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       });
 
       const declineBtn = this.add
-        .text(width / 2, top + panelHeight - 20, "Don't advance", {
+        .text(width / 2, top + panelHeight - 20, messages().board.dontAdvance, {
           fontSize: '13px',
           color: '#fff',
           backgroundColor: '#2a5a2a',
@@ -2392,27 +2377,25 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   private resolveGroupAttack(): void {
     if (this.aiRunning) return;
     if (this.retreatChoice || this.driftState || this.decisionPending) {
-      this.log('Resolve the pending retreat/drift before starting a new attack.');
+      this.log(messages().log.resolvePendingAttack);
       return;
     }
     const state = this.state();
     if (state.phase !== 'combat') return;
     if (this.attackGroup.length === 0) {
-      this.log('Select at least one attacking unit first.');
+      this.log(messages().log.selectAttacker);
       return;
     }
     if (unitType(this.attackGroup[0]!).domain === 'naval') {
-      this.log('Naval attacks resolve immediately when you pick a target.');
+      this.log(messages().log.navalImmediate);
       return;
     }
     if (this.defenderGroup.length === 0) {
-      this.log('Select at least one target.');
+      this.log(messages().log.selectTarget);
       return;
     }
 
-    this.recordAction(
-      `Attack with ${this.attackGroup.length} unit(s)`,
-    );
+    this.recordAction(messages().actions.attackWith(this.attackGroup.length));
     void this.executeLandAttack({
       kind: 'landAttack',
       attackerIds: this.attackGroup.map((u) => u.id),
@@ -2463,9 +2446,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
           .then((chosen) => {
             try {
               applyExchangeSacrifice(chosen);
-              this.log(
-                `Exchange: defender(s) destroyed; sacrificed ${chosen.map((u) => unitType(u).name).join(', ') || 'none'}.`,
-              );
+              this.log(messages().log.exchangeSacrificed(chosen.map(nameOf)));
               this.renderAllUnits();
               this.clearCombatSelection();
             } finally {
@@ -2510,14 +2491,6 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     done?.();
   }
 
-  private static readonly RESULT_LABELS: Record<string, string> = {
-    AE: 'AE — attacker eliminated',
-    AR: 'AR — attacker retreats',
-    DE: 'DE — defender eliminated',
-    DR: 'DR — defender retreats',
-    EX: 'EX — exchange',
-  };
-
   private logCombatOutcome(
     attackers: Unit[],
     defenders: Unit[],
@@ -2535,54 +2508,51 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     requiredSacrificeForce: number,
     requiresExchangeChoice: boolean,
   ): string {
-    const unitLines = (units: Unit[], statFn: (u: Unit) => number, label: string) =>
-      units.map((u) => `  ${unitType(u).name} (${label} ${statFn(u)})`).join('\n');
-
+    const m = messages();
     // Name every contributor to the combined modifier, so a surprising die
     // result can be traced back to the exact terrain (and defender hex) or
     // river crossing that produced it, rather than just a bare number.
     const modifierParts: string[] = [];
     if (detail.terrainOnlyModifier !== 0 && detail.terrainModifierSource) {
       const hex = detail.terrainModifierSourceHex;
-      const hexLabel = hex ? ` at (${hex.q}, ${hex.r})` : '';
-      modifierParts.push(`${detail.terrainOnlyModifier} ${detail.terrainModifierSource}${hexLabel}`);
+      modifierParts.push(
+        m.log.terrainModifier(detail.terrainOnlyModifier, terrainName(detail.terrainModifierSource), hex?.q ?? null, hex?.r ?? null),
+      );
     }
     if (detail.riverCrossingApplied) {
-      modifierParts.push(`${RIVER_CROSSING.combatModifier} river crossing`);
+      modifierParts.push(m.log.riverModifier(RIVER_CROSSING.combatModifier));
     }
     const clampedDie = Math.min(6, Math.max(1, detail.modifiedDieRoll));
-    const dieLine =
-      detail.terrainModifier !== 0
-        ? `Die: ${detail.rawDieRoll} + ${detail.terrainModifier} (${modifierParts.join(' + ')}) = ${detail.modifiedDieRoll}`
-        : `Die: ${detail.rawDieRoll}`;
-
-    const lines = [
-      `ATTACKERS (total ${detail.attackForce}):`,
+    const report: CombatReport = {
       // Per-unit force comes from `detail.attackerForces`, NOT `currentAttack`:
       // an archer shooting from two hexes contributes its projectile value
       // (see `attackForceAgainst`), and printing its melee 0 here would make
       // the per-unit lines fail to add up to the total right above them.
-      unitLines(attackers, (u) => detail.attackerForces.get(u.id) ?? currentAttack(u), 'atk'),
-      `DEFENDERS (total ${detail.defenseForce}):`,
-      unitLines(defenders, currentDefense, 'def'),
+      attackers: attackers.map((u) => ({ unit: nameOf(u), force: detail.attackerForces.get(u.id) ?? currentAttack(u) })),
+      defenders: defenders.map((u) => ({ unit: nameOf(u), force: currentDefense(u) })),
+      attackTotal: detail.attackForce,
+      defenseTotal: detail.defenseForce,
+      ratio: detail.ratioLabel.replace('-', ':'),
       // The column/row pair a result can be checked against directly in
       // data/combatTable.ts's LAND_CRT, not just the human-readable ratio.
-      `Ratio: ${detail.ratioLabel.replace('-', ':')} (CRT column "${detail.ratioLabel}", column ${detail.crtColumnIndex + 1} of ${RATIO_COLUMNS.length}, array index ${detail.crtColumnIndex})`,
-      dieLine + (clampedDie !== detail.modifiedDieRoll ? ` (used ${clampedDie})` : ''),
-      `Result: ${BoardScene.RESULT_LABELS[detail.result] ?? detail.result}`,
-    ];
-    // Only shown when a sacrifice choice is actually still pending: a lone
-    // attacker on an EX result is destroyed outright, with no choice ever
-    // offered (`applyLandCombatResult`'s single-attacker branch) — stating
-    // a threshold nobody gets asked to meet would read as a contradiction
-    // right next to a unit the log just showed being wiped out unconditionally.
-    if (detail.result === 'EX' && requiresExchangeChoice) {
-      lines.push(
-        `Exchange threshold: attacker must sacrifice units totaling at least ${requiredSacrificeForce} attack (the defenders' total force).`,
-      );
-    }
-
-    return lines.join('\n');
+      crtColumn: detail.ratioLabel,
+      columnNumber: detail.crtColumnIndex + 1,
+      columnCount: RATIO_COLUMNS.length,
+      columnIndex: detail.crtColumnIndex,
+      dieRaw: detail.rawDieRoll,
+      modifier: detail.terrainModifier,
+      modifierParts,
+      dieModified: detail.modifiedDieRoll,
+      dieUsed: clampedDie !== detail.modifiedDieRoll ? clampedDie : null,
+      result: (m.results as Record<string, string>)[detail.result] ?? detail.result,
+      // Only shown when a sacrifice choice is actually still pending: a lone
+      // attacker on an EX result is destroyed outright, with no choice ever
+      // offered (`applyLandCombatResult`'s single-attacker branch) — stating
+      // a threshold nobody gets asked to meet would read as a contradiction
+      // right next to a unit the log just showed being wiped out unconditionally.
+      exchangeThreshold: detail.result === 'EX' && requiresExchangeChoice ? requiredSacrificeForce : null,
+    };
+    return m.log.combatReport(report);
   }
 
   /** `PlayerAgent.chooseExchangeSacrifice` — on an EX (exchange) result with
@@ -2604,7 +2574,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         .setScrollFactor(0)
         .setDepth(20);
       const title = this.add
-        .text(width / 2, top + 20, `Exchange: choose losses\n(need ≥ ${requiredForce} attack force)`, {
+        .text(width / 2, top + 20, messages().board.exchangeTitle(requiredForce), {
           fontSize: '13px',
           color: '#fff',
           align: 'center',
@@ -2618,7 +2588,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         .setScrollFactor(0)
         .setDepth(21);
       const confirmBtn = this.add
-        .text(width / 2, top + panelHeight - 16, 'Confirm losses', {
+        .text(width / 2, top + panelHeight - 16, messages().board.confirmLosses, {
           fontSize: '14px',
           color: '#fff',
           backgroundColor: '#553',
@@ -2637,12 +2607,12 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
 
       const selected = new Set<string>();
       const label = (u: Unit) =>
-        `${selected.has(u.id) ? '☒' : '☐'} ${letters.get(u.id)} — ${unitType(u).name} (atk ${exchangeSacrificeForce(u)})`;
+        messages().board.exchangeRow(selected.has(u.id), letters.get(u.id)!, nameOf(u), exchangeSacrificeForce(u));
       const updateTotal = () => {
         const chosen = attackers.filter((u) => selected.has(u.id));
         const sum = chosen.reduce((s, u) => s + exchangeSacrificeForce(u), 0);
         const met = exchangeSacrificeMeetsThreshold(chosen, requiredForce);
-        totalText.setText(`Selected force: ${sum} / ${requiredForce}${met ? ' ✓' : ''}`);
+        totalText.setText(messages().board.selectedForce(sum, requiredForce, met));
         confirmBtn.setStyle({ backgroundColor: met ? '#2a5a2a' : '#553' });
       };
 
@@ -2672,7 +2642,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       confirmBtn.on('pointerdown', () => {
         const chosen = attackers.filter((u) => selected.has(u.id));
         if (!exchangeSacrificeMeetsThreshold(chosen, requiredForce)) {
-          this.log(`Select units totaling at least ${requiredForce} attack force before confirming.`);
+          this.log(messages().log.selectMoreForce(requiredForce));
           return;
         }
         panel.destroy();
@@ -2693,7 +2663,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     const { width, height } = this.scale;
     const panel = this.add.rectangle(width / 2, height / 2, 260, 120, 0x1a1408, 0.95).setScrollFactor(0).setDepth(20);
     const label = this.add
-      .text(width / 2, height / 2 - 35, `Board ${unitType(defender).name}?\n${unitType(attacker).name} vs ${unitType(defender).name}`, {
+      .text(width / 2, height / 2 - 35, messages().board.boardPrompt(nameOf(attacker), nameOf(defender)), {
         fontSize: '13px',
         color: '#fff',
         align: 'center',
@@ -2703,7 +2673,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       .setScrollFactor(0)
       .setDepth(21);
     const boardBtn = this.add
-      .text(width / 2 - 55, height / 2 + 20, 'Board!', {
+      .text(width / 2 - 55, height / 2 + 20, messages().board.board, {
         fontSize: '16px',
         color: '#fff',
         backgroundColor: '#553',
@@ -2714,7 +2684,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       .setDepth(21)
       .setInteractive({ useHandCursor: true });
     const cancelBtn = this.add
-      .text(width / 2 + 55, height / 2 + 20, 'Cancel', {
+      .text(width / 2 + 55, height / 2 + 20, messages().common.cancel, {
         fontSize: '16px',
         color: '#fff',
         backgroundColor: '#2a5a2a',
@@ -2753,7 +2723,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * parallel copy of it.
    */
   private commitBoarding(attacker: Unit, defender: Unit): void {
-    this.recordAction(`Board ${unitType(defender).name}`);
+    this.recordAction(messages().actions.board(nameOf(defender)));
     this.attackedThisPhase.add(attacker.id);
     // Equipment points are read BEFORE `applyAction` mutates them — this
     // is presentation-layer bookkeeping (a before/after snapshot around a
@@ -2787,24 +2757,34 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // 1-4 equipment) that vary by column, not a boolean success/fail split
     // — so the closest audit trail is naming which column was used,
     // mirroring the land CRT column line above.
-    const resultLine =
-      result.side !== null
-        ? `Die: ${dieRoll} -> ${result.side} loses ${result.equipmentLoss} equipment`
-        : `Die: ${dieRoll} -> no decisive effect`;
-    const sunkLines = [
-      ...(attackerEquipAfter <= 0 && attackerEquipBefore > 0 ? [`  ${unitType(attacker).name} is SUNK!`] : []),
-      ...(defenderEquipAfter <= 0 && defenderEquipBefore > 0 ? [`  ${unitType(defender).name} is SUNK!`] : []),
-    ];
-    this.log(
-      [
-        `Boarding: ${unitType(attacker).name} (attack ${attackForce}) vs ${unitType(defender).name} (defense ${defenseForce})`,
-        `CRT column: "${BOARDING_RATIO_COLUMNS[columnIndex]}" (column ${columnIndex + 1} of ${BOARDING_RATIO_COLUMNS.length}, array index ${columnIndex})`,
-        resultLine,
-        ...sunkLines,
-        `  ${unitType(attacker).name} (attacker): ${attackerEquipBefore}/${attackerMax} -> ${attackerEquipAfter}/${attackerMax} equipment (attack ${attackForce} -> ${currentAttack(attacker)})`,
-        `  ${unitType(defender).name} (defender): ${defenderEquipBefore}/${defenderMax} -> ${defenderEquipAfter}/${defenderMax} equipment (defense ${defenseForce} -> ${currentDefense(defender)})`,
-      ].join('\n'),
-    );
+    const report: BoardingReport = {
+      attacker: {
+        unit: nameOf(attacker),
+        before: attackerEquipBefore,
+        after: attackerEquipAfter,
+        max: attackerMax,
+        forceBefore: attackForce,
+        forceAfter: currentAttack(attacker),
+      },
+      defender: {
+        unit: nameOf(defender),
+        before: defenderEquipBefore,
+        after: defenderEquipAfter,
+        max: defenderMax,
+        forceBefore: defenseForce,
+        forceAfter: currentDefense(defender),
+      },
+      column: BOARDING_RATIO_COLUMNS[columnIndex]!,
+      columnNumber: columnIndex + 1,
+      columnCount: BOARDING_RATIO_COLUMNS.length,
+      columnIndex,
+      die: dieRoll,
+      side: result.side,
+      loss: result.equipmentLoss,
+      attackerSunk: attackerEquipAfter <= 0 && attackerEquipBefore > 0,
+      defenderSunk: defenderEquipAfter <= 0 && defenderEquipBefore > 0,
+    };
+    this.log(messages().log.boardingReport(report));
     this.renderAllUnits();
     this.clearCombatSelection();
   }
@@ -2816,11 +2796,11 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       // BOARD clicks stay silent by contrast — see `onHexClick` — because
       // `log` replaces the panel, and wiping the computer's combat report
       // every time the player taps the map would be worse than no feedback.)
-      this.log("Wait for the computer's turn to finish before ending the phase.");
+      this.log(messages().log.waitComputerPhase);
       return;
     }
     if (this.retreatChoice || this.driftState || this.decisionPending) {
-      this.log('Resolve the pending retreat/drift before ending the phase.');
+      this.log(messages().log.resolvePendingPhase);
       return;
     }
     this.commitEndPhase();
@@ -2903,7 +2883,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     };
     void this.runAiSeats(token).then(finish, (error: unknown) => {
       finish();
-      this.log('The computer player hit an error and stopped. See the console.');
+      this.log(messages().log.computerError);
       // Rethrown rather than swallowed: a silent stop would look exactly like
       // a hung turn, and this is a defect worth surfacing.
       throw error;
@@ -2989,7 +2969,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         applyAction(state, action, this.diceRng);
         this.reportAction(action);
         this.renderAllUnits();
-        if (unit) this.log(`${seatName}: ${unitType(unit).name} moves to (${action.to.q}, ${action.to.r}).`);
+        if (unit) this.log(messages().log.computerMoves(seatName, nameOf(unit), action.to.q, action.to.r));
         return;
       }
 
@@ -2998,7 +2978,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         applyAction(state, action, this.diceRng);
         this.reportAction(action);
         this.renderAllUnits();
-        if (unit) this.log(`${seatName}: ${unitType(unit).name} turns.`);
+        if (unit) this.log(messages().log.computerTurns(seatName, nameOf(unit)));
         return;
       }
 
@@ -3044,6 +3024,11 @@ function requireAiActionUnit(unit: Unit | undefined, action: Action, id: string)
     throw new Error(`applyAiAction: '${action.kind}' names unit "${id}", which isn't on the board`);
   }
   return unit;
+}
+
+/** A unit's type name in the current language. */
+function nameOf(unit: Unit): string {
+  return unitName(unit.typeId);
 }
 
 function parseKey(key: string): HexCoord {

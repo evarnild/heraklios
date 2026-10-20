@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { messages } from './i18n';
 
 export interface ConfirmDialogOptions {
   scene: Phaser.Scene;
@@ -74,8 +75,8 @@ export function showConfirmDialog(options: ConfirmDialogOptions): void {
   // into a latched flag with no error anywhere.
   try {
     const { scene, message, onConfirm, onCancel, excludeFromMainCamera } = options;
-    const confirmLabel = options.confirmLabel ?? 'Yes';
-    const cancelLabel = options.cancelLabel ?? 'Cancel';
+    const confirmLabel = options.confirmLabel ?? messages().common.yes;
+    const cancelLabel = options.cancelLabel ?? messages().common.cancel;
     const { width, height } = scene.scale;
 
     // Depth 50+, above every other modal this app shows (SaveLoadPanel: 40/41;

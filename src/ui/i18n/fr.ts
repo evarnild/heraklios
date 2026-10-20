@@ -134,6 +134,155 @@ export const fr: Messages = {
     repelled: (unit) => `${unit} est repoussé et doit dériver à nouveau !`,
   },
 
+  board: {
+    endPhase: 'Fin de phase',
+    resolveAttack: 'Résoudre l’attaque',
+    ram: 'Éperonner !',
+    saveLoad: '💾 Sauver / Charger',
+    abandonGame: '✕ Abandonner',
+    endGame: '⚑ Finir la partie',
+    endingAfterRound: '⚑ Fin après cette manche',
+    pauseClock: '⏸ Pause horloge',
+    resumeClock: '▶ Reprise horloge',
+    continue: '▶ Continuer',
+    keepPlaying: 'Continuer à jouer',
+    abandonMessage: 'La progression depuis votre dernière sauvegarde sera perdue.',
+    endGameMessage:
+      'Terminer la partie maintenant ?\nChaque joueur termine encore sa manche en cours — la plus forte valeur d’armée restante gagne, et une égalité est un match nul.',
+    endGameConfirm: 'Finir la partie',
+    seat: (name, edge, color) => `${name} (${edge}, ${color})`,
+    seatWithControl: (seat, control) => `${seat} [${control}]`,
+    status: (turn, who, phase, finalRound) =>
+      `Tour ${turn} — ${who} — phase de ${phase.toUpperCase()}${finalRound ? ' — DERNIÈRE MANCHE' : ''}`,
+    clock: (time, paused) => `Horloge : ${time} restantes${paused ? ' (en pause)' : ''}`,
+    ramPrompt: (defender, bonus) => `Éperonner ${defender} ?\n(bonus +${bonus})`,
+    holdOff: 'Renoncer',
+    boardPrompt: (attacker, defender) => `Aborder ${defender} ?\n${attacker} contre ${defender}`,
+    board: 'Aborder !',
+    advanceTitle: 'Avancer dans l’hexagone libéré ?',
+    advanceUnit: (letter, unit) => `${letter} — Avancer ${unit}`,
+    dontAdvance: 'Ne pas avancer',
+    exchangeTitle: (required) => `Échange : choisissez les pertes\n(il faut ≥ ${required} de force d’attaque)`,
+    exchangeRow: (checked, letter, unit, attack) => `${checked ? '☒' : '☐'} ${letter} — ${unit} (att ${attack})`,
+    selectedForce: (sum, required, met) => `Force choisie : ${sum} / ${required}${met ? ' ✓' : ''}`,
+    confirmLosses: 'Valider les pertes',
+  },
+
+  actions: {
+    move: (unit) => `Déplacer ${unit}`,
+    moveIntoContact: (unit) => `Déplacer ${unit} au contact`,
+    turn: (unit) => `Pivoter ${unit}`,
+    ram: (unit) => `Éperonner ${unit}`,
+    board: (unit) => `Aborder ${unit}`,
+    select: (unit) => `Choisir ${unit}`,
+    deselect: (unit) => `Retirer ${unit}`,
+    target: (unit) => `Cibler ${unit}`,
+    untarget: (unit) => `Décibler ${unit}`,
+    attackWith: (count) => `Attaquer avec ${count} unité(s)`,
+  },
+
+  results: {
+    AE: 'AE — attaquant éliminé',
+    AR: 'AR — attaquant recule',
+    DE: 'DE — défenseur éliminé',
+    DR: 'DR — défenseur recule',
+    EX: 'EX — échange',
+  },
+
+  log: {
+    gameLoaded: 'Partie chargée.',
+    waitComputerSave: 'Attendez la fin du tour de l’ordinateur avant de sauvegarder ou de charger.',
+    resolvePendingSave: 'Résolvez d’abord la retraite ou la dérive en attente avant de sauvegarder ou de charger.',
+    waitComputerEnd: 'Attendez la fin du tour de l’ordinateur avant de terminer la partie.',
+    resolvePendingEnd: 'Résolvez d’abord la retraite ou la dérive en attente avant de terminer la partie.',
+    alreadyEnding: 'La partie se termine déjà après cette manche.',
+    willEnd: 'La partie se terminera quand chaque joueur aura fini cette manche.',
+    cantUndoComputer: 'Impossible d’annuler pendant le tour de l’ordinateur.',
+    resolvePendingUndo: 'Résolvez d’abord la retraite ou la dérive en attente avant d’annuler.',
+    nothingToUndo: 'Rien à annuler.',
+    undone: (label) => `Annulé : ${label}`,
+    cantRedoComputer: 'Impossible de rétablir pendant le tour de l’ordinateur.',
+    resolvePendingRedo: 'Résolvez d’abord la retraite ou la dérive en attente avant de rétablir.',
+    nothingToRedo: 'Rien à rétablir.',
+    redone: (label) => `Rétabli : ${label}`,
+    charges: (unit) => `${unit} charge !`,
+    noMovementToRotate: 'Plus de mouvement pour pivoter.',
+    alreadyAttacked: (unit) => `${unit} a déjà attaqué pendant cette phase.`,
+    alreadyRammed: (unit) => `${unit} a déjà éperonné ce tour et ne peut pas aussi aborder.`,
+    cantReachTargets: (unit) => `${unit} ne peut pas atteindre la ou les cibles actuelles.`,
+    noCommonTarget: (unit) => `${unit} n’a aucune cible possible en commun avec le groupe actuel.`,
+    removedFromCombat: (units) => `Retiré du combat (plus rien à portée) : ${units.join(', ')}.`,
+    alreadyAttackedTarget: (unit) => `${unit} a déjà été attaqué pendant cette phase.`,
+    notBoardable: (unit) => `${unit} n’est pas adjacent avec une orientation parallèle — cible d’abordage illégale.`,
+    singleTargetOnly: 'Mode un seul défenseur : une seule cible par attaque — résolvez-la ou retirez-la d’abord.',
+    cavalryCantAttack: (unit) => `${unit} ne peut pas être attaqué par la cavalerie — retirez d’abord la cavalerie du groupe.`,
+    notReachable: (unit) => `${unit} n’est pas atteignable par le groupe d’attaque actuel.`,
+    advances: (unit) => `${unit} avance dans l’hexagone libéré.`,
+    resolvePendingAttack: 'Résolvez d’abord la retraite ou la dérive en attente avant une nouvelle attaque.',
+    selectAttacker: 'Choisissez d’abord au moins une unité attaquante.',
+    navalImmediate: 'Les attaques navales se résolvent immédiatement quand vous choisissez une cible.',
+    selectTarget: 'Choisissez au moins une cible.',
+    exchangeSacrificed: (units) => `Échange : défenseur(s) détruit(s) ; sacrifié(s) : ${units.join(', ') || 'aucun'}.`,
+    selectMoreForce: (required) => `Choisissez des unités totalisant au moins ${required} de force d’attaque avant de valider.`,
+    waitComputerPhase: 'Attendez la fin du tour de l’ordinateur avant de terminer la phase.',
+    resolvePendingPhase: 'Résolvez d’abord la retraite ou la dérive en attente avant de terminer la phase.',
+    computerError: 'Le joueur ordinateur a rencontré une erreur et s’est arrêté. Voir la console.',
+    computerMoves: (seat, unit, q, r) => `${seat} : ${unit} se déplace en (${q}, ${r}).`,
+    computerTurns: (seat, unit) => `${seat} : ${unit} pivote.`,
+    tramples: (drifting, occupant, q, r) => `${drifting} piétine ${occupant} en (${q}, ${r}).`,
+    retreats: (unit) => `${unit} recule.`,
+    retreatsMakingRoom: (pushed, unit) => `${pushed} recule pour faire de la place à ${unit}.`,
+    eliminatedNowhere: (unit) => `${unit} n’avait nulle part où reculer et a été éliminé.`,
+    mustRetreatRoom: (unit) => `${unit} doit reculer pour faire de la place — cliquez sur un hexagone en surbrillance.`,
+    mustRetreat: (unit) => `${unit} doit reculer — cliquez sur un hexagone en surbrillance.`,
+    nowhereToRetreat: (unit, count) =>
+      `${unit} n’a nulle part où reculer — ${count === 1 ? 'une unité amie voisine peut' : `${count} unités amies voisines peuvent`} faire de la place. Cliquez sur l’une d’elles pour la repousser.`,
+    terrainModifier: (value, terrain, q, r) =>
+      `${value} ${terrain}${q === null || r === null ? '' : ` en (${q}, ${r})`}`,
+    riverModifier: (value) => `${value} traversée de rivière`,
+    combatReport: (r) =>
+      [
+        `ATTAQUANTS (total ${r.attackTotal}) :`,
+        ...r.attackers.map((l) => `  ${l.unit} (att ${l.force})`),
+        `DÉFENSEURS (total ${r.defenseTotal}) :`,
+        ...r.defenders.map((l) => `  ${l.unit} (déf ${l.force})`),
+        `Rapport : ${r.ratio} (colonne TRC « ${r.crtColumn} », colonne ${r.columnNumber} sur ${r.columnCount}, indice ${r.columnIndex})`,
+        (r.modifier !== 0
+          ? `Dé : ${r.dieRaw} + ${r.modifier} (${r.modifierParts.join(' + ')}) = ${r.dieModified}`
+          : `Dé : ${r.dieRaw}`) + (r.dieUsed !== null ? ` (retenu : ${r.dieUsed})` : ''),
+        `Résultat : ${r.result}`,
+        ...(r.exchangeThreshold !== null
+          ? [
+              `Seuil d’échange : l’attaquant doit sacrifier des unités totalisant au moins ${r.exchangeThreshold} d’attaque (la force totale des défenseurs).`,
+            ]
+          : []),
+      ].join('\n'),
+    ramReport: (r) =>
+      [
+        `Éperonnage : ${r.attacker} contre ${r.defender}, bonus +${r.bonus} (${r.unusedMovement} point${r.unusedMovement === 1 ? '' : 's'} de mouvement inutilisé${r.unusedMovement === 1 ? '' : 's'})`,
+        `Réussit sur : ${r.successRange}   (ligne imprimée du tableau : ${r.printedRange}${
+          r.note === 'everyFace'
+            ? ' — le bonus porte la borne haute à la 6e face du d6 : tous les jets réussissent'
+            : r.note === 'bonus'
+              ? ` — le bonus +${r.bonus} étend la borne haute`
+              : ''
+        })`,
+        `Dé : ${r.die} -> ${r.hit ? 'COULÉ !' : 'raté'}`,
+      ].join('\n'),
+    boardingReport: (r) =>
+      [
+        `Abordage : ${r.attacker.unit} (attaque ${r.attacker.forceBefore}) contre ${r.defender.unit} (défense ${r.defender.forceBefore})`,
+        `Colonne TRC : « ${r.column} » (colonne ${r.columnNumber} sur ${r.columnCount}, indice ${r.columnIndex})`,
+        r.side !== null
+          ? `Dé : ${r.die} -> ${r.side === 'attacker' ? 'l’attaquant' : 'le défenseur'} perd ${r.loss} d’équipement`
+          : `Dé : ${r.die} -> aucun effet décisif`,
+        ...(r.attackerSunk ? [`  ${r.attacker.unit} est COULÉ !`] : []),
+        ...(r.defenderSunk ? [`  ${r.defender.unit} est COULÉ !`] : []),
+        `  ${r.attacker.unit} (attaquant) : ${r.attacker.before}/${r.attacker.max} -> ${r.attacker.after}/${r.attacker.max} d’équipement (attaque ${r.attacker.forceBefore} -> ${r.attacker.forceAfter})`,
+        `  ${r.defender.unit} (défenseur) : ${r.defender.before}/${r.defender.max} -> ${r.defender.after}/${r.defender.max} d’équipement (défense ${r.defender.forceBefore} -> ${r.defender.forceAfter})`,
+      ].join('\n'),
+  },
+
   saves: {
     panelManage: 'Sauvegarder / Charger',
     panelLoad: 'Charger une partie sauvegardée',

@@ -26,115 +26,6 @@ const ALLOWED: { file: string; text: string; reason: string }[] = [
   { file: 'scenes/MenuScene.ts', text: 'HÉRAKLIOS', reason: 'the title is the same in every language (spec B8)' },
 ];
 
-/** Sites not yet moved into the tables; each later commit shrinks this. */
-const PENDING: string[] = [
-  "scenes/BoardScene.ts: End phase",
-  "scenes/BoardScene.ts: Resolve attack",
-  "scenes/BoardScene.ts: Turn",
-  "scenes/BoardScene.ts: Ram!",
-  "scenes/BoardScene.ts: ↶ Undo",
-  "scenes/BoardScene.ts: ↷ Redo",
-  "scenes/BoardScene.ts: 💾 Save / Load",
-  "scenes/BoardScene.ts: ✕ Abandon game",
-  "scenes/BoardScene.ts: ⚑ End game",
-  "scenes/BoardScene.ts: ⏸ Pause clock",
-  "scenes/BoardScene.ts: ▶ Continue",
-  "scenes/BoardScene.ts: Ram ?\\n(bonus +)",
-  "scenes/BoardScene.ts: Hold off",
-  "scenes/BoardScene.ts: Advance into the vacated hex?",
-  "scenes/BoardScene.ts:  — Advance ",
-  "scenes/BoardScene.ts: Don't advance",
-  "scenes/BoardScene.ts: Exchange: choose losses\\n(need ≥  attack force)",
-  "scenes/BoardScene.ts: Confirm losses",
-  "scenes/BoardScene.ts: Board ?\\n vs ",
-  "scenes/BoardScene.ts: Board!",
-  "scenes/BoardScene.ts: Cancel",
-  "scenes/BoardScene.ts: ↶ Undo: ",
-  "scenes/BoardScene.ts: ↷ Redo: ",
-  "scenes/BoardScene.ts: Turn  —  —  phase",
-  "scenes/BoardScene.ts: ⚑ Ending after this round",
-  "scenes/BoardScene.ts: ▶ Resume clock",
-  "scenes/BoardScene.ts: Clock:  remaining",
-  "scenes/BoardScene.ts: Selected force:  / ",
-  "scenes/BoardScene.ts: Game loaded.",
-  "scenes/BoardScene.ts: Wait for the computer's turn to finish before saving or loading.",
-  "scenes/BoardScene.ts: Resolve the pending retreat/drift before saving or loading.",
-  "scenes/BoardScene.ts: Wait for the computer's turn to finish before ending the game.",
-  "scenes/BoardScene.ts: Resolve the pending retreat/drift before ending the game.",
-  "scenes/BoardScene.ts: The game is already ending after this round.",
-  "scenes/BoardScene.ts: The game will end once every player has finished this round.",
-  "scenes/BoardScene.ts: Can't undo during the computer's turn.",
-  "scenes/BoardScene.ts: Resolve the pending retreat/drift before undoing.",
-  "scenes/BoardScene.ts: Nothing to undo.",
-  "scenes/BoardScene.ts: Undone: ",
-  "scenes/BoardScene.ts: Can't redo during the computer's turn.",
-  "scenes/BoardScene.ts: Resolve the pending retreat/drift before redoing.",
-  "scenes/BoardScene.ts: Nothing to redo.",
-  "scenes/BoardScene.ts: Redone: ",
-  "scenes/BoardScene.ts:  charges!",
-  "scenes/BoardScene.ts: No movement left to rotate.",
-  "scenes/BoardScene.ts: Ramming:  vs , bonus + ",
-  "scenes/BoardScene.ts: ( unused movement )\\n",
-  "scenes/BoardScene.ts: Succeeds on:    ()\\n",
-  "scenes/BoardScene.ts: SUNK!",
-  "scenes/BoardScene.ts: missed",
-  "scenes/BoardScene.ts: Die:  -> ",
-  "scenes/BoardScene.ts:  has already attacked this phase.",
-  "scenes/BoardScene.ts:  already rammed this turn and can't also board.",
-  "scenes/BoardScene.ts:  can't reach the current target(s).",
-  "scenes/BoardScene.ts:  has no eligible target in common with the current group.",
-  "scenes/BoardScene.ts: Removed from the combat (nothing left in range): .",
-  "scenes/BoardScene.ts:  has already been attacked this phase.",
-  "scenes/BoardScene.ts:  isn't adjacent with a parallel facing — not a legal boarding target.",
-  "scenes/BoardScene.ts: Single-defender mode: only one target per attack — resolve or deselect it first.",
-  "scenes/BoardScene.ts:  can't be attacked by cavalry — remove the cavalry from the group first.",
-  "scenes/BoardScene.ts:  isn't reachable by the current attack group.",
-  "scenes/BoardScene.ts:  advances into the vacated hex.",
-  "scenes/BoardScene.ts: Resolve the pending retreat/drift before starting a new attack.",
-  "scenes/BoardScene.ts: Select at least one attacking unit first.",
-  "scenes/BoardScene.ts: Naval attacks resolve immediately when you pick a target.",
-  "scenes/BoardScene.ts: Select at least one target.",
-  "scenes/BoardScene.ts: none",
-  "scenes/BoardScene.ts: Exchange: defender(s) destroyed; sacrificed .",
-  "scenes/BoardScene.ts: Select units totaling at least  attack force before confirming.",
-  "scenes/BoardScene.ts: Boarding:  (attack ) vs  (defense )",
-  "scenes/BoardScene.ts: CRT column: \"\" (column  of , array index )",
-  "scenes/BoardScene.ts:    (attacker): / -> / equipment (attack  -> )",
-  "scenes/BoardScene.ts:    (defender): / -> / equipment (defense  -> )",
-  "scenes/BoardScene.ts: Wait for the computer's turn to finish before ending the phase.",
-  "scenes/BoardScene.ts: Resolve the pending retreat/drift before ending the phase.",
-  "scenes/BoardScene.ts: The computer player hit an error and stopped. See the console.",
-  "scenes/BoardScene.ts: :  moves to (, ).",
-  "scenes/BoardScene.ts: :  turns.",
-  "scenes/BoardScene.ts:  tramples into  at (, ).",
-  "scenes/BoardScene.ts:  retreats.",
-  "scenes/BoardScene.ts:  retreats, making room for .",
-  "scenes/BoardScene.ts:  had nowhere to retreat and was eliminated.",
-  "scenes/BoardScene.ts:  must retreat to make room — click a highlighted hex.",
-  "scenes/BoardScene.ts:  must retreat — click a highlighted hex.",
-  "scenes/BoardScene.ts:  has nowhere to retreat —  make room. Click one to push it.",
-  "scenes/BoardScene.ts: Move ",
-  "scenes/BoardScene.ts: Turn ",
-  "scenes/BoardScene.ts: Move  into contact",
-  "scenes/BoardScene.ts: Ram ",
-  "scenes/BoardScene.ts: Deselect ",
-  "scenes/BoardScene.ts: Select ",
-  "scenes/BoardScene.ts: Untarget ",
-  "scenes/BoardScene.ts: Target ",
-  "scenes/BoardScene.ts: Attack with  unit(s)",
-  "scenes/BoardScene.ts: Board ",
-  "scenes/BoardScene.ts: Abandon this game and return to the menu?\\nProgress since your last save will be lost.",
-  "scenes/BoardScene.ts: Abandon",
-  "scenes/BoardScene.ts: Keep playing",
-  "scenes/BoardScene.ts: End the game now?\\nEvery player still finishes their current round — the highest remaining army value wins, and a tie is a draw.",
-  "scenes/BoardScene.ts: End game",
-  "ui/confirmDialog.ts: BoardScene",
-  "ui/confirmDialog.ts: PlacementScene",
-  "ui/confirmDialog.ts: MapView",
-  "ui/confirmDialog.ts: s\r\n   * `pinUIObjects`/`excludeFromMainCamera` — pass that hook through here so\r\n   * this dialog gets the same treatment and isn",
-  "ui/confirmDialog.ts: s pan\r\n   * or zoom. Scenes with no such camera (`ArmyBuilderScene`) omit it.\r\n   */\r\n  excludeFromMainCamera?: (objects: Phaser.GameObjects.GameObject[]) => void;\r\n",
-];
-
 interface Violation {
   file: string;
   line: number;
@@ -261,7 +152,7 @@ export function findViolations(): Violation[] {
         if (arg !== undefined) check(arg, start);
       }
     }
-    for (const match of source.matchAll(/\b(?:message|confirmLabel|cancelLabel):\s*/g)) {
+    for (const match of source.matchAll(/\b(?:message|confirmLabel|cancelLabel):\s*(?=['"`])/g)) {
       const start = match.index! + match[0].length;
       const arg = topLevelArgs(source, start)[0];
       if (arg !== undefined) check(arg, start);
@@ -274,17 +165,13 @@ export function findViolations(): Violation[] {
 describe('no text outside the message tables', () => {
   it('finds no literal passed to a text-showing call', () => {
     const allowed = new Set(ALLOWED.map((a) => `${a.file}: ${a.text}`));
-    const pending = new Set(PENDING);
-    const unexplained = findViolations().filter((v) => {
-      const key = `${v.file}: ${v.text}`;
-      return !allowed.has(key) && !pending.has(key);
-    });
+    const unexplained = findViolations().filter((v) => !allowed.has(`${v.file}: ${v.text}`));
     expect(unexplained.map((v) => `${v.file}:${v.line} ${JSON.stringify(v.text)}`)).toEqual([]);
   });
 
-  it('has no stale entry on the allow or pending list', () => {
+  it('has no stale entry on the allow list', () => {
     const live = new Set(findViolations().map((v) => `${v.file}: ${v.text}`));
-    const stale = [...ALLOWED.map((a) => `${a.file}: ${a.text}`), ...PENDING].filter((key) => !live.has(key));
+    const stale = ALLOWED.map((a) => `${a.file}: ${a.text}`).filter((key) => !live.has(key));
     expect(stale).toEqual([]);
   });
 

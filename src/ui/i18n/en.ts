@@ -1,3 +1,5 @@
+import type { BoardingReport, CombatReport, RamReport } from './reports';
+
 /**
  * The English message table. It defines the set of messages: `fr.ts` is typed
  * against it (`Messages` in `index.ts`), so a missing, extra or wrongly-typed
@@ -144,6 +146,156 @@ export const en = {
     exitSea: (unit: string) => `${unit} drifts into the sea and is eliminated!`,
     destroyed: (unit: string) => `${unit} is destroyed.`,
     repelled: (unit: string) => `${unit} is repelled and must drift again!`,
+  },
+
+  board: {
+    endPhase: 'End phase',
+    resolveAttack: 'Resolve attack',
+    ram: 'Ram!',
+    saveLoad: '💾 Save / Load',
+    abandonGame: '✕ Abandon game',
+    endGame: '⚑ End game',
+    endingAfterRound: '⚑ Ending after this round',
+    pauseClock: '⏸ Pause clock',
+    resumeClock: '▶ Resume clock',
+    continue: '▶ Continue',
+    keepPlaying: 'Keep playing',
+    abandonMessage: 'Progress since your last save will be lost.',
+    endGameMessage:
+      'End the game now?\nEvery player still finishes their current round — the highest remaining army value wins, and a tie is a draw.',
+    endGameConfirm: 'End game',
+    seat: (name: string, edge: string, color: string) => `${name} (${edge}, ${color})`,
+    seatWithControl: (seat: string, control: string) => `${seat} [${control}]`,
+    status: (turn: number, who: string, phase: string, finalRound: boolean) =>
+      `Turn ${turn} — ${who} — ${phase.toUpperCase()} phase${finalRound ? ' — FINAL ROUND' : ''}`,
+    clock: (time: string, paused: boolean) => `Clock: ${time} remaining${paused ? ' (paused)' : ''}`,
+    ramPrompt: (defender: string, bonus: number) => `Ram ${defender}?\n(bonus +${bonus})`,
+    holdOff: 'Hold off',
+    boardPrompt: (attacker: string, defender: string) => `Board ${defender}?\n${attacker} vs ${defender}`,
+    board: 'Board!',
+    advanceTitle: 'Advance into the vacated hex?',
+    advanceUnit: (letter: string, unit: string) => `${letter} — Advance ${unit}`,
+    dontAdvance: "Don't advance",
+    exchangeTitle: (required: number) => `Exchange: choose losses\n(need ≥ ${required} attack force)`,
+    exchangeRow: (checked: boolean, letter: string, unit: string, attack: number) =>
+      `${checked ? '☒' : '☐'} ${letter} — ${unit} (atk ${attack})`,
+    selectedForce: (sum: number, required: number, met: boolean) => `Selected force: ${sum} / ${required}${met ? ' ✓' : ''}`,
+    confirmLosses: 'Confirm losses',
+  },
+
+  /** Undo/redo labels: made in the language of the moment and kept in the history as text. */
+  actions: {
+    move: (unit: string) => `Move ${unit}`,
+    moveIntoContact: (unit: string) => `Move ${unit} into contact`,
+    turn: (unit: string) => `Turn ${unit}`,
+    ram: (unit: string) => `Ram ${unit}`,
+    board: (unit: string) => `Board ${unit}`,
+    select: (unit: string) => `Select ${unit}`,
+    deselect: (unit: string) => `Deselect ${unit}`,
+    target: (unit: string) => `Target ${unit}`,
+    untarget: (unit: string) => `Untarget ${unit}`,
+    attackWith: (count: number) => `Attack with ${count} unit(s)`,
+  },
+
+  results: {
+    AE: 'AE — attacker eliminated',
+    AR: 'AR — attacker retreats',
+    DE: 'DE — defender eliminated',
+    DR: 'DR — defender retreats',
+    EX: 'EX — exchange',
+  },
+
+  log: {
+    gameLoaded: 'Game loaded.',
+    waitComputerSave: "Wait for the computer's turn to finish before saving or loading.",
+    resolvePendingSave: 'Resolve the pending retreat/drift before saving or loading.',
+    waitComputerEnd: "Wait for the computer's turn to finish before ending the game.",
+    resolvePendingEnd: 'Resolve the pending retreat/drift before ending the game.',
+    alreadyEnding: 'The game is already ending after this round.',
+    willEnd: 'The game will end once every player has finished this round.',
+    cantUndoComputer: "Can't undo during the computer's turn.",
+    resolvePendingUndo: 'Resolve the pending retreat/drift before undoing.',
+    nothingToUndo: 'Nothing to undo.',
+    undone: (label: string) => `Undone: ${label}`,
+    cantRedoComputer: "Can't redo during the computer's turn.",
+    resolvePendingRedo: 'Resolve the pending retreat/drift before redoing.',
+    nothingToRedo: 'Nothing to redo.',
+    redone: (label: string) => `Redone: ${label}`,
+    charges: (unit: string) => `${unit} charges!`,
+    noMovementToRotate: 'No movement left to rotate.',
+    alreadyAttacked: (unit: string) => `${unit} has already attacked this phase.`,
+    alreadyRammed: (unit: string) => `${unit} already rammed this turn and can't also board.`,
+    cantReachTargets: (unit: string) => `${unit} can't reach the current target(s).`,
+    noCommonTarget: (unit: string) => `${unit} has no eligible target in common with the current group.`,
+    removedFromCombat: (units: string[]) => `Removed from the combat (nothing left in range): ${units.join(', ')}.`,
+    alreadyAttackedTarget: (unit: string) => `${unit} has already been attacked this phase.`,
+    notBoardable: (unit: string) => `${unit} isn't adjacent with a parallel facing — not a legal boarding target.`,
+    singleTargetOnly: 'Single-defender mode: only one target per attack — resolve or deselect it first.',
+    cavalryCantAttack: (unit: string) => `${unit} can't be attacked by cavalry — remove the cavalry from the group first.`,
+    notReachable: (unit: string) => `${unit} isn't reachable by the current attack group.`,
+    advances: (unit: string) => `${unit} advances into the vacated hex.`,
+    resolvePendingAttack: 'Resolve the pending retreat/drift before starting a new attack.',
+    selectAttacker: 'Select at least one attacking unit first.',
+    navalImmediate: 'Naval attacks resolve immediately when you pick a target.',
+    selectTarget: 'Select at least one target.',
+    exchangeSacrificed: (units: string[]) =>
+      `Exchange: defender(s) destroyed; sacrificed ${units.join(', ') || 'none'}.`,
+    selectMoreForce: (required: number) => `Select units totaling at least ${required} attack force before confirming.`,
+    waitComputerPhase: "Wait for the computer's turn to finish before ending the phase.",
+    resolvePendingPhase: 'Resolve the pending retreat/drift before ending the phase.',
+    computerError: 'The computer player hit an error and stopped. See the console.',
+    computerMoves: (seat: string, unit: string, q: number, r: number) => `${seat}: ${unit} moves to (${q}, ${r}).`,
+    computerTurns: (seat: string, unit: string) => `${seat}: ${unit} turns.`,
+    tramples: (drifting: string, occupant: string, q: number, r: number) => `${drifting} tramples into ${occupant} at (${q}, ${r}).`,
+    retreats: (unit: string) => `${unit} retreats.`,
+    retreatsMakingRoom: (pushed: string, unit: string) => `${pushed} retreats, making room for ${unit}.`,
+    eliminatedNowhere: (unit: string) => `${unit} had nowhere to retreat and was eliminated.`,
+    mustRetreatRoom: (unit: string) => `${unit} must retreat to make room — click a highlighted hex.`,
+    mustRetreat: (unit: string) => `${unit} must retreat — click a highlighted hex.`,
+    nowhereToRetreat: (unit: string, count: number) =>
+      `${unit} has nowhere to retreat — ${count === 1 ? 'one neighboring friendly unit can' : `${count} neighboring friendly units can`} make room. Click one to push it.`,
+    terrainModifier: (value: number, terrain: string, q: number | null, r: number | null) =>
+      `${value} ${terrain}${q === null || r === null ? '' : ` at (${q}, ${r})`}`,
+    riverModifier: (value: number) => `${value} river crossing`,
+    combatReport: (r: CombatReport) =>
+      [
+        `ATTACKERS (total ${r.attackTotal}):`,
+        ...r.attackers.map((l) => `  ${l.unit} (atk ${l.force})`),
+        `DEFENDERS (total ${r.defenseTotal}):`,
+        ...r.defenders.map((l) => `  ${l.unit} (def ${l.force})`),
+        `Ratio: ${r.ratio} (CRT column "${r.crtColumn}", column ${r.columnNumber} of ${r.columnCount}, array index ${r.columnIndex})`,
+        (r.modifier !== 0
+          ? `Die: ${r.dieRaw} + ${r.modifier} (${r.modifierParts.join(' + ')}) = ${r.dieModified}`
+          : `Die: ${r.dieRaw}`) + (r.dieUsed !== null ? ` (used ${r.dieUsed})` : ''),
+        `Result: ${r.result}`,
+        ...(r.exchangeThreshold !== null
+          ? [
+              `Exchange threshold: attacker must sacrifice units totaling at least ${r.exchangeThreshold} attack (the defenders' total force).`,
+            ]
+          : []),
+      ].join('\n'),
+    ramReport: (r: RamReport) =>
+      [
+        `Ramming: ${r.attacker} vs ${r.defender}, bonus +${r.bonus} (${r.unusedMovement} unused movement ${r.unusedMovement === 1 ? 'point' : 'points'})`,
+        `Succeeds on: ${r.successRange}   (printed table row: ${r.printedRange}${
+          r.note === 'everyFace'
+            ? " — bonus pushes the upper bound to a d6's 6th face, so every roll hits"
+            : r.note === 'bonus'
+              ? ` — bonus +${r.bonus} extends the upper bound`
+              : ''
+        })`,
+        `Die: ${r.die} -> ${r.hit ? 'SUNK!' : 'missed'}`,
+      ].join('\n'),
+    boardingReport: (r: BoardingReport) =>
+      [
+        `Boarding: ${r.attacker.unit} (attack ${r.attacker.forceBefore}) vs ${r.defender.unit} (defense ${r.defender.forceBefore})`,
+        `CRT column: "${r.column}" (column ${r.columnNumber} of ${r.columnCount}, array index ${r.columnIndex})`,
+        r.side !== null ? `Die: ${r.die} -> ${r.side} loses ${r.loss} equipment` : `Die: ${r.die} -> no decisive effect`,
+        ...(r.attackerSunk ? [`  ${r.attacker.unit} is SUNK!`] : []),
+        ...(r.defenderSunk ? [`  ${r.defender.unit} is SUNK!`] : []),
+        `  ${r.attacker.unit} (attacker): ${r.attacker.before}/${r.attacker.max} -> ${r.attacker.after}/${r.attacker.max} equipment (attack ${r.attacker.forceBefore} -> ${r.attacker.forceAfter})`,
+        `  ${r.defender.unit} (defender): ${r.defender.before}/${r.defender.max} -> ${r.defender.after}/${r.defender.max} equipment (defense ${r.defender.forceBefore} -> ${r.defender.forceAfter})`,
+      ].join('\n'),
   },
 
   saves: {
