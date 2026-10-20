@@ -31,7 +31,10 @@ export async function startFromMenu(
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => {
-    if (m.type() === 'error') errors.push(m.text());
+    // Full Chromium (--headed) requests /favicon.ico on its own; index.html
+    // declares no icon, so Vite answers 404. That is the browser, not the
+    // game — every other 404 stays fatal.
+    if (m.type() === 'error' && !m.location().url.endsWith('/favicon.ico')) errors.push(m.text());
   });
   await page.goto('/');
   await page.waitForFunction((l) => window.__heraklios?.buttonCount(l) === 1, label);

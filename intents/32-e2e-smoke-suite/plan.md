@@ -210,3 +210,19 @@ Diverged from the plan — for the owner to accept in review:
   Correction to the entry above: Playwright's reported time already
   includes the build check, so a run is ~13 s in all, not 12.9 s + 10 s.
 - `status: in-review`.
+
+### 2026-10-20 — review round 1 rework (Claude)
+
+- **Headed runs:** `startFromMenu`'s console trap (`e2e/helpers.ts`) now
+  ignores a console error whose `location().url` ends in `/favicon.ico` —
+  full Chromium requests it, `index.html` declares no icon, Vite answers
+  404. Every other 404 stays fatal; no icon added.
+  `npx playwright test --headed`: 4 passed (14.1 s).
+  `npm run e2e`: 4 passed (13.4 s).
+- **Docs match REVIEW-POLICY "When the smoke suite stands in":** `CLAUDE.md`
+  now lists all four conditions (owed by the path rule alone; a named
+  scenario covers it; neither new nor visual; `/review` ran `npm run e2e`
+  itself and it passed) and puts "The owner runs the live check…" before
+  the exception. `sdlc.md` adds "owed only because of the paths it
+  touches".
+- `status: in-review` unchanged.

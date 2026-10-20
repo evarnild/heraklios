@@ -57,7 +57,8 @@ The report also says `live-check: owed` or `not-needed`. It's owed for
 changes to scenes, UI, the map editor, `src/main.ts`, `index.html`,
 `map-editor.html`, `vite.config.ts` or `.claude/settings.json`, and for
 anything else only a live run can show. The one exception: when the
-browser smoke suite (`npm run e2e`) already covers the changed behaviour,
+check is owed only because of the paths it touches, the browser smoke
+suite (`npm run e2e`) already covers the changed behaviour,
 the change is neither new nor visual, and `/review` ran the suite and it
 passed, the report may say `not-needed` and name the scenario. You can
 always set it back to `owed`. When owed, its `## Live check`

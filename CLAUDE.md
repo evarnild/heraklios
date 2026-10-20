@@ -74,11 +74,14 @@ and in `intents/README.md` / `REVIEW-POLICY.md` win if they disagree.
   `index.html`, `map-editor.html`, `vite.config.ts` or
   `.claude/settings.json` owes a **live check**, and so does any other
   change whose "Not checked" list holds behaviour only a live run can show.
-  The only exception: a passing `npm run e2e` scenario already covers the
-  changed behaviour, and it is neither new nor visual (`REVIEW-POLICY.md` →
-  "When the smoke suite stands in"). The owner runs it and records
-  `live_checked: <date>` before the merge (`REVIEW-POLICY.md` → "Live
-  checks"). An agent's own browser run is evidence, never that gate.
+  The owner runs the live check and records `live_checked: <date>` before
+  the merge (`REVIEW-POLICY.md` → "Live checks"). An agent's own browser
+  run is evidence, never that gate. The only exception, when all of these
+  hold (`REVIEW-POLICY.md` → "When the smoke suite stands in"): the check
+  is owed by the path rule alone; a named `npm run e2e` scenario already
+  covers the changed behaviour; the change is neither new nor visual; and
+  `/review` ran `npm run e2e` itself and it passed. Then `/review` says
+  `live-check: not-needed` and names the scenario.
 
 ## Parallel sessions
 
