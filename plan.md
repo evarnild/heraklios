@@ -204,6 +204,7 @@ sync when something merges** — it went stale once and the user caught it.
 | [§30](intents/30-browser-test-probe/) browser-test probe — experiment; findings only, recommends §32 (see [findings.md](intents/30-browser-test-probe/findings.md)) | `f755609` |
 | [§32](intents/32-e2e-smoke-suite/) browser smoke suite — `npm run e2e`, dev-only hook, when it stands in for a live check (Reviewed tier, 2 review rounds, 1 MEDIUM + 3 LOW left as worth-a-look; see [review.md](intents/32-e2e-smoke-suite/review.md)) | `a66d4d4` |
 | [§31](intents/31-gate-recording/) who records a gate — agent on request, `by-agent` marker, `parseGate`, scan "Metadata problems" (Reviewed tier, 1 review round, 3 LOW worth-a-look; see [review.md](intents/31-gate-recording/review.md)) | `597a07d` |
+| [§33](intents/33-placement-label-background/) placement prompt label background (adjustment, Attested, 2 review rounds; see [review.md](intents/33-placement-label-background/review.md)) | `8ce74c8` |
 
 ### In flight
 
@@ -216,7 +217,6 @@ sync when something merges** — it went stale once and the user caught it.
 | Item | Type · status |
 | --- | --- |
 | [§29](intents/29-grid-live-check-counts/) Count live checks in the SDLC scan and grid (after §28) | feature · draft |
-| [§33](intents/33-placement-label-background/) Give the placement prompt label a background | adjustment · accepted |
 
 All fully-shipped rows that previously lived here (Stage 3b, §17,
 §18, §19, §24 and earlier) are in the [Shipped](#shipped) table above; see
