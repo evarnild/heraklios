@@ -2,15 +2,17 @@
 id: 31
 slug: gate-recording
 type: feature
-status: draft
+status: accepted
 title: Who records a gate, and how
 review_tier: reviewed    # will touch .claude/skills and likely REVIEW-POLICY.md
-intent_accepted:
+intent_accepted: 2026-10-20    # recorded by Claude: owner's "yes" to the proposal in chat
 spec_accepted:
 plan_approved:
+live_checked:
 merged:
 follows_up:
 links:
-  - intents/28-live-checks-and-merge-rule    depends on; reuses its "explicitly asks" rule
+  - intents/28-live-checks-and-merge-rule    builds on (merged); reuses its "explicitly asks" rule
   - intents/26-ai-sdlc-kit    its gates were recorded from chat
   - intents/27-parallel-sessions    likewise
+  - intents/32-e2e-smoke-suite    all five gates recorded by Claude on request; merged: written as a date, dropped by sdlc:scan
