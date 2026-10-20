@@ -128,6 +128,18 @@ export const en = {
     backToMenu: 'Back to menu',
   },
 
+  drift: {
+    started: (unit: string) => `${unit} is forced to retreat - instead it drifts!`,
+    directionRolled: (die: number, steps: number) => `Direction die: ${die} - ${steps} hex(es) of movement to go.`,
+    moved: (unit: string, q: number, r: number) => `${unit} moves to (${q}, ${r}).`,
+    stopped: (unit: string) => `${unit} has used up its movement and stops drifting.`,
+    exitOffMap: (unit: string) => `${unit} drifts off the map and is eliminated!`,
+    exitMarsh: (unit: string) => `${unit} drifts into the marsh and is eliminated!`,
+    exitSea: (unit: string) => `${unit} drifts into the sea and is eliminated!`,
+    destroyed: (unit: string) => `${unit} is destroyed.`,
+    repelled: (unit: string) => `${unit} is repelled and must drift again!`,
+  },
+
   saves: {
     panelManage: 'Save / Load',
     panelLoad: 'Load a saved game',
@@ -142,11 +154,11 @@ export const en = {
     summary: (turn: number, who: string, phase: string) => `Turn ${turn} — ${who} (${phase})`,
     summaryUnknown: 'unknown',
     savingFailed: 'Saving failed — browser storage is full or unavailable.',
-    overwrote: (slot: number, summary: string) => `Overwrote slot ${slot} (${summary}).`,
-    savedTo: (slot: number) => `Saved to slot ${slot}.`,
+    overwrote: (slot: number | string, summary: string) => `Overwrote slot ${slot} (${summary}).`,
+    savedTo: (slot: number | string) => `Saved to slot ${slot}.`,
     slotEmpty: 'That slot is empty.',
     clearedAutosave: 'Cleared the autosave.',
-    clearedSlot: (slot: number) => `Cleared slot ${slot}.`,
+    clearedSlot: (slot: number | string) => `Cleared slot ${slot}.`,
     exported: 'Exported the current game to a .json file.',
     unreadable: "That file couldn't be read.",
     invalidJson: "That file isn't valid JSON.",

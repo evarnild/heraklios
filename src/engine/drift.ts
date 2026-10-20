@@ -13,8 +13,9 @@ import { resolveUnitRetreat, type RetreatHooks } from './retreat';
 import { type GameState, type Unit, unitType } from './state';
 
 /**
- * The phrase naming WHY a drift step was fatal, for the player-facing combat
- * log line — "off the map", "into the sea", or "into the marsh".
+ * WHY a drift step was fatal — off the map, into the sea, or into the marsh —
+ * for the player-facing combat log line, which the presentation words in the
+ * player's language (`ui/i18n/format.ts`'s `formatDriftEvent`).
  *
  * Split out as its own function (rather than one fixed string) with Stage 2c,
  * plan.md §6.7. `canElephantEnterHex` used to reject only off-map, coastal
@@ -30,11 +31,13 @@ import { type GameState, type Unit, unitType } from './state';
  * excluded, and the rulebook's own wording for the elimination is leaving
  * "la zone terrestre" (`:288-289`), not specifically the sea.
  */
-function describeDriftExit(hex: HexCoord): string {
+export type DriftExitKind = 'offMap' | 'marsh' | 'sea';
+
+export function driftExitKind(hex: HexCoord): DriftExitKind {
   const terrain = MAP_TERRAIN.get(mapHexKey(hex.q, hex.r));
-  if (terrain === undefined) return 'off the map';
-  if (terrain === 'marsh') return 'into the marsh';
-  return 'into the sea';
+  if (terrain === undefined) return 'offMap';
+  if (terrain === 'marsh') return 'marsh';
+  return 'sea';
 }
 
 interface DriftFrame {
@@ -118,13 +121,17 @@ export interface DriftStepResult {
 
 export interface DriftHooks extends RetreatHooks {
   onDriftStart?(elephant: Unit): void;
-  onLine?(line: string): void;
+  /** Fired at each beat worth a line in the combat log — `driftStarted`,
+   * `directionRolled`, `moved`, `stopped`, `eliminatedLeavingLandZone`,
+   * `driftElephantDestroyed` and `repelled` — with the event itself; the
+   * presentation words it (the engine produces no display text). */
+  onNarrate?(event: DriftEvent): void;
   onRender?(): void;
   onCombat?(detail: LandAttackDetail, outcome: LandCombatOutcome, elephant: Unit, occupant: Unit, hex: HexCoord): void;
   /** Fired once a direction die has resolved into an actual `direction`
    * (plan.md §21) — a lower-friction way for a presentation layer to track
-   * "which way is this elephant currently drifting" than re-parsing `onLine`'s
-   * narration string, so it can draw a direction arrow without caring about
+   * "which way is this elephant currently drifting" than re-parsing the
+   * narrated text, so it can draw a direction arrow without caring about
    * log text at all. */
   onDirectionRolled?(elephant: Unit, direction: HexCoord): void;
   /** Fired whenever the drifting elephant's `position` actually changes —
@@ -529,10 +536,6 @@ export function driftStep(game: GameState, drift: ElephantDriftState, input?: Dr
   return { state: next, events, done: false };
 }
 
-function defaultLine(unit: Unit): string {
-  return `${unitType(unit).name} is forced to retreat - instead it drifts!`;
-}
-
 /**
  * Convenience driver for current callers. It pumps the exported
  * `driftStep` state machine, supplying dice and PlayerAgent retreat/push
@@ -563,22 +566,22 @@ export async function resolveElephantDrift(
         case 'driftStarted':
           if (stats) stats.driftsResolved += 1;
           hooks.onDriftStart?.(event.elephant);
-          hooks.onLine?.(defaultLine(event.elephant));
+          hooks.onNarrate?.(event);
           break;
         case 'directionRolled':
-          hooks.onLine?.(`Direction die: ${event.dieRoll} - ${event.remainingSteps} hex(es) of movement to go.`);
+          hooks.onNarrate?.(event);
           hooks.onDirectionRolled?.(event.elephant, event.direction);
           break;
         case 'directionResumed':
           // No die was rolled — this elephant's frame is just resuming its
           // already-known direction after a nested trampled elephant's own
           // drift finished (see the doc comment where this event is pushed).
-          // No `onLine` narration either: nothing happened worth logging,
+          // No `onNarrate` either: nothing happened worth logging,
           // only the arrow needs to catch up.
           hooks.onDirectionRolled?.(event.elephant, event.direction);
           break;
         case 'moved':
-          hooks.onLine?.(`${unitType(event.elephant).name} moves to (${event.hex.q}, ${event.hex.r}).`);
+          hooks.onNarrate?.(event);
           hooks.onDriftMoved?.(event.elephant, event.hex);
           hooks.onRender?.();
           break;
@@ -587,10 +590,10 @@ export async function resolveElephantDrift(
           hooks.onRender?.();
           break;
         case 'stopped':
-          hooks.onLine?.(`${unitType(event.elephant).name} has used up its movement and stops drifting.`);
+          hooks.onNarrate?.(event);
           break;
         case 'eliminatedLeavingLandZone':
-          hooks.onLine?.(`${unitType(event.elephant).name} drifts ${describeDriftExit(event.hex)} and is eliminated!`);
+          hooks.onNarrate?.(event);
           hooks.onRender?.();
           break;
         case 'combatResolved':
@@ -598,7 +601,7 @@ export async function resolveElephantDrift(
           hooks.onCombat?.(event.detail, event.outcome, event.elephant, event.occupant, event.hex);
           break;
         case 'driftElephantDestroyed':
-          hooks.onLine?.(`${unitType(event.elephant).name} is destroyed.`);
+          hooks.onNarrate?.(event);
           // Unlike the other `destroyed` branch above (`eliminatedLeavingLandZone`),
           // this one previously had no `onRender` call of its own — a gap that
           // went unnoticed because nothing rendered again until the NEXT event
@@ -609,7 +612,7 @@ export async function resolveElephantDrift(
           hooks.onRender?.();
           break;
         case 'repelled':
-          hooks.onLine?.(`${unitType(event.elephant).name} is repelled and must drift again!`);
+          hooks.onNarrate?.(event);
           break;
       }
 

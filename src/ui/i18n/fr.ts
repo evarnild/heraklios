@@ -122,6 +122,18 @@ export const fr: Messages = {
     backToMenu: 'Retour au menu',
   },
 
+  drift: {
+    started: (unit) => `${unit} doit reculer — il dérive à la place !`,
+    directionRolled: (die, steps) => `Dé de direction : ${die} — ${steps} hexagone(s) de déplacement restant(s).`,
+    moved: (unit, q, r) => `${unit} se déplace en (${q}, ${r}).`,
+    stopped: (unit) => `${unit} a épuisé son déplacement et cesse de dériver.`,
+    exitOffMap: (unit) => `${unit} dérive hors de la carte et est éliminé !`,
+    exitMarsh: (unit) => `${unit} dérive dans les marais et est éliminé !`,
+    exitSea: (unit) => `${unit} dérive dans la mer et est éliminé !`,
+    destroyed: (unit) => `${unit} est détruit.`,
+    repelled: (unit) => `${unit} est repoussé et doit dériver à nouveau !`,
+  },
+
   saves: {
     panelManage: 'Sauvegarder / Charger',
     panelLoad: 'Charger une partie sauvegardée',

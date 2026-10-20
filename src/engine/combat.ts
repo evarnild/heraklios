@@ -539,7 +539,9 @@ export function pruneIllegalSelections(
 
 export interface RangedCheck {
   canAttack: boolean;
-  reason?: string;
+  /** Why not, as a code (no text — nothing displays it): a ranged-only unit
+   * asked to fight in melee, or any unit at a distance it can't fire at. */
+  reason?: 'no-melee' | 'wrong-range';
 }
 
 /** Ranged units may only fire at EXACTLY their listed range; melee units need adjacency. */
@@ -547,12 +549,12 @@ export function checkRangedEligibility(attacker: Unit, distance: number): Ranged
   const t = unitType(attacker);
   if (distance === 1) {
     if (t.meleeCapable) return { canAttack: true };
-    return { canAttack: false, reason: `${t.name} cannot fight in melee` };
+    return { canAttack: false, reason: 'no-melee' };
   }
   if (t.rangedAttack > 0 && distance === t.range) {
     return { canAttack: true };
   }
-  return { canAttack: false, reason: `${t.name} can only fire at exactly ${t.range} hexes` };
+  return { canAttack: false, reason: 'wrong-range' };
 }
 
 /**

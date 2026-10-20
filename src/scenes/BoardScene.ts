@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { MapView, drawFacingArrowhead } from '../ui/MapView';
 import { PLAYER_COLORS_HEX, PLAYER_COLOR_NAMES } from '../ui/hexRender';
+import { formatDriftEvent } from '../ui/i18n/format';
 import { session, resetToMenu, seatControlFor } from '../ui/session';
 import { showConfirmDialog } from '../ui/confirmDialog';
 import { SaveLoadPanel } from '../ui/saveLoadPanel';
@@ -285,7 +286,10 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         onDriftMoved: (drifting, _hex) => {
           this.driftArrowElephant = drifting;
         },
-        onLine: (line) => this.appendLine(line),
+        onNarrate: (event) => {
+          const line = formatDriftEvent(event);
+          if (line) this.appendLine(line);
+        },
         onRender: () => this.renderAllUnits(),
         onStep: this.driftOnStepHook(),
         onCombat: (detail, outcome, drifting, occupant, hex) => {

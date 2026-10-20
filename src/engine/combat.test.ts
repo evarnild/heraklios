@@ -163,6 +163,13 @@ describe('checkRangedEligibility', () => {
     expect(checkRangedEligibility(archer, 3).canAttack).toBe(false); // not exact range
   });
 
+  it('says why not, as a code: no melee for a ranged-only unit, a wrong range otherwise', () => {
+    const archer = makeUnit({ typeId: 'archers', position: { q: 0, r: 0 } });
+    expect(checkRangedEligibility(archer, 1)).toEqual({ canAttack: false, reason: 'no-melee' });
+    expect(checkRangedEligibility(archer, 3)).toEqual({ canAttack: false, reason: 'wrong-range' });
+    expect(checkRangedEligibility(archer, 2).reason).toBeUndefined();
+  });
+
   it('lets melee-capable hybrids fight adjacent as well as at range', () => {
     const hybrid = makeUnit({ typeId: 'fantassins-archers', position: { q: 0, r: 0 } });
     expect(checkRangedEligibility(hybrid, 1).canAttack).toBe(true);

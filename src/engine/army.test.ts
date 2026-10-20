@@ -21,7 +21,7 @@ describe('validateArmy', () => {
     selection['phalanges'] = 6; // cap is 5
     const result = validateArmy(selection);
     expect(result.valid).toBe(false);
-    expect(result.errors[0]).toMatch(/exceeds the maximum/);
+    expect(result.errors[0]).toEqual({ kind: 'overMax', typeId: 'phalanges', count: 6, max: 5 });
   });
 
   it('rejects exceeding the total point budget', () => {
@@ -35,7 +35,7 @@ describe('validateArmy', () => {
     // total so far = 405, over budget
     const result = validateArmy(selection);
     expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes('budget'))).toBe(true);
+    expect(result.errors).toEqual([{ kind: 'overBudget', total: 405, budget: ARMY_BUDGET }]);
   });
 
   it('rejects spending less than the full budget', () => {
@@ -43,7 +43,7 @@ describe('validateArmy', () => {
     selection['phalanges'] = 5; // 75, well within caps but far short of 400
     const result = validateArmy(selection);
     expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes('budget'))).toBe(true);
+    expect(result.errors).toEqual([{ kind: 'underBudget', total: 75, budget: ARMY_BUDGET }]);
   });
 
   it('rejects an empty selection, since 0 points is under budget', () => {

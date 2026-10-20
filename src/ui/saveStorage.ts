@@ -4,6 +4,7 @@ import {
   parseSavedGame,
   type EdgeCode,
   type SavedGame,
+  type SaveError,
 } from '../engine/saveGame';
 
 /** Manual save slots offered in the Save/Load panel. */
@@ -155,14 +156,14 @@ export function downloadSave(save: SavedGame): void {
 }
 
 /**
- * Opens a file picker and resolves with the chosen save, or an error message
+ * Opens a file picker and resolves with the chosen save, or an error
  * to show the player. Resolves to null if they dismiss the dialog.
  *
  * Note: browsers fire no event when a file dialog is cancelled, so the
  * returned promise simply never settles in that case — callers must treat it
  * as fire-and-forget rather than awaiting it to re-enable UI.
  */
-export function pickSaveFile(): Promise<{ save: SavedGame } | { error: string } | null> {
+export function pickSaveFile(): Promise<{ save: SavedGame } | { error: SaveError | { kind: 'unreadable' } } | null> {
   return new Promise((resolve) => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -176,7 +177,7 @@ export function pickSaveFile(): Promise<{ save: SavedGame } | { error: string } 
       file
         .text()
         .then((text) => resolve(parseSavedGame(text)))
-        .catch(() => resolve({ error: "That file couldn't be read." }));
+        .catch(() => resolve({ error: { kind: 'unreadable' } }));
     });
     input.click();
   });
