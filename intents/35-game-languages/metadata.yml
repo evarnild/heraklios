@@ -1,0 +1,15 @@
+# generated-by: heraklios/intent@0.1.2
+id: 35
+slug: game-languages
+type: feature
+status: accepted
+title: Play the game in several languages, French and English first
+review_tier:
+intent_accepted: 2026-10-20 by-agent    # owner's "yes" in chat
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+follows_up:
+links:
+  - intents/34-english-game-text    builds on; makes every game text English first, which §35 then puts in tables
