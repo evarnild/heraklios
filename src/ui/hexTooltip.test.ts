@@ -6,7 +6,7 @@ describe('formatHexTooltip', () => {
   it('shows the coordinate and terrain label for a real map hex', () => {
     // (4,9) is 'plateau' on the shipped map — see combat.test.ts's "(4,9) on
     // the shipped map" tests for the same fixed point.
-    expect(formatHexTooltip({ q: 4, r: 9 })).toBe('(4, 9) — Plateaux');
+    expect(formatHexTooltip({ q: 4, r: 9 })).toBe('(4, 9) — Plateau');
   });
 
   it('reflects a different real hex\'s terrain, not a hardcoded label', () => {
@@ -17,7 +17,7 @@ describe('formatHexTooltip', () => {
     expect(plainEntry).toBeDefined();
     const [key] = plainEntry!;
     const [q, r] = key.split(',').map(Number);
-    expect(formatHexTooltip({ q: q!, r: r! })).toBe(`(${q}, ${r}) — Plaine`);
+    expect(formatHexTooltip({ q: q!, r: r! })).toBe(`(${q}, ${r}) — Plain`);
   });
 
   it('falls back to the plain label for a hex with no MAP_TERRAIN entry', () => {
@@ -27,6 +27,6 @@ describe('formatHexTooltip', () => {
     // default MapView.ts's own rendering loop uses for the same lookup.
     const offMap = { q: 9999, r: -9999 };
     expect(MAP_TERRAIN.get(`${offMap.q},${offMap.r}`)).toBeUndefined();
-    expect(formatHexTooltip(offMap)).toBe('(9999, -9999) — Plaine');
+    expect(formatHexTooltip(offMap)).toBe('(9999, -9999) — Plain');
   });
 });

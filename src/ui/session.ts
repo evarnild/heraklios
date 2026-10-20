@@ -161,7 +161,7 @@ function assignEdgesRandomly(playerCount: number): void {
  * wrong, just unused by test-mode games — `testMode.ts`'s shortcuts also now
  * size `armySelections` to match their OWN `playerCount`. `[]` next to
  * `playerCount: 2` is a length mismatch too, just one that's always been
- * there for a cold "Mode test" launch straight from the Menu (nothing ever
+ * there for a cold "Test mode" launch straight from the Menu (nothing ever
  * populated it for that path) and is harmless since nothing reads
  * `armySelections` in test mode. Worth tidying since this feature's own
  * test (`session.test.ts`) made the mismatch newly visible and easy to

@@ -123,3 +123,17 @@ Re-read on `main` at `288b0e1`:
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-10-20 — build
+
+Commits: `defe22b` (terrain labels + `PALETTE_LABELS`), `c1bde93` (Menu
+labels, e2e constants, comments, README l. 125/189), `f16984a` (combat
+results), `f759e5d` (README l. 114).
+
+Shipped per plan, no divergence. `npm run verify` green (637 tests, lint
+under cap), `npm run e2e` 4/4, `npm run check:intent` PASS. Accented-literal
+sweep over `src/scenes`, `src/ui`, `index.html` finds only B6's exceptions
+(title, source, zone names, default player names); no "Mode test" /
+"Charger une partie" left outside `intents/`, `plan-history.md`,
+`docs/research/`. Not checked: AC5 (combat log text) and AC7 (live check,
+owed by the owner).

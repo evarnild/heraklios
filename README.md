@@ -111,7 +111,7 @@ To make a change — intent, plan, build, review, merge — see
    agreed to (see "Ending the game" below).
 
 On both the Placement and Board screens, hovering any hex shows a small
-tooltip with its coordinate and terrain type (e.g. "(4, 9) — Plateaux") —
+tooltip with its coordinate and terrain type (e.g. "(4, 9) — Plateau") —
 useful for telling plain from plateau or marsh at a glance, or for pinning
 down exactly which hex a rule, a bug, or a screenshot is talking about.
 
@@ -122,7 +122,7 @@ separate autosave, each showing the turn, active player, phase and timestamp
 so you can tell them apart. Saves live in the browser's `localStorage`, and
 **"Export to file"** / **"Import from file"** round-trip a `.json` save for
 backup, for moving between machines, or for handing a game to someone else.
-The Menu's **"Charger une partie"** offers the same list (load and import
+The Menu's **"Load a game"** offers the same list (load and import
 only) and drops you straight onto the board.
 
 The game **autosaves at the start of each player's movement phase**, into its
@@ -186,7 +186,7 @@ to escape a board wedged by exactly that kind of stuck state, so disabling it
 in that situation would defeat its own purpose.
 
 Abandoning does **not** clear the autosave: the game you just left is still
-sitting in the Menu's **"Charger une partie"** > Autosave row if you change
+sitting in the Menu's **"Load a game"** > Autosave row if you change
 your mind or abandoned by mistake, and it's overwritten the moment any other
 game reaches the Board anyway.
 

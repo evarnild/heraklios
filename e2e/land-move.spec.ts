@@ -1,4 +1,4 @@
-// Spec B6: from "Mode test", move a land unit one hex by canvas clicks.
+// Spec B6: from "Test mode", move a land unit one hex by canvas clicks.
 import { expect, test } from '@playwright/test';
 import { MENU_TEST, activeUnitOfType, clickHex, hexShot, key, reachable, startFromMenu, state, unit, waitIdle } from './helpers';
 

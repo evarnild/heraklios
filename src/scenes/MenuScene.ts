@@ -181,7 +181,7 @@ export class MenuScene extends Phaser.Scene {
     }
 
     const testBtn = this.add
-      .text(width / 2, 570, 'Mode test (2 joueurs, armées prêtes)', {
+      .text(width / 2, 570, 'Test mode (2 players, armies ready)', {
         fontSize: '16px',
         color: '#cfcfcf',
         backgroundColor: '#333',
@@ -198,7 +198,7 @@ export class MenuScene extends Phaser.Scene {
     testBtn.on('pointerout', () => testBtn.setStyle({ backgroundColor: '#333' }));
 
     const combatTestBtn = this.add
-      .text(width / 2, 612, 'Mode test combat (unités face à face, 2 cases)', {
+      .text(width / 2, 612, 'Combat test mode (units face to face, 2 hexes)', {
         fontSize: '16px',
         color: '#cfcfcf',
         backgroundColor: '#333',
@@ -217,7 +217,7 @@ export class MenuScene extends Phaser.Scene {
     // Always offered, even with every slot empty, since the panel can also
     // import a save from a .json file.
     const loadBtn = this.add
-      .text(width / 2, 670, 'Charger une partie', {
+      .text(width / 2, 670, 'Load a game', {
         fontSize: '18px',
         color: '#ffffff',
         backgroundColor: '#3a3a55',

@@ -1,6 +1,7 @@
 import type { TerrainType } from '../data/terrain';
-import { TERRAIN_ORDER, TERRAIN_LABELS, TERRAIN_COLORS, hexToPixel } from '../ui/hexRender';
+import { TERRAIN_ORDER, TERRAIN_COLORS, hexToPixel } from '../ui/hexRender';
 import { EditorState } from './editorState';
+import { PALETTE_LABELS } from './paletteLabels';
 import { toMapTsSource, toSaveFile, fromSaveFile, type EditorSaveFile } from './serialize';
 import { Camera } from './camera';
 import { drawScene } from './render';
@@ -78,7 +79,7 @@ function buildPalette(): void {
     swatch.className = 'swatch-color';
     swatch.style.background = `#${(TERRAIN_COLORS[terrain] ?? 0xff00ff).toString(16).padStart(6, '0')}`;
     const label = document.createElement('span');
-    label.textContent = TERRAIN_LABELS[terrain] ?? terrain;
+    label.textContent = PALETTE_LABELS[terrain] ?? terrain;
     btn.appendChild(swatch);
     btn.appendChild(label);
     btn.addEventListener('click', () => {
