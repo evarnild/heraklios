@@ -135,7 +135,12 @@ export class PlacementScene extends Phaser.Scene {
     this.mapView.onHexClick = (hex) => this.handleHexClick(hex);
 
     this.infoText = this.add
-      .text(20, height - 40, '', { fontSize: '15px', color: '#ffe08a' })
+      .text(20, height - 40, '', {
+        fontSize: '15px',
+        color: '#ffe08a',
+        backgroundColor: '#1a1a1a',
+        padding: { x: 8, y: 4 },
+      })
       .setScrollFactor(0)
       .setDepth(30);
 

@@ -2,7 +2,7 @@
 id: 33
 slug: placement-label-background
 type: adjustment
-status: accepted
+status: in-review
 title: Give the placement prompt label a background
 review_tier:
 intent_accepted: 2026-10-20    # recorded by Claude: owner's "yes" to the proposal in chat
