@@ -5,10 +5,10 @@ type: adjustment
 status: in-review
 title: Give the placement prompt label a background
 review_tier:
-intent_accepted: 2026-10-20    # recorded by Claude: owner's "yes" to the proposal in chat
+intent_accepted: 2026-10-20 by-agent    # recorded by Claude: owner's "yes" to the proposal in chat
 spec_accepted:
 plan_approved:
-live_checked: 2026-10-20    # recorded by Claude: owner reported the live check done and successful
+live_checked:
 merged:
 follows_up:
 links:
