@@ -217,7 +217,7 @@ sync when something merges** — it went stale once and the user caught it.
 | Item | Type · status |
 | --- | --- |
 | [§40](intents/40-naval-turn-buttons/) The naval Turn buttons turn the wrong way (left should be counter-clockwise) | fix · accepted |
-| [§41](intents/41-e2e-dev-server-first-load/) An e2e run can fail before any scenario: the game's first load never arrives | fix · draft |
+| [§41](intents/41-e2e-dev-server-first-load/) An e2e run can fail before any scenario: the game's first load never arrives | fix · accepted |
 
 ### Queued
 
