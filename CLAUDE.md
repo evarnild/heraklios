@@ -133,8 +133,8 @@ npm run sessions -- --log 30    # the raw event tail
   coordinator's own state. Progress shows in the worktree's `status`, `dirty`
   and `ahead` columns (the implementer commits early), and `in-review` means
   it finished.
-- Keep it to about three intent sessions (or launched implementers) at once. Merges and reviews are
-  serial, so more sessions mostly add rebases.
+- Keep it to about three intent sessions (or launched implementers) at
+  once. Merges and reviews are serial, so more sessions mostly add rebases.
 - Spawned worktrees live outside the repo on purpose, so vite, vitest and
   eslint never pick up a nested checkout. They get a real `node_modules`
   from `npm ci`, never a junction (`plan.md` §4).

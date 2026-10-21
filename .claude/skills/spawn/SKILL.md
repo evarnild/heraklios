@@ -25,8 +25,9 @@ You are the **coordinator** (the main checkout). This skill wraps
    may not write code before them.
 3. **Check the load.** Run `npm run sessions`. If three or more intent
    sessions are already open (anything not `closed`) or implementers you
-   launched are still running, say so and ask before adding a fourth. Merges are serial and the owner reviews each
-   one, so more sessions mostly add waiting.
+   launched are still running, say so and ask before adding a fourth.
+   Merges are serial and the owner reviews each one, so more sessions
+   mostly add waiting.
 4. **Spawn.** `npm run spawn -- <id>` (add `--base <ref>` only when the intent
    depends on an unmerged branch, and say so). If the intent folder was
    uncommitted here, the script moves it into the worktree. Tell the owner
@@ -39,8 +40,9 @@ You are the **coordinator** (the main checkout). This skill wraps
    - **Recorded:** launch `heraklios-implementer` with the `Agent` tool and
      `run_in_background: true`, working in the spawned worktree (not
      `isolation: "worktree"`). The brief carries the worktree path, branch,
-     dev port and intent folder, and says to use absolute paths there and
-     leave the main checkout alone. Report that it was launched, with path,
+     dev port and intent folder, and says the branch already exists and is
+     checked out there (so skip the agent's "branch from main" step), to use
+     absolute paths there and to leave the main checkout alone. Report that it was launched, with path,
      branch, port and gates. Don't poll; you are notified when it ends.
    - **Missing:** don't launch. Report the path, branch, port and gates, say
      which gate is missing, and give the hand-over: `cd "<path>" && claude`,
