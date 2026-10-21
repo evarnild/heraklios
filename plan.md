@@ -215,14 +215,14 @@ sync when something merges** — it went stale once and the user caught it.
 
 | Item | Type · status |
 | --- | --- |
-| _none_ | |
+| [§38](intents/38-e2e-first-run-flake/) The first e2e run after a cold start fails one scenario | fix · accepted (plan approved) |
 
 ### Queued
 
 | Item | Type · status |
 | --- | --- |
 | [§29](intents/29-grid-live-check-counts/) Count live checks in the SDLC scan and grid (after §28) | feature · draft |
-| [§38](intents/38-e2e-first-run-flake/) The first e2e run after a cold start fails one scenario | fix · accepted |
+| [§40](intents/40-naval-turn-buttons/) The naval Turn buttons turn the wrong way (left should be counter-clockwise) | fix · draft |
 
 All fully-shipped rows that previously lived here (Stage 3b, §17,
 §18, §19, §24 and earlier) are in the [Shipped](#shipped) table above; see
