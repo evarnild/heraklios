@@ -220,7 +220,8 @@ sync when something merges** — it went stale once and the user caught it.
 | Item | Type · status |
 | --- | --- |
 | [§29](intents/29-grid-live-check-counts/) Count live checks in the SDLC scan and grid (after §28) | feature · draft |
-| [§37](intents/37-i18n-review-lows/) Close §35's open review findings (untested i18n paths, one French term) | fix · accepted |
+| [§37](intents/37-i18n-review-lows/) Close §35's open review findings (untested i18n paths, one French term) | fix · in-review (attest; live check owed) |
+| [§38](intents/38-e2e-first-run-flake/) The first e2e run after a cold start fails one scenario | fix · draft |
 
 All fully-shipped rows that previously lived here (Stage 3b, §17,
 §18, §19, §24 and earlier) are in the [Shipped](#shipped) table above; see
