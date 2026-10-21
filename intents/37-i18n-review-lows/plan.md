@@ -110,3 +110,19 @@ One commit each, `npm run verify` green after each.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-10-21 — build
+
+One commit. `fr.ts` loss line now "perd N points d’équipage" (pinned in
+`reports.test.ts`). New tests: `names.test.ts` (French `movement`),
+`index.test.ts` (first `language()` sets the page lang), `messages.test.ts`
+(empty exchange; 3- and 4-name draws). `noLiterals.test.ts`: `button(`
+(arg 2) and `buildRow(` (arg 1) added, `sourceFiles` recurses (skips
+`ui/i18n` and tests), `scanSource` split out and tested on inline source and
+a temp tree. The scan stays green on today's code with an empty pending list.
+
+Mutants, each run against `src/ui/i18n` and reverted: N6 (`phaseName`
+returns the id), I8 (`applyToPage` removed), E6 (`|| 'none'` and `|| 'aucun'`
+removed, each), E7 (`joinNames` drops the last name, en and fr), NL4 (literal
+"Save" in `saveLoadPanel.ts`'s `button(`) — each fails one test. 692 tests,
+`verify` green. Diverged: none. Live check still owed (French boarding report).

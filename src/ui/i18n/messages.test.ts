@@ -92,6 +92,18 @@ function table(lang: Language): Map<string, string> {
   return out;
 }
 
+describe('list wording', () => {
+  it('says none when an exchange sacrifices nothing', () => {
+    expect(messagesFor('en').log.exchangeSacrificed([])).toBe('Exchange: defender(s) destroyed; sacrificed none.');
+    expect(messagesFor('fr').log.exchangeSacrificed([])).toBe('Échange : défenseur(s) détruit(s) ; sacrifié(s) : aucun.');
+  });
+
+  it('joins a draw between three or more players', () => {
+    expect(messagesFor('en').gameOver.draw(['A', 'B', 'C'])).toBe('Draw between A, B and C!');
+    expect(messagesFor('fr').gameOver.draw(['A', 'B', 'C', 'D'])).toBe('Égalité entre A, B, C et D !');
+  });
+});
+
 describe('message tables', () => {
   it('have the same messages in both languages', () => {
     expect([...table('fr').keys()]).toEqual([...table('en').keys()]);

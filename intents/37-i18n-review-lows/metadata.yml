@@ -2,7 +2,7 @@
 id: 37
 slug: i18n-review-lows
 type: fix
-status: accepted
+status: in-review
 title: Close §35's open review findings (untested i18n paths, one French term)
 review_tier:
 intent_accepted: 2026-10-21 by-agent    # owner: "yes to 37" in chat
