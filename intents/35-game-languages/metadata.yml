@@ -2,14 +2,14 @@
 id: 35
 slug: game-languages
 type: feature
-status: in-review
+status: done
 title: Play the game in several languages, French and English first
 review_tier: reviewed    # spec: describeSave leaves src/engine/saveGame.ts (Reviewed path); owner agreed
 intent_accepted: 2026-10-20 by-agent    # owner's "yes" in chat
 spec_accepted: 2026-10-20 by-agent    # owner's "yes" in chat (with Reviewed tier and saved names kept)
 plan_approved: 2026-10-20 by-agent    # owner's "yes" in chat
 live_checked: 2026-10-21 by-agent    # owner: "live checked ok" in chat, after the round-1 French rework
-merged:
+merged: 9d3cf43    # 2026-10-21, merged by Claude on the owner's explicit request in chat
 follows_up:
 links:
   - intents/34-english-game-text    builds on; makes every game text English first, which §35 then puts in tables

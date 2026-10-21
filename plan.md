@@ -206,6 +206,7 @@ sync when something merges** — it went stale once and the user caught it.
 | [§31](intents/31-gate-recording/) who records a gate — agent on request, `by-agent` marker, `parseGate`, scan "Metadata problems" (Reviewed tier, 1 review round, 3 LOW worth-a-look; see [review.md](intents/31-gate-recording/review.md)) | `597a07d` |
 | [§33](intents/33-placement-label-background/) placement prompt label background (adjustment, Attested, 2 review rounds; see [review.md](intents/33-placement-label-background/review.md)) | `8ce74c8` |
 | [§34](intents/34-english-game-text/) English game text — Menu, tooltip and combat-log labels; editor palette stays French (feature, Attested, 1 review round, 2 LOW worth-a-look; see [review.md](intents/34-english-game-text/review.md)) | `d36e7b5` |
+| [§35](intents/35-game-languages/) play in English or French — Menu switch, typed tables in `src/ui/i18n/`, unit/country/place names per language, engine returns data not text (feature, Reviewed, 2 review rounds, LOWs carried to [§37](intents/37-i18n-review-lows/); see [review.md](intents/35-game-languages/review.md)) | `9d3cf43` |
 
 ### In flight
 
@@ -218,8 +219,8 @@ sync when something merges** — it went stale once and the user caught it.
 | Item | Type · status |
 | --- | --- |
 | [§29](intents/29-grid-live-check-counts/) Count live checks in the SDLC scan and grid (after §28) | feature · draft |
-| [§35](intents/35-game-languages/) Play the game in several languages, French and English first | feature · in-review (rework, round 1) |
 | [§36](intents/36-e2e-language-scenario/) A smoke scenario for the language switch (after §35) | feature · accepted |
+| [§37](intents/37-i18n-review-lows/) Close §35's open review findings (untested i18n paths, one French term) | fix · draft |
 
 All fully-shipped rows that previously lived here (Stage 3b, §17,
 §18, §19, §24 and earlier) are in the [Shipped](#shipped) table above; see
