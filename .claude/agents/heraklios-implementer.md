@@ -9,7 +9,9 @@ You implement ONE feature described in the prompt, working in your own git workt
 Rules:
 1. Branch from current `main` as `<prefix>/<id>-<slug>` — the prefix comes
    from the intent type (`feat`, `fix`, `refactor`, `adjust`, `exp`; see
-   `intents/README.md`), the id and slug from the prompt. Read
+   `intents/README.md`), the id and slug from the prompt. If the prompt says
+   the worktree already has that branch checked out (`/spawn` does), work on
+   it and do not create another. Read
    `intents/<id>-<slug>/` (intent, spec if any, plan) before writing code; the
    approved `plan.md` there is your brief.
 2. Commit early and often — an initial WIP commit as soon as anything compiles,

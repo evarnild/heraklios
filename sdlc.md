@@ -39,8 +39,11 @@ number after the highest one in `plan.md` / `plan-history.md`.
   through the plan, tests first.
 - **In parallel:** `npm run spawn -- <id>` creates a worktree at
   `../heraklios-wt/<id>-<slug>` with dev port 5200+(id mod 100) and a
-  `CLAUDE.local.md` brief. Open `claude` there; that session implements.
-  Keep it to about three at once.
+  `CLAUDE.local.md` brief. When the gate the type needs is recorded
+  (`plan_approved`, or `intent_accepted` for an adjustment or experiment),
+  `/spawn` also launches the implementer in the background there, and
+  reports back with an offer of `/review`. Otherwise open `claude` in the
+  worktree; that session implements. Keep it to about three at once.
 
 It ends with `npm run verify` green and `status: in-review`.
 

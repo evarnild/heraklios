@@ -121,8 +121,21 @@ npm run sessions -- --log 30    # the raw event tail
   `CLAUDE.local.md` (gitignored, written by spawn) says which intent, branch
   and port it has. It never edits `plan.md`, never merges, and sets
   `status: in-review` when done.
-- Keep it to about three intent sessions at once. Merges and reviews are
-  serial, so more sessions mostly add rebases.
+- **`/spawn` launches the implementer itself** when `metadata.yml` already
+  records the gate the type needs (`plan_approved` for feature/fix/refactor,
+  `intent_accepted` for adjustment/experiment): a background
+  `heraklios-implementer` agent working in the worktree. With a gate missing
+  it hands over as before. On completion the coordinator reports and offers
+  `/review`; it never runs it unprompted, records a gate or merges.
+- **A launched implementer is not a session in `npm run sessions`.** Hooks
+  run per session and file events under `CLAUDE_PROJECT_DIR`, so the
+  implementer files none under the worktree (its row shows `no events`) and
+  the coordinator's row reflects only the coordinator's own session.
+  Progress shows in the worktree's `status`, `dirty`
+  and `ahead` columns (the implementer commits early), and `in-review` means
+  it finished.
+- Keep it to about three intent sessions (or launched implementers) at
+  once. Merges and reviews are serial, so more sessions mostly add rebases.
 - Spawned worktrees live outside the repo on purpose, so vite, vitest and
   eslint never pick up a nested checkout. They get a real `node_modules`
   from `npm ci`, never a junction (`plan.md` §4).
