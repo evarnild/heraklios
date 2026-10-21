@@ -2,14 +2,14 @@
 id: 36
 slug: e2e-language-scenario
 type: feature
-status: in-review
+status: done
 title: A smoke scenario for the language switch
 review_tier:
 intent_accepted: 2026-10-21 by-agent    # owner: "accept 36" in chat
 spec_accepted: 2026-10-21 by-agent    # owner: "yes to both" in chat
 plan_approved: 2026-10-21 by-agent    # owner's "yes" in chat
 live_checked:
-merged:
+merged: a1590f7    # 2026-10-21, merged by Claude on the owner's explicit request in chat
 follows_up:
 links:
   - intents/35-game-languages    the behaviour this covers; its review round 1 proposed the scenario
