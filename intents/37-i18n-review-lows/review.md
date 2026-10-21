@@ -1,12 +1,101 @@
 <!-- generated-by: heraklios/review@0.1.4 -->
 # §37 review — Close §35's open review findings (untested i18n paths, one French term)
 
-verdict: rework
+verdict: attest
 tier: attested
-reviewed-commit: 08ca311
-round: 1
+reviewed-commit: ba9dde0
+round: 2
 sampled: no
 live-check: owed
+
+Tier set by input 1 (paths: `src/ui/i18n/**`, tests); nothing raises it.
+`sampled: no`: §36 was the 5th attested review and was sampled; this is
+the 6th. Round 1's MEDIUM and LOW are fixed and the fix is proven. The
+live check is owed and was cleared by the rework (`fr.ts` changed), so
+`check:intent` fails on that alone until you record it.
+
+## Passes
+| # | Pass | Result |
+| --- | --- | --- |
+| 1 | Intent and plan match | pass — items 1–6 done; the rework touches only the two round-1 findings |
+| 2 | Type check | FAIL on "A live check is owed and not recorded" only (the owner's to clear) |
+| 3 | Rulebook fidelity | pass — "point(s) d'équipage" (`05-rules-french-original.md:426-432`) |
+| 4 | Tests prove the rule, not only pass | pass — §35's survivors N6, I8, E6, E7, NL4 killed (round 1); both plural mutants killed (below) |
+| 5 | Engine/presentation boundary and conventions | pass |
+| 6 | Numbers in prose | pass |
+| 7 | Documentation | pass — nothing documented changes |
+| 8 | Guardrails and hygiene | pass — lint 0 errors / 21 warnings (cap 21) |
+| 9 | Repository-specific footguns | pass — none apply |
+
+## Type check
+```
+type-check: FAIL (intent 37, fix)
+  error: A live check is owed and not recorded. Do the steps in intents/37-i18n-review-lows/review.md → ## Live check, then set live_checked: <date> in intents/37-i18n-review-lows/metadata.yml.
+  note:  6 file(s), 100 line(s) changed outside intents/.
+```
+The only error is the owed live check: not rework (skill → "Mechanical
+checks", the one exception).
+
+## Findings
+- **LOW** (not this change, carried from §33 and §35) `e2e/` — the first
+  `npm run e2e` after `npm run verify` failed one scenario again (3 passed,
+  1 failed); three reruns passed 4/4 each. In every round so far the
+  failure hit only the *first* run, which was also the slow one (51 s
+  against ~15 s in §35's round 2). Hypothesis, unproven: on a cold start
+  Vite pre-bundles dependencies and reloads the page mid-test. Worth a
+  look: the fix intent the grid proposes; start by running `npm run e2e`
+  right after deleting `node_modules/.vite` and reading the dev server's
+  output for "optimized dependencies changed. reloading".
+
+## Not checked
+- **The French boarding report on screen** — your live check.
+- **Which scenario failed** in this round's first e2e run (not captured;
+  the reruns passed).
+- Other French plurals with a number in them: not swept (as round 1).
+
+## Live check
+- owed: rule 1 (`src/ui/**`: `fr.ts`). Cleared in `ba9dde0`.
+- steps: in the worktree, `npm run dev -- --port 5237 --strictPort --host
+  127.0.0.1` → `http://127.0.0.1:5237/` → Menu → **Français** → **Mode test
+  de combat** → move a galley next to an enemy ship with parallel facing
+  and board it.
+- you should see: the log line "Dé : N -> … perd 1 point d’équipage" or
+  "perd N points d’équipage" (singular only for 1). If no boarding comes
+  up, say so: `reports.test.ts` pins both forms.
+- **Could be an e2e scenario?** No: wording is visual.
+
+## Verified myself vs. taken on trust
+- `git log c276a8f..fix/37-i18n-review-lows`: `ba9dde0`. `status:
+  in-review`, `live_checked` empty.
+- Read `git diff c276a8f ba9dde0` in full: `fr.ts:277` now
+  `point${r.loss > 1 ? 's' : ''}`; `reports.test.ts:137` pins "perd 1 point
+  d’équipage" beside the loss-3 pin; the subfolder test's `rmSync` is in a
+  `finally`.
+- `npm run verify` (worktree, `ba9dde0`): lint 0 errors / 21 warnings (cap
+  21); Vitest 44 files, **692 passed**.
+- `npm run check:intent`: FAIL on the live check only (above).
+- `npm run e2e`: run 1 — 3 passed, 1 failed (14.7 s); runs 2–4 — 4 passed
+  each.
+- Mutants (§35's harness, file backed up and restored, `git diff`
+  checked): `> 1` → `>= 1` killed; `> 1` → `> 3` killed (both by
+  `reports.test.ts` "words a no-effect roll and the French side names").
+  `git status --short` clean afterwards.
+- Taken on trust: the implementer's "failed against the plural-only line
+  first" (the `>= 1` mutant is that line, and it fails).
+
+# Round 1 (history)
+
+- verdict: rework
+- tier: attested
+- reviewed-commit: 08ca311
+- round: 1
+- sampled: no
+- live-check: owed
+
+Resolutions (round 2):
+- MEDIUM "perd 1 points d’équipage": **fixed** in `ba9dde0` (singular for 1,
+  pinned; both plural mutants killed).
+- LOW temp folder left on a throw: **fixed** in `ba9dde0` (`finally`).
 
 Tier set by input 1 (paths): `src/ui/i18n/**` and tests are Attested;
 nothing touches a Reviewed path, `review_tier` is empty, and the fix
@@ -15,7 +104,7 @@ before it). The five untested paths are closed and proven. The French
 term fix introduces a grammar error for the most common boarding result,
 which needs a one-line rework.
 
-## Passes
+### Passes
 | # | Pass | Result |
 | --- | --- | --- |
 | 1 | Intent and plan match | findings (1) — items 1 and 3–6 done as planned; item 2's wording is wrong when the loss is 1 (M1) |
@@ -28,13 +117,13 @@ which needs a one-line rework.
 | 8 | Guardrails and hygiene | pass — lint 0 errors / 21 warnings (cap 21); no new dependency |
 | 9 | Repository-specific footguns | pass — none apply |
 
-## Type check
+### Type check
 ```
 type-check: PASS (intent 37, fix)
   note:  6 file(s), 95 line(s) changed outside intents/.
 ```
 
-## Findings
+### Findings
 - **MEDIUM** `src/ui/i18n/fr.ts:277` — the loss line is now `perd
   ${r.loss} points d’équipage`, so a loss of 1 reads "perd 1 points
   d’équipage". A loss of 1 is the boarding table's most common decisive
@@ -48,7 +137,7 @@ type-check: PASS (intent 37, fix)
   throws, leaving a `scan-*` folder in the temp dir. Worth a look:
   `try { … } finally { rmSync(…) }`.
 
-## Not checked
+### Not checked
 - **The French boarding report on screen.** Your live check is recorded
   (`08ca311`, "record live check"); the plan's steps needed a boarding
   in Combat test mode, and I don't know whether one came up. The
@@ -58,7 +147,7 @@ type-check: PASS (intent 37, fix)
   was found by reading the boarding table.
 - e2e runs English only, so it says nothing about `fr.ts`.
 
-## Live check
+### Live check
 - owed: rule 1 (`src/ui/**`: `fr.ts`). Recorded `live_checked:
   2026-10-21 by-agent` in `08ca311`. The rework changes `fr.ts` again, so
   the implementer clears it; the re-check is one glance at a French
@@ -70,7 +159,7 @@ type-check: PASS (intent 37, fix)
 - **Could be an e2e scenario?** No: this is wording, which is visual and
   stays a person's check even under §36's scenario.
 
-## Verified myself vs. taken on trust
+### Verified myself vs. taken on trust
 - `git log main..fix/37-i18n-review-lows`: `748f397` (fix), `08ca311`
   (live check). `status: in-review`.
 - Read `git diff main...HEAD -- src/` in full (6 files).
