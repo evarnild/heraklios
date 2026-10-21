@@ -125,3 +125,61 @@ Re-read on `main` at `3c5ce12`:
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-10-21 — subtasks 1–6 (implementer)
+
+Commits: b2afaf3 (config: one reporter, `§38` as UTF-8 bytes 302 247),
+4d5674a (sleep reporter + pure module + 9 tests), then README. Final
+commit sets `status: in-review`.
+
+**Subtask 2 (lead b, shared port): refuted.** Two `npx playwright test`
+from this worktree, each with its own `--output` dir, port free beforehand
+(checked each time): the second suite (B) started at +0 s, +3 s, +10 s,
++17 s (A passed in ~19 s, so +17 s is as A's server shuts down). Raw
+outcomes: at +0 s the OS picked one winner, the other failed in 3.3 s with
+`[WebServer] Error: Port 5232 is already in use ... Process from
+config.webServer was not able to start`; at +3, +10, +17 s B failed in
+1.8-3.3 s with `Error: http://127.0.0.1:5232 is already used, make sure
+that nothing is running on the port/url or set reuseExistingServer:true`.
+In all four the other suite passed 7/7 (at +10 s its scenarios took 11 s
+instead of 4 s, still green). So the second suite is refused cleanly and
+the first is undisturbed.
+*A first, wrong, experiment:* with both suites sharing one `test-results/`
+the winner failed 5 of 7 with `ENOENT ... test-results\.playwright-artifacts-N`
+(B's startup clears that dir). That is an artefact of the experiment (same
+output dir), not a port effect; it does mean two suites in the **same**
+worktree break each other, which a sane user doesn't do. Solo runs with
+`node_modules/.vite` removed passed 7/7 (19.7 s, 17.7 s). Also seen: the
+§40 session's vite held 5232 during my work (pid 29900), so I waited and
+did not touch it. Not done: `follows_up: 32` is not set.
+
+**Subtask 3: not needed.** No non-refused failure at any offset; ports,
+`CLAUDE.md` and `README.md` port mentions unchanged (README gained a note
+that a second suite is refused cleanly).
+
+**Subtask 4:** `scripts/sleep-window.mjs` (parse Kernel-Power 42/107/524
+JSON, inclusive window, notice text), `scripts/sleep-reporter.mjs`
+(Playwright reporter; only when the run is not `passed` and
+`process.platform === 'win32'`; errors swallowed; `onEnd` returns nothing,
+so exit status is untouched), wired in `playwright.config.ts`. Lives in
+`scripts/` (not `e2e/`) so vitest's `scripts/**/*.test.mjs` runs its 9
+tests under `npm test`. Mutants: `>=/<=` to `>/<` killed; dropping the id
+filter in `eventsInWindow` survived until a test feeding id 105 directly
+was added, then killed. Real PowerShell path proven with the reporter
+started at 22:10 on a `failed` result: printed `The machine slept at
+22:15:52 during this run (critical battery); its failures may not be the
+code's. Rerun on mains power.`; start 22:20 printed nothing; `passed`
+printed nothing. Forced failure (an `expect` in `land-move.spec.ts`
+broken, restored from backup): 1 failed 6 passed, trace kept, no sleep line
+(none in window), non-zero exit as before.
+
+**Subtask 5:** README `npm run e2e` paragraph: sleep line -> rerun on
+mains; any other red run -> read the trace.
+
+**Subtask 6:** `npm run verify` green: 45 files, 701 tests (was 692),
+lint 21 warnings (cap 21 unchanged), `check:intent` PASS. `npm run e2e`
+7/7 three times, each after removing `node_modules/.vite` and
+`test-results` (18.1 s, 17.8 s, 17.9 s). Divergence: these were runs in
+this existing worktree, not three fresh spawns; and the failure of the
+original review run (sleep, confirmed by the coordinator) was not
+reproducible on demand, only named when it recurs.
