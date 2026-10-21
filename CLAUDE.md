@@ -129,8 +129,9 @@ npm run sessions -- --log 30    # the raw event tail
   `/review`; it never runs it unprompted, records a gate or merges.
 - **A launched implementer is not a session in `npm run sessions`.** Hooks
   run per session and file events under `CLAUDE_PROJECT_DIR`, so the
-  worktree's row shows `no events`, and the coordinator's row shows only the
-  coordinator's own state. Progress shows in the worktree's `status`, `dirty`
+  implementer files none under the worktree (its row shows `no events`) and
+  the coordinator's row reflects only the coordinator's own session.
+  Progress shows in the worktree's `status`, `dirty`
   and `ahead` columns (the implementer commits early), and `in-review` means
   it finished.
 - Keep it to about three intent sessions (or launched implementers) at

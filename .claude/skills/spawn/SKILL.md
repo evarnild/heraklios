@@ -36,7 +36,8 @@ You are the **coordinator** (the main checkout). This skill wraps
    to **In flight** if it isn't there.
 6. **Launch or hand over.** Read the worktree's `metadata.yml`. The gate the
    type needs is `plan_approved` for a feature, fix or refactor, and
-   `intent_accepted` for an adjustment or experiment.
+   `intent_accepted` for an adjustment or experiment. A bare date and
+   `<date> by-agent` both count as recorded; anything else does not.
    - **Recorded:** launch `heraklios-implementer` with the `Agent` tool and
      `run_in_background: true`, working in the spawned worktree (not
      `isolation: "worktree"`). The brief carries the worktree path, branch,
