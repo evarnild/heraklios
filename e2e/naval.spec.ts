@@ -10,8 +10,13 @@ import { DIRECTIONS, hexAdd } from '../src/engine/hex';
 import { findRammingContacts, reachableNavalHexes } from '../src/engine/navalMovement';
 import { MENU_CLOSE_COMBAT, activeUnitOfType, clickButton, clickHex, key, startFromMenu, state, unit, waitIdle } from './helpers';
 
-/** The Turn buttons, left to right: counter-clockwise (-1), then clockwise (+1) — BoardScene's rotateCCWBtn / rotateCWBtn. */
-const TURN_INDEX = { [-1]: 0, [1]: 1 } as const;
+/**
+ * The Turn buttons, left to right: counter-clockwise on screen (facing +1),
+ * then clockwise (facing -1) — BoardScene's rotateCCWBtn / rotateCWBtn. On
+ * the flat-top board (hexToPixel: y grows downward) facing 0 points down-right
+ * and facing 1 up-right, so a higher facing index is counter-clockwise.
+ */
+const TURN_INDEX = { [1]: 0, [-1]: 1 } as const;
 
 test('a ship turns once and moves one hex forward', async ({ page }) => {
   const errors = await startFromMenu(page, MENU_CLOSE_COMBAT, 'close-combat', 1);
@@ -19,7 +24,7 @@ test('a ship turns once and moves one hex forward', async ({ page }) => {
   expect(st.phase).toBe('movement');
   const ship = await activeUnitOfType(page, 'galeres');
 
-  const plan = ([-1, 1] as const)
+  const plan = ([1, -1] as const)
     .map((dir) => {
       const trial = structuredClone(st);
       const s = trial.units.find((u) => u.id === ship.id)!;
@@ -37,6 +42,16 @@ test('a ship turns once and moves one hex forward', async ({ page }) => {
   await clickHex(page, ship.position);
   await waitIdle(page);
   expect(await page.evaluate(() => window.__heraklios.buttonCount('Turn'))).toBe(2);
+  // Exercise both buttons first, so each wiring line is covered: left turns
+  // counter-clockwise (+1), right turns back clockwise (-1).
+  const f0 = ship.facing;
+  await clickButton(page, 'Turn', TURN_INDEX[1]);
+  await waitIdle(page);
+  expect((await unit(page, ship.id)).facing, 'left Turn is counter-clockwise').toBe((f0 + 1) % 6);
+  await clickButton(page, 'Turn', TURN_INDEX[-1]);
+  await waitIdle(page);
+  expect((await unit(page, ship.id)).facing, 'right Turn is clockwise').toBe(f0);
+
   await clickButton(page, 'Turn', TURN_INDEX[plan!.dir]);
   await waitIdle(page);
   expect((await unit(page, ship.id)).facing, 'the ship turned').toBe(plan!.facing);
