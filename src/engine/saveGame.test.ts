@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   SAVE_VERSION,
   buildSavedGame,
-  describeSave,
   formatSavedAt,
   isValidSavedGame,
   parseSavedGame,
@@ -221,7 +220,6 @@ describe('migrateSavedGame', () => {
     if (!('save' in result)) throw new Error('expected a valid save');
     expect(result.save.gameState.turnNumber).toBe(3);
     expect(result.save.attackedThisPhase).toEqual(['p0u0']);
-    expect(describeSave(result.save)).toBe('Turn 3 — Athènes (combat)');
   });
 
   it('still rejects a version-1 file that is structurally broken', () => {
@@ -230,17 +228,17 @@ describe('migrateSavedGame', () => {
     const save = version1Save();
     delete save.gameState;
     const result = parseSavedGame(JSON.stringify(save));
-    expect('error' in result && result.error).toMatch(/isn't a Héraklios save/);
+    expect('error' in result && result.error).toEqual({ kind: 'notASave' });
   });
 
   it('rejects a version from the future', () => {
     const result = parseSavedGame(JSON.stringify({ ...sampleSave(), version: SAVE_VERSION + 1 }));
-    expect('error' in result && result.error).toContain(`${SAVE_VERSION + 1}`);
+    expect('error' in result && result.error).toEqual({ kind: 'unsupportedVersion', version: SAVE_VERSION + 1, expected: SAVE_VERSION });
   });
 
   it('rejects a version older than anything it can migrate', () => {
     const result = parseSavedGame(JSON.stringify({ ...version1Save(), version: 0 }));
-    expect('error' in result && result.error).toMatch(/isn't supported/);
+    expect('error' in result && result.error).toMatchObject({ kind: 'unsupportedVersion', version: 0 });
   });
 
   /**
@@ -377,30 +375,17 @@ describe('draws and clock/round-limit round-trip', () => {
 describe('parseSavedGame', () => {
   it('reports invalid JSON', () => {
     const result = parseSavedGame('{ not json');
-    expect('error' in result && result.error).toMatch(/valid JSON/);
+    expect('error' in result && result.error).toEqual({ kind: 'invalidJson' });
   });
 
   it('reports a version mismatch specifically, naming both versions', () => {
     const result = parseSavedGame(JSON.stringify({ ...sampleSave(), version: 99 }));
-    expect('error' in result && result.error).toContain('99');
-    expect('error' in result && result.error).toContain(`${SAVE_VERSION}`);
+    expect('error' in result && result.error).toEqual({ kind: 'unsupportedVersion', version: 99, expected: SAVE_VERSION });
   });
 
   it('reports a structurally wrong file', () => {
     const result = parseSavedGame(JSON.stringify({ hello: 'world' }));
-    expect('error' in result && result.error).toMatch(/isn't a Héraklios save/);
-  });
-});
-
-describe('describeSave', () => {
-  it('names the turn, active player and phase', () => {
-    expect(describeSave(sampleSave())).toBe('Turn 3 — Athènes (combat)');
-  });
-
-  it('follows seat order rather than assuming player 0 is active', () => {
-    const save = sampleSave();
-    save.gameState.activePlayerIndex = 1;
-    expect(describeSave(save)).toBe('Turn 3 — Perse (combat)');
+    expect('error' in result && result.error).toEqual({ kind: 'notASave' });
   });
 });
 

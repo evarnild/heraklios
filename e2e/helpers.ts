@@ -36,6 +36,9 @@ export async function startFromMenu(
     // game — every other 404 stays fatal.
     if (m.type() === 'error' && !m.location().url.endsWith('/favicon.ico')) errors.push(m.text());
   });
+  // The scenarios match English labels, so pin the language before the page
+  // loads rather than depend on the browser's locale (§35 B11).
+  await page.addInitScript(() => localStorage.setItem('heraklios.language', 'en'));
   await page.goto('/');
   await page.waitForFunction((l) => window.__heraklios?.buttonCount(l) === 1, label);
   await page.evaluate((n) => window.__heraklios.seed(n), seed);

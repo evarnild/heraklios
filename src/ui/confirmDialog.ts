@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { messages } from './i18n';
 
 export interface ConfirmDialogOptions {
   scene: Phaser.Scene;
@@ -74,8 +75,8 @@ export function showConfirmDialog(options: ConfirmDialogOptions): void {
   // into a latched flag with no error anywhere.
   try {
     const { scene, message, onConfirm, onCancel, excludeFromMainCamera } = options;
-    const confirmLabel = options.confirmLabel ?? 'Yes';
-    const cancelLabel = options.cancelLabel ?? 'Cancel';
+    const confirmLabel = options.confirmLabel ?? messages().common.yes;
+    const cancelLabel = options.cancelLabel ?? messages().common.cancel;
     const { width, height } = scene.scale;
 
     // Depth 50+, above every other modal this app shows (SaveLoadPanel: 40/41;
@@ -111,25 +112,27 @@ export function showConfirmDialog(options: ConfirmDialogOptions): void {
       .setDepth(52);
 
     const confirmBtn = scene.add
-      .text(width / 2 - 85, height / 2 + 44, confirmLabel, {
+      .text(width / 2 - 8, height / 2 + 44, confirmLabel, {
         fontSize: '15px',
         color: '#fff',
         backgroundColor: '#5a2a2a',
         padding: { x: 14, y: 8 },
       })
-      .setOrigin(0.5)
+      // The pair grows outward from the middle, so a longer label (French)
+      // never runs into the other button.
+      .setOrigin(1, 0.5)
       .setScrollFactor(0)
       .setDepth(52)
       .setInteractive({ useHandCursor: true });
 
     const cancelBtn = scene.add
-      .text(width / 2 + 85, height / 2 + 44, cancelLabel, {
+      .text(width / 2 + 8, height / 2 + 44, cancelLabel, {
         fontSize: '15px',
         color: '#fff',
         backgroundColor: '#2a5a2a',
         padding: { x: 14, y: 8 },
       })
-      .setOrigin(0.5)
+      .setOrigin(0, 0.5)
       .setScrollFactor(0)
       .setDepth(52)
       .setInteractive({ useHandCursor: true });

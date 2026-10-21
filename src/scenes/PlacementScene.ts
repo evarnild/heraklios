@@ -5,6 +5,8 @@ import { legalDeploymentHexes, legalNavalDeploymentHexes } from '../ui/mapBounds
 import { session, buildPlayers, resetToMenu } from '../ui/session';
 import { skipAiPlacementSeats } from '../ui/aiSetup';
 import { showConfirmDialog } from '../ui/confirmDialog';
+import { messages } from '../ui/i18n';
+import { edgeName, unitName } from '../ui/i18n/names';
 import { createInitialState } from '../engine/turnManager';
 import { History } from '../engine/history';
 import { unitCategory } from '../engine/movement';
@@ -116,6 +118,7 @@ export class PlacementScene extends Phaser.Scene {
     this.history.clear();
 
     const { width, height } = this.scale;
+    const t = messages();
     const player = session.gameState!.players[this.playerIndex]!;
     const enemyHexes = session.gameState!.units.filter((u) => u.owner !== this.playerIndex).map((u) => u.position);
     this.legalLandHexes = legalDeploymentHexes(player.edge, enemyHexes);
@@ -123,7 +126,7 @@ export class PlacementScene extends Phaser.Scene {
     this.highlightedDomain = null;
 
     const titleText = this.add
-      .text(width / 2, 20, `${player.name} — place your army (edge ${player.edge})`, {
+      .text(width / 2, 20, t.placement.title(player.name, edgeName(player.edge)), {
         fontSize: '18px',
         color: '#e8d9b0',
       })
@@ -145,7 +148,7 @@ export class PlacementScene extends Phaser.Scene {
       .setDepth(30);
 
     this.skipBtn = this.add
-      .text(width - 140, height - 40, 'Done placing', {
+      .text(width - 140, height - 40, t.placement.donePlacing, {
         fontSize: '15px',
         color: '#fff',
         backgroundColor: '#2a5a2a',
@@ -157,7 +160,7 @@ export class PlacementScene extends Phaser.Scene {
     this.skipBtn.on('pointerdown', () => this.finishPlayer());
 
     this.abandonBtn = this.add
-      .text(width - 20, 20, 'Abandon', {
+      .text(width - 20, 20, t.common.abandon, {
         fontSize: '13px',
         color: '#fff',
         backgroundColor: '#5a2a2a',
@@ -170,7 +173,7 @@ export class PlacementScene extends Phaser.Scene {
     this.abandonBtn.on('pointerdown', () => this.confirmAbandon());
 
     this.undoBtn = this.add
-      .text(20, height - 104, '↶ Undo', {
+      .text(20, height - 104, t.common.undo, {
         fontSize: '13px',
         color: '#fff',
         backgroundColor: '#3a3a55',
@@ -182,7 +185,7 @@ export class PlacementScene extends Phaser.Scene {
     this.undoBtn.on('pointerdown', () => this.undo());
 
     this.redoBtn = this.add
-      .text(20, height - 72, '↷ Redo', {
+      .text(20, height - 72, t.common.redo, {
         fontSize: '13px',
         color: '#fff',
         backgroundColor: '#3a3a55',
@@ -199,7 +202,7 @@ export class PlacementScene extends Phaser.Scene {
     // replaced by `turnCcwGlyph`/`turnCwGlyph`, arrowhead icons showing the
     // facing each button will actually turn the pending ship to.
     this.rotateCCWBtn = this.add
-      .text(width / 2 - 90, height - 104, 'Turn', {
+      .text(width / 2 - 90, height - 104, t.common.turn, {
         fontSize: '13px',
         color: '#fff',
         backgroundColor: '#3a3a55',
@@ -212,7 +215,7 @@ export class PlacementScene extends Phaser.Scene {
     this.rotateCCWBtn.on('pointerdown', () => this.rotatePendingShip(-1));
 
     this.rotateCWBtn = this.add
-      .text(width / 2 + 90, height - 104, 'Turn', {
+      .text(width / 2 + 90, height - 104, t.common.turn, {
         fontSize: '13px',
         color: '#fff',
         backgroundColor: '#3a3a55',
@@ -230,7 +233,7 @@ export class PlacementScene extends Phaser.Scene {
     this.turnCwGlyph = this.add.graphics().setScrollFactor(0).setDepth(31);
 
     this.confirmShipBtn = this.add
-      .text(width / 2, height - 104, 'Confirm facing', {
+      .text(width / 2, height - 104, t.placement.confirmFacing, {
         fontSize: '13px',
         color: '#fff',
         backgroundColor: '#2a5a2a',
@@ -243,7 +246,7 @@ export class PlacementScene extends Phaser.Scene {
     this.confirmShipBtn.on('pointerdown', () => this.confirmPendingShip());
 
     this.cancelShipBtn = this.add
-      .text(width / 2, height - 72, 'Cancel', {
+      .text(width / 2, height - 72, t.common.cancel, {
         fontSize: '12px',
         color: '#fff',
         backgroundColor: '#5a2a2a',
@@ -339,8 +342,8 @@ export class PlacementScene extends Phaser.Scene {
   private refreshUndoRedoButtons(): void {
     const undoLabel = this.history.undoLabel;
     const redoLabel = this.history.redoLabel;
-    this.undoBtn.setText(undoLabel ? `↶ Undo: ${undoLabel}` : '↶ Undo');
-    this.redoBtn.setText(redoLabel ? `↷ Redo: ${redoLabel}` : '↷ Redo');
+    this.undoBtn.setText(undoLabel ? messages().common.undoWith(undoLabel) : messages().common.undo);
+    this.redoBtn.setText(redoLabel ? messages().common.redoWith(redoLabel) : messages().common.redo);
     this.undoBtn.setAlpha(this.history.canUndo ? 1 : 0.4);
     this.redoBtn.setAlpha(this.history.canRedo ? 1 : 0.4);
   }
@@ -351,19 +354,15 @@ export class PlacementScene extends Phaser.Scene {
 
   private updateInfo(): void {
     if (this.pendingShip) {
-      const t = getUnitType(this.pendingShip.typeId);
-      this.infoText.setText(
-        `Placing ${t.name}: turn it with "Turn", then "Confirm facing" (or "Cancel").`,
-      );
+      this.infoText.setText(messages().placement.placingShip(unitName(this.pendingShip.typeId)));
       return;
     }
     const item = this.currentItem();
     if (!item) {
-      this.infoText.setText('All units placed. Click "Done placing" to continue.');
+      this.infoText.setText(messages().placement.allPlaced);
       return;
     }
-    const t = getUnitType(item.typeId);
-    this.infoText.setText(`Placing: ${t.name} (${item.remaining} left) — click a highlighted hex`);
+    this.infoText.setText(messages().placement.placing(unitName(item.typeId), item.remaining));
   }
 
   /** The legal-hex set for whatever the queue is currently placing — land
@@ -427,7 +426,7 @@ export class PlacementScene extends Phaser.Scene {
       return;
     }
 
-    this.history.push(this.captureSnapshot(), `Place ${t.name}`);
+    this.history.push(this.captureSnapshot(), messages().placement.placeAction(unitName(item.typeId)));
     const unit: Unit = {
       // Namespaced by player so ids stay unique without depending on
       // `unitCounter` surviving Phaser's scene restarts (several features key
@@ -497,7 +496,7 @@ export class PlacementScene extends Phaser.Scene {
     const item = this.currentItem();
     if (!pending || !item) return;
     const t = getUnitType(pending.typeId);
-    this.history.push(this.captureSnapshot(), `Place ${t.name}`);
+    this.history.push(this.captureSnapshot(), messages().placement.placeAction(unitName(pending.typeId)));
     const state = session.gameState!;
     const unit: Unit = {
       id: `p${this.playerIndex}u${this.unitCounter++}`,
@@ -534,9 +533,9 @@ export class PlacementScene extends Phaser.Scene {
   private confirmAbandon(): void {
     showConfirmDialog({
       scene: this,
-      message: 'Abandon this game and return to the menu?\nPlacement made so far will be lost.',
-      confirmLabel: 'Abandon',
-      cancelLabel: 'Keep placing',
+      message: messages().common.abandonMessage(messages().placement.abandonMessage),
+      confirmLabel: messages().common.abandon,
+      cancelLabel: messages().placement.keepPlacing,
       excludeFromMainCamera: (objects) => this.mapView.excludeFromMainCamera(objects),
       onConfirm: () => {
         resetToMenu();

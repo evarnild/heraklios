@@ -6,34 +6,41 @@ export interface ArmySelection {
   [unitTypeId: string]: number;
 }
 
+/** Why an army can't be confirmed, as data — the presentation writes the
+ * sentence in the player's language (`ui/i18n/format.ts`'s `formatArmyError`). */
+export type ArmyError =
+  | { kind: 'overMax'; typeId: string; count: number; max: number }
+  | { kind: 'overBudget'; total: number; budget: number }
+  | { kind: 'underBudget'; total: number; budget: number };
+
 export interface ArmyValidation {
   valid: boolean;
   totalCost: number;
   remaining: number;
-  errors: string[];
+  errors: ArmyError[];
 }
 
 export function validateArmy(selection: ArmySelection): ArmyValidation {
-  const errors: string[] = [];
+  const errors: ArmyError[] = [];
   let totalCost = 0;
 
   for (const [typeId, count] of Object.entries(selection)) {
     if (count <= 0) continue;
     const type = getUnitType(typeId);
     if (count > type.maxCount) {
-      errors.push(`${type.name}: ${count} exceeds the maximum of ${type.maxCount}`);
+      errors.push({ kind: 'overMax', typeId, count, max: type.maxCount });
     }
     totalCost += type.cost * count;
   }
 
   if (totalCost > ARMY_BUDGET) {
-    errors.push(`Total cost ${totalCost} exceeds the ${ARMY_BUDGET}-point budget`);
+    errors.push({ kind: 'overBudget', total: totalCost, budget: ARMY_BUDGET });
   } else if (totalCost < ARMY_BUDGET) {
     // "Once a player's army... totals exactly 400 purchase points, it's time
     // to place it on the map" (docs/research/02-rules-transcription.md) — an
     // army isn't ready to confirm until every point is spent, not just under
     // budget.
-    errors.push(`Total cost ${totalCost} is under the ${ARMY_BUDGET}-point budget — spend all ${ARMY_BUDGET} points to confirm`);
+    errors.push({ kind: 'underBudget', total: totalCost, budget: ARMY_BUDGET });
   }
 
   return {

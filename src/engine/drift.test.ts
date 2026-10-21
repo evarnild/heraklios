@@ -6,6 +6,7 @@ import { describeLandAttack } from './combat';
 import {
   driftStep,
   resolveElephantDrift,
+  driftExitKind,
   startElephantDrift,
   type DriftEvent,
   type DriftInput,
@@ -16,6 +17,77 @@ import type { GameState, Player, PlayerId, Unit } from './state';
 import { createInitialState } from './turnManager';
 
 const CENTER = { q: 10, r: 5 };
+
+const EXPECTED_MOVE_AND_STOP: string[] = [
+  'onDriftStart',
+  'onNarrate:driftStarted',
+  'onStep',
+  'onStep',
+  'onNarrate:directionRolled',
+  'onDirectionRolled',
+  'onStep',
+  'onNarrate:moved',
+  'onDriftMoved',
+  'onRender',
+  'onStep',
+  'onNarrate:moved',
+  'onDriftMoved',
+  'onRender',
+  'onStep',
+  'onNarrate:stopped',
+  'onStep',
+];
+const EXPECTED_DESTROYED: string[] = [
+  'onDriftStart',
+  'onNarrate:driftStarted',
+  'onStep',
+  'onStep',
+  'onNarrate:directionRolled',
+  'onDirectionRolled',
+  'onStep',
+  'onStep',
+  'onCombat',
+  'onStep',
+  'onNarrate:driftElephantDestroyed',
+  'onRender',
+  'onStep',
+];
+const EXPECTED_REPELLED: string[] = [
+  'onDriftStart',
+  'onNarrate:driftStarted',
+  'onStep',
+  'onStep',
+  'onNarrate:directionRolled',
+  'onDirectionRolled',
+  'onStep',
+  'onStep',
+  'onCombat',
+  'onStep',
+  'onNarrate:repelled',
+  'onStep',
+  'onStep',
+  'onNarrate:directionRolled',
+  'onDirectionRolled',
+  'onStep',
+  'onNarrate:moved',
+  'onDriftMoved',
+  'onRender',
+  'onStep',
+  'onNarrate:moved',
+  'onDriftMoved',
+  'onRender',
+  'onStep',
+  'onNarrate:moved',
+  'onDriftMoved',
+  'onRender',
+  'onStep',
+  'onNarrate:moved',
+  'onDriftMoved',
+  'onRender',
+  'onStep',
+  'onNarrate:stopped',
+  'onStep',
+];
 
 function makeUnit(id: string, owner: PlayerId, typeId: string, position: HexCoord): Unit {
   const t = getUnitType(typeId);
@@ -127,20 +199,70 @@ describe('elephant drift engine', () => {
   // (6,15) is 'plain' and (7,15) is 'marsh' on the shipped map, and a
   // direction die of 1 is DIRECTIONS[0] = {q:1,r:0} — so this walks one hex
   // east, straight off the land zone, with no other terrain in the way.
-  it('eliminates an elephant that drifts into marsh, and says so', async () => {
+  it('eliminates an elephant that drifts into marsh, and narrates it as marsh', async () => {
     const elephant = makeUnit('elephant', 0, 'elephants', { q: 6, r: 15 });
     const state = makeState([elephant]);
-    const lines: string[] = [];
+    const narrated: DriftEvent[] = [];
 
     await resolveElephantDrift(state, elephant, 1, new ScriptedAgent(), () => 1, {
-      onLine: (line) => lines.push(line),
+      onNarrate: (event) => narrated.push(event),
     });
 
     expect(elephant.destroyed).toBe(true);
-    expect(lines.some((l) => l.includes('into the marsh') && l.includes('eliminated'))).toBe(true);
-    // ...and does NOT reach for the old sea/off-map wording, which is the
-    // half a looser `includes('eliminated')` assertion would have missed.
-    expect(lines.some((l) => l.includes('into the sea') || l.includes('off the map'))).toBe(false);
+    const elimination = narrated.find((e) => e.kind === 'eliminatedLeavingLandZone');
+    expect(elimination).toBeDefined();
+    // ...and it is the marsh exit, not the sea or off-map one, which is the
+    // half a looser "was eliminated" assertion would have missed.
+    expect(driftExitKind((elimination as Extract<DriftEvent, { kind: 'eliminatedLeavingLandZone' }>).hex)).toBe('marsh');
+  });
+
+  // The presentation's log, arrow and redraws all hang off the ORDER of these
+  // hooks (narration before the arrow moves, the arrow before the redraw), so
+  // the exact sequence is pinned, not just that each hook fires.
+  function recordHooks(calls: string[]) {
+    return {
+      onDriftStart: () => void calls.push('onDriftStart'),
+      onNarrate: (event: DriftEvent) => void calls.push(`onNarrate:${event.kind}`),
+      onDirectionRolled: () => void calls.push('onDirectionRolled'),
+      onDriftMoved: () => void calls.push('onDriftMoved'),
+      onRender: () => void calls.push('onRender'),
+      onCombat: () => void calls.push('onCombat'),
+      onStep: async () => void calls.push('onStep'),
+    };
+  }
+
+  it('calls its hooks in a fixed order for a drift that moves and stops', async () => {
+    const elephant = makeUnit('elephant', 0, 'elephants', CENTER);
+    const state = makeState([elephant]);
+    const calls: string[] = [];
+
+    await resolveElephantDrift(state, elephant, 2, new ScriptedAgent(), () => 1, recordHooks(calls));
+
+    expect(calls).toEqual(EXPECTED_MOVE_AND_STOP);
+  });
+
+  it('calls its hooks in a fixed order for a drift combat that destroys the elephant', async () => {
+    const elephant = makeUnit('elephant', 0, 'elephants', CENTER);
+    const defender = makeUnit('defender', 1, 'fantassins', { q: 11, r: 5 });
+    const state = makeState([elephant, defender]);
+    const dice = [1, dieForResult(elephant, defender, 'EX')];
+    const calls: string[] = [];
+
+    await resolveElephantDrift(state, elephant, 4, new ScriptedAgent(), () => dice.shift()!, recordHooks(calls));
+
+    expect(calls).toEqual(EXPECTED_DESTROYED);
+  });
+
+  it('calls its hooks in a fixed order for a drift combat that repels the elephant', async () => {
+    const elephant = makeUnit('elephant', 0, 'elephants', CENTER);
+    const defender = makeUnit('defender', 1, 'phalanges', { q: 11, r: 5 });
+    const state = makeState([elephant, defender]);
+    const dice = [1, dieForResult(elephant, defender, 'AR'), 2, 2];
+    const calls: string[] = [];
+
+    await resolveElephantDrift(state, elephant, 4, new ScriptedAgent(), () => dice.shift()!, recordHooks(calls));
+
+    expect(calls).toEqual(EXPECTED_REPELLED);
   });
 
   it('re-rolls a forbidden reverse direction without consuming movement', () => {

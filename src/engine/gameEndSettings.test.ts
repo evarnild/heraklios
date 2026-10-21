@@ -2,11 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   CLOCK_LIMIT_PRESETS_MS,
   ROUND_LIMIT_PRESETS,
-  clockLimitLabel,
   formatRemainingClock,
   nextClockLimitMs,
   nextRoundLimit,
-  roundLimitLabel,
 } from './gameEndSettings';
 
 describe('nextClockLimitMs', () => {
@@ -32,24 +30,6 @@ describe('nextRoundLimit', () => {
 
   it('falls back to the first preset for a value not in the list', () => {
     expect(nextRoundLimit(999)).toBe(ROUND_LIMIT_PRESETS[0]);
-  });
-});
-
-describe('clockLimitLabel', () => {
-  it('labels every preset', () => {
-    expect(clockLimitLabel(null)).toBe('Off');
-    expect(clockLimitLabel(30 * 60_000)).toBe('30 min');
-    expect(clockLimitLabel(60 * 60_000)).toBe('1 h');
-    expect(clockLimitLabel(120 * 60_000)).toBe('2 h');
-  });
-});
-
-describe('roundLimitLabel', () => {
-  it('labels every preset', () => {
-    expect(roundLimitLabel(null)).toBe('Off');
-    expect(roundLimitLabel(6)).toBe('6 rounds');
-    expect(roundLimitLabel(8)).toBe('8 rounds');
-    expect(roundLimitLabel(12)).toBe('12 rounds');
   });
 });
 

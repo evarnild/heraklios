@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
-import { describeSave, formatSavedAt, type SavedGame } from '../engine/saveGame';
+import { formatSavedAt, type SavedGame } from '../engine/saveGame';
+import { describeSlot, formatSaveError } from './i18n/format';
+import { messages } from './i18n';
 import {
   SLOT_COUNT,
   clearSlot,
@@ -31,11 +33,11 @@ export interface SaveLoadPanelConfig {
 
 const PANEL_WIDTH = 720;
 const ROW_HEIGHT = 44;
-const SLOT_NAME_WIDTH = 90;
-const ACTION_BUTTON_X = 400;
+const SLOT_NAME_WIDTH = 140;
+const ACTION_BUTTON_X = 440;
 const ACTION_BUTTON_GAP = 16;
 const SAVE_DESCRIPTION_WIDTH = ACTION_BUTTON_X - SLOT_NAME_WIDTH - ACTION_BUTTON_GAP;
-const SAVE_DESCRIPTION_HEIGHT = 20;
+const SAVE_DESCRIPTION_HEIGHT = 36;
 const TEXT_COLOR = '#e8d9b0';
 const MUTED_COLOR = '#8a7c5c';
 
@@ -51,6 +53,8 @@ export class SaveLoadPanel {
   private objects: Phaser.GameObjects.GameObject[] = [];
   private rowLabels = new Map<string, Phaser.GameObjects.Text>();
   private rowButtons = new Map<string, Phaser.GameObjects.Text[]>();
+  /** The row buttons that act on a saved slot (Load, Delete), dimmed while it is empty. */
+  private needsSave = new WeakSet<Phaser.GameObjects.Text>();
 
   constructor(scene: Phaser.Scene, config: SaveLoadPanelConfig) {
     this.scene = scene;
@@ -114,7 +118,7 @@ export class SaveLoadPanel {
 
     this.add(
       this.scene.add
-        .text(width / 2, top + 24, this.config.mode === 'manage' ? 'Save / Load' : 'Load a saved game', {
+        .text(width / 2, top + 24, this.config.mode === 'manage' ? messages().saves.panelManage : messages().saves.panelLoad, {
           fontSize: '18px',
           color: TEXT_COLOR,
         })
@@ -126,10 +130,10 @@ export class SaveLoadPanel {
     const left = width / 2 - PANEL_WIDTH / 2 + 24;
     let y = top + 68;
 
-    this.buildRow('autosave', 'Autosave', left, y);
+    this.buildRow('autosave', messages().saves.autosave, left, y);
     y += ROW_HEIGHT;
     for (let slot = 1; slot <= SLOT_COUNT; slot++) {
-      this.buildRow(slot, `Slot ${slot}`, left, y);
+      this.buildRow(slot, messages().saves.slot(slot), left, y);
       y += ROW_HEIGHT;
     }
 
@@ -137,11 +141,11 @@ export class SaveLoadPanel {
     const footerY = top + panelHeight - 28;
     let footerX = left;
     if (this.config.mode === 'manage') {
-      this.button(footerX, footerY, 'Export to file', '#4a3f2a', () => this.exportToFile());
-      footerX += 130;
+      const exportBtn = this.button(footerX, footerY, messages().saves.exportFile, '#4a3f2a', () => this.exportToFile());
+      footerX += exportBtn.width + 12;
     }
-    this.button(footerX, footerY, 'Import from file', '#4a3f2a', () => this.importFromFile());
-    this.button(width / 2 + PANEL_WIDTH / 2 - 90, footerY, 'Close', '#5a2a2a', () => this.close());
+    this.button(footerX, footerY, messages().saves.importFile, '#4a3f2a', () => this.importFromFile());
+    this.button(width / 2 + PANEL_WIDTH / 2 - 90, footerY, messages().common.close, '#5a2a2a', () => this.close());
 
     this.config.onObjectsCreated?.(this.objects);
   }
@@ -175,13 +179,18 @@ export class SaveLoadPanel {
     // The autosave slot is written by the game, never by hand — offering
     // "Save" there would just invite overwriting the crash-recovery copy.
     if (this.config.mode === 'manage' && slot !== 'autosave') {
-      buttons.push(this.button(x, y, 'Save', '#2a5a2a', () => this.saveInto(slot)));
-      x += 62;
+      const saveBtn = this.button(x, y, messages().saves.save, '#2a5a2a', () => this.saveInto(slot));
+      buttons.push(saveBtn);
+      x += saveBtn.width + 8;
     }
-    buttons.push(this.button(x, y, 'Load', '#3a3a55', () => this.loadFrom(slot)));
-    x += 62;
+    const loadBtn = this.button(x, y, messages().saves.load, '#3a3a55', () => this.loadFrom(slot));
+    this.needsSave.add(loadBtn);
+    buttons.push(loadBtn);
+    x += loadBtn.width + 8;
     if (this.config.mode === 'manage') {
-      buttons.push(this.button(x, y, 'Delete', '#5a2a2a', () => this.deleteSlot(slot)));
+      const deleteBtn = this.button(x, y, messages().saves.delete, '#5a2a2a', () => this.deleteSlot(slot));
+      this.needsSave.add(deleteBtn);
+      buttons.push(deleteBtn);
     }
     this.rowButtons.set(key, buttons);
 
@@ -194,11 +203,10 @@ export class SaveLoadPanel {
     const key = this.slotKey(slot);
     const save = readSlot(slot);
     const label = this.rowLabels.get(key);
-    label?.setText(save ? `${describeSave(save)} · ${formatSavedAt(save.savedAt)}` : '— empty —');
+    label?.setText(save ? `${describeSlot(save)}\n${formatSavedAt(save.savedAt)}` : messages().saves.empty);
     label?.setColor(save ? TEXT_COLOR : MUTED_COLOR);
     for (const btn of this.rowButtons.get(key) ?? []) {
-      const needsSave = btn.text === 'Load' || btn.text === 'Delete';
-      btn.setAlpha(needsSave && !save ? 0.4 : 1);
+      btn.setAlpha(this.needsSave.has(btn) && !save ? 0.4 : 1);
     }
   }
 
@@ -212,17 +220,17 @@ export class SaveLoadPanel {
     const existing = readSlot(slot);
     const save = capture();
     if (!writeSlot(slot, save)) {
-      this.status('Saving failed — browser storage is full or unavailable.');
+      this.status(messages().saves.savingFailed);
       return;
     }
     this.refreshRow(slot);
-    this.status(existing ? `Overwrote slot ${slot} (${describeSave(save)}).` : `Saved to slot ${slot}.`);
+    this.status(existing ? messages().saves.overwrote(slot, describeSlot(save)) : messages().saves.savedTo(slot));
   }
 
   private loadFrom(slot: SlotId): void {
     const save = readSlot(slot);
     if (!save) {
-      this.status('That slot is empty.');
+      this.status(messages().saves.slotEmpty);
       return;
     }
     this.close();
@@ -233,14 +241,14 @@ export class SaveLoadPanel {
     if (!readSlot(slot)) return;
     clearSlot(slot);
     this.refreshRow(slot);
-    this.status(`Cleared ${slot === 'autosave' ? 'the autosave' : `slot ${slot}`}.`);
+    this.status(slot === 'autosave' ? messages().saves.clearedAutosave : messages().saves.clearedSlot(slot));
   }
 
   private exportToFile(): void {
     const capture = this.config.captureSave;
     if (!capture) return;
     downloadSave(capture());
-    this.status('Exported the current game to a .json file.');
+    this.status(messages().saves.exported);
   }
 
   private importFromFile(): void {
@@ -249,7 +257,7 @@ export class SaveLoadPanel {
     void pickSaveFile().then((result) => {
       if (!result) return;
       if ('error' in result) {
-        this.status(result.error);
+        this.status(formatSaveError(result.error));
         return;
       }
       this.close();

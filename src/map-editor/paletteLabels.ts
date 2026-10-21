@@ -1,8 +1,8 @@
 import type { TerrainType } from '../data/terrain';
 
 /** French labels for the map editor's terrain palette. The editor stays
- *  French while the game is English (§34 B4), so it has its own table
- *  rather than sharing the game's `TERRAIN_LABELS`. */
+ *  French while the game has its own language switch (§34 B4, §35), so it has its own table
+ *  rather than sharing the game's terrain table (`ui/i18n`). */
 export const PALETTE_LABELS: Record<TerrainType, string> = {
   plain: 'Plaine',
   'river-wide': 'Rivière large',

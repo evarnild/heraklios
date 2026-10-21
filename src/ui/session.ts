@@ -2,6 +2,7 @@ import type { ArmySelection } from '../engine/army';
 import { emptySelection } from '../engine/army';
 import { normalizeSeatControls, type SeatControl } from '../engine/seatControl';
 import type { CombatMode, GameState, Player, PlayerId } from '../engine/state';
+import { countryNames } from './i18n/names';
 
 export type Edge = 'N' | 'S' | 'E' | 'W';
 
@@ -71,7 +72,7 @@ export interface SessionState {
 
 export const session: SessionState = {
   playerCount: 4,
-  playerNames: ['Athènes', 'Perse', 'Macédoine', 'Sparte'],
+  playerNames: countryNames(),
   edges: ['W', 'E', 'N', 'S'],
   armySelections: [],
   combatMode: 'multi-defender',
@@ -99,6 +100,7 @@ export function setSeatControls(controls: unknown): void {
 
 export function resetSession(playerCount: number): void {
   session.playerCount = playerCount;
+  session.playerNames = countryNames();
   session.testMode = false;
   session.testScenario = null;
   session.armySelections = Array.from({ length: playerCount }, () => emptySelection());

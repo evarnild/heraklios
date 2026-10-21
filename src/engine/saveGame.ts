@@ -2,6 +2,13 @@ import type { ArmySelection } from './army';
 import { isSeatControl, normalizeSeatControls, type SeatControl } from './seatControl';
 import type { CombatMode, GameState, Phase, PlayerId } from './state';
 
+/** Why a file couldn't be loaded, as data — the presentation words it in the
+ * player's language (`ui/i18n/format.ts`'s `formatSaveError`). */
+export type SaveError =
+  | { kind: 'invalidJson' }
+  | { kind: 'notASave' }
+  | { kind: 'unsupportedVersion'; version: number; expected: number };
+
 /**
  * Save-file format version. Bump whenever the shape changes incompatibly;
  * `isValidSavedGame` rejects anything it doesn't recognise, so an old file
@@ -127,15 +134,6 @@ export interface SavedGame {
   rammedThisTurn: string[];
 }
 
-/** One-line summary for a save slot, e.g. "Turn 3 — Athènes (movement)". */
-export function describeSave(save: SavedGame): string {
-  const state = save.gameState;
-  const activeId = state.seatOrder[state.activePlayerIndex];
-  const active = state.players.find((p) => p.id === activeId);
-  const who = active?.name ?? 'unknown';
-  return `Turn ${state.turnNumber} — ${who} (${state.phase})`;
-}
-
 /** Localised-ish short timestamp for the slot list; falls back to the raw
  * string if the stored value isn't a parseable date. */
 export function formatSavedAt(savedAt: string): string {
@@ -222,14 +220,14 @@ export function isValidSavedGame(data: unknown): data is SavedGame {
  * corrupt version-1 file is still rejected — just by the structural check
  * after this rather than by the version check before it.
  */
-export function migrateSavedGame(data: unknown): { migrated: unknown } | { error: string } {
+export function migrateSavedGame(data: unknown): { migrated: unknown } | { error: SaveError } {
   if (typeof data !== 'object' || data === null) return { migrated: data };
   const save = data as Partial<SavedGame> & Record<string, unknown>;
   const version = save.version;
   if (typeof version !== 'number') return { migrated: data };
   if (version === SAVE_VERSION) return { migrated: data };
   if (version < MIN_SUPPORTED_SAVE_VERSION || version > SAVE_VERSION) {
-    return { error: `Save file version ${version} isn't supported (expected ${SAVE_VERSION}).` };
+    return { error: { kind: 'unsupportedVersion', version, expected: SAVE_VERSION } };
   }
 
   // 1 -> 2: `seatControls` didn't exist, and a game saved without it was
@@ -270,18 +268,19 @@ export function migrateSavedGame(data: unknown): { migrated: unknown } | { error
 
 /**
  * Parses, migrates and validates raw JSON text. Returns the game or an error
- * message suitable for showing the player, rather than throwing.
+ * (as data, worded by `ui/i18n/format.ts`) for showing the player, rather
+ * than throwing.
  */
-export function parseSavedGame(text: string): { save: SavedGame } | { error: string } {
+export function parseSavedGame(text: string): { save: SavedGame } | { error: SaveError } {
   let data: unknown;
   try {
     data = JSON.parse(text);
   } catch {
-    return { error: "That file isn't valid JSON." };
+    return { error: { kind: 'invalidJson' } };
   }
   const migration = migrateSavedGame(data);
   if ('error' in migration) return migration;
-  if (!isValidSavedGame(migration.migrated)) return { error: "That file isn't a Héraklios save." };
+  if (!isValidSavedGame(migration.migrated)) return { error: { kind: 'notASave' } };
   return { save: migration.migrated };
 }
 

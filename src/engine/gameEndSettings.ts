@@ -37,18 +37,6 @@ export function nextRoundLimit(current: number | null): number | null {
   return ROUND_LIMIT_PRESETS[(index + 1) % ROUND_LIMIT_PRESETS.length] ?? null;
 }
 
-/** "Off" / "30 min" / "1 h" / "2 h" — the Menu button's own label. */
-export function clockLimitLabel(ms: number | null): string {
-  if (ms === null) return 'Off';
-  const minutes = ms / 60_000;
-  return minutes < 60 ? `${minutes} min` : `${minutes / 60} h`;
-}
-
-/** "Off" / "6 rounds" / "8 rounds" / "12 rounds". */
-export function roundLimitLabel(rounds: number | null): string {
-  return rounds === null ? 'Off' : `${rounds} rounds`;
-}
-
 /**
  * "H:MM:SS" (or "MM:SS" under an hour) for the Board's remaining-clock
  * display — `Math.ceil`, not `floor`/`round`, so the label reads "0:00" only

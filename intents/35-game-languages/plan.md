@@ -201,3 +201,94 @@ Each one is a commit (or two) with `npm run verify` green.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-10-20 — built (subtasks 1–10), `npm run verify` green
+
+Commits: `87aca3d` i18n core · `6b5416a` engine returns data · `dc07b39` scan
+test · Menu/ArmyBuilder/Placement/GameOver/SaveLoadPanel · BoardScene · fit
+and README (this commit). 681 unit tests (was 655), lint 21 warnings (cap
+unchanged: none of the existing ones sat in code this change removed), `npm
+run e2e` 4/4 with English pinned, `npm run check:intent` PASS.
+
+What shipped as planned: `src/ui/i18n/` (`index.ts`, `en.ts`, `fr.ts`,
+`names.ts`, `format.ts`, `reports.ts`, tests); `Messages` is `typeof en`
+widened, so `fr.ts` is checked by `tsc`; the scan test (AC1) has an empty
+pending list and one allow-list entry (the title); B3–B12 as specified.
+
+**Where it diverged from the plan (each one deliberate):**
+
+- **Save-file errors are data too.** `parseSavedGame`/`migrateSavedGame`
+  returned English sentences that the Save/Load panel shows. The spec's B9
+  table missed them; they now return `SaveError` (`invalidJson`, `notASave`,
+  `unsupportedVersion {version, expected}`) and `saveStorage.pickSaveFile`
+  adds `unreadable`; `formatSaveError` words them. `saveGame.ts` was already
+  Reviewed for `describeSave`; `SAVE_VERSION` and the format are untouched.
+- **Three more engine label functions went to the tables:** `seatControlLabel`
+  (seatControl.ts), `clockLimitLabel` and `roundLimitLabel`
+  (gameEndSettings.ts) were display text in the engine; removed with their
+  tests, replaced by `messages().seat`, `clockLimitText`, `roundLimitText`.
+- **The Army Builder now shows why "Confirm army" is dimmed** (a red line
+  under the total, from `formatArmyError`). Before, nothing read
+  `validateArmy().errors`; AC8 asks for the over-budget message, so it needed
+  a reader.
+- **Report sentences take structured values** (`reports.ts`: `CombatReport`,
+  `RamReport`, `BoardingReport`) so each language writes the whole multi-line
+  report. English text is pinned line for line in `reports.test.ts`.
+- **One English text changed:** a combat report's die-modifier line named
+  the terrain by its internal id (`1 steep-flank at (4, 9)`); it now shows the
+  terrain's display name from the table (`1 Steep flanks at (4, 9)`), the only
+  way to put it in French. No other English string differs from `main`.
+- **French labels shortened where the English-sized slot did not fit** (from
+  screenshots at 1100×750): placement "Terminé", ship facing "Valider",
+  save/delete "Sauver"/"Effacer".
+
+**Fit (subtask 9)** — measured by screenshot in Chromium at 1100×750, French
+and English: Menu (all four seats at the longest label "IA — prudente"), Army
+Builder (with and without the error line, abandon dialog), Placement, Board
+panel (ship selected, "Pivoter" buttons), the Save/Load panel, the abandon and
+end-game dialogs. Fixed: Menu seat buttons were clipped (150 → 208 px wide);
+Save/Load slot names collided with the description and the footer buttons
+overlapped (description is now two lines — summary, then time — and button
+spacing follows each button's width); the abandon/end-game dialog buttons and
+the ram prompt's pair now grow outward from the middle; the Army Builder's
+"Valider l'armée" is right-aligned like its neighbour.
+
+**Not measured** (the live check, AC8, is the owner's): the report text at the
+foot of the Board panel for a real land/boarding result — the test pair I
+could reach always retreated, which replaces the report with the retreat prompt
+— and the advance, exchange and boarding prompts, which need results I could
+not force. By line count the French reports end above the panel buttons, and
+the existing code already puts the buttons on top of a long log.
+
+### 2026-10-20 — rework after review round 1
+
+Fixed the review's MEDIUM and French-wording findings; `npm run verify` green
+(lint 21), `e2e` unchanged (English only, not re-run: no English text moved).
+
+- **Drift hook order (MEDIUM).** `drift.test.ts` records every hook
+  (`onDriftStart`, `onNarrate:<kind>`, `onDirectionRolled`, `onDriftMoved`,
+  `onRender`, `onCombat`, `onStep`) and pins the exact sequence for a move-and-stop
+  drift, a combat that destroys the elephant, and one that repels it. Checked by
+  mutation: deleting each of the seven `onNarrate` calls in `drift.ts` fails
+  the new tests (7/7 killed).
+- **French agreement.** Sentences with a unit as subject now say "L'unité
+  <nom> …" (feminine singular), so they agree whatever the unit is called —
+  "L'unité Éléphants est détruite.", "L'unité Cavalerie Légère est repoussée…"
+  (both pinned in `format.test.ts`). The ram result reads "NAVIRE COULÉ !"; a
+  sunk unit in a boarding is "L'unité X est COULÉE !".
+- **Wording:** "table des résultats" (not TRC), "points d'équipage" (not
+  d'équipement), "Tiré au sort à chaque tour", "restant/restants" agrees with the
+  count, "Qui joue chaque camp" / "Les camps au-delà … sont ignorés".
+- **LOW items taken:** README's loaded-game sentence corrected (a loaded game is
+  shown in the current language, keeps its saved names); the stale
+  `PLAYER_COLOR_NAMES` comment in `BoardScene` rewritten; `names.test.ts` now
+  covers `edgeName`, `phaseName`, `seatControlName` and pins `en.colors` /
+  `colorName` against `PLAYER_COLOR_NAMES`' order; the sea-exit sentence is
+  pinned in both languages.
+- **Fit re-checked** (Chromium, 1100×750): the Menu with "Qui joue chaque camp"
+  and the four seat buttons still fit (widest label "Macédoine : IA — prudente"
+  in a 208 px button); the longer drift/combat sentences are log text in the
+  268 px wrapped panel, which wraps rather than clips. The French combat and
+  boarding reports are now about three lines longer (by count, ending near y≈450
+  of the panel's 583 px button row); still not seen live — the owner's re-check.
+- `live_checked` cleared: the French texts changed after the owner's check.

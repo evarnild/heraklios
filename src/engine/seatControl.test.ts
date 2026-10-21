@@ -7,7 +7,6 @@ import {
   isSeatControl,
   nextSeatControl,
   normalizeSeatControls,
-  seatControlLabel,
   type SeatControl,
 } from './seatControl';
 import { HeuristicAgent } from './heuristicAgent';
@@ -48,14 +47,6 @@ describe('nextSeatControl', () => {
     }
     expect(seen).toEqual([...SEAT_CONTROLS]);
     expect(control).toBe('human'); // wrapped
-  });
-});
-
-describe('seatControlLabel', () => {
-  it('gives every control a distinct, non-empty label', () => {
-    const labels = SEAT_CONTROLS.map(seatControlLabel);
-    expect(new Set(labels).size).toBe(SEAT_CONTROLS.length);
-    for (const label of labels) expect(label.length).toBeGreaterThan(0);
   });
 });
 
