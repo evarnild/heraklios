@@ -627,7 +627,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.resolveBtn.on('pointerdown', () => this.resolveGroupAttack());
 
     // facing + 1 is counter-clockwise on screen (flat-top board, y down: see
-    // hexToPixel), so the left button sends +1 and the right one -1 (�40).
+    // hexToPixel), so the left button sends +1 and the right one -1 (§40).
     // Plain "Turn" labels (plan.md §17.2): the old static ⟲/⟳ glyphs are
     // replaced by `turnCcwGlyph`/`turnCwGlyph`, small arrowhead icons drawn
     // just outside each button showing the facing the ship will actually end

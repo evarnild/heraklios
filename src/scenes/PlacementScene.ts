@@ -202,7 +202,7 @@ export class PlacementScene extends Phaser.Scene {
     // replaced by `turnCcwGlyph`/`turnCwGlyph`, arrowhead icons showing the
     // facing each button will actually turn the pending ship to.
     // facing + 1 is counter-clockwise on screen (see hexToPixel): the left
-    // button sends +1, the right one -1 (ง40).
+    // button sends +1, the right one -1 (ยง40).
     this.rotateCCWBtn = this.add
       .text(width / 2 - 90, height - 104, t.common.turn, {
         fontSize: '13px',

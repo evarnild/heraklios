@@ -207,3 +207,7 @@ Stop gate (subtask 3) not triggered: only `src/ui/devHook.ts` (+ new spec) chang
 Tests: verify green (44 files, 692 tests, lint within cap, cap not touched). `check:intent` exits 2 = ROUTE, not FAIL: "Declared fix, but no test changed" - the script does not count `e2e/` as a test; the failing-first tests are the e2e changes above. Not covered by any test: the arrowhead glyph offsets (Phaser Graphics) - live check.
 
 Divergence: the plan's glyph-name swap was not done (names kept, per the plan's Risks).
+
+### 2026-10-21 - review round 1: invalid UTF-8 fixed
+
+My earlier edits wrote lone cp1252 bytes (0xA7, 0x97, 0xB0) into BoardScene.ts, PlacementScene.ts, devHook.ts and README.md. Replaced byte-for-byte with the UTF-8 forms of the section sign, em dash and degree sign; nothing else changed. Strict UTF-8 decode of every file in the branch diff is clean.

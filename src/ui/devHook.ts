@@ -50,7 +50,7 @@ export interface DevHook {
   /**
    * While the Placement scene is up: the unit type it is placing now (null
    * once the queue is empty) and the hexes it accepts a click on for it.
-   * Read-only; a scenario clicks one, as a player would (§40).
+   * Read-only; a scenario clicks one, as a player would (Â§40).
    */
   placement(): { current: string | null; legalHexes: Hex[] };
 }
@@ -133,7 +133,7 @@ export function installDevHook(game: Phaser.Game): void {
       if (!game.scene.isActive('Placement')) throw new Error('Placement scene is not active');
       const p = game.scene.getScene('Placement') as unknown as PlacementInternals;
       for (const m of PLACEMENT_MEMBERS) {
-        if (!(m in p)) throw new Error(`devHook: PlacementScene has no "${m}" any more — update PLACEMENT_MEMBERS`);
+        if (!(m in p)) throw new Error(`devHook: PlacementScene has no "${m}" any more â€” update PLACEMENT_MEMBERS`);
       }
       return { current: p.queue.find((q) => q.remaining > 0)?.typeId ?? null, legalHexes: p.currentLegalHexes() };
     },
