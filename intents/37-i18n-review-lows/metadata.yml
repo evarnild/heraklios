@@ -7,7 +7,7 @@ title: Close §35's open review findings (untested i18n paths, one French term)
 review_tier:
 intent_accepted: 2026-10-21 by-agent    # owner: "yes to 37" in chat
 spec_accepted:
-plan_approved:
+plan_approved: 2026-10-21 by-agent    # owner: "yes to both" in chat
 live_checked:
 merged:
 follows_up: 35

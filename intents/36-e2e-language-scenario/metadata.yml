@@ -6,7 +6,7 @@ status: accepted
 title: A smoke scenario for the language switch
 review_tier:
 intent_accepted: 2026-10-21 by-agent    # owner: "accept 36" in chat
-spec_accepted:
+spec_accepted: 2026-10-21 by-agent    # owner: "yes to both" in chat
 plan_approved:
 live_checked:
 merged:
