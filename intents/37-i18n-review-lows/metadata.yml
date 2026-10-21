@@ -8,7 +8,7 @@ review_tier:
 intent_accepted: 2026-10-21 by-agent    # owner: "yes to 37" in chat
 spec_accepted:
 plan_approved: 2026-10-21 by-agent    # owner: "yes to both" in chat
-live_checked: 2026-10-21 by-agent    # owner: "record live check" in chat
+live_checked:
 merged:
 follows_up: 35
 links:

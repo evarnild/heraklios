@@ -185,8 +185,12 @@ describe('no text outside the message tables', () => {
     for (const file of ['ui/a.ts', 'ui/panels/deep/b.ts', 'ui/i18n/en.ts', 'ui/a.test.ts', 'scenes/c.ts']) {
       writeFileSync(join(root, file), '');
     }
-    const files = DIRS.flatMap((dir) => sourceFiles(dir, root)).sort();
-    rmSync(root, { recursive: true });
+    let files: string[];
+    try {
+      files = DIRS.flatMap((dir) => sourceFiles(dir, root)).sort();
+    } finally {
+      rmSync(root, { recursive: true });
+    }
     expect(files).toEqual(['scenes/c.ts', 'ui/a.ts', 'ui/panels/deep/b.ts']);
   });
 

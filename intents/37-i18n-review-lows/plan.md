@@ -126,3 +126,13 @@ returns the id), I8 (`applyToPage` removed), E6 (`|| 'none'` and `|| 'aucun'`
 removed, each), E7 (`joinNames` drops the last name, en and fr), NL4 (literal
 "Save" in `saveLoadPanel.ts`'s `button(`) — each fails one test. 692 tests,
 `verify` green. Diverged: none. Live check still owed (French boarding report).
+
+### 2026-10-21 — rework after review round 1
+
+MEDIUM: "perd 1 points" — `fr.ts` now says "point" for a loss of 1 (the
+most common boarding result); `reports.test.ts` pins "perd 1 point
+d’équipage" (failed against the plural-only line first) next to the loss-3
+"points" pin. LOW: the subfolder scan test removes its temp folder in a
+`finally`. `live_checked` cleared in `metadata.yml` (`fr.ts` changed again);
+status stays in-review. Live check to redo: French Combat test mode → board
+a ship → "perd 1 point" / "perd N points".
