@@ -220,7 +220,7 @@ sync when something merges** — it went stale once and the user caught it.
 | --- | --- |
 | [§29](intents/29-grid-live-check-counts/) Count live checks in the SDLC scan and grid (after §28) | feature · draft |
 | [§36](intents/36-e2e-language-scenario/) A smoke scenario for the language switch (after §35) | feature · accepted |
-| [§37](intents/37-i18n-review-lows/) Close §35's open review findings (untested i18n paths, one French term) | fix · draft |
+| [§37](intents/37-i18n-review-lows/) Close §35's open review findings (untested i18n paths, one French term) | fix · accepted |
 
 All fully-shipped rows that previously lived here (Stage 3b, §17,
 §18, §19, §24 and earlier) are in the [Shipped](#shipped) table above; see
