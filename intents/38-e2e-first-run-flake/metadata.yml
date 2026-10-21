@@ -2,7 +2,7 @@
 id: 38
 slug: e2e-first-run-flake
 type: fix
-status: accepted
+status: in-review
 title: The first e2e run after a cold start fails one scenario
 review_tier:
 intent_accepted: 2026-10-21 by-agent    # owner: "yes to 38" in chat

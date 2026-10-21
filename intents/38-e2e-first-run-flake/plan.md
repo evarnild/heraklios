@@ -159,3 +159,11 @@ this line is the implementer's to edit. -->
   `npm run e2e` will print its scenario and assertion and leave a trace in
   `test-results/`; the review should keep that output. The cause remains
   unknown, so the intent's "cause found and written down" outcome is open.
+
+### 2026-10-21 (closing) — closed on the capture alone, on the owner's call
+
+Owner: "close on capture alone". Delivered: intent outcome 3 only (a failing
+scenario names itself and keeps a trace). Outcomes 1 and 2 (cause found,
+first-run fix) are **not met**: nothing reproduced. For `/review`: judge
+this as a partial close; the next red `npm run e2e` must be diagnosed from
+its trace, not rerun until green. `status: in-review`.
