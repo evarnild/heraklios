@@ -2,7 +2,7 @@
 id: 41
 slug: e2e-dev-server-first-load
 type: fix
-status: accepted
+status: in-progress
 title: An e2e run can fail before any scenario: the game's first load never arrives
 review_tier:
 intent_accepted: 2026-10-21 by-agent    # owner's "yes" in chat

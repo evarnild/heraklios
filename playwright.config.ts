@@ -12,8 +12,8 @@ export default defineConfig({
   globalSetup: './e2e/global-setup.ts',
   timeout: 30_000,
   // A failure names its scenario and assertion in the terminal (line) and
-  // keeps a trace; a pass costs nothing extra (�38).
-  reporter: [['list'], ['line']],
+  // keeps a trace; a pass costs nothing extra (§38).
+  reporter: [['list']],
   use: {
     baseURL: `http://${HOST}:${PORT}`,
     // The game's own size (1100×750); the HUD is laid out for it.
