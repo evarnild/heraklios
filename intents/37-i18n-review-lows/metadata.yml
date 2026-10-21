@@ -2,14 +2,14 @@
 id: 37
 slug: i18n-review-lows
 type: fix
-status: in-review
+status: done
 title: Close §35's open review findings (untested i18n paths, one French term)
 review_tier:
 intent_accepted: 2026-10-21 by-agent    # owner: "yes to 37" in chat
 spec_accepted:
 plan_approved: 2026-10-21 by-agent    # owner: "yes to both" in chat
 live_checked: 2026-10-21 by-agent    # owner: "live check 37 ok" in chat, after the round-1 rework
-merged:
+merged: 84fd4c0    # 2026-10-21, merged by Claude on the owner's explicit request in chat
 follows_up: 35
 links:
   - intents/35-game-languages/review.md    round 2 Findings (LOW) and round 1's open items

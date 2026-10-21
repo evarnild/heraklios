@@ -208,6 +208,7 @@ sync when something merges** — it went stale once and the user caught it.
 | [§34](intents/34-english-game-text/) English game text — Menu, tooltip and combat-log labels; editor palette stays French (feature, Attested, 1 review round, 2 LOW worth-a-look; see [review.md](intents/34-english-game-text/review.md)) | `d36e7b5` |
 | [§35](intents/35-game-languages/) play in English or French — Menu switch, typed tables in `src/ui/i18n/`, unit/country/place names per language, engine returns data not text (feature, Reviewed, 2 review rounds, LOWs carried to [§37](intents/37-i18n-review-lows/); see [review.md](intents/35-game-languages/review.md)) | `9d3cf43` |
 | [§36](intents/36-e2e-language-scenario/) e2e scenario for the language switch — Menu switch, reload memory, French Board, page `lang`, browser-locale default (feature, Attested, 1 review round, no findings, sampled — post-merge read due; see [review.md](intents/36-e2e-language-scenario/review.md)) | `a1590f7` |
+| [§37](intents/37-i18n-review-lows/) §35's open review findings closed — five untested i18n paths pinned, the literal scan reads helpers and subfolders, "point(s) d'équipage" (fix, follows up §35, Attested, 2 review rounds; e2e flake carried to [§38](intents/38-e2e-first-run-flake/); see [review.md](intents/37-i18n-review-lows/review.md)) | `84fd4c0` |
 
 ### In flight
 
@@ -220,7 +221,6 @@ sync when something merges** — it went stale once and the user caught it.
 | Item | Type · status |
 | --- | --- |
 | [§29](intents/29-grid-live-check-counts/) Count live checks in the SDLC scan and grid (after §28) | feature · draft |
-| [§37](intents/37-i18n-review-lows/) Close §35's open review findings (untested i18n paths, one French term) | fix · in-review (attest; live check owed) |
 | [§38](intents/38-e2e-first-run-flake/) The first e2e run after a cold start fails one scenario | fix · draft |
 
 All fully-shipped rows that previously lived here (Stage 3b, §17,
