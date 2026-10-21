@@ -626,6 +626,8 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       .setInteractive({ useHandCursor: true });
     this.resolveBtn.on('pointerdown', () => this.resolveGroupAttack());
 
+    // facing + 1 is counter-clockwise on screen (flat-top board, y down: see
+    // hexToPixel), so the left button sends +1 and the right one -1 (�40).
     // Plain "Turn" labels (plan.md §17.2): the old static ⟲/⟳ glyphs are
     // replaced by `turnCcwGlyph`/`turnCwGlyph`, small arrowhead icons drawn
     // just outside each button showing the facing the ship will actually end
@@ -644,7 +646,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       .setDepth(30)
       .setInteractive({ useHandCursor: true })
       .setVisible(false);
-    this.rotateCCWBtn.on('pointerdown', () => this.rotateSelectedShip(-1));
+    this.rotateCCWBtn.on('pointerdown', () => this.rotateSelectedShip(1));
 
     this.rotateCWBtn = this.add
       .text(160, 96, messages().common.turn, {
@@ -658,7 +660,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       .setDepth(30)
       .setInteractive({ useHandCursor: true })
       .setVisible(false);
-    this.rotateCWBtn.on('pointerdown', () => this.rotateSelectedShip(1));
+    this.rotateCWBtn.on('pointerdown', () => this.rotateSelectedShip(-1));
 
     // Depth 31 (one above the buttons themselves, 30) so the arrowhead icons
     // always draw on top of the button backgrounds they sit beside.
@@ -1623,8 +1625,8 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.turnCwGlyph.clear();
     if (!ship || !visible) return;
     const colorHex = PLAYER_COLORS_HEX[ship.owner] ?? '#ffffff';
-    drawFacingArrowhead(this.turnCcwGlyph, { x: 50, y: 96 }, (ship.facing + 5) % 6, colorHex, 0.4);
-    drawFacingArrowhead(this.turnCwGlyph, { x: 186, y: 96 }, (ship.facing + 1) % 6, colorHex, 0.4);
+    drawFacingArrowhead(this.turnCcwGlyph, { x: 50, y: 96 }, (ship.facing + 1) % 6, colorHex, 0.4);
+    drawFacingArrowhead(this.turnCwGlyph, { x: 186, y: 96 }, (ship.facing + 5) % 6, colorHex, 0.4);
   }
 
   /** Rotating a ship's facing costs 1 movement point per 60° step (see
