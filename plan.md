@@ -218,7 +218,8 @@ sync when something merges** — it went stale once and the user caught it.
 | Item | Type · status |
 | --- | --- |
 | [§29](intents/29-grid-live-check-counts/) Count live checks in the SDLC scan and grid (after §28) | feature · draft |
-| [§35](intents/35-game-languages/) Play the game in several languages, French and English first | feature · accepted |
+| [§35](intents/35-game-languages/) Play the game in several languages, French and English first | feature · in-review (rework, round 1) |
+| [§36](intents/36-e2e-language-scenario/) A smoke scenario for the language switch (after §35) | feature · accepted |
 
 All fully-shipped rows that previously lived here (Stage 3b, §17,
 §18, §19, §24 and earlier) are in the [Shipped](#shipped) table above; see
