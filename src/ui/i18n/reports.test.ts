@@ -133,7 +133,8 @@ describe('boarding report', () => {
 
   it('words a no-effect roll and the French side names', () => {
     expect(en.log.boardingReport({ ...BOARDING, side: null, defenderSunk: false })).toContain('Die: 4 -> no decisive effect');
-    expect(fr.log.boardingReport(BOARDING)).toContain('Dé : 4 -> le défenseur perd 3 d’équipage');
+    expect(fr.log.boardingReport(BOARDING)).toContain('Dé : 4 -> le défenseur perd 3 points d’équipage');
+    expect(fr.log.boardingReport({ ...BOARDING, loss: 1 })).toContain('perd 1 point d’équipage');
     expect(fr.log.boardingReport(BOARDING)).toContain('Colonne de la table des résultats : « 1-2 »');
     expect(fr.log.boardingReport(BOARDING)).toContain('  L’unité Biremes est COULÉE !');
     expect(fr.log.boardingReport(BOARDING)).toContain('3/4 -> 1/4 d’équipage');

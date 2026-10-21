@@ -94,6 +94,7 @@ describe('names', () => {
     expect([edgeName('W'), phaseName('movement'), seatControlName('ai-ev')]).toEqual(['W', 'movement', 'AI — hard']);
     setLanguage('fr');
     expect([edgeName('W'), phaseName('combat'), seatControlName('ai-lookahead')]).toEqual(['O', 'combat', 'IA — prudente']);
+    expect(phaseName('movement')).toBe('mouvement');
     expect(edgeName('X')).toBe('X');
   });
 

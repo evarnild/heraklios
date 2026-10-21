@@ -2,7 +2,8 @@
 // through the message tables. This reads every .ts file in src/scenes and
 // src/ui (not tests, not i18n/ itself) and fails on a string or template
 // literal with a word of two or more letters passed to a text-showing call.
-import { readdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -18,6 +19,8 @@ const CALLS: { pattern: RegExp; argIndex: number }[] = [
   { pattern: /\brecordAction\(/g, argIndex: 0 },
   { pattern: /\bhistory\.push\(/g, argIndex: 1 },
   { pattern: /\bstatus\(/g, argIndex: 0 },
+  { pattern: /\bbutton\(/g, argIndex: 2 },
+  { pattern: /\bbuildRow\(/g, argIndex: 1 },
 ];
 
 /** Literals that are not player-facing text, each with the reason. A literal
@@ -128,38 +131,40 @@ function lineOf(source: string, index: number): number {
   return source.slice(0, index).split('\n').length;
 }
 
-function sourceFiles(): string[] {
-  return DIRS.flatMap((dir) =>
-    readdirSync(join(ROOT, dir))
-      .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))
-      .map((f) => `${dir}/${f}`),
-  );
+/** Every .ts source under `dir` (relative to `root`), subfolders included; ui/i18n (the tables) and tests are skipped. */
+function sourceFiles(dir: string, root = ROOT): string[] {
+  return readdirSync(join(root, dir), { withFileTypes: true }).flatMap((entry) => {
+    const path = `${dir}/${entry.name}`;
+    if (entry.isDirectory()) return path === 'ui/i18n' ? [] : sourceFiles(path, root);
+    return entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts') ? [path] : [];
+  });
+}
+
+function scanSource(file: string, source: string): Violation[] {
+  const found: Violation[] = [];
+  const check = (code: string, index: number) => {
+    for (const text of literalPieces(code)) {
+      if (/[A-Za-z]{2,}/.test(text)) found.push({ file, line: lineOf(source, index), text });
+    }
+  };
+  for (const { pattern, argIndex } of CALLS) {
+    for (const match of source.matchAll(pattern)) {
+      const start = match.index! + match[0].length;
+      const arg = topLevelArgs(source, start)[argIndex];
+      if (arg !== undefined) check(arg, start);
+    }
+  }
+  for (const match of source.matchAll(/\b(?:message|confirmLabel|cancelLabel):\s*(?=['"`])/g)) {
+    const start = match.index! + match[0].length;
+    const arg = topLevelArgs(source, start)[0];
+    if (arg !== undefined) check(arg, start);
+  }
+  for (const match of source.matchAll(/\.textContent\s*=\s*([^;]*);/g)) check(match[1]!, match.index!);
+  return found;
 }
 
 export function findViolations(): Violation[] {
-  const found: Violation[] = [];
-  for (const file of sourceFiles()) {
-    const source = readFileSync(join(ROOT, file), 'utf8');
-    const check = (code: string, index: number) => {
-      for (const text of literalPieces(code)) {
-        if (/[A-Za-z]{2,}/.test(text)) found.push({ file, line: lineOf(source, index), text });
-      }
-    };
-    for (const { pattern, argIndex } of CALLS) {
-      for (const match of source.matchAll(pattern)) {
-        const start = match.index! + match[0].length;
-        const arg = topLevelArgs(source, start)[argIndex];
-        if (arg !== undefined) check(arg, start);
-      }
-    }
-    for (const match of source.matchAll(/\b(?:message|confirmLabel|cancelLabel):\s*(?=['"`])/g)) {
-      const start = match.index! + match[0].length;
-      const arg = topLevelArgs(source, start)[0];
-      if (arg !== undefined) check(arg, start);
-    }
-    for (const match of source.matchAll(/\.textContent\s*=\s*([^;]*);/g)) check(match[1]!, match.index!);
-  }
-  return found;
+  return DIRS.flatMap((dir) => sourceFiles(dir)).flatMap((file) => scanSource(file, readFileSync(join(ROOT, file), 'utf8')));
 }
 
 describe('no text outside the message tables', () => {
@@ -167,6 +172,26 @@ describe('no text outside the message tables', () => {
     const allowed = new Set(ALLOWED.map((a) => `${a.file}: ${a.text}`));
     const unexplained = findViolations().filter((v) => !allowed.has(`${v.file}: ${v.text}`));
     expect(unexplained.map((v) => `${v.file}:${v.line} ${JSON.stringify(v.text)}`)).toEqual([]);
+  });
+
+  it('reads helper calls that draw text', () => {
+    const source = "this.button(0, 0, 'Export to file', () => {});\nthis.buildRow(slot, `Slot ${n}`, 1);";
+    expect(scanSource('x.ts', source).map((v) => v.text)).toEqual(['Export to file', 'Slot ']);
+  });
+
+  it('reads subfolders, but not the tables or tests', () => {
+    const root = mkdtempSync(join(tmpdir(), 'scan-'));
+    for (const dir of ['ui/panels/deep', 'ui/i18n', 'scenes']) mkdirSync(join(root, dir), { recursive: true });
+    for (const file of ['ui/a.ts', 'ui/panels/deep/b.ts', 'ui/i18n/en.ts', 'ui/a.test.ts', 'scenes/c.ts']) {
+      writeFileSync(join(root, file), '');
+    }
+    let files: string[];
+    try {
+      files = DIRS.flatMap((dir) => sourceFiles(dir, root)).sort();
+    } finally {
+      rmSync(root, { recursive: true });
+    }
+    expect(files).toEqual(['scenes/c.ts', 'ui/a.ts', 'ui/panels/deep/b.ts']);
   });
 
   it('has no stale entry on the allow list', () => {

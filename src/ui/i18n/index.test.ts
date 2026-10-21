@@ -79,6 +79,15 @@ describe('the language store', () => {
     expect(language()).toBe('en');
   });
 
+  it('sets the page language on the first resolve, before any setLanguage', () => {
+    const documentElement = { lang: 'en' };
+    vi.stubGlobal('document', { documentElement });
+    vi.stubGlobal('localStorage', fakeStorage({ [LANGUAGE_STORAGE_KEY]: 'fr' }));
+    resetLanguageForTests();
+    expect(language()).toBe('fr');
+    expect(documentElement.lang).toBe('fr');
+  });
+
   it('sets the page language', () => {
     const documentElement = { lang: 'en' };
     vi.stubGlobal('document', { documentElement });

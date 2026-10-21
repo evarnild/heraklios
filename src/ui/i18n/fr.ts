@@ -274,7 +274,7 @@ export const fr: Messages = {
         `Abordage : ${r.attacker.unit} (attaque ${r.attacker.forceBefore}) contre ${r.defender.unit} (défense ${r.defender.forceBefore})`,
         `Colonne de la table des résultats : « ${r.column} » (colonne ${r.columnNumber} sur ${r.columnCount}, indice ${r.columnIndex})`,
         r.side !== null
-          ? `Dé : ${r.die} -> ${r.side === 'attacker' ? 'l’attaquant' : 'le défenseur'} perd ${r.loss} d’équipage`
+          ? `Dé : ${r.die} -> ${r.side === 'attacker' ? 'l’attaquant' : 'le défenseur'} perd ${r.loss} point${r.loss > 1 ? 's' : ''} d’équipage`
           : `Dé : ${r.die} -> aucun effet décisif`,
         ...(r.attackerSunk ? [`  L’unité ${r.attacker.unit} est COULÉE !`] : []),
         ...(r.defenderSunk ? [`  L’unité ${r.defender.unit} est COULÉE !`] : []),
