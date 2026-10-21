@@ -190,3 +190,20 @@ on screen", record it as a follow-up rather than editing `src/engine/` here.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-10-21 - all five subtasks (implementer)
+
+Commits: af3d79d (naval e2e, failing first), cfcdadb (Board wiring + glyphs), 45e59d2 (placement.spec.ts + read-only `placement()` hook, failing first), 3582f37 (Placement wiring + glyphs). This entry is the close-out commit.
+
+Shipped: left Turn sends +1 (counter-clockwise on screen), right sends -1, on Board and Placement; each arrowhead previews its own button's new facing (left `(f+1)%6`, right `(f+5)%6`). Engine untouched. `e2e/naval.spec.ts` now clicks both buttons (left must give f+1, right must return to f) before the planned turn-and-move, so each Board wiring line is covered.
+
+Failing first (before any scene change):
+- naval: `Error: left Turn is counter-clockwise  Expected: 0  Received: 4`.
+- placement: `Error: left Turn turns the new ship counter-clockwise  Expected: 1  Received: 5`.
+Both pass after the wiring commits; `npm run e2e`: 8 passed.
+
+Stop gate (subtask 3) not triggered: only `src/ui/devHook.ts` (+ new spec) changed; `devHookMatch.ts` untouched. The hook generalises centerOn/hexToCanvas from `board()` to "the active scene with a mapView" and adds `placement()` (current queue type + legal hexes, reading `PlacementScene.queue` / `currentLegalHexes` by name with a throw-if-renamed guard). Scenario assumptions: it reads the current item rather than assuming order, clicks the first free legal hex (land) and the first free sea hex (ships), and needs at least two ships in the default army (it has galeres and biremes).
+
+Tests: verify green (44 files, 692 tests, lint within cap, cap not touched). `check:intent` exits 2 = ROUTE, not FAIL: "Declared fix, but no test changed" - the script does not count `e2e/` as a test; the failing-first tests are the e2e changes above. Not covered by any test: the arrowhead glyph offsets (Phaser Graphics) - live check.
+
+Divergence: the plan's glyph-name swap was not done (names kept, per the plan's Risks).

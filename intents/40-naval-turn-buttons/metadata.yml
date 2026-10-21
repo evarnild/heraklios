@@ -2,7 +2,7 @@
 id: 40
 slug: naval-turn-buttons
 type: fix
-status: accepted
+status: in-review
 title: The naval Turn buttons turn the wrong way (left should be counter-clockwise)
 review_tier:
 intent_accepted: 2026-10-21 by-agent
