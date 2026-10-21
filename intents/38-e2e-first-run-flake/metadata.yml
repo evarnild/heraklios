@@ -2,14 +2,14 @@
 id: 38
 slug: e2e-first-run-flake
 type: fix
-status: in-review
+status: done
 title: The first e2e run after a cold start fails one scenario
 review_tier:
 intent_accepted: 2026-10-21 by-agent    # owner: "yes to 38" in chat
 spec_accepted:
 plan_approved: 2026-10-21 by-agent    # owner's "yes" in chat
 live_checked:
-merged:
+merged: a28db5b    # 2026-10-21, merged by Claude on the owner's explicit request in chat (partial close: capture only, cause carried to §41)
 follows_up:
 links:
   - intents/37-i18n-review-lows/review.md    round 2 LOW (with the cold-start hypothesis)

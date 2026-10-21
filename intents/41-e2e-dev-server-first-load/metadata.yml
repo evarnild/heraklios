@@ -1,0 +1,16 @@
+# generated-by: heraklios/intent@0.1.2
+id: 41
+slug: e2e-dev-server-first-load
+type: fix
+status: draft
+title: An e2e run can fail before any scenario: the game's first load never arrives
+review_tier:
+intent_accepted:
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+follows_up:
+links:
+  - intents/38-e2e-first-run-flake    closed on the capture alone; its review caught this run's trace
+  - intents/32-e2e-smoke-suite    the suite and its fixed port 5232
