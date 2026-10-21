@@ -24,8 +24,8 @@ You are the **coordinator** (the main checkout). This skill wraps
    spec or plan. But say which gates are still empty, because the session
    may not write code before them.
 3. **Check the load.** Run `npm run sessions`. If three or more intent
-   sessions are already open (anything not `closed`), say so and ask
-   before adding a fourth. Merges are serial and the owner reviews each
+   sessions are already open (anything not `closed`) or implementers you
+   launched are still running, say so and ask before adding a fourth. Merges are serial and the owner reviews each
    one, so more sessions mostly add waiting.
 4. **Spawn.** `npm run spawn -- <id>` (add `--base <ref>` only when the intent
    depends on an unmerged branch, and say so). If the intent folder was
@@ -33,9 +33,21 @@ You are the **coordinator** (the main checkout). This skill wraps
    that.
 5. **Update the queue.** In `plan.md` → Current Queue, move the intent's row
    to **In flight** if it isn't there.
-6. **Hand over.** Report the worktree path, branch, port and gates, and how
-   to start the session: `cd "<path>" && claude`, or open the folder in the
-   Claude Code desktop app. Don't start the session yourself.
+6. **Launch or hand over.** Read the worktree's `metadata.yml`. The gate the
+   type needs is `plan_approved` for a feature, fix or refactor, and
+   `intent_accepted` for an adjustment or experiment.
+   - **Recorded:** launch `heraklios-implementer` with the `Agent` tool and
+     `run_in_background: true`, working in the spawned worktree (not
+     `isolation: "worktree"`). The brief carries the worktree path, branch,
+     dev port and intent folder, and says to use absolute paths there and
+     leave the main checkout alone. Report that it was launched, with path,
+     branch, port and gates. Don't poll; you are notified when it ends.
+   - **Missing:** don't launch. Report the path, branch, port and gates, say
+     which gate is missing, and give the hand-over: `cd "<path>" && claude`,
+     or open the folder in the Claude Code desktop app.
+7. **On completion.** Report the implementer's result (branch, commits,
+   verify output, assumptions) and offer `/review`. Don't run it unprompted,
+   record a gate or merge; those stay with the owner.
 
 ## Removing (`--remove`)
 

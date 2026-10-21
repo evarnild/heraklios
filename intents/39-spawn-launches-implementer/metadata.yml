@@ -1,0 +1,17 @@
+# generated-by: heraklios/intent@0.1.2
+id: 39
+slug: spawn-launches-implementer
+type: adjustment
+status: in-review
+title: /spawn launches the implementer subagent in the worktree itself
+review_tier:
+intent_accepted: 2026-10-21 by-agent
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+follows_up:
+links:
+  - .claude/skills/spawn/SKILL.md    the skill being changed
+  - .claude/agents/heraklios-implementer.md    the agent it launches
+  - intents/27-parallel-sessions    where /spawn and the session hooks came from
