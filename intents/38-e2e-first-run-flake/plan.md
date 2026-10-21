@@ -146,3 +146,16 @@ this line is the implementer's to edit. -->
 - No fix landed (nothing reproduces). Status stays `accepted`; plan needs
   the owner's call on how to proceed (fresh-spawn first-run attempts, or
   accept the capture alone and wait for the next red run's trace).
+
+### 2026-10-21 (later) — fresh-state first runs, then capture-only
+
+- Rebased on `main` after §39; `verify` green (44 files, 692 tests).
+- **Fresh-state first run, 3 rounds:** each round removed
+  `node_modules/.vite` and `test-results`, ran `npm run verify`, then
+  `npm run e2e` straight after (the review sequence). 7/7 passed all three
+  times (22.0 s, 24.0 s, 23.6 s). Not reproduced. A real `/spawn` (fresh
+  `npm ci`, cold browser/disk caches) is the coordinator's and was not run.
+- **Outcome:** the capture setting stays as the deliverable. The next red
+  `npm run e2e` will print its scenario and assertion and leave a trace in
+  `test-results/`; the review should keep that output. The cause remains
+  unknown, so the intent's "cause found and written down" outcome is open.
