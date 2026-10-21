@@ -101,3 +101,11 @@ The scenario is the test. AC2's mutants, and which step must catch each:
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-10-21 — build
+
+- Added `e2e/language.spec.ts` (switch + reload + French Board + back to English; `fr-FR` / `en-US` first visit as two tests). Moved the error listeners into `collectErrors` in `e2e/helpers.ts`; `startFromMenu` uses it. README.md:36 reworded. No hook or game change.
+- The English pin is one `localStorage` write between two `goto('/')`, not an init script. B2 step 5 reloads before clicking English (the Board has no route back to the Menu).
+- `npm run e2e`: 7 tests in 5 files pass. `--repeat-each=5` on the new file: 15/15.
+- AC2 mutants, each caught: store write removed → B2 reload step; `resolveLanguage` ignoring the locale → `fr-FR` test; `applyToPage` body removed → both tests' `lang` check; `scene.restart()` removed → B2 step 2. Sources restored from copies.
+- `npm run verify` green (687 tests), `check:intent` PASS.

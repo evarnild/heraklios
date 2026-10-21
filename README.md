@@ -33,7 +33,7 @@ npm test    # run the engine's unit tests (Vitest)
 npm run build   # production build
 npm run lint    # ESLint
 npm run verify  # build + lint + test — run before considering a change done
-npm run e2e     # browser smoke suite: four test-mode scenarios in Chromium
+npm run e2e     # browser smoke suite: four test-mode scenarios and the language switch in Chromium
 ```
 
 `npm run e2e` needs a one-off `npx playwright install chromium` (about

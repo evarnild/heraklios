@@ -2,7 +2,7 @@
 id: 36
 slug: e2e-language-scenario
 type: feature
-status: accepted
+status: in-review
 title: A smoke scenario for the language switch
 review_tier:
 intent_accepted: 2026-10-21 by-agent    # owner: "accept 36" in chat

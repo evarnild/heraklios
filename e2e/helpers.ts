@@ -16,6 +16,19 @@ export type Hex = { q: number; r: number };
 export const MENU_TEST = 'Test mode (2 players, armies ready)';
 export const MENU_CLOSE_COMBAT = 'Combat test mode (units face to face, 2 hexes)';
 
+/** Every page error and console error lands in the returned list; assert it is empty at the end. */
+export function collectErrors(page: Page): string[] {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => {
+    // Full Chromium (--headed) requests /favicon.ico on its own; index.html
+    // declares no icon, so Vite answers 404. That is the browser, not the
+    // game — every other 404 stays fatal.
+    if (m.type() === 'error' && !m.location().url.endsWith('/favicon.ico')) errors.push(m.text());
+  });
+  return errors;
+}
+
 /**
  * Opens the game, seeds the dice, clicks a Menu shortcut and waits for an
  * idle Board — then checks the shortcut that actually ran (spec B5), so a
@@ -28,14 +41,7 @@ export async function startFromMenu(
   scenario: 'test' | 'close-combat',
   seed: number,
 ): Promise<string[]> {
-  const errors: string[] = [];
-  page.on('pageerror', (e) => errors.push(e.message));
-  page.on('console', (m) => {
-    // Full Chromium (--headed) requests /favicon.ico on its own; index.html
-    // declares no icon, so Vite answers 404. That is the browser, not the
-    // game — every other 404 stays fatal.
-    if (m.type() === 'error' && !m.location().url.endsWith('/favicon.ico')) errors.push(m.text());
-  });
+  const errors = collectErrors(page);
   // The scenarios match English labels, so pin the language before the page
   // loads rather than depend on the browser's locale (§35 B11).
   await page.addInitScript(() => localStorage.setItem('heraklios.language', 'en'));
