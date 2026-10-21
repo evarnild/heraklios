@@ -211,12 +211,12 @@ sync when something merges** — it went stale once and the user caught it.
 | [§37](intents/37-i18n-review-lows/) §35's open review findings closed — five untested i18n paths pinned, the literal scan reads helpers and subfolders, "point(s) d'équipage" (fix, follows up §35, Attested, 2 review rounds; e2e flake carried to [§38](intents/38-e2e-first-run-flake/); see [review.md](intents/37-i18n-review-lows/review.md)) | `84fd4c0` |
 | [§38](intents/38-e2e-first-run-flake/) e2e failures name their scenario and keep a trace — partial close on the owner's call, cause not found (fix, Attested, 1 review round; cause carried to [§41](intents/41-e2e-dev-server-first-load/); see [review.md](intents/38-e2e-first-run-flake/review.md)) | `a28db5b` |
 | [§39](intents/39-spawn-launches-implementer/) /spawn launches the implementer subagent in the worktree when the needed gate is recorded (adjustment, Reviewed tier because `.claude/skills/**`, 2 review rounds, 3 LOW fixed, live check run by the owner; see [review.md](intents/39-spawn-launches-implementer/review.md)) | `67b07c8` |
+| [§40](intents/40-naval-turn-buttons/) naval Turn buttons turn the way they sit — left counter-clockwise, right clockwise, on the Board and on Placement; Placement e2e scenario and a read-only `placement()` dev hook (fix, Attested, 2 review rounds, 1 MEDIUM invalid-UTF-8 finding fixed, live check run by the owner; see [review.md](intents/40-naval-turn-buttons/review.md)) | `fc19324` |
 
 ### In flight
 
 | Item | Type · status |
 | --- | --- |
-| [§40](intents/40-naval-turn-buttons/) The naval Turn buttons turn the wrong way (left should be counter-clockwise) | fix · accepted |
 | [§41](intents/41-e2e-dev-server-first-load/) An e2e run can fail before any scenario: the game's first load never arrives | fix · accepted |
 
 ### Queued
