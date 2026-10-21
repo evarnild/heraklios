@@ -478,7 +478,7 @@ its current bow (blue), the one hex a click can actually move it into at
 that hex's terrain cost, plus the **Turn** buttons for rotating 60° in
 place (1 movement point per turn, either direction, so a full reversal
 costs 3) — movement and rotation may be freely interleaved, one click at a
-time, watching the movement allowance debit as it goes. Both Turn buttons
+time, watching the movement allowance debit as it goes. The left Turn button turns the ship 60° counter-clockwise on screen and the right one clockwise. Both Turn buttons
 show a live arrowhead icon, in the ship's own color, for the facing that
 click will actually turn it to, rather than a generic rotate glyph — the
 same is true of the placing-player's facing picker above, since it reuses

@@ -47,6 +47,20 @@ export interface DevHook {
    * a scenario never depends on whether the roll caused a retreat.
    */
   pendingHexes(): Hex[];
+  /**
+   * While the Placement scene is up: the unit type it is placing now (null
+   * once the queue is empty) and the hexes it accepts a click on for it.
+   * Read-only; a scenario clicks one, as a player would (§40).
+   */
+  placement(): { current: string | null; legalHexes: Hex[] };
+}
+
+/** `PlacementScene` members `placement()` reads, by name; guarded like `BUSY_FIELDS`. */
+const PLACEMENT_MEMBERS = ['queue', 'currentLegalHexes'] as const;
+
+interface PlacementInternals {
+  queue: { typeId: string; remaining: number }[];
+  currentLegalHexes(): Hex[];
 }
 
 /** The shape of `BoardScene.retreatChoice` this hook reads. */
@@ -60,6 +74,13 @@ export function installDevHook(game: Phaser.Game): void {
   const board = (): BoardInternals => {
     if (!game.scene.isActive('Board')) throw new Error('Board scene is not active');
     return game.scene.getScene('Board') as BoardInternals;
+  };
+
+  /** The Board or the Placement scene: either draws the map through a `mapView`. */
+  const mapScene = (): BoardInternals => {
+    const scene = game.scene.getScenes(true).find((sc) => 'mapView' in sc);
+    if (!scene) throw new Error('No active scene with a map');
+    return scene as BoardInternals;
   };
 
   const buttons = (): ButtonCandidate[] =>
@@ -81,12 +102,12 @@ export function installDevHook(game: Phaser.Game): void {
       return [...reachableHexes(st, unit).keys()];
     },
     centerOn: (hex) => {
-      const b = board();
+      const b = mapScene();
       const w = b.mapView.toScreen(hex);
       b.cameras.main.centerOn(w.x, w.y);
     },
     hexToCanvas: (hex) => {
-      const b = board();
+      const b = mapScene();
       return worldToCanvas(b.cameras.main, b.mapView.toScreen(hex));
     },
     buttonCount: (label) => matchingButtons(buttons(), label).length,
@@ -107,6 +128,14 @@ export function installDevHook(game: Phaser.Game): void {
       const choice = (board() as unknown as { retreatChoice: PendingChoice | null }).retreatChoice;
       if (!choice) return [];
       return choice.kind === 'retreat' ? (choice.legalHexes ?? []) : (choice.pushTargets ?? []).map((u) => u.position);
+    },
+    placement: () => {
+      if (!game.scene.isActive('Placement')) throw new Error('Placement scene is not active');
+      const p = game.scene.getScene('Placement') as unknown as PlacementInternals;
+      for (const m of PLACEMENT_MEMBERS) {
+        if (!(m in p)) throw new Error(`devHook: PlacementScene has no "${m}" any more — update PLACEMENT_MEMBERS`);
+      }
+      return { current: p.queue.find((q) => q.remaining > 0)?.typeId ?? null, legalHexes: p.currentLegalHexes() };
     },
   };
   (window as unknown as { __heraklios: DevHook }).__heraklios = hook;

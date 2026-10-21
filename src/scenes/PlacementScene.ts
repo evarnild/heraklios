@@ -201,6 +201,8 @@ export class PlacementScene extends Phaser.Scene {
     // buttons — see `refreshTurnGlyphs`): the old static ⟲/⟳ glyphs are
     // replaced by `turnCcwGlyph`/`turnCwGlyph`, arrowhead icons showing the
     // facing each button will actually turn the pending ship to.
+    // facing + 1 is counter-clockwise on screen (see hexToPixel): the left
+    // button sends +1, the right one -1 (§40).
     this.rotateCCWBtn = this.add
       .text(width / 2 - 90, height - 104, t.common.turn, {
         fontSize: '13px',
@@ -212,7 +214,7 @@ export class PlacementScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(30)
       .setInteractive({ useHandCursor: true });
-    this.rotateCCWBtn.on('pointerdown', () => this.rotatePendingShip(-1));
+    this.rotateCCWBtn.on('pointerdown', () => this.rotatePendingShip(1));
 
     this.rotateCWBtn = this.add
       .text(width / 2 + 90, height - 104, t.common.turn, {
@@ -225,7 +227,7 @@ export class PlacementScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(30)
       .setInteractive({ useHandCursor: true });
-    this.rotateCWBtn.on('pointerdown', () => this.rotatePendingShip(1));
+    this.rotateCWBtn.on('pointerdown', () => this.rotatePendingShip(-1));
 
     // Depth 31: one above the buttons (30), so the arrowhead icons draw on
     // top of the button backgrounds they sit beside.
@@ -480,8 +482,8 @@ export class PlacementScene extends Phaser.Scene {
     if (!pending) return;
     const { width, height } = this.scale;
     const colorHex = PLAYER_COLORS_HEX[this.playerIndex] ?? '#ffffff';
-    drawFacingArrowhead(this.turnCcwGlyph, { x: width / 2 - 120, y: height - 104 }, (pending.facing + 5) % 6, colorHex, 0.4);
-    drawFacingArrowhead(this.turnCwGlyph, { x: width / 2 + 120, y: height - 104 }, (pending.facing + 1) % 6, colorHex, 0.4);
+    drawFacingArrowhead(this.turnCcwGlyph, { x: width / 2 - 120, y: height - 104 }, (pending.facing + 1) % 6, colorHex, 0.4);
+    drawFacingArrowhead(this.turnCwGlyph, { x: width / 2 + 120, y: height - 104 }, (pending.facing + 5) % 6, colorHex, 0.4);
   }
 
   private rotatePendingShip(direction: 1 | -1): void {
