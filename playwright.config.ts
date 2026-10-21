@@ -11,9 +11,10 @@ export default defineConfig({
   testDir: 'e2e',
   globalSetup: './e2e/global-setup.ts',
   timeout: 30_000,
-  // A failure names its scenario and assertion in the terminal (line) and
-  // keeps a trace; a pass costs nothing extra (§38).
-  reporter: [['list']],
+  // A failure names its scenario and assertion in the terminal and keeps a
+  // trace; a pass costs nothing extra (§38). A red run on Windows also says
+  // whether the machine slept during it (scripts/sleep-reporter.mjs, §41).
+  reporter: [['list'], ['./scripts/sleep-reporter.mjs']],
   use: {
     baseURL: `http://${HOST}:${PORT}`,
     // The game's own size (1100×750); the HUD is laid out for it.
