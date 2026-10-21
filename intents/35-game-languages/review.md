@@ -1,12 +1,128 @@
 <!-- generated-by: heraklios/review@0.1.4 -->
 # §35 review — Play the game in several languages, French and English first
 
-verdict: rework
+verdict: escalate
 tier: reviewed
-reviewed-commit: 633d10a
-round: 1
+reviewed-commit: f63cd9a
+round: 2
 sampled: no
 live-check: owed
+
+Tier set by input 1 (paths: `src/engine/saveGame.ts`,
+`src/ui/saveStorage.ts`) and input 2 (`review_tier: reviewed`). Round 1's
+MEDIUM is fixed and proven by mutation, and the French wording findings
+are fixed. Nothing needs rework, so the verdict is `escalate`: you read the
+diff before the merge. The live check is owed and recorded again after the
+rework (`f63cd9a`), so `check:intent` passes.
+
+## Passes
+| # | Pass | Result |
+| --- | --- | --- |
+| 1 | Intent and plan match | pass — the rework does what round 1 asked, plus the LOWs the owner left to the implementer's choice; nothing else |
+| 2 | Type check | pass |
+| 3 | Rulebook fidelity | pass — no rule changed; "table des résultats" and "équipage" now follow the French original (`05-rules-french-original.md:149`, `:220`, `:426-432`) |
+| 4 | Tests prove the rule, not only pass | findings (1) — round 1's 8 drift-order survivors all killed; 4 of the 5 name-helper survivors killed; `phaseName` still unproven (L1) |
+| 5 | Engine/presentation boundary and conventions | pass — the rework touches tests, `fr.ts`, one comment and the README |
+| 6 | Numbers in prose | pass |
+| 7 | Documentation | pass — README's loaded-game sentence corrected; the stale `PLAYER_COLOR_NAMES` comment rewritten |
+| 8 | Guardrails and hygiene | pass — lint 0 errors / 21 warnings (cap 21) |
+| 9 | Repository-specific footguns | pass — `drift.ts` itself untouched by the rework; its hook order is now pinned by three tests |
+
+## Type check
+```
+type-check: PASS (intent 35, feature)
+  note:  42 file(s), 2865 line(s) changed outside intents/.
+```
+
+## Findings
+- **LOW** `src/ui/i18n/names.test.ts:96` — `phaseName` is still unproven:
+  the French case asks for `'combat'`, which is the same word in both
+  languages, so making `phaseName` return the raw phase id passes all 687
+  tests (mutant N6). Worth a look: assert `phaseName('movement')` is
+  `'mouvement'` in French.
+- **LOW** `src/ui/i18n/fr.ts:277` — "perd ${r.loss} d'équipage" drops the
+  rulebook's "points": "perd 2 d'équipage" reads oddly; "perd 2 points
+  d'équipage" (`05-rules-french-original.md:426-432`). Worth a look.
+- **LOW** (carried from round 1, open by the owner's choice) — untested:
+  page `lang` on the first resolve (`index.ts:55`, I8), `|| 'none'` in the
+  exchange line (E6), `joinNames` for three or more names (E7); the scan
+  test doesn't read helper calls such as `this.button(…, 'label', …)`
+  (NL4). Worth a look.
+- **LOW** (not this change, carried) `e2e/` — one scenario failed in the
+  first full `npm run e2e` of this round, which also ran slowly (51 s
+  against 17 s); the rerun passed 4/4 and `--repeat-each=5` 20/20. The
+  failing scenario wasn't captured. Round 1's failure was `save-load`.
+  Worth a look: the fix intent the grid proposes.
+
+## Not checked
+- **The French reports on the board panel** (land combat, boarding) for a
+  real result: the implementer counted lines (about three more than
+  before, ending near y ≈ 450 of a 583 px button row) but couldn't force
+  those results; your re-check after the rework is the evidence.
+- **Which e2e scenario failed** in this round's first run (above).
+- **French as a whole**: read for the round-1 findings and the rework
+  diff only; a native reader in play is the real check.
+- Mutants on the scenes and `saveLoadPanel.ts`: not run, as in round 1 (no
+  unit test reaches them).
+
+## Live check
+- owed: rule 1 (`src/scenes/**`, `src/ui/**`). Cleared by the rework
+  (`8e78f48`) because the French changed, and recorded again:
+  `live_checked: 2026-10-21 by-agent` in `f63cd9a`, on your "live checked
+  ok".
+- **Could be an e2e scenario:** the switch, the reload memory, the page
+  language and the browser-locale default — drafted as §36, waiting for
+  your yes.
+
+## Verified myself vs. taken on trust
+- `git log 14bf98d..feat/35-game-languages`: `8e78f48` (rework), `f63cd9a`
+  (live check). `status: in-review`.
+- `git diff 14bf98d f63cd9a`: 9 files; read `fr.ts`, `README.md`,
+  `BoardScene.ts` and `metadata.yml` in full, the new tests' structure.
+  Every unit-subject French sentence now reads "L'unité …" with feminine
+  singular agreement; "table des résultats", "équipage", "Tiré au sort",
+  "restant(s)", "camp" as reported.
+- `npm run verify` (worktree, `f63cd9a`): lint 0 errors / 21 warnings (cap
+  21); Vitest 44 files, **687 passed**.
+- `npm run check:intent`: PASS (above).
+- `npm run e2e`: run 1 — 3 passed, 1 failed (51 s); run 2 — 4 passed;
+  `--repeat-each=5` — 20 passed.
+- Mutants re-run myself with round 1's harness (file backed up and
+  restored byte for byte, `git diff` checked per mutant): D3–D6, D8–D11
+  **killed** (the new hook-order tests fail); D12 survives (equivalent: no
+  narration for `directionResumed`); N5, N7, N8, F13 killed; N4 as written
+  in round 1 was equivalent (dead code after a `return`), rewritten as
+  `return edge;` → killed; N6, I8, E6, E7, NL4 survive (above); FR3 no
+  longer applies (the sentence changed; F13 covers the sea exit).
+  `git status --short` clean after each batch.
+- `git merge-tree main feat/35-game-languages`: merges cleanly. `main`
+  moved by one commit since the branch (`26946cb`, `docs/sdlc-grid.md`
+  only), so no rebase is needed.
+- `git status --short` in the worktree afterwards: only this `review.md`.
+- Taken on trust: the implementer's fit measurements after the rework;
+  your live check.
+
+# Round 1 (history)
+
+- verdict: rework
+- tier: reviewed
+- reviewed-commit: 633d10a
+- round: 1
+- sampled: no
+- live-check: owed
+
+Resolutions (round 2):
+- MEDIUM drift hook order: **fixed** in `8e78f48` (three hook-sequence
+  tests; 8/8 order mutants killed).
+- LOW French agreement, "TRC", "équipement", "Retiré au sort",
+  "restant", "place": **fixed** in `8e78f48`.
+- LOW name helpers and colour order: **fixed** (N5, N7, N8 killed; N4
+  killed in its corrected form); `phaseName` still open (round 2 L1).
+- LOW sea-exit sentence: **fixed** (F13 killed).
+- LOW README loaded-game sentence, Progress wording, stale comment:
+  **fixed**.
+- LOW scan of helper calls, I8, E6, E7: **open**, worth a look.
+- LOW e2e flake: **open** — seen again this round.
 
 Tier set by input 1 (paths) and input 2 (metadata), which agree:
 `src/engine/saveGame.ts` and `src/ui/saveStorage.ts` are Reviewed paths,
@@ -15,7 +131,7 @@ rework: a risk the plan named (drift narration order) is held only by
 reading, not by a test. Everything else is LOW. The rules, the save
 format and the drift order are unchanged.
 
-## Passes
+### Passes
 | # | Pass | Result |
 | --- | --- | --- |
 | 1 | Intent and plan match | pass — B1–B12 built; the divergences in Progress (save errors as data, three more engine label functions moved, the Army Builder's error line, structured reports, fit changes) are declared and in the spec's direction. See L9 for one understated sentence |
@@ -28,13 +144,13 @@ format and the drift order are unchanged.
 | 8 | Guardrails and hygiene | pass — lint 21 warnings, cap 21, and the same 21 as `main` (same files, rules, functions); no new dependency; no save or player text reaches `innerHTML` |
 | 9 | Repository-specific footguns | pass — the drift switch returns as before; `onNarrate` sits exactly where `onLine` did (compared with `main`). Fuzz and soak suites untouched |
 
-## Type check
+### Type check
 ```
 type-check: PASS (intent 35, feature)
   note:  42 file(s), 2704 line(s) changed outside intents/.
 ```
 
-## Findings
+### Findings
 - **MEDIUM** `src/engine/drift.ts:569-616` — the plan's own risk ("`onNarrate`
   is called at exactly the points `onLine` is today … so the log and the
   pacing don't move") is true by inspection, but only the marsh elimination
@@ -96,7 +212,7 @@ type-check: PASS (intent 35, feature)
   Same scenario as §33's round-1 flake; the assertion is now known. Worth a
   look: open a fix intent (the grid of 2026-10-20 proposes it).
 
-## Not checked
+### Not checked
 - **Drawn layout and fit** in either language: I didn't render the game.
   The implementer's screenshots (Progress → Fit) and your live check are
   the evidence. The Progress lists what it could not measure: the board's
@@ -111,7 +227,7 @@ type-check: PASS (intent 35, feature)
   run — no unit test reaches them; the scan test and e2e are their only
   automated cover.
 
-## Live check
+### Live check
 - owed: rule 1 (`src/scenes/**`, `src/ui/**`). Recorded
   `live_checked: 2026-10-20 by-agent` in `633d10a` on your "live check
   done", against the steps in `plan.md` → Validation.
@@ -127,7 +243,7 @@ type-check: PASS (intent 35, feature)
   and empty storage that opens in French. That covers B3, B4 and B10
   without you. Fit and the quality of the French stay a person's check.
 
-## Verified myself vs. taken on trust
+### Verified myself vs. taken on trust
 - `git log main..feat/35-game-languages`: 7 commits, `87aca3d`…`633d10a`;
   merge base `02a7bab` (current `main` before the grid commit). `status:
   in-review`, `live_checked` recorded in `633d10a`.
