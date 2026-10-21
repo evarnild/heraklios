@@ -11,11 +11,15 @@ export default defineConfig({
   testDir: 'e2e',
   globalSetup: './e2e/global-setup.ts',
   timeout: 30_000,
+  // A failure names its scenario and assertion in the terminal (line) and
+  // keeps a trace; a pass costs nothing extra (§38).
+  reporter: [['list'], ['line']],
   use: {
     baseURL: `http://${HOST}:${PORT}`,
     // The game's own size (1100Ã—750); the HUD is laid out for it.
     viewport: { width: 1100, height: 750 },
     browserName: 'chromium',
+    trace: 'retain-on-failure',
   },
   webServer: {
     command: `npx vite --port ${PORT} --strictPort --host ${HOST}`,

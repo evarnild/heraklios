@@ -120,3 +120,50 @@ Re-read on `main` at `259fee1`:
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-10-21 — subtask 1 shipped; subtasks 2–5 stopped per Risks
+
+- **Subtask 1 (capture):** `playwright.config.ts` now has
+  `reporter: [['list'], ['line']]` and `trace: 'retain-on-failure'`.
+- **Subtask 2 (reproduce), not reproduced.** Temporary CDP
+  `Emulation.setCPUThrottlingRate` after `page.goto` in `startFromMenu`
+  (since reverted, not committed), `save-load` only, `--repeat-each=10`:
+  - rate 4, 1 worker: **10/10 passed**, none of them fail at the Load assertion.
+  - rate 8, 1 worker: 9 of 10 failed, but all on the 30 s test timeout
+    (`page.evaluate` / `mouse.click` / `locator.boundingBox` at
+    `save-load.spec.ts:52-56`) plus one `No canvas on the page`, i.e. a
+    too-slow run, not the "state read before the click lands" assertion
+    failure of the hypothesis.
+  - rate 4 with 10 parallel workers failed 10/10 in `startFromMenu`
+    (helpers.ts:50): contention, not the race.
+  The "state read before the load lands" hypothesis is therefore **not
+  confirmed**; the Vite cold-cache hypothesis was already not reproduced
+  by the coordinator. Throttling at rates where the test finishes does
+  not fail it, and where it fails it fails by timeout.
+- Not tried yet: the fresh-`npm ci`-worktree first run (plan subtask 2's
+  last fallback), and the `No canvas on the page` at rate 8, which hints
+  at a page reload/navigation mid-test and may be worth a trace.
+- No fix landed (nothing reproduces). Status stays `accepted`; plan needs
+  the owner's call on how to proceed (fresh-spawn first-run attempts, or
+  accept the capture alone and wait for the next red run's trace).
+
+### 2026-10-21 (later) — fresh-state first runs, then capture-only
+
+- Rebased on `main` after §39; `verify` green (44 files, 692 tests).
+- **Fresh-state first run, 3 rounds:** each round removed
+  `node_modules/.vite` and `test-results`, ran `npm run verify`, then
+  `npm run e2e` straight after (the review sequence). 7/7 passed all three
+  times (22.0 s, 24.0 s, 23.6 s). Not reproduced. A real `/spawn` (fresh
+  `npm ci`, cold browser/disk caches) is the coordinator's and was not run.
+- **Outcome:** the capture setting stays as the deliverable. The next red
+  `npm run e2e` will print its scenario and assertion and leave a trace in
+  `test-results/`; the review should keep that output. The cause remains
+  unknown, so the intent's "cause found and written down" outcome is open.
+
+### 2026-10-21 (closing) — closed on the capture alone, on the owner's call
+
+Owner: "close on capture alone". Delivered: intent outcome 3 only (a failing
+scenario names itself and keeps a trace). Outcomes 1 and 2 (cause found,
+first-run fix) are **not met**: nothing reproduced. For `/review`: judge
+this as a partial close; the next red `npm run e2e` must be diagnosed from
+its trace, not rerun until green. `status: in-review`.
