@@ -112,6 +112,11 @@ function unquote(v) {
 }
 
 const isTest = (p) => /\.test\.(ts|mjs|js)$/.test(p);
+// A scenario under e2e/ is a test (Playwright's *.spec.ts); e2e/helpers.ts and
+// global-setup.ts are support code and do not count. Counted when the file
+// changed, like a unit test: the check never reads test content.
+const isE2eSpec = (p) => /^e2e\/.+\.spec\.ts$/.test(p);
+const countsAsTest = (p) => isTest(p) || isE2eSpec(p);
 const isRuleCode = (p) => /^src\/(engine|data)\//.test(p) && !isTest(p);
 const isSource = (p) => /^src\//.test(p) && !isTest(p);
 const isIntentArtefact = (p) => p.startsWith('intents/');
@@ -225,7 +230,9 @@ export function parseReviewHeader(text) {
 function checkShape(type, diff, routes, notes) {
   const code = diff.filter((d) => !isIntentArtefact(d.path));
   const lines = code.reduce((n, d) => n + d.added + d.deleted, 0);
-  const testsTouched = code.some((d) => isTest(d.path));
+  const testsTouched = code.some((d) => countsAsTest(d.path));
+  // Rule code in engine/data still needs a unit test; an e2e scenario is too coarse.
+  const unitTestsTouched = code.some((d) => isTest(d.path));
   const ruleCodeTouched = code.some((d) => isRuleCode(d.path));
   notes.push(`${code.length} file(s), ${lines} line(s) changed outside intents/.`);
 
@@ -241,12 +248,12 @@ function checkShape(type, diff, routes, notes) {
     routes.push('Declared fix, but no test changed. A fix carries a test so the defect cannot come back.');
   }
   if (type === 'refactor') {
-    const testDeletions = code.filter((d) => isTest(d.path) && d.deleted > 0).map((d) => d.path);
+    const testDeletions = code.filter((d) => countsAsTest(d.path) && d.deleted > 0).map((d) => d.path);
     if (testDeletions.length) {
       routes.push(`Declared refactor, but existing tests lost lines (${testDeletions.join(', ')}). Behaviour may have changed — check, or route to feature.`);
     }
   }
-  if ((type === 'feature' || type === 'fix') && ruleCodeTouched && !testsTouched) {
+  if ((type === 'feature' || type === 'fix') && ruleCodeTouched && !unitTestsTouched) {
     routes.push('Rule code in src/engine or src/data changed with no test change.');
   }
 }
