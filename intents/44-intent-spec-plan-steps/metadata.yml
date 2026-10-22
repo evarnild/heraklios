@@ -1,0 +1,16 @@
+# generated-by: heraklios/intent@0.1.2
+id: 44
+slug: intent-spec-plan-steps
+type: feature
+status: accepted
+title: /intent writes the spec and the plan as stamped steps
+review_tier:
+intent_accepted: 2026-10-22 by-agent    # owner's "yes" in chat
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+follows_up:
+links:
+  - docs/sdlc-grid.md    2026-10-20 grid: Design L1 because no skill produces specs; their stamp overstates L2
+  - intents/26-ai-sdlc-kit    the kit that introduced /intent and the stamps
