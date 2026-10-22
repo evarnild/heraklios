@@ -7,7 +7,7 @@ title: /spec and /build-plan skills write the spec and the plan, stamped
 review_tier:
 intent_accepted: 2026-10-22 by-agent    # owner's "yes" in chat
 spec_accepted: 2026-10-22 by-agent    # owner: "build-plan and then accept it" (three skills, /build-plan)
-plan_approved:
+plan_approved: 2026-10-22 by-agent    # owner's "yes" in chat
 live_checked:
 merged:
 follows_up:
