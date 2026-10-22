@@ -1,0 +1,17 @@
+# generated-by: heraklios/intent@0.1.4
+id: 47
+slug: queue-from-metadata
+type: feature
+status: accepted
+title: The intent queue is generated from metadata.yml; the root plan.md stops carrying status
+review_tier:
+intent_accepted: 2026-10-22 by-agent    # owner's "yes" in chat
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+follows_up:
+links:
+  - intents/26-ai-sdlc-kit    introduced intents/ beside plan.md, the queue mirroring metadata.yml
+  - intents/27-parallel-sessions    the coordinator role; npm run sessions reads metadata.yml
+  - intents/46-ship-skill    in flight; its bookkeeping moves the plan.md row (seam kept separate on request)
