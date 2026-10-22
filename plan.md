@@ -213,12 +213,12 @@ sync when something merges** — it went stale once and the user caught it.
 | [§39](intents/39-spawn-launches-implementer/) /spawn launches the implementer subagent in the worktree when the needed gate is recorded (adjustment, Reviewed tier because `.claude/skills/**`, 2 review rounds, 3 LOW fixed, live check run by the owner; see [review.md](intents/39-spawn-launches-implementer/review.md)) | `67b07c8` |
 | [§40](intents/40-naval-turn-buttons/) naval Turn buttons turn the way they sit — left counter-clockwise, right clockwise, on the Board and on Placement; Placement e2e scenario and a read-only `placement()` dev hook (fix, Attested, 2 review rounds, 1 MEDIUM invalid-UTF-8 finding fixed, live check run by the owner; see [review.md](intents/40-naval-turn-buttons/review.md)) | `fc19324` |
 | [§42](intents/42-intent-check-counts-e2e/) `check:intent` counts `e2e/**/*.spec.ts` as tests for the fix and refactor rules (rule code still needs a unit test) (fix, follows up §32, Attested, 1 review round, no findings; see [review.md](intents/42-intent-check-counts-e2e/review.md)) | `781f346` |
+| [§41](intents/41-e2e-dev-server-first-load/) e2e red runs explained — a sleep is named in the output, and the suite runs two workers (five parallel software-rendered Chromiums starved each other); the shared port refuted (fix, follows up §32, Attested, 3 review rounds; see [review.md](intents/41-e2e-dev-server-first-load/review.md)) | `cfab5de` |
 
 ### In flight
 
 | Item | Type · status |
 | --- | --- |
-| [§41](intents/41-e2e-dev-server-first-load/) An e2e run can fail before any scenario: the game's first load never arrives | fix · accepted |
 
 ### Queued
 
