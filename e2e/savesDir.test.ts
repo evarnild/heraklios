@@ -4,7 +4,7 @@
 import { existsSync, mkdtempSync, rmSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDirLock } from './savesDir';
 
 const STALE = 5_000;
@@ -39,5 +39,35 @@ describe('createDirLock', () => {
     await mk().acquire();
     backdate(STALE - 3_000);
     await expect(mk().acquire(200)).rejects.toThrow('Could not take');
+  });
+
+  it.fails('T1: a throwing cleanup still releases, and the error propagates', async () => {
+    const a = mk();
+    await a.acquire();
+    await expect(a.withHeld(() => { throw new Error('EPERM'); })).rejects.toThrow('EPERM');
+    expect(existsSync(path)).toBe(false);
+    await mk().acquire(200);
+  });
+
+  it.fails('T2: a worker that never got the lock runs no cleanup and leaves the holder lock', async () => {
+    await mk().acquire();
+    const b = mk();
+    await expect(b.acquire(100)).rejects.toThrow('Could not take');
+    const spy = vi.fn();
+    await b.withHeld(spy);
+    expect(spy).not.toHaveBeenCalled();
+    expect(existsSync(path)).toBe(true);
+  });
+
+  it.fails('T6: a holder that lost its lock to a takeover does not remove the new holder lock', async () => {
+    const a = mk();
+    await a.acquire();
+    backdate(STALE + 1_000);
+    const b = mk();
+    await b.acquire(500);
+    a.release();
+    expect(existsSync(path)).toBe(true);
+    b.release();
+    expect(existsSync(path)).toBe(false);
   });
 });
