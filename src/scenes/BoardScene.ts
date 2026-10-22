@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { landUnitsCentre } from '../ui/viewCentre';
 import { MapView, drawFacingArrowhead } from '../ui/MapView';
 import { PLAYER_COLORS_HEX } from '../ui/hexRender';
 import { messages } from '../ui/i18n';
@@ -864,6 +865,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.refreshUndoRedoButtons();
     this.autosave();
     if (staged) this.log(messages().log.gameLoaded);
+    this.centreOnActivePlayer();
     // Last: a game whose first (or resumed) seat is an AI plays itself
     // straight away, with no human input needed to get it going.
     this.maybeStartAiTurn();
@@ -966,7 +968,16 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.refreshStatus();
     this.refreshUndoRedoButtons();
     this.log(messages().log.gameLoaded);
+    this.centreOnActivePlayer();
     this.maybeStartAiTurn();
+  }
+
+  /** Jumps the view to the middle of the active player's land units, keeping
+   * the zoom (intents/43 B1-B5); no land unit left: the view stays put. */
+  private centreOnActivePlayer(): void {
+    const st = this.state();
+    const centre = landUnitsCentre(st.units, st.seatOrder[st.activePlayerIndex]!);
+    if (centre) this.mapView.centerOnPoint(centre);
   }
 
   /**
@@ -2840,6 +2851,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       // ramming bookkeeping (kept outside `GameState`, see `rammedThisTurn`'s
       // doc comment) still needs resetting here.
       this.rammedThisTurn.clear();
+      this.centreOnActivePlayer();
       // A player's movement phase beginning is the natural checkpoint: a
       // crash or closed tab then costs at most that one turn.
       this.autosave();

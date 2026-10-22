@@ -36,6 +36,8 @@ export interface DevHook {
   reachable(unitId: string): string[];
   centerOn(hex: Hex): void;
   hexToCanvas(hex: Hex): Point | null;
+  /** The main camera's midpoint in canvas coordinates (read-only; §43). */
+  viewCentre(): Point;
   buttonCount(label: string): number;
   buttonToCanvas(label: string, index?: number): Point;
   /** What is pending on the board — empty when a human could act. */
@@ -109,6 +111,10 @@ export function installDevHook(game: Phaser.Game): void {
     hexToCanvas: (hex) => {
       const b = mapScene();
       return worldToCanvas(b.cameras.main, b.mapView.toScreen(hex));
+    },
+    viewCentre: () => {
+      const cam = mapScene().cameras.main;
+      return { x: cam.x + cam.width / 2, y: cam.y + cam.height / 2 };
     },
     buttonCount: (label) => matchingButtons(buttons(), label).length,
     buttonToCanvas: (label, index) => pickButton(buttons(), label, index),

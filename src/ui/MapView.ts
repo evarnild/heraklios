@@ -577,6 +577,11 @@ export class MapView {
     const p = this.toScreen(hex);
     this.scene.cameras.main.centerOn(p.x, p.y);
   }
+
+  /** Like `centerOn`, for a point in `hexToPixel` space (the camera's bounds clamp it). */
+  centerOnPoint(point: { x: number; y: number }): void {
+    this.scene.cameras.main.centerOn(point.x + this.originX, point.y + this.originY);
+  }
 }
 
 function hexPolygonPointsAt(center: { x: number; y: number }): number[] {
