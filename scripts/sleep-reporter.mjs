@@ -2,7 +2,7 @@
 // slept during it. Adds one line; never changes the exit status (a reporter's
 // onEnd returns nothing, and every failure here is swallowed).
 import { execFileSync } from 'node:child_process';
-import { eventsInWindow, parseSleepEvents, sleepNotice, SLEEP_EVENT_IDS } from './sleep-window.mjs';
+import { eventsInWindow, parseSleepEvents, shouldCheck, sleepNotice, SLEEP_EVENT_IDS } from './sleep-window.mjs';
 
 function readEvents(startMs) {
   const ps =
@@ -21,7 +21,7 @@ export default class SleepReporter {
   }
 
   onEnd(result) {
-    if (result.status === 'passed' || process.platform !== 'win32') return;
+    if (!shouldCheck(result.status, process.platform)) return;
     try {
       const notice = sleepNotice(eventsInWindow(parseSleepEvents(readEvents(this.startMs)), this.startMs, Date.now()));
       if (notice) process.stdout.write(`\n${notice}\n`);

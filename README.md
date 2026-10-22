@@ -37,9 +37,11 @@ npm run e2e     # browser smoke suite: four test-mode scenarios and the language
 ```
 
 `npm run e2e` needs a one-off `npx playwright install chromium` (about
-720 MB, outside the repo) and port 5232 free (a second suite started
-meanwhile is refused cleanly and does not disturb the first). It is separate from
-`verify`.
+720 MB, outside the repo) and port 5232 free. A second suite started from
+another worktree is refused cleanly and leaves the first alone; started from
+the same worktree it is refused too but can still break the first (it clears
+`test-results/` on startup), so run one suite per worktree at a time. It is
+separate from `verify`.
 
 A red run is read before it is rerun. On Windows the run's output ends with
 a line if the machine slept during it (a laptop on critical battery does:

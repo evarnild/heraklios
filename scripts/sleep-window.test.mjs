@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { eventsInWindow, parseSleepEvents, sleepNotice } from './sleep-window.mjs';
+import { eventsInWindow, parseSleepEvents, shouldCheck, sleepNotice } from './sleep-window.mjs';
 
 const at = (h, m, s) => new Date(2026, 9, 21, h, m, s).getTime();
 const iso = (ms) => new Date(ms).toISOString();
@@ -53,5 +53,17 @@ describe('sleepNotice', () => {
   });
   it('names a resume whose sleep began before the run', () => {
     expect(sleepNotice([{ id: 107, at: at(22, 15, 55) }])).toContain('resumed from sleep at 22:15:55');
+  });
+});
+
+describe('shouldCheck', () => {
+  it('skips a passed run', () => {
+    expect(shouldCheck('passed', 'win32')).toBe(false);
+  });
+  it('checks failed, timedout and interrupted runs on Windows', () => {
+    for (const status of ['failed', 'timedout', 'interrupted']) expect(shouldCheck(status, 'win32')).toBe(true);
+  });
+  it('never checks off Windows', () => {
+    for (const status of ['passed', 'failed', 'timedout', 'interrupted']) expect(shouldCheck(status, 'linux')).toBe(false);
   });
 });

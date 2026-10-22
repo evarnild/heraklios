@@ -54,3 +54,8 @@ export function sleepNotice(events) {
   const battery = events.some((e) => e.id === 524) ? ' (critical battery)' : '';
   return `The machine ${when} during this run${battery}; its failures may not be the code's. Rerun on mains power.`;
 }
+
+/** Only a red run on Windows is worth asking the event log about. */
+export function shouldCheck(status, platform) {
+  return platform === 'win32' && status !== 'passed';
+}

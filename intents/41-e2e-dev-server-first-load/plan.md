@@ -183,3 +183,15 @@ lint 21 warnings (cap 21 unchanged), `check:intent` PASS. `npm run e2e`
 this existing worktree, not three fresh spawns; and the failure of the
 original review run (sleep, confirmed by the coordinator) was not
 reproducible on demand, only named when it recurs.
+
+### 2026-10-22 — rework after review round 1 (implementer)
+
+README port sentence rewritten: another worktree's suite is refused cleanly
+and leaves the first alone; from the same worktree it can still break the
+first (clears `test-results/`), so one suite per worktree at a time. No
+lock file added (out of scope). `shouldCheck(status, platform)` now lives in
+`scripts/sleep-window.mjs`, used by the reporter's `onEnd`, with 3 tests
+(passed false; failed/timedout/interrupted true on win32; any status false
+on linux); mutant dropping the `passed` check now fails "skips a passed
+run". Tests 704 total. Results below.
+e2e after rework: 7/7 passed, verify green (21 warnings), check:intent PASS.
