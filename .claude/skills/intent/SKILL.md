@@ -3,7 +3,7 @@ name: intent
 description: Draft or sharpen a heraklios intent (intents/<id>-<slug>/intent.md + metadata.yml) for a fix, feature, refactor, adjustment or experiment. Use when starting any new piece of heraklios work, turning a bug found while playing or a review finding into work, or backfilling an intent for a plan that came first. Invoke as /intent --fix|--feature|--refactor|--adjust|--exp <what you have>.
 metadata:
   owner: evarnild
-  version: 0.1.2
+  version: 0.1.3
   scope: repository
   status: experimental
   review-tier: reviewed
@@ -16,8 +16,10 @@ user has into an intent good enough to accept, asking **only** the questions
 the material does not already answer. The user accepts; you record a gate only on the
 user's request, with `by-agent` (`intents/README.md` → "Who edits what").
 
-Stamp: `<!-- generated-by: heraklios/intent@0.1.2 -->` as the first line of
+Stamp: `<!-- generated-by: heraklios/intent@0.1.3 -->` as the first line of
 every file you write.
+Follow `intents/README.md` → "Drafting an artefact" for what the drafting
+skills share.
 
 ## 1. Settle the type
 
@@ -95,3 +97,4 @@ Check the draft and tell the user plainly what is still weak:
 End with: the folder path, the type and why, open assumptions, and the next
 step — "accept by setting `intent_accepted: <date>` in metadata.yml, or say yes and I'll record it with `by-agent`", then the
 spec (feature) or plan (fix/refactor) comes next.
+Next skill: `/spec <id>` for a feature, `/build-plan <id>` for a fix or refactor.
