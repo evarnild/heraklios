@@ -142,3 +142,18 @@ suffix, the e2e suite's shared port (that is §41's), changing which paths are
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-10-22 - all four subtasks
+
+Commits: intent accepted / plan approved; failing-first tests; the change in `scripts/intent-check-lib.mjs`; `intents/README.md` sentence (see `git log`).
+
+Shipped: `isE2eSpec = /^e2e\/.+\.spec\.ts$/` and `countsAsTest`; the fix rule and the refactor deletion list use `countsAsTest`, the rule-code rule uses a separate `unitTestsTouched` (design split as planned). One sentence in `intents/README.md`. `REVIEW-POLICY.md` untouched.
+
+Failing-first (`npx vitest run scripts/intent-check-lib.test.mjs`, before the library change): 3 failed | 66 passed (69).
+- `does not route a fix whose failing-first test is an e2e spec`: expected 'Declared fix, but no test changed. A ...' not to match /no test changed/
+- `routes a refactor that removed lines from an e2e spec`: expected '' to match /existing tests lost ... naval\.spec\.ts\)/
+- `counts a nested spec`: same "no test changed" failure
+
+Divergence: the plan predicted exactly two failures and listed the nested-spec case as passing today. It cannot pass today (nothing under `e2e/` counts yet), so three fail; no effect on the design.
+
+Tests: after the change 69 passed in the file; `npm run verify` green, 698 tests in 44 files; `npm run check:intent` PASS (intent 42, fix).

@@ -2,7 +2,7 @@
 id: 42
 slug: intent-check-counts-e2e
 type: fix
-status: accepted
+status: in-review
 title: check:intent counts e2e spec files as tests
 review_tier:
 intent_accepted: 2026-10-21 by-agent
