@@ -181,3 +181,19 @@ Re-read on `main` at `f2ae7b6`:
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-10-22 - subtasks 1-7 (implementer)
+
+- **1 (2a12bf1)** `server/saveApi.ts` pure handler + `saveApi.test.ts` (36 tests); `server` in `tsconfig.json` include, `server/**/*.test.ts` in `vitest.config.ts` (eslint lints `server/` by default). AC1 mutants, each with the full `npx vitest run`: drop the slot allow-list: 15 tests fail; drop the origin check: 2 fail; drop validation before write: 4 fail; delete answers 404 on an empty slot: 1 fails; delete always 404: 2 fail. All killed.
+- **2 (1d8e6fd)** `server/fileSaveFs.ts` (+ 7 tests: atomic write, no temp file left, list ignores other files), `server/saveApiPlugin.ts` (`configureServer` and `configurePreviewServer`), registered in `vite.config.ts`; `saves/` in `.gitignore`. Checked by hand with curl against `vite` and `vite preview` (health, 400, list, foreign origin 403). `vite.config.ts` importing `saveApi.ts` -> `engine/saveGame.ts` pulled in no browser code (the plan's stop condition did not trigger).
+- **3+4 (fb0dec0, one commit, as the plan allowed)** `saveStorage.ts`: `readSlot`/`writeSlot`/`clearSlot`/`hasAnySave` removed; async `readSave`, `readAllSaves`, `writeSave`, `clearSave`; read-only `browserSaves`, `hasCopyableBrowserSaves`, `copyBrowserSaves`. `saveStorage.test.ts` (17 tests). AC2 mutants (full run each): overwrite a taken slot: 1 fails; write to localStorage: 1 fails; offer with nothing left: 2 fail. Panel: "Loading..." and rows off until the list arrives, one action at a time, each action re-reads, own status line, copy offer button; `BoardScene.autosave()` async, logs on failure; texts in `en.ts` and `fr.ts`.
+- **5 (e061fa1)** e2e: `save-load` against the server plus the file check (AC4), new `save-import.spec.ts`, `e2e/savesDir.ts`, `global-teardown.ts`. Both scenarios `--repeat-each=3`: 6 of 6 passed (twice).
+- **6 (a36e49c)** README "Saving and loading" and "Architecture" (`server/`), CLAUDE.md Architecture. No "Known simplifications" bullet existed for this feature.
+- **7** `npm run verify` green: 49 files, 776 tests (716 before this intent, +36 saveApi, +7 fileSaveFs, +17 saveStorage), lint 21 warnings (cap 21, unchanged), `check:intent` PASS, `npm run e2e` 10 of 10 passed, the temp saves folder gone, no `saves/` in the worktree. Size of a real save (test-mode game, written by the import scenario): 2907 bytes; a fuzz-harness state with 10 units serialises to 2124 bytes (about 200 bytes per unit), so 2 MB allows roughly 10,000 units.
+
+**Divergences from the plan**
+- The e2e temp folder is not created by global setup and passed to `webServer`: Playwright starts the web server before global setup runs, so its `env` must be known when the config loads. The path is fixed in `e2e/savesDir.ts` (one per port, under the OS temp folder); global setup empties it, the new global teardown removes it, and the scenarios read it by that name.
+- Reads return `{ ok: true, value } | { ok: false }` rather than a bare `null`, so the panel can tell an empty slot from a server that does not answer (B6 words them differently). Writes and clears return a boolean as specified.
+- The panel gets its own status line (the Menu passes no `onStatus`, so B6's messages would otherwise vanish there) and the import offer sits beside it.
+- Save's pre-read goes through the list (`GET /api/saves`), not the slot, because a 404 on an empty slot prints a red console error in the browser on every first save (the e2e error check caught it).
+- Help for the e2e: disabled buttons are not click targets in the dev hook (`input.enabled`), so the scenarios wait for `buttonCount('Save') === 6` as the "panel loaded" signal (`waitSavePanelLoaded`); no change to `devHook.ts`.
