@@ -429,6 +429,17 @@ optional house rule, chosen once at the Menu screen before a game starts
   about 1 time in *n* (for *n* surviving players), whoever went last in one
   round also goes first in the next, giving them two turns back to back.
 
+### The view at the start of a turn
+
+At the start of each player's turn (their movement phase beginning, an
+AI seat included) the Board's view jumps to the middle of that player's
+land units still in play: the average of their positions, at the current
+zoom, stopping at the board's edge. Ships don't count, and a player with no
+land unit left leaves the view where it is. The same happens when the Board
+opens on a game or a save is loaded. It doesn't happen between the
+movement and combat phases or on undo/redo, and dragging and zooming stay
+yours.
+
 ### Ending the game
 
 The rulebook lets the table agree on time and turn limits for the whole
