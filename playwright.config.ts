@@ -11,6 +11,11 @@ export default defineConfig({
   testDir: 'e2e',
   globalSetup: './e2e/global-setup.ts',
   timeout: 30_000,
+  // Two workers, not Playwright's default (half the 20 threads here = 5):
+  // with 5 parallel Chromiums (software GL, SwiftShader) every step slowed
+  // from ~50 ms to 0.4-2 s and scenarios hit the 30 s timeout: 6 of 7 runs
+  // red; with 1, 2 or 3 workers 9 of 9 runs were green (16-31 s). §41.
+  workers: 2,
   // A failure names its scenario and assertion in the terminal and keeps a
   // trace; a pass costs nothing extra (§38). A red run on Windows also says
   // whether the machine slept during it (scripts/sleep-reporter.mjs, §41).

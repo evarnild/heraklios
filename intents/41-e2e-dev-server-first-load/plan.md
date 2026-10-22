@@ -203,3 +203,33 @@ the scenarios ran out of the 30 s timeout: a browser/machine slowdown at that
 moment (CPU load 13% afterwards, battery 100%, Balance power mode, many apps
 open), a THIRD red-run kind that the sleep line does not name. The third run
 passed 7/7 (19.4 s). Cause of the slowdown not found; recorded as an open lead.
+
+### 2026-10-22 — owner's decision after review round 2
+
+2026-10-22: owner chose to keep diagnosing the third kind in §41 (review round 2, option b).
+
+**Diagnosis of the third kind (2026-10-22).** Reproduced on demand by the
+worker count. Same machine, same state, runs back to back (no other
+worktree's node/chrome process during these; port checked free each time;
+an earlier batch overlapped §43's suite and was discarded):
+
+| Workers | Runs | Result |
+| --- | --- | --- |
+| default (5) | d1..d7 | 6 red (4/7, 5/7, 2/7, 2/7, 3/7, 3/7 failed, 50-65 s), 1 green (16 s); plus two more red earlier |
+| 1 | 3 | 3 green (21-31 s) |
+| 2 | 4 | 4 green (16-23 s) |
+| 3 | 2 | 2 green (23 s) |
+
+CPU average over a run was 13-34% in all of them, so it is not total CPU.
+Headless Chromium here renders with SwiftShader (software Vulkan; checked
+with WEBGL_debug_renderer_info). With five parallel pages every step took
+0.4-2 s (traces) and scenarios hit the 30 s timeout; the section of one
+earlier trace where the other workers had finished ran at 16-177 ms. The
+exact resource that is starved (GPU-process threads vs. something else) is
+not shown; the effect of the worker count is. Another observation, §43's
+agent saw the same: 7/9 red on default workers, 9/9 green with `--workers=1`.
+Fix: `workers: 2` in `playwright.config.ts` (suite 23-26 s); failing-first
+is the default-workers column above. Then 3 runs with the new config: 3/3
+green (23.7 s, 24.2 s, 24.1 s). README paragraph updated (names the cause,
+keeps "read the trace before rerunning"). Item (4), a test of the
+reporter's call site, skipped as not cheap enough.
