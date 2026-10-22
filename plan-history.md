@@ -6,7 +6,7 @@ split out on 2026-08-16 because `plan.md` had grown past 3,200 lines and the
 live rules/queue/backlog content was getting hard to find underneath it.
 
 **This file is an archive, not the queue.** For current status, always start
-at [`plan.md`](plan.md#10-sequenced-queue)'s Current Queue — its History Map
+at `npm run queue` (the queue is generated), then [`OVERVIEW.md`](OVERVIEW.md); its History Map
 links into specific sections here for context. Section numbers below are
 unchanged from their original place in `plan.md`, so old links/citations
 elsewhere in the repo (agent files, commit messages) that say "plan.md §N"
@@ -23,7 +23,7 @@ made) is not rewritten after the fact.
 ## 2. History archive
 
 Completed feature sections stay below for context and postmortems. They are
-not the active queue; use [Current Queue](plan.md#10-sequenced-queue) for that.
+not the active queue; use [Current Queue](OVERVIEW.md) (now `npm run queue`) for that.
 
 ### 2.1 Feature A launch goal
 
@@ -71,7 +71,7 @@ made here.
 ## 3b. Early backlog notes
 
 Historical archive: these were the first backlog notes captured during the
-Feature A run. The current ordered backlog lives in [Current Queue](plan.md#10-sequenced-queue).
+Feature A run. The current ordered backlog lives in [Current Queue](OVERVIEW.md) (now `npm run queue`).
 
 ### From the README's "Known simplifications"
 
@@ -1730,7 +1730,7 @@ This pairs well with **Stage 2a** and badly with **Stage 2b**:
   chrome and teardown logic to. **Do not run these two concurrently.**
 
 **The one real contention point is `README.md`**, which both agents are
-instructed to update (see [§1](plan.md#1-agent-workflow)'s warning).
+instructed to update (see [§1](docs/runbook.md#1-agent-workflow)'s warning).
 Mitigate by telling one of the two agents explicitly not to touch it, and
 documenting that half by hand at merge time — a README conflict is cheap to
 resolve but pointless to incur.
@@ -2445,7 +2445,7 @@ Three things to get right:
 - Worth offering on `PlacementScene` too, which has the same `MapView` and
   where "which hex is this?" matters just as much during deployment.
 - **Not parallel-safe with anything else editing `BoardScene.ts`** — see the
-  queue in [Current Queue](plan.md#10-sequenced-queue).
+  queue in [Current Queue](OVERVIEW.md) (now `npm run queue`).
 - Little to unit-test by the repo's convention (it is scene/UI code); keep
   any coordinate-formatting helper pure if one is needed.
 
@@ -2490,7 +2490,7 @@ right code is being served before asking anyone to look, e.g.
 `curl -s http://127.0.0.1:<port>/src/ui/MapView.ts | grep -c showHexTooltip`.
 `localhost` is ambiguous across IPv4/IPv6 when two servers contend for a
 port, which is exactly the situation multiple worktrees create. Added to
-[§4](plan.md#4-runbook-detailed-launch-hazards-appendix)'s hazards.
+[§4](docs/runbook.md#4-runbook-detailed-launch-hazards-appendix)'s hazards.
 
 ---
 
@@ -2502,7 +2502,7 @@ code can be refactored so tasks stop serializing on one file.
 ### 14.1 First, a correction: the constraint is partly self-imposed
 
 `BoardScene.ts` is 2040 lines and most queued work touches it, so
-[Current Queue](plan.md#10-sequenced-queue) has been marking items "not parallel-safe". **The
+[Current Queue](OVERVIEW.md) (now `npm run queue`) has been marking items "not parallel-safe". **The
 evidence does not support that being a hard blocker.** Every merge in this
 project so far has auto-merged with **zero conflicts** — including
 `30c23e7` (+162 lines to `BoardScene`) and `12e1bf6` (+142 lines to
@@ -2909,7 +2909,7 @@ been the sole support of any of them.
 
 **0b — the reviewer agent file.** Rewritten. It had drifted into telling
 every run to do two harmful things (`npx tsc --noEmit`, the
-[§4](plan.md#4-runbook-detailed-launch-hazards-appendix) false-green trap; and a
+[§4](docs/runbook.md#4-runbook-detailed-launch-hazards-appendix) false-green trap; and a
 `--detach` that leaves the operator's tree detached when the branch is
 already HEAD) and to assert two false ones ("plan.md must not be edited",
 "the item must move out of Known simplifications"). It now carries §15.6's
@@ -2936,7 +2936,7 @@ whole tree, or one unrelated dirty file makes every mutation look applied.
 
 **Process note (fixed in [§15.7](#157-the-two-follow-ups)).** The agent definition in
 `.claude/agents/heraklios-reviewer.md` told the reviewer to run
-`npx tsc --noEmit` (the false-green trap [§4](plan.md#4-runbook-detailed-launch-hazards-appendix)
+`npx tsc --noEmit` (the false-green trap [§4](docs/runbook.md#4-runbook-detailed-launch-hazards-appendix)
 documents) and to `git checkout --detach` a branch that was already the main
 tree's HEAD (which would have left the operator's tree detached). Both had to
 be overridden in the launch brief, along with its "plan.md must not be
@@ -3439,7 +3439,7 @@ fix agent that hit that lock never resumed cleanly afterward (its own
 worktree came back with a broken `core.worktree` redirect once the lock
 was cleared concurrently). The coordinating session had to unlock and
 remove the stale worktree by hand (checking for the `node_modules`
-junction first, per [§4](plan.md#4-runbook-detailed-launch-hazards-appendix)) and
+junction first, per [§4](docs/runbook.md#4-runbook-detailed-launch-hazards-appendix)) and
 launch a second fresh fix agent rather than resuming the stuck one. No
 data was lost — all commits are branch-ref-safe regardless of worktree
 state — but it cost a full extra agent round-trip. Lesson: don't leave an
@@ -3699,7 +3699,7 @@ consistent with §17.3's finding that this whole feature area is UI-only.
    `ship.movementLeft - cost` as a small numeric label. Needs a new
    `MapView` primitive — a per-hex text-label layer, cleared and redrawn on
    every `refreshNavalMovementControls` call, the same lifecycle already
-   used for `highlightHexGroups` and (per [§21](plan.md#21-elephant-drift-pause-between-steps-and-show-the-drift-direction-on-the-map))
+   used for `highlightHexGroups` and (per [§21](#21-elephant-drift-pause-between-steps-and-show-the-drift-direction-on-the-map))
    `driftArrowGraphics`.
 2. **Highlight the full range**, visually distinct from the existing
    forward-hex highlight — the player needs to tell "the one manual-step
@@ -3843,7 +3843,7 @@ draining around it), `MapView.ts` (direction marker rendering). No engine
 rule change — `engine/drift.ts`'s `driftStep`/`resolveElephantDrift` pure
 step function should not need to change shape, only how `BoardScene` calls
 it (step-by-step with a pause, instead of pumping to completion). Verify by
-hand in a browser (see [§4](plan.md#4-runbook-detailed-launch-hazards-appendix)'s
+hand in a browser (see [§4](docs/runbook.md#4-runbook-detailed-launch-hazards-appendix)'s
 port-pinning note) since this is inherently a visual/UX change; `tsc`/
 `vitest` can confirm the soak and fuzz harness still see zero pauses but
 cannot confirm the pause/visualization itself looks right.
@@ -3940,7 +3940,7 @@ This should work in both panel modes:
 ### 25.3 Verification
 
 Create or simulate a save whose description is long enough to approach the
-buttons, then verify in a pinned-port browser session (see [§4](plan.md#4-runbook-detailed-launch-hazards-appendix))
+buttons, then verify in a pinned-port browser session (see [§4](docs/runbook.md#4-runbook-detailed-launch-hazards-appendix))
 that no row label overlaps the Save, Load, or Delete buttons. `npm run build`
 is enough for compile coverage; this is mainly a visual layout fix.
 
