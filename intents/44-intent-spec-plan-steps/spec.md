@@ -5,7 +5,10 @@ Accepted intent: [intent.md](intent.md)
 
 Written against `main` at `6c2d960`. (Written by hand, the last spec to be:
 the skill this spec defines doesn't exist yet.) Revised 2026-10-22 for the
-owner's decision: three skills, not one.
+owner's decision: three skills, not one. Amended 2026-10-22 on the owner's
+request after review round 2: B2, B6 and the last Assumption now match what
+is built (`/intent` 0.1.4, thinned; rule 4 for spec and plan only; the `#`
+stamp form for metadata.yml). `spec_accepted` stays as recorded.
 
 ## Sources that apply
 
@@ -35,9 +38,11 @@ checked against; stamp the first line; validate before handing over;
 report what is weak; stop for the owner; never record a gate (pointing to
 "Who edits what"). Each skill's `SKILL.md` says "follow `intents/README.md`
 → Drafting an artefact" and adds only what is its own. `/intent`'s
-`SKILL.md` gets the same pointer, its last line names `/spec` (feature)
-or `/build-plan` (fix, refactor) as the next step, and its version goes to
-`0.1.3`.
+`SKILL.md` gets the same pointer and is thinned to its own rules: the
+restatements the section covers are removed, its last line names `/spec`
+(feature) or `/build-plan` (fix, refactor) as the next step, and its
+version goes to `0.1.4`. The "record the `main` commit" rule applies to
+spec and plan only (an intent is not checked against code).
 
 **B3 — Invocation and preconditions.** `/spec <id>` and `/build-plan <id>`.
 Each checks first and stops, saying which gate is missing, if:
@@ -101,8 +106,8 @@ skill reads it, keeps what still holds, and says what changed.
 **B6 — Stamps.** First line of each file a skill writes:
 `<!-- generated-by: heraklios/spec@0.1.0 -->` (spec.md),
 `<!-- generated-by: heraklios/build-plan@0.1.0 -->` (plan.md),
-`<!-- generated-by: heraklios/intent@0.1.3 -->` (intent.md and
-metadata.yml, as today). The name is the skill, as for `/review` and
+`<!-- generated-by: heraklios/intent@0.1.4 -->` (intent.md) and
+`# generated-by: heraklios/intent@0.1.4` (metadata.yml, as today). The name is the skill, as for `/review` and
 `/grid`; `STAMP_RE` already reads it, so no regex change.
 
 **B7 — The scan tells skill-made from hand-made.** A pure, tested function
@@ -182,5 +187,5 @@ agent and the repo's own root `plan.md`. The artefact stays `plan.md`.
 - `/build-plan` asks no questions (B5.2); `/spec` may ask one round (B4.2).
 - Revising an existing artefact in place (B3) rather than refusing:
   rework after a review touches specs and plans often.
-- `/intent` goes to `0.1.3` (a pointer and a changed last line, no new
-  behaviour); the new skills start at `0.1.0`.
+- `/intent` goes to `0.1.4` (a pointer, a changed last line, and its
+  restatements of the shared rules removed, no new behaviour); the new skills start at `0.1.0`.

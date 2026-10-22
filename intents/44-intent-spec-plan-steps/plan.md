@@ -182,3 +182,11 @@ behaviour, no Known simplification). The AC4 dry run is the owner's.
    "23 files ... 4 unstamped" -> "21 files (templates excluded, at
    `6c2d960`), 19 stamped, 2 unstamped"; plan.md citation `:114-117` ->
    `:115-118`; intent.md "23"/"4" -> "21"/"2".
+
+### 2026-10-22 — rework after review round 2
+
+N1: `/intent` closes with the gate's name again. N2: stamp line gives the
+HTML comment for `intent.md` and the `#` form for `metadata.yml` (version
+stays 0.1.4). N3: spec B2, B6 and the last Assumption amended to match
+(marked at the top of spec.md, on the owner's request; `spec_accepted`
+unchanged).

@@ -16,8 +16,9 @@ user has into an intent good enough to accept. Follow `intents/README.md` →
 "Drafting an artefact" for what the drafting skills share; this file adds only
 what is the intent's own.
 
-Stamp: `<!-- generated-by: heraklios/intent@0.1.4 -->` as the first line of
-`intent.md` and `metadata.yml`.
+Stamp: `<!-- generated-by: heraklios/intent@0.1.4 -->` as line 1 of
+`intent.md`, and `# generated-by: heraklios/intent@0.1.4` as line 1 of
+`metadata.yml`.
 
 ## 1. Settle the type
 
@@ -89,6 +90,6 @@ Check the draft for:
 - Adjustment: blast radius really is small.
 - Assumptions are listed, not buried.
 
-Report the folder path and the type and why. The spec (feature) or plan
-(fix/refactor) comes next.
+Report the folder path and the type and why. Next step: accept by setting
+`intent_accepted: <date>` in metadata.yml, or say yes.
 Next skill: `/spec <id>` for a feature, `/build-plan <id>` for a fix or refactor.
