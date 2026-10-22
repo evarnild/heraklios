@@ -1,5 +1,5 @@
 <!-- generated-by: heraklios/intent@0.1.2 -->
-# §44 — /spec and /plan skills write the spec and the plan, stamped
+# §44 — /spec and /build-plan skills write the spec and the plan, stamped
 
 **Type:** feature
 **Originator:** me (Eric), from the 2026-10-20 grid refresh
@@ -31,7 +31,7 @@ So:
 
 - Two new skills sit beside `/intent` (owner's decision, 2026-10-22:
   three skills, not one): **`/spec`** (feature only, after
-  `intent_accepted`) and **`/plan`** (feature, fix, refactor, after the
+  `intent_accepted`) and **`/build-plan`** (feature, fix, refactor, after the
   gate before it). Each says what to read first, what the artefact must
   contain, and how to validate it before handing it to the owner, like
   `/intent` does. The rules the three share live in one place.
@@ -90,6 +90,6 @@ So:
   files (`SKILL.md`, scan + its tests, possibly `check-intent`,
   `intents/README.md`, `sdlc.md`, the grid's level table).
 - ~~One skill with three steps~~ — changed 2026-10-22 by the owner after
-  weighing it: **three skills** (`/intent`, `/spec`, `/plan`), each
+  weighing it: **three skills** (`/intent`, `/spec`, `/build-plan`), each
   short and loaded only when used, versioned and stamped on its own, with
   their shared rules kept in one place so the copies can't drift.

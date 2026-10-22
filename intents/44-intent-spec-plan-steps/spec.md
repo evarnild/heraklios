@@ -1,5 +1,5 @@
 <!-- generated-by: heraklios/intent@0.1.2 -->
-# §44 spec — /spec and /plan skills write the spec and the plan, stamped
+# §44 spec — /spec and /build-plan skills write the spec and the plan, stamped
 
 Accepted intent: [intent.md](intent.md)
 
@@ -22,7 +22,7 @@ owner's decision: three skills, not one.
 ## Behaviour
 
 **B1 — Three skills.** `/intent` (exists), and two new ones:
-`.claude/skills/spec/SKILL.md` and `.claude/skills/plan/SKILL.md`, each
+`.claude/skills/spec/SKILL.md` and `.claude/skills/build-plan/SKILL.md`, each
 versioned `0.1.0` in its frontmatter, with a one-line description that
 triggers on its own job ("draft or revise the spec for a heraklios
 feature intent", "draft or revise the plan for …").
@@ -36,15 +36,15 @@ report what is weak; stop for the owner; never record a gate (pointing to
 "Who edits what"). Each skill's `SKILL.md` says "follow `intents/README.md`
 → Drafting an artefact" and adds only what is its own. `/intent`'s
 `SKILL.md` gets the same pointer, its last line names `/spec` (feature)
-or `/plan` (fix, refactor) as the next step, and its version goes to
+or `/build-plan` (fix, refactor) as the next step, and its version goes to
 `0.1.3`.
 
-**B3 — Invocation and preconditions.** `/spec <id>` and `/plan <id>`.
+**B3 — Invocation and preconditions.** `/spec <id>` and `/build-plan <id>`.
 Each checks first and stops, saying which gate is missing, if:
 - `/spec`: the intent isn't `type: feature` (fix and refactor have no
   spec; adjustment and experiment have neither), or `intent_accepted`
   isn't recorded;
-- `/plan`: the type is adjustment or experiment, or the gate before it
+- `/build-plan`: the type is adjustment or experiment, or the gate before it
   isn't recorded (`spec_accepted` for a feature, `intent_accepted` for a
   fix or refactor).
 
@@ -75,7 +75,7 @@ skill reads it, keeps what still holds, and says what changed.
 5. **Report and stop:** next step "accept by setting `spec_accepted`, or
    say yes".
 
-**B5 — `/plan`.**
+**B5 — `/build-plan`.**
 1. **Read first:** the intent, the spec (feature), the template,
    `REVIEW-POLICY.md` (tiers, live checks, the review passes), and every
    file, symbol and line the plan will rely on, on current `main`.
@@ -100,7 +100,7 @@ skill reads it, keeps what still holds, and says what changed.
 
 **B6 — Stamps.** First line of each file a skill writes:
 `<!-- generated-by: heraklios/spec@0.1.0 -->` (spec.md),
-`<!-- generated-by: heraklios/plan@0.1.0 -->` (plan.md),
+`<!-- generated-by: heraklios/build-plan@0.1.0 -->` (plan.md),
 `<!-- generated-by: heraklios/intent@0.1.3 -->` (intent.md and
 metadata.yml, as today). The name is the skill, as for `/review` and
 `/grid`; `STAMP_RE` already reads it, so no regex change.
@@ -108,7 +108,7 @@ metadata.yml, as today). The name is the skill, as for `/review` and
 **B7 — The scan tells skill-made from hand-made.** A pure, tested function
 in `scripts/scan-lib.mjs`, `artefactOrigins(intents)`, classifies each
 `spec.md` and `plan.md`:
-- **skill** — stamp name `heraklios/spec` on a spec, `heraklios/plan` on
+- **skill** — stamp name `heraklios/spec` on a spec, `heraklios/build-plan` on
   a plan, any version;
 - **hand (old stamp)** — any other `generated-by:` stamp (the 19 existing
   `heraklios/intent@0.1.x` files, or a mismatched one);
@@ -120,25 +120,27 @@ in `scripts/scan-lib.mjs`, `artefactOrigins(intents)`, classifies each
 
 **B8 — `/grid` reads it.** `.claude/skills/grid/SKILL.md` §2 gains one
 rule: Design (and the plan half of Build) count as L2 only for specs
-(plans) the scan reports as made by `/spec` (`/plan`); old stamps count as
+(plans) the scan reports as made by `/spec` (`/build-plan`); old stamps count as
 hand-made (owner's decision: existing files keep their stamps).
 
 **B9 — Docs.** `intents/README.md` (the new section, and "Who edits what"
 naming the skills), `sdlc.md` steps 2–3, and `CLAUDE.md`'s line on the
 skills ("`/intent` drafts an intent, `/review` …") name `/spec` and
-`/plan`.
+`/build-plan`.
 
 ## Interpretations
 
 None of the rulebook. The owner first asked for a "spec step in intent",
 then chose three skills after weighing both (2026-10-22): B1 follows the
-later decision.
+later decision. The plan skill is named `/build-plan`, not `/plan` (owner, 2026-10-22):
+`/plan` clashes with Claude Code's plan mode command, the built-in `Plan`
+agent and the repo's own root `plan.md`. The artefact stays `plan.md`.
 
 ## Acceptance criteria
 
 - **AC1** — `scripts/scan-lib.test.mjs`: `artefactOrigins` classifies a
-  `/spec`- and `/plan`-stamped pair, an old-stamped one, an unstamped one,
-  a spec stamped `heraklios/plan` (hand, not skill), and an intent with
+  `/spec`- and `/build-plan`-stamped pair, an old-stamped one, an unstamped one,
+  a spec stamped `heraklios/build-plan` (hand, not skill), and an intent with
   neither file. Mutants: swap the two names, drop the
   name-matches-file check, count unstamped as hand.
 - **AC2** — `npm run sdlc:scan` on the branch prints the two lines (B7)
@@ -150,9 +152,9 @@ later decision.
 - **AC4** — **dry run, the live check (rule 3: a skill's behaviour shows
   only when it runs):** in a Claude Code session started in the branch's
   worktree (it loads that worktree's skills), the owner creates a
-  throwaway feature intent with `/intent`, accepts it, runs `/plan <id>`
+  throwaway feature intent with `/intent`, accepts it, runs `/build-plan <id>`
   first (it must stop: no `spec_accepted`), then `/spec <id>`, accepts,
-  then `/plan <id>`, and sees the stamps of B6, the sections of B4/B5,
+  then `/build-plan <id>`, and sees the stamps of B6, the sections of B4/B5,
   the commit lines, and no gate recorded by a skill. The throwaway intent
   is deleted, not committed.
 - **AC5** — `npm run verify` green, lint ≤ 21; `npm run check:intent`
@@ -177,7 +179,7 @@ later decision.
 - Shared rules in `intents/README.md` (B2) rather than a shared file under
   `.claude/skills/`: the README is already where gates and "Who edits
   what" live, and humans read it too.
-- `/plan` asks no questions (B5.2); `/spec` may ask one round (B4.2).
+- `/build-plan` asks no questions (B5.2); `/spec` may ask one round (B4.2).
 - Revising an existing artefact in place (B3) rather than refusing:
   rework after a review touches specs and plans often.
 - `/intent` goes to `0.1.3` (a pointer and a changed last line, no new
