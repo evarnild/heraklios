@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { gateShares, metadataProblems } from './scan-lib.mjs';
+import { artefactOrigins, gateShares, metadataProblems } from './scan-lib.mjs';
 
 const intent = (over = {}) => ({ id: '1', merged: null, gates: {}, ...over });
 
@@ -35,5 +35,33 @@ describe('gateShares', () => {
     ]);
     expect(shares[f]).toEqual({ owner: 1, agent: 1 });
     expect(shares.live_checked).toEqual({ owner: 0, agent: 0 });
+  });
+});
+
+describe('artefactOrigins', () => {
+  const stamps = (spec, plan) => ({ stamps: { 'intent.md': 'heraklios/intent@0.1.3', ...(spec !== undefined && { 'spec.md': spec }), ...(plan !== undefined && { 'plan.md': plan }) } });
+
+  it('counts a /spec spec and a /build-plan plan as skill-made, any version', () => {
+    const o = artefactOrigins([stamps('heraklios/spec@0.1.0', 'heraklios/build-plan@0.1.0'), stamps('heraklios/spec@0.2.0', 'heraklios/build-plan@1.0.0')]);
+    expect(o['spec.md']).toEqual({ skill: 2, hand: 0, unstamped: 0 });
+    expect(o['plan.md']).toEqual({ skill: 2, hand: 0, unstamped: 0 });
+  });
+
+  it('counts an old intent stamp as hand-made and no stamp as unstamped', () => {
+    const o = artefactOrigins([stamps('heraklios/intent@0.1.2', 'heraklios/intent@0.1.1'), stamps(null, null)]);
+    expect(o['spec.md']).toEqual({ skill: 0, hand: 1, unstamped: 1 });
+    expect(o['plan.md']).toEqual({ skill: 0, hand: 1, unstamped: 1 });
+  });
+
+  it('does not count a stamp of the other skill as skill-made', () => {
+    const o = artefactOrigins([stamps('heraklios/build-plan@0.1.0', 'heraklios/spec@0.1.0')]);
+    expect(o['spec.md']).toEqual({ skill: 0, hand: 1, unstamped: 0 });
+    expect(o['plan.md']).toEqual({ skill: 0, hand: 1, unstamped: 0 });
+  });
+
+  it('counts an intent without the file nowhere', () => {
+    const o = artefactOrigins([stamps(undefined, 'heraklios/build-plan@0.1.0')]);
+    expect(o['spec.md']).toEqual({ skill: 0, hand: 0, unstamped: 0 });
+    expect(o['plan.md']).toEqual({ skill: 1, hand: 0, unstamped: 0 });
   });
 });
