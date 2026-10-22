@@ -29,10 +29,8 @@ import {
   markLiveChecked,
   markMerged,
   mergeMessage,
-  moveRowToShipped,
   planSteps,
   routeReasonStated,
-  shippedRow,
 } from './ship-lib.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -126,13 +124,6 @@ function checkMetadataClean(root, loc) {
 ${dirty}`);
 }
 
-/** B4: the root plan.md has no uncommitted changes. Its own check so it can go when the queue view is generated (§47). */
-function checkPlanClean(root) {
-  const dirty = git(root, 'status', '--porcelain', '--', 'plan.md');
-  if (dirty) throw new Stop('start', `plan.md has uncommitted changes on main (another session's work?). Commit or discard them, then re-run:
-${dirty}`);
-}
-
 /** Step B4: where it runs and what must be clean. */
 function checkStart(root, loc, dryRun) {
   if (pathKey(git(process.cwd(), 'rev-parse', '--show-toplevel')) !== pathKey(root)) {
@@ -141,7 +132,6 @@ function checkStart(root, loc, dryRun) {
   const current = git(root, 'rev-parse', '--abbrev-ref', 'HEAD');
   if (current !== 'main') throw new Stop('start', `the main checkout is on "${current}", not main.`);
   checkMetadataClean(root, loc);
-  checkPlanClean(root);
   if (!gitOk(root, 'remote', 'get-url', 'origin')) throw new Stop('start', 'main has no remote named origin to push to.');
   // --dry-run does not fetch (it changes nothing, remote-tracking refs included): origin/main is as last fetched.
   if (!dryRun) gitOk(root, 'fetch', '-q', 'origin');
@@ -156,7 +146,7 @@ function readState(root, id, loc, opts) {
   let bookkept = false;
   if (merged && existsSync(join(root, loc.dir, 'metadata.yml'))) {
     const meta = parseMetadata(readFileSync(join(root, loc.dir, 'metadata.yml'), 'utf8'));
-    bookkept = isBookkept(meta, readFileSync(join(root, 'plan.md'), 'utf8'), id);
+    bookkept = isBookkept(meta);
   }
   const originMain = (() => {
     try {
@@ -255,23 +245,7 @@ function findMergeCommit(root, branch) {
   return found.at(-1)[0];
 }
 
-/**
- * The plan.md half of the bookkeeping: the intent's row moves to Shipped. Kept
- * apart from the metadata.yml half (and called from one place) so that it can
- * be dropped when the queue becomes a generated view (§47). Pure: returns the
- * file's old and new text; bookkeeping() writes them.
- */
-function bookkeepPlan(root, loc, hash) {
-  const id = loc.metadata.id;
-  const review = readReview(root, loc.branch, loc.dir).header ?? {};
-  const meta = loc.metadata;
-  const row = shippedRow({ id, slug: meta.slug, title: meta.title, type: meta.type, tier: review.tier, rounds: review.round ?? '1', hash });
-  const file = join(root, 'plan.md');
-  const before = readFileSync(file, 'utf8');
-  return { rel: 'plan.md', file, before, after: moveRowToShipped(before, id, row) };
-}
-
-/** The metadata.yml half: `merged:` and `status: done` (old and new text, like bookkeepPlan). */
+/** The bookkeeping edit: `merged:` and `status: done` in metadata.yml (old and new text; bookkeeping() writes them). */
 function bookkeepMetadata(root, loc, hash) {
   const file = join(root, loc.dir, 'metadata.yml');
   const before = readFileSync(file, 'utf8');
@@ -279,28 +253,28 @@ function bookkeepMetadata(root, loc, hash) {
 }
 
 /**
- * All or nothing: both new texts are computed before anything is written, and
- * a failed write or commit puts both files back and unstages them, so the
- * leftover is never mistaken for another session's work by the next run.
+ * All or nothing: the new text is computed before anything is written, and a
+ * failed write or commit puts the file back and unstages it, so the leftover
+ * is never mistaken for another session's work by the next run.
  */
 function bookkeeping(root, loc, trailers) {
   const id = loc.metadata.id;
   const hash = findMergeCommit(root, loc.branch).slice(0, 7);
   let edits;
   try {
-    edits = [bookkeepMetadata(root, loc, hash), bookkeepPlan(root, loc, hash)];
+    edits = [bookkeepMetadata(root, loc, hash)];
   } catch (e) {
     throw new Stop('bookkeeping', `could not prepare the bookkeeping (nothing was written): ${errText(e)}`);
   }
   try {
     for (const x of edits) writeFileSync(x.file, x.after);
-    const message = commitMessage(`§${id}: merged (${hash}); status done, plan.md row to Shipped`, trailers);
+    const message = commitMessage(`§${id}: merged (${hash}); status done`, trailers);
     const commit = commitPaths(root, edits.map((x) => x.rel), message);
-    return `merged: ${hash}, status done, plan.md row moved to Shipped (${commit})`;
+    return `merged: ${hash}, status done (${commit})`;
   } catch (e) {
     for (const x of edits) writeFileSync(x.file, x.before);
     gitOk(root, 'restore', '--staged', '--', ...edits.map((x) => x.rel));
-    throw new Stop('bookkeeping', `the bookkeeping commit failed; both files were restored and unstaged (the merge stays): ${errText(e)}`);
+    throw new Stop('bookkeeping', `the bookkeeping commit failed; the file was restored and unstaged (the merge stays): ${errText(e)}`);
   }
 }
 

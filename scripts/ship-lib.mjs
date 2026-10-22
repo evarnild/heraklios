@@ -1,5 +1,5 @@
 // Pure logic behind `npm run ship` (§46): the merge preconditions of
-// REVIEW-POLICY.md → "Merging", the metadata.yml / plan.md bookkeeping edits,
+// REVIEW-POLICY.md → "Merging", the metadata.yml bookkeeping edit,
 // the resumable step plan and the merge message. No git, no fs: tested in
 // ship-lib.test.mjs. The git half is scripts/ship.mjs.
 
@@ -9,7 +9,7 @@ export const STEPS = [
   { id: 'preconditions', label: 'check the merge preconditions' },
   { id: 'merge', label: 'merge --no-ff into main' },
   { id: 'verify', label: 'npm run verify on main' },
-  { id: 'bookkeeping', label: 'bookkeeping commit (metadata.yml, plan.md)' },
+  { id: 'bookkeeping', label: 'bookkeeping commit (metadata.yml)' },
   { id: 'push', label: 'push main to origin' },
   { id: 'remove', label: 'remove the worktree and delete the branch' },
 ];
@@ -118,11 +118,6 @@ function endingOf(line) {
   return line.endsWith('\n') ? '\n' : '';
 }
 
-/** The line ending of the first line break in `text` (LF when there is none). */
-function eolOf(text) {
-  return /\r\n/.test(text.slice(0, text.indexOf('\n') + 1)) ? '\r\n' : '\n';
-}
-
 /**
  * Sets top-level `key: value` lines of a metadata.yml, replacing the whole
  * line (its old comment included) and keeping every other line and each line's
@@ -154,65 +149,10 @@ export function markLiveChecked(text, date, words) {
   return setKeys(text, { live_checked: `${date} by-agent    # owner: "${words.replace(/"/g, "'")}"` });
 }
 
-/** The Shipped row of spec B5.5, from the intent's metadata and the review header. */
-export function shippedRow({ id, slug, title, type, tier, rounds, hash }) {
-  const dir = `intents/${id}-${slug}`;
-  const tierName = tier ? tier[0].toUpperCase() + tier.slice(1) : 'tier unknown';
-  const roundText = Number(rounds) === 1 ? '1 review round' : `${rounds} review rounds`;
-  return `| [§${id}](${dir}/) ${title} (${type}, ${tierName}, ${roundText}; see [review.md](${dir}/review.md)) | \`${hash}\` |`;
-}
-
-function isRowOf(line, id) {
-  return line.startsWith('|') && line.includes(`[§${id}](`);
-}
-
-/** The line range [start, end) of the table that follows the `### <heading>` line, or null. */
-function tableAfter(lines, heading) {
-  const h = lines.findIndex((l) => l.replace(/\r?\n$/, '') === `### ${heading}`);
-  if (h < 0) return null;
-  let start = h + 1;
-  while (start < lines.length && !lines[start].startsWith('|')) {
-    if (lines[start].startsWith('#')) return null;
-    start++;
-  }
-  let end = start;
-  while (end < lines.length && lines[end].startsWith('|')) end++;
-  return start < end ? [start, end] : null;
-}
-
-/** Whether the Shipped table already holds a row for `id`. */
-export function isShipped(planText, id) {
-  const lines = splitLines(planText);
-  const t = tableAfter(lines, 'Shipped');
-  return !!t && lines.slice(t[0], t[1]).some((l) => isRowOf(l, id));
-}
-
-/**
- * plan.md: the intent's row leaves `### In flight` and `### Queued` and is
- * appended to the end of `### Shipped`'s table; nothing else changes, and the
- * file's line endings are kept. A row already in Shipped is left alone.
- */
-export function moveRowToShipped(planText, id, row) {
-  const eol = eolOf(planText);
-  const lines = splitLines(planText);
-  const shipped = tableAfter(lines, 'Shipped');
-  if (!shipped) throw new Error('plan.md has no "### Shipped" table');
-  if (lines.slice(shipped[0], shipped[1]).some((l) => isRowOf(l, id))) return planText;
-  const open = ['In flight', 'Queued'].map((h) => tableAfter(lines, h)).filter(Boolean);
-  const inOpenTable = (i) => open.some(([s, e]) => i >= s && i < e);
-  const out = [];
-  lines.forEach((line, i) => {
-    if (inOpenTable(i) && isRowOf(line, id)) return;
-    out.push(i === shipped[1] - 1 && endingOf(line) === '' ? line + eol : line);
-    if (i === shipped[1] - 1) out.push(row + eol);
-  });
-  return out.join('');
-}
-
-/** Whether metadata (parsed) and plan.md already carry the bookkeeping. */
-export function isBookkept(metadata, planText, id) {
+/** Whether metadata (parsed) already carries the bookkeeping: `status: done` and a merge hash. */
+export function isBookkept(metadata) {
   const merged = typeof metadata.merged === 'string' && metadata.merged !== ''; // an empty `merged:` parses as []
-  return metadata.status === 'done' && merged && isShipped(planText, id);
+  return metadata.status === 'done' && merged;
 }
 
 /** Commit message: subject, then the caller's attribution lines after a blank line (spec B9). */

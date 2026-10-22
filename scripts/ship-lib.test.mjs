@@ -1,16 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   checkPreconditions,
-  isShipped,
   commitMessage,
   isBookkept,
   markLiveChecked,
   markMerged,
   mergeMessage,
-  moveRowToShipped,
   planSteps,
   routeReasonStated,
-  shippedRow,
 } from './ship-lib.mjs';
 
 const dir = 'intents/9-thing';
@@ -149,89 +146,13 @@ describe('markMerged / markLiveChecked', () => {
   });
 });
 
-const PLAN = [
-  '# Plan',
-  '### Shipped',
-  '',
-  '| Item | Merge |',
-  '| --- | --- |',
-  '| [§1](a/) one | `111` |',
-  '| [§2](b/) two | `222` |',
-  '',
-  '### In flight',
-  '',
-  '| Item | Type · status |',
-  '| --- | --- |',
-  '| [§9](intents/9-thing/) thing | feature · in flight |',
-  '',
-  '### Queued',
-  '',
-  '| Item | Type · status |',
-  '| --- | --- |',
-  '| [§3](c/) three | fix · draft |',
-  '| [§9](intents/9-thing/) thing | feature · accepted |',
-  '',
-  'Footer | with a bar',
-];
-const ROW = '| [§9](intents/9-thing/) thing | `333` |';
-
-describe('moveRowToShipped', () => {
-  for (const [name, eol] of [['LF', '\n'], ['CRLF', '\r\n']]) {
-    it(`removes the row from In flight and Queued and appends it to Shipped (${name})`, () => {
-      const out = moveRowToShipped(PLAN.join(eol) + eol, 9, ROW);
-      const expected = [...PLAN];
-      expected.splice(19, 1); // Queued row
-      expected.splice(12, 1); // In flight row
-      expected.splice(7, 0, ROW); // after the last Shipped row
-      expect(out).toBe(expected.join(eol) + eol);
-    });
-  }
-
-  it('appends after the last Shipped row, not at the end of the file', () => {
-    const out = moveRowToShipped(PLAN.join('\n'), 9, ROW).split('\n');
-    expect(out[7]).toBe(ROW);
-    expect(out.at(-1)).toBe('Footer | with a bar');
-  });
-
-  it('adds a line break when the Shipped table is the last thing in a file without a final newline', () => {
-    const out = moveRowToShipped(['### Shipped', '| Item | Merge |', '| --- | --- |', '| [§1](a/) x | `1` |'].join('\r\n'), 9, ROW);
-    expect(out).toBe(['### Shipped', '| Item | Merge |', '| --- | --- |', '| [§1](a/) x | `1` |', ROW].join('\r\n') + '\r\n');
-  });
-
-  it('touches no other row, even one whose id starts the same', () => {
-    const text = PLAN.join('\n').replace('[§3](c/)', '[§90](c/)');
-    expect(moveRowToShipped(text, 9, ROW)).toContain('[§90](c/) three');
-  });
-
-  it('does not read a table under another heading as the Shipped table (L12)', () => {
-    const text = ['### Shipped', '', 'Nothing yet.', '', '### Queued', '', '| Item | x |', '| [§9](intents/9-thing/) thing |'].join('\n');
-    expect(isShipped(text, 9)).toBe(false);
-    expect(() => moveRowToShipped(text, 9, ROW)).toThrow(/Shipped/);
-  });
-
-  it('is a no-op when the row is already in Shipped, and refuses a plan without a Shipped table', () => {
-    const done = moveRowToShipped(PLAN.join('\n'), 9, ROW);
-    expect(moveRowToShipped(done, 9, ROW)).toBe(done);
-    expect(() => moveRowToShipped('# no table\n', 9, ROW)).toThrow(/Shipped/);
-  });
-});
-
-describe('shippedRow / isBookkept', () => {
-  const info = { id: 9, slug: 'thing', title: 'Thing', type: 'feature', tier: 'reviewed', rounds: '3', hash: 'abcdef0' };
-  it('builds the row in the plan.md style', () => {
-    expect(shippedRow(info)).toBe(
-      '| [§9](intents/9-thing/) Thing (feature, Reviewed, 3 review rounds; see [review.md](intents/9-thing/review.md)) | `abcdef0` |',
-    );
-    expect(shippedRow({ ...info, rounds: '1' })).toContain('1 review round;');
-  });
-  it('knows when the bookkeeping is already there', () => {
-    const shipped = moveRowToShipped(PLAN.join('\n'), 9, ROW);
-    expect(isBookkept({ status: 'done', merged: 'abc' }, shipped, 9)).toBe(true);
-    expect(isBookkept({ status: 'done', merged: 'abc' }, PLAN.join('\n'), 9)).toBe(false);
-    expect(isBookkept({ status: 'in-review', merged: '' }, shipped, 9)).toBe(false);
-    expect(isBookkept({ status: 'in-review', merged: 'abc' }, shipped, 9)).toBe(false);
-    expect(isBookkept({ status: 'done', merged: '' }, shipped, 9)).toBe(false);
-    expect(isBookkept({ status: 'done', merged: [] }, shipped, 9)).toBe(false);
+describe('isBookkept', () => {
+  it('is true only for status done with a non-empty merge hash', () => {
+    expect(isBookkept({ status: 'done', merged: 'abc' })).toBe(true);
+    expect(isBookkept({ status: 'in-review', merged: '' })).toBe(false);
+    expect(isBookkept({ status: 'in-review', merged: 'abc' })).toBe(false);
+    expect(isBookkept({ status: 'done', merged: '' })).toBe(false);
+    expect(isBookkept({ status: 'done', merged: [] })).toBe(false); // an empty `merged:` line parses as []
   });
 });
 
