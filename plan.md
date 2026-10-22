@@ -216,12 +216,12 @@ sync when something merges** — it went stale once and the user caught it.
 | [§41](intents/41-e2e-dev-server-first-load/) e2e red runs explained — a sleep is named in the output, and the suite runs two workers (five parallel software-rendered Chromiums starved each other); the shared port refuted (fix, follows up §32, Attested, 3 review rounds; see [review.md](intents/41-e2e-dev-server-first-load/review.md)) | `cfab5de` |
 | [§43](intents/43-center-view-on-turn/) the view jumps to the new player's land units at the start of their turn, and when the Board opens or loads (feature, Attested, 1 review round, 1 LOW worth-a-look; see [review.md](intents/43-center-view-on-turn/review.md)) | `2727059` |
 | [§44](intents/44-intent-spec-plan-steps/) /spec and /build-plan skills write the spec and the plan, stamped; /intent thinned to 0.1.4; the scan tells skill-made specs and plans from hand-made (feature, Reviewed, 3 review rounds; see [review.md](intents/44-intent-spec-plan-steps/review.md)) | `364afc5` |
+| [§45](intents/45-save-api/) Games are saved as files on this PC behind a localhost save API (dev and preview); no browser fallback, read-only import of old browser saves (feature, Reviewed, 4 review rounds; see [review.md](intents/45-save-api/review.md)) | `56bda03` |
 
 ### In flight
 
 | Item | Type · status |
 | --- | --- |
-| [§45](intents/45-save-api/) Games are saved as files on this PC, reached by the game through a local API | feature · in-review |
 | [§46](intents/46-ship-skill/) /ship merges a reviewed intent, does the bookkeeping, pushes and removes its worktree and branch | feature · accepted (building) |
 
 ### Queued
