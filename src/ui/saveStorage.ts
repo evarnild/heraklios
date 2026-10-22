@@ -200,11 +200,13 @@ export function hasCopyableBrowserSaves(
 /**
  * Copies each valid browser save into the same file slot, only if that slot
  * is empty — never overwriting. Counts what was copied and what was skipped
- * (invalid, or the slot is taken). Null when the server did not answer.
+ * (invalid, or the slot is taken). Null when the server did not answer at
+ * the start; `stopped` when it stopped answering partway, so the caller can
+ * say how many were copied before that.
  */
 export async function copyBrowserSaves(
   storage: BrowserStorage | null = defaultStorage(),
-): Promise<{ copied: number; skipped: number } | null> {
+): Promise<{ copied: number; skipped: number; stopped: boolean } | null> {
   const files = await readAllSaves();
   if (!files.ok) return null;
   let copied = 0;
@@ -215,10 +217,10 @@ export async function copyBrowserSaves(
       skipped++;
       continue;
     }
-    if (!(await writeSave(slot, parsed.save))) return null;
+    if (!(await writeSave(slot, parsed.save))) return { copied, skipped, stopped: true };
     copied++;
   }
-  return { copied, skipped };
+  return { copied, skipped, stopped: false };
 }
 
 /**

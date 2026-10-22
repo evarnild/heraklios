@@ -318,6 +318,8 @@ export const en = {
     deletingFailed: "The game server isn't answering — nothing was deleted.",
     autosaveFailed: "Autosave failed: the game server isn't answering.",
     copyBrowserSaves: 'Copy browser saves to files',
+    copyStopped: (copied: number) =>
+      `Browser saves copied to files: ${copied}, then the game server stopped answering.`,
     copiedBrowserSaves: (copied: number, skipped: number) =>
       `Browser saves copied to files: ${copied}, skipped: ${skipped}.`,
     overwrote: (slot: number | string, summary: string) => `Overwrote slot ${slot} (${summary}).`,

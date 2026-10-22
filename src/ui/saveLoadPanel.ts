@@ -382,7 +382,11 @@ export class SaveLoadPanel {
         this.status(messages().saves.savingFailed);
         return;
       }
-      this.status(messages().saves.copiedBrowserSaves(result.copied, result.skipped));
+      this.status(
+        result.stopped
+          ? messages().saves.copyStopped(result.copied)
+          : messages().saves.copiedBrowserSaves(result.copied, result.skipped),
+      );
       await this.loadList();
     });
   }

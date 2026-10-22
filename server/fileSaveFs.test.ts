@@ -1,4 +1,4 @@
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -50,6 +50,24 @@ describe('fileSaveFs', () => {
     writeFileSync(join(dir, 'slot-1.json.123.tmp'), 'x');
     writeFileSync(join(dir, 'slot-4.json'), 'x');
     expect(await fileSaveFs(dir).list()).toEqual(['4']);
+  });
+});
+
+describe('fileSaveFs under stress', () => {
+  it('survives many concurrent writes to one slot: all succeed, one body wins, no temp file is left', async () => {
+    const fs = fileSaveFs(dir);
+    const bodies = Array.from({ length: 40 }, (_, i) => `body-${i}-${'x'.repeat(5000)}`);
+    const results = await Promise.allSettled(bodies.map((b) => fs.write('autosave', b)));
+    expect(results.filter((r) => r.status === 'rejected')).toEqual([]);
+    expect(bodies).toContain(await fs.read('autosave'));
+    expect(readdirSync(dir)).toEqual(['autosave.json']);
+  });
+
+  it('a failed write leaves no temp file and rejects', async () => {
+    const fs = fileSaveFs(dir);
+    mkdirSync(join(dir, 'slot-1.json')); // the rename onto a folder fails
+    await expect(fs.write('1', 'x')).rejects.toThrow();
+    expect(readdirSync(dir)).toEqual(['slot-1.json']);
   });
 });
 

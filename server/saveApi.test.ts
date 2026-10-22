@@ -172,3 +172,66 @@ describe('the origin check', () => {
     expect((await handleSaveApi(req('GET', '/api/saves'), fs)).status).toBe(200);
   });
 });
+
+describe('the host allow-list (DNS rebinding)', () => {
+  it.each(['localhost', 'localhost:5173', 'LOCALHOST:80', '127.0.0.1', '127.0.0.1:5232', '[::1]:5173'])('serves Host %s', async (host) => {
+    expect((await handleSaveApi({ method: 'GET', url: '/api/saves', host }, memorySaveFs())).status).toBe(200);
+  });
+
+  it.each(['attacker.example', 'attacker.example:5173', '192.168.1.5:5173', 'localhost.evil.com', '127.0.0.1.evil.com:80', 'evil.com@localhost', 'localhost:abc', '', 'localhost:5173/x'])(
+    'refuses Host %j, touching nothing',
+    async (host) => {
+      const fs = memorySaveFs({ '1': sampleText() });
+      for (const method of ['GET', 'PUT', 'DELETE']) {
+        const res = await handleSaveApi({ method, url: '/api/saves/1', host, body: sampleText() }, fs);
+        expect(res.status, `${method} ${host}`).toBe(403);
+      }
+      expect(fs.calls).toEqual([]);
+    },
+  );
+
+  it('refuses a rebinding page whose Origin matches its own Host', async () => {
+    const fs = memorySaveFs();
+    const res = await handleSaveApi({ method: 'GET', url: '/api/saves', host: 'attacker.example:5173', origin: 'http://attacker.example:5173' }, fs);
+    expect(res.status).toBe(403);
+    expect(fs.calls).toEqual([]);
+  });
+
+  it('refuses a missing Host', async () => {
+    expect((await handleSaveApi({ method: 'GET', url: '/api/health' }, memorySaveFs())).status).toBe(403);
+  });
+});
+
+describe('the origin scheme', () => {
+  it('refuses https for an http server, even on the same host and port', async () => {
+    const fs = memorySaveFs();
+    expect((await handleSaveApi(req('GET', '/api/saves', { origin: `https://${HOST}` }), fs)).status).toBe(403);
+    expect((await handleSaveApi(req('GET', '/api/saves', { origin: `http://${HOST}/extra` }), fs)).status).toBe(200);
+  });
+});
+
+describe('the body cap boundary', () => {
+  const padded = (bytes: number) => {
+    const text = sampleText();
+    return text + ' '.repeat(bytes - new TextEncoder().encode(text).length);
+  };
+
+  it('accepts exactly 2 MB and refuses one byte more', async () => {
+    const fs = memorySaveFs();
+    expect((await handleSaveApi(req('PUT', '/api/saves/1', { body: padded(MAX_BODY_BYTES) }), fs)).status).toBe(204);
+    expect((await handleSaveApi(req('PUT', '/api/saves/2', { body: padded(MAX_BODY_BYTES + 1) }), fs)).status).toBe(413);
+    expect(fs.files.has('2')).toBe(false);
+  });
+
+  it('counts bytes, not characters', async () => {
+    const fs = memorySaveFs();
+    const body = sampleText() + 'è'.repeat(MAX_BODY_BYTES / 2);
+    expect((await handleSaveApi(req('PUT', '/api/saves/1', { body }), fs)).status).toBe(413);
+  });
+});
+
+describe('the health route', () => {
+  it('refuses other methods', async () => {
+    expect((await handleSaveApi(req('POST', '/api/health'), memorySaveFs())).status).toBe(405);
+  });
+});

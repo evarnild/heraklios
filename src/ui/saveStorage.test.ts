@@ -103,6 +103,13 @@ describe('the file-store client', () => {
     expect(await readSave(2)).toEqual({ ok: true, value: null });
   });
 
+  it('tells an invalid file (empty slot) from a server that is down', async () => {
+    vi.stubGlobal('fetch', async () => new Response('this is not a save', { status: 200 }));
+    expect(await readSave(1)).toEqual({ ok: true, value: null });
+    fakeServer({}, 'down');
+    expect(await readSave(1)).toEqual({ ok: false });
+  });
+
   it('lists the valid saves by slot, ignoring junk entries', async () => {
     fakeServer({ '1': sample(), autosave: sample(5), '3': { nonsense: true } as unknown as SavedGame });
     const all = await readAllSaves();
@@ -147,7 +154,7 @@ describe('copyBrowserSaves', () => {
   it('copies into empty slots only, never overwriting a taken one', async () => {
     const { files, calls } = fakeServer({ '2': sample(20) });
     const browser = fakeBrowser({ [key(1)]: JSON.stringify(sample(1)), [key(2)]: JSON.stringify(sample(2)) });
-    expect(await copyBrowserSaves(browser)).toEqual({ copied: 1, skipped: 1 });
+    expect(await copyBrowserSaves(browser)).toEqual({ copied: 1, skipped: 1, stopped: false });
     expect(files.get('1')?.gameState.turnNumber).toBe(1);
     expect(files.get('2')?.gameState.turnNumber).toBe(20);
     expect(calls.filter((c) => c.method === 'PUT').map((c) => c.path)).toEqual(['/api/saves/1']);
@@ -156,7 +163,7 @@ describe('copyBrowserSaves', () => {
   it('skips invalid browser saves and counts them', async () => {
     const { files } = fakeServer();
     const browser = fakeBrowser({ [key(3)]: '{broken', [key('autosave')]: JSON.stringify(sample(6)) });
-    expect(await copyBrowserSaves(browser)).toEqual({ copied: 1, skipped: 1 });
+    expect(await copyBrowserSaves(browser)).toEqual({ copied: 1, skipped: 1, stopped: false });
     expect([...files.keys()]).toEqual(['autosave']);
   });
 
@@ -175,9 +182,26 @@ describe('copyBrowserSaves', () => {
     expect(calls.filter((c) => c.method === 'PUT')).toEqual([]);
   });
 
+  it('reports what was copied when the server stops answering partway', async () => {
+    const files = new Map<string, SavedGame>();
+    let puts = 0;
+    vi.stubGlobal('fetch', async (path: string, init?: RequestInit) => {
+      if (path === '/api/saves') return Response.json({});
+      if (init?.method === 'PUT') {
+        if (++puts > 1) throw new TypeError('fetch failed');
+        files.set(path, JSON.parse(init.body as string) as SavedGame);
+        return new Response(null, { status: 204 });
+      }
+      return new Response('{}', { status: 404 });
+    });
+    const browser = fakeBrowser({ [key(1)]: JSON.stringify(sample(1)), [key(2)]: JSON.stringify(sample(2)), [key(3)]: JSON.stringify(sample(3)) });
+    expect(await copyBrowserSaves(browser)).toEqual({ copied: 1, skipped: 0, stopped: true });
+    expect([...files.keys()]).toEqual(['/api/saves/1']);
+  });
+
   it('copies nothing from an empty browser', async () => {
     const { calls } = fakeServer();
-    expect(await copyBrowserSaves(fakeBrowser({}))).toEqual({ copied: 0, skipped: 0 });
+    expect(await copyBrowserSaves(fakeBrowser({}))).toEqual({ copied: 0, skipped: 0, stopped: false });
     expect(calls.filter((c) => c.method === 'PUT')).toEqual([]);
   });
 });

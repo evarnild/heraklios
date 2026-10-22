@@ -3,7 +3,7 @@
 // position. The saves are files behind the local save API (§45): the server
 // started by playwright.config.ts writes them into a temporary folder, and
 // the scenario reads the slot's file once to check the round trip (AC4).
-import { readFileSync } from 'node:fs';
+import { readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -18,12 +18,18 @@ import {
   state,
   unit,
   waitIdle,
+  waitLoadOnRowOf,
   waitSavePanelLoaded,
 } from './helpers';
 import { SAVES_DIR } from './savesDir';
 
 const DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]] as const;
 const SAVE_LOAD = '💾 Save / Load';
+const SLOT_1_FILE = join(SAVES_DIR, 'slot-1.json');
+
+// The workers share one saves folder and --repeat-each reruns the scenario:
+// start without a slot-1 file, so a read can never see an earlier run's.
+test.beforeEach(() => rmSync(SLOT_1_FILE, { force: true }));
 
 /**
  * The state minus the game clock: `elapsedMs` ticks every frame while the
@@ -54,13 +60,13 @@ test('a saved game loads back to the saved position', async ({ page }) => {
   await waitSavePanelLoaded(page);
   const savePoint = await page.evaluate(() => window.__heraklios.buttonToCanvas('Save', 0));
   await clickButton(page, 'Save', 0);
-  // The file appears once the API answered; the row's Load button comes on with it.
-  await page.waitForFunction(() => window.__heraklios.buttonCount('Load') > 0);
+  // The file appears once the API answered; this slot's own Load button comes on with it.
+  await waitLoadOnRowOf(page, savePoint);
   await clickButton(page, 'Close');
   await waitIdle(page);
 
   // AC4: the slot is a readable JSON file holding the position that was saved.
-  const onDisk = JSON.parse(readFileSync(join(SAVES_DIR, 'slot-1.json'), 'utf8')) as { version: number; gameState: { units: unknown } };
+  const onDisk = JSON.parse(readFileSync(SLOT_1_FILE, 'utf8')) as { version: number; gameState: { units: unknown } };
   expect(onDisk.version).toBe(3);
   expect(onDisk.gameState.units).toEqual(saved.units);
 

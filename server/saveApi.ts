@@ -56,6 +56,20 @@ function isSlot(text: string): text is Slot {
 }
 
 /**
+ * Spec B4 (DNS rebinding): the plugin runs before Vite's own host check, so
+ * the handler checks the `Host` header itself. Only this PC's own names are
+ * served, on any port; a page on `attacker.example` that was rebound to
+ * 127.0.0.1 still sends `Host: attacker.example` and gets 403, even with a
+ * matching `Origin`. (Consequence: reaching the dev server by a LAN name or
+ * address gets no API, which fits "this PC only".)
+ */
+const LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i;
+
+function foreignHost(request: ApiRequest): boolean {
+  return request.host === undefined || !LOCAL_HOST.test(request.host);
+}
+
+/**
  * Spec B4: a request with an `Origin` that isn't the server's own is another
  * website talking to localhost. Same origin and no `Origin` (curl, tools,
  * same-origin GET) are allowed.
@@ -63,7 +77,8 @@ function isSlot(text: string): text is Slot {
 function foreignOrigin(request: ApiRequest): boolean {
   if (request.origin === undefined) return false;
   try {
-    return new URL(request.origin).host !== request.host;
+    // Scheme, host and port: the server speaks http, so the origin must be http://<its own Host>.
+    return new URL(request.origin).origin !== `http://${request.host}`;
   } catch {
     return true; // "null" or garbage
   }
@@ -78,7 +93,7 @@ async function loadSave(slot: Slot, fs: SaveFs) {
 }
 
 async function putSave(slot: Slot, request: ApiRequest, fs: SaveFs): Promise<ApiResponse> {
-  if (request.bodyTooLarge || (request.body ?? '').length > MAX_BODY_BYTES) {
+  if (request.bodyTooLarge || new TextEncoder().encode(request.body ?? '').length > MAX_BODY_BYTES) {
     return error(413, 'Save too large');
   }
   const result = parseSavedGame(request.body ?? '');
@@ -116,6 +131,7 @@ async function listSaves(fs: SaveFs): Promise<ApiResponse> {
 
 /** Handles one request to `/api/...`. Never throws for a bad request; fs errors propagate. */
 export async function handleSaveApi(request: ApiRequest, fs: SaveFs): Promise<ApiResponse> {
+  if (foreignHost(request)) return error(403, 'Foreign host');
   if (foreignOrigin(request)) return error(403, 'Foreign origin');
   // The path is taken as sent, not decoded: "%2e%2e" is just not a slot.
   const path = request.url.split('?')[0]!;

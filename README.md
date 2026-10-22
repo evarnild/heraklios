@@ -154,11 +154,14 @@ is part of the dev server (`npm run dev`) and of `npm run preview` (the
 stable copy), on the same host and port, localhost only; a copy of `dist/`
 served any other way has no API and cannot save. The server accepts only a
 valid save (at most 2 MB) for a slot named 1-6 or `autosave`, and refuses
-requests from another website's page.
+requests whose `Host` is not `localhost`, `127.0.0.1` or `[::1]` (so a
+website rebound to this PC by DNS gets nothing) and requests from another
+website's page. Reaching the dev server by a LAN name or address therefore
+has no save API.
 
 There is no browser fallback: if the server stops while a tab is open, a
 save, load or delete says so in the panel ("The game server isn't answering
-- nothing was saved") and an autosave that fails says so in the Board's log.
+- nothing was saved"; a copy that stops partway reports how many it had copied) and an autosave that fails says so in the Board's log.
 **"Export to file"** / **"Import from file"** still round-trip a `.json`
 save for backup, for moving between machines, or for handing a game to
 someone else. The panel shows "Loading..." until the server has sent the

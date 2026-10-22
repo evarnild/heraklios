@@ -2,6 +2,7 @@
 // One file per slot: slot-1.json ... slot-6.json, autosave.json. The slot
 // names come from the allow-list in saveApi.ts, so no path is ever built
 // from anything a request sent.
+import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { SLOTS, type SaveFs, type Slot } from './saveApi';
@@ -28,7 +29,28 @@ function isMissing(e: unknown): boolean {
   return (e as NodeJS.ErrnoException)?.code === 'ENOENT';
 }
 
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Renames over the target. On Windows a rename onto a file that is open or
+ * being replaced (another handle, antivirus) fails with EPERM/EBUSY/EACCES
+ * for a moment, so those are retried a few times before giving up.
+ */
+async function renameOver(from: string, to: string): Promise<void> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await rename(from, to);
+    } catch (e) {
+      const code = (e as NodeJS.ErrnoException).code;
+      if (attempt >= 5 || (code !== 'EPERM' && code !== 'EBUSY' && code !== 'EACCES')) throw e;
+      await sleep(25 * attempt);
+    }
+  }
+}
+
 export function fileSaveFs(dir: string): SaveFs {
+  /** The latest write per slot: writes to one slot run one after another, never renaming over each other. */
+  const queues = new Map<Slot, Promise<unknown>>();
   const pathOf = (slot: Slot) => join(dir, fileNameOf(slot));
   return {
     async read(slot) {
@@ -39,18 +61,10 @@ export function fileSaveFs(dir: string): SaveFs {
         throw e;
       }
     },
-    async write(slot, text) {
-      await mkdir(dir, { recursive: true });
-      // Temp file in the same folder, then rename over the target: a crash
-      // leaves either the old save or the new one, never half of one.
-      const temp = join(dir, `${fileNameOf(slot)}.${process.pid}.tmp`);
-      try {
-        await writeFile(temp, text, 'utf8');
-        await rename(temp, pathOf(slot));
-      } catch (e) {
-        await rm(temp, { force: true });
-        throw e;
-      }
+    write(slot, text) {
+      const run = (queues.get(slot) ?? Promise.resolve()).catch(() => undefined).then(() => writeOnce(slot, text));
+      queues.set(slot, run);
+      return run;
     },
     async remove(slot) {
       await rm(pathOf(slot), { force: true });
@@ -64,4 +78,19 @@ export function fileSaveFs(dir: string): SaveFs {
       }
     },
   };
+
+  async function writeOnce(slot: Slot, text: string): Promise<void> {
+    await mkdir(dir, { recursive: true });
+    // Temp file in the same folder, then rename over the target: a crash
+    // leaves either the old save or the new one, never half of one.
+    // The temp name is unique per write: concurrent writes to one slot must not share it.
+    const temp = join(dir, `${fileNameOf(slot)}.${randomUUID()}.tmp`);
+    try {
+      await writeFile(temp, text, 'utf8');
+      await renameOver(temp, pathOf(slot));
+    } catch (e) {
+      await rm(temp, { force: true });
+      throw e;
+    }
+}
 }

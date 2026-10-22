@@ -197,3 +197,16 @@ this line is the implementer's to edit. -->
 - The panel gets its own status line (the Menu passes no `onStatus`, so B6's messages would otherwise vanish there) and the import offer sits beside it.
 - Save's pre-read goes through the list (`GET /api/saves`), not the slot, because a 404 on an empty slot prints a red console error in the browser on every first save (the e2e error check caught it).
 - Help for the e2e: disabled buttons are not click targets in the dev hook (`input.enabled`), so the scenarios wait for `buttonCount('Save') === 6` as the "panel loaded" signal (`waitSavePanelLoaded`); no change to `devHook.ts`.
+
+### 2026-10-22 - rework after review round 1 (implementer)
+
+All findings of review.md round 1 fixed in one commit.
+- **M1** `handleSaveApi` checks `Host` first: only `localhost`, `127.0.0.1`, `[::1]` (any port), else 403 (also for a missing Host and for a rebinding page whose Origin matches its own Host). The Origin check now compares the whole origin with `http://<Host>` (scheme too). README corrected: a LAN name or address therefore gets no API.
+- **M2** temp name per write is `randomUUID()`; writes to one slot are queued in-process (concurrent renames over one target fail with EPERM on Windows even with unique temp names: the first concurrent test run showed 9 of 40 failing), and the rename retries a few times on EPERM/EBUSY/EACCES. Tests: 40 concurrent writes to one slot all succeed, one body wins, no temp file left; a failed write leaves no temp file.
+- **M3** `server/saveApiPlugin.test.ts` (14 tests): fake request/response; Origin and Host forwarded, body cap and `bodyTooLarge` forwarding, 500 on an fs error, `Cache-Control: no-store` (also on 204), non-/api/ passes on, `readBody` bounded, registration on dev AND preview.
+- **M4** `waitLoadOnRowOf` waits for a Load button on the saved slot's own row; each scenario removes its slot files first. Proof: with a 1.5 s delay inserted before `writeSave` in `saveInto`, both scenarios passed (23 s run); delay removed afterwards.
+- **LOW** 2 MB boundary now counted in bytes (exactly the cap accepted, cap+1 and multibyte over-cap refused); health 405; a copy that stops partway returns `stopped` and the panel says how many it copied (new `copyStopped` text, en and fr); an invalid file reads as empty, a down server as not ok.
+
+Mutants (full `npx vitest run`, each killed): drop origin forwarding (1 fails), drop host forwarding (1), drop the streaming cap (1), drop `bodyTooLarge` forwarding (1), drop Cache-Control (3), drop preview registration (1), drop the Host allow-list (12), contains-instead-of-exact origin compare (1), cap `>=` (1), health 405 dropped (1), shared temp name and no queue (1), partial copy reported as failure (1), invalid file read as not ok (2).
+
+Results: `npm run verify` green (50 files, 813 tests, lint 21/21); `npm run e2e` 10 of 10; the two save scenarios `--repeat-each=3` 6 of 6; temp saves folder gone. `npm run check:intent` now FAILS only on "a live check is owed and not recorded" (the owner's gate; review.md exists), the type check itself is clean.

@@ -303,6 +303,8 @@ export const fr: Messages = {
     deletingFailed: 'Le serveur du jeu ne répond pas — rien n’a été effacé.',
     autosaveFailed: 'Échec de la sauvegarde auto : le serveur du jeu ne répond pas.',
     copyBrowserSaves: 'Copier les sauvegardes du navigateur',
+    copyStopped: (copied) =>
+      `Sauvegardes du navigateur copiées vers des fichiers : ${copied}, puis le serveur du jeu a cessé de répondre.`,
     copiedBrowserSaves: (copied, skipped) =>
       `Sauvegardes du navigateur copiées vers des fichiers : ${copied}, ignorées : ${skipped}.`,
     overwrote: (slot, summary) => `Emplacement ${slot} écrasé (${summary}).`,

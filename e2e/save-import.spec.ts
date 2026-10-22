@@ -13,6 +13,7 @@ import {
   startFromMenu,
   state,
   waitIdle,
+  waitLoadOnRowOf,
   waitSavePanelLoaded,
 } from './helpers';
 import { SAVES_DIR } from './savesDir';
@@ -40,8 +41,9 @@ test('a browser save is copied into its empty file slot and loads from there', a
   const saved = await state(page);
   await clickButton(page, SAVE_LOAD);
   await waitSavePanelLoaded(page);
+  const slot6 = await page.evaluate(() => window.__heraklios.buttonToCanvas('Save', 5));
   await clickButton(page, 'Save', 5);
-  await page.waitForFunction(() => window.__heraklios.buttonCount('Load') > 0);
+  await waitLoadOnRowOf(page, slot6);
   await clickButton(page, 'Close');
   const text = readFileSync(SLOT_6_FILE, 'utf8');
   rmSync(SLOT_6_FILE);

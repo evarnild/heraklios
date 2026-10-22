@@ -13,7 +13,7 @@ function header(request: IncomingMessage, name: string): string | undefined {
 }
 
 /** Reads the body up to the cap; past it, stops keeping data and reports "too large". */
-function readBody(request: IncomingMessage): Promise<{ body: string; tooLarge: boolean }> {
+export function readBody(request: IncomingMessage): Promise<{ body: string; tooLarge: boolean }> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let size = 0;
