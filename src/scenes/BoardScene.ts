@@ -12,7 +12,7 @@ import {
   applySavedGame,
   captureCurrentGame,
   consumePendingLoad,
-  writeSlot,
+  writeSave,
 } from '../ui/saveStorage';
 import type { SavedGame } from '../engine/saveGame';
 import {
@@ -981,13 +981,16 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   }
 
   /**
-   * Writes the crash-recovery copy. Silent on failure: an unavailable or full
-   * localStorage shouldn't interrupt play with an error the player can't act
-   * on — a manual save reports the same problem where it matters.
+   * Writes the crash-recovery copy to the save API (intents/45-save-api).
+   * Fire-and-forget so a movement phase never waits on the disk; the save is
+   * captured now, before the request goes out. If the server does not answer
+   * it says so once in the log (spec B6) rather than failing silently.
    */
   private autosave(): void {
     if (this.retreatChoice || this.driftState || this.decisionPending) return;
-    writeSlot('autosave', this.captureSave());
+    void writeSave('autosave', this.captureSave()).then((ok) => {
+      if (!ok) this.log(messages().saves.autosaveFailed);
+    });
   }
 
   private openSaveLoad(): void {
