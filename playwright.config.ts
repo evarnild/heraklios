@@ -2,6 +2,7 @@
 // Separate from `npm run verify`: it needs a browser install
 // (`npx playwright install chromium`, once per machine) and a dev server.
 import { defineConfig } from '@playwright/test';
+import { SAVES_DIR } from './e2e/savesDir';
 
 /** 5200 + (32 mod 100), the `spawn` port rule, so it never meets another session's server. */
 const PORT = 5232;
@@ -10,6 +11,7 @@ const HOST = '127.0.0.1';
 export default defineConfig({
   testDir: 'e2e',
   globalSetup: './e2e/global-setup.ts',
+  globalTeardown: './e2e/global-teardown.ts',
   timeout: 30_000,
   // Two workers, not Playwright's default (half the 20 threads here = 5):
   // with 5 parallel Chromiums (software GL, SwiftShader) every step slowed
@@ -33,5 +35,7 @@ export default defineConfig({
     // Never reuse a server already on the port: it could be another
     // checkout's, serving other code. A taken port fails the run instead.
     reuseExistingServer: false,
+    // The save API writes here, never into the checkout's saves/ (§45 B10).
+    env: { HERAKLIOS_SAVES_DIR: SAVES_DIR },
   },
 });

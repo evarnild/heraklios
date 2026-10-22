@@ -323,13 +323,16 @@ export class SaveLoadPanel {
       const capture = this.config.captureSave;
       if (!capture) return;
       const save = capture(); // the position at the click, not after the round trip
-      const existing = await readSave(slot);
-      if (!existing.ok || !(await writeSave(slot, save))) {
+      // Read through the list, not the slot: an empty slot is a 404 there, which the
+      // browser would print in its console as an error on every first save.
+      const files = await readAllSaves();
+      const existing = files.ok ? files.value.get(slot) : undefined;
+      if (!files.ok || !(await writeSave(slot, save))) {
         this.status(messages().saves.savingFailed);
         return;
       }
       this.remember(slot, save);
-      this.status(existing.value ? messages().saves.overwrote(slot, describeSlot(save)) : messages().saves.savedTo(slot));
+      this.status(existing ? messages().saves.overwrote(slot, describeSlot(save)) : messages().saves.savedTo(slot));
     });
   }
 

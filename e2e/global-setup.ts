@@ -1,10 +1,11 @@
 // Runs once before every `npm run e2e` (spec AC5): a production build must
 // not contain the dev-only test hook. Builds into a temp directory, never
 // `dist/`, so it can't clobber a build someone is previewing.
-import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build } from 'vite';
+import { SAVES_DIR } from './savesDir';
 
 const HOOK = '__heraklios';
 
@@ -16,6 +17,9 @@ function filesUnder(dir: string): string[] {
 }
 
 export default async function globalSetup(): Promise<void> {
+  // A fresh, empty folder for the save API (removed again by global-teardown.ts).
+  rmSync(SAVES_DIR, { recursive: true, force: true });
+  mkdirSync(SAVES_DIR, { recursive: true });
   const outDir = mkdtempSync(join(tmpdir(), 'h32-build-'));
   try {
     await build({ logLevel: 'error', build: { outDir, emptyOutDir: true } });
