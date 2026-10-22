@@ -1,12 +1,39 @@
 // Spec B9: from "Test mode", save to a slot through the save/load panel,
 // make another move, load the slot back — the board returns to the saved
-// position. `localStorage` slots only (each test gets a fresh browser
-// context, so the slots start empty).
+// position. The saves are files behind the local save API (§45): the server
+// started by playwright.config.ts writes them into a temporary folder, and
+// the scenario reads the slot's file once to check the round trip (AC4).
+import { readFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { MENU_TEST, activeUnitOfType, clickButton, clickHex, key, reachable, startFromMenu, state, unit, waitIdle } from './helpers';
+import {
+  MENU_TEST,
+  activeUnitOfType,
+  clickButton,
+  clickHex,
+  key,
+  loadOnSameRowAs,
+  reachable,
+  startFromMenu,
+  state,
+  unit,
+  waitIdle,
+  waitLoadOnRowOf,
+  waitSavePanelLoaded,
+} from './helpers';
+import { SAVES_DIR, acquireSaveLock, releaseSaveLock } from './savesDir';
 
 const DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]] as const;
 const SAVE_LOAD = '💾 Save / Load';
+const SLOT_1_FILE = join(SAVES_DIR, 'slot-1.json');
+
+// The workers share one saves folder and --repeat-each reruns the scenario:
+// start without a slot-1 file, so a read can never see an earlier run's.
+test.beforeEach(async () => {
+  await acquireSaveLock(); // one save scenario at a time across the workers
+  rmSync(SLOT_1_FILE, { force: true });
+});
+test.afterEach(() => releaseSaveLock());
 
 /**
  * The state minus the game clock: `elapsedMs` ticks every frame while the
@@ -27,16 +54,6 @@ async function moveOneHex(page: Page, typeId: string) {
   return mover.id;
 }
 
-/** The panel's Load button on the same row as the slot's Save button. */
-async function loadOnSameRowAs(page: Page, savePoint: { x: number; y: number }) {
-  const n = await page.evaluate(() => window.__heraklios.buttonCount('Load'));
-  for (let i = 0; i < n; i++) {
-    const p = await page.evaluate((j) => window.__heraklios.buttonToCanvas('Load', j), i);
-    if (Math.abs(p.y - savePoint.y) < 1) return i;
-  }
-  throw new Error('No Load button on the saved row');
-}
-
 test('a saved game loads back to the saved position', async ({ page }) => {
   const errors = await startFromMenu(page, MENU_TEST, 'test', 1);
 
@@ -44,15 +61,24 @@ test('a saved game loads back to the saved position', async ({ page }) => {
   const saved = await state(page);
 
   await clickButton(page, SAVE_LOAD);
+  await waitSavePanelLoaded(page);
   const savePoint = await page.evaluate(() => window.__heraklios.buttonToCanvas('Save', 0));
   await clickButton(page, 'Save', 0);
+  // The file appears once the API answered; this slot's own Load button comes on with it.
+  await waitLoadOnRowOf(page, savePoint);
   await clickButton(page, 'Close');
   await waitIdle(page);
+
+  // AC4: the slot is a readable JSON file holding the position that was saved.
+  const onDisk = JSON.parse(readFileSync(SLOT_1_FILE, 'utf8')) as { version: number; gameState: { units: unknown } };
+  expect(onDisk.version).toBe(3);
+  expect(onDisk.gameState.units).toEqual(saved.units);
 
   const second = await moveOneHex(page, 'archers');
   expect((await state(page)).units).not.toEqual(saved.units);
 
   await clickButton(page, SAVE_LOAD);
+  await waitSavePanelLoaded(page);
   await clickButton(page, 'Load', await loadOnSameRowAs(page, savePoint));
   await page.waitForFunction(() => window.__heraklios.scenes().includes('Board'));
   await waitIdle(page);

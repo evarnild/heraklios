@@ -193,9 +193,19 @@ and rendering.
   (the in-memory `SessionState` — player setup, army selections, combat mode,
   test mode — that scenes read/write as they hand off to each other),
   `mapBounds.ts` (deployment-zone geometry), `saveStorage.ts`
-  (`localStorage` + file import/export; the browser-side half of
+  (client of the local save API + file import/export + the read-only import
+  of old `localStorage` saves; the browser-side half of
   `engine/saveGame.ts`), `saveLoadPanel.ts`, `testMode.ts` (Menu shortcuts
   that skip straight to a populated board for manual testing).
+- `server/` — the local save API (§45): saves are one JSON file per slot in
+  `saves/` (or `HERAKLIOS_SAVES_DIR`). `saveApi.ts` is the pure handler
+  (Host allow-list checked first against DNS rebinding, then Origin check, slot
+  allow-list, 2 MB cap, `parseSavedGame` before write;
+  tested with an in-memory file system), `fileSaveFs.ts` the real files,
+  `saveApiPlugin.ts` a Vite plugin mounting it on the dev AND preview
+  servers (registered in `vite.config.ts`). Boundary: no game rule in it,
+  only storage; it imports `engine/saveGame.ts` for validation and nothing
+  else. e2e points it at a temporary folder (`e2e/savesDir.ts`).
 - `src/map-editor/` + `map-editor.html` — a standalone second app (plain
   Canvas 2D, no Phaser) for hand-authoring `src/data/map.ts`: `editorState.ts`
   (pure grid/river model, unit-tested), `camera.ts` (pan/zoom + hexside

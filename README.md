@@ -144,9 +144,37 @@ down exactly which hex a rule, a bug, or a screenshot is talking about.
 
 The Board's **💾 Save / Load** button opens a panel with six save slots plus a
 separate autosave, each showing the turn, active player, phase and timestamp
-so you can tell them apart. Saves live in the browser's `localStorage`, and
-**"Export to file"** / **"Import from file"** round-trip a `.json` save for
-backup, for moving between machines, or for handing a game to someone else.
+so you can tell them apart. **Saves are files on this PC**, reached through
+a small local API: each slot is one `.json` file (`slot-1.json` ...
+`slot-6.json`, `autosave.json`) in a `saves/` folder at the root of the
+checkout (git ignores it; set `HERAKLIOS_SAVES_DIR` to keep them elsewhere,
+or to share one folder between checkouts). The files are the same save
+format as before, so one can be copied, backed up or opened by hand. The API
+is part of the dev server (`npm run dev`) and of `npm run preview` (the
+stable copy), on the same host and port, localhost only; a copy of `dist/`
+served any other way has no API and cannot save. The server accepts only a
+valid save (at most 2 MB) for a slot named 1-6 or `autosave`, and refuses
+requests whose `Host` is not `localhost`, `127.0.0.1` or `[::1]` (so a
+website rebound to this PC by DNS gets nothing) and requests from another
+website's page. Reaching the dev server by a LAN name or address therefore
+has no save API.
+
+There is no browser fallback: if the server stops while a tab is open, a
+save, load or delete says so in the panel ("The game server isn't answering —
+nothing was saved"; a copy that stops partway reports how many it had
+copied) and an autosave that fails says so in the Board's log.
+**"Export to file"** / **"Import from file"** still round-trip a `.json`
+save for backup, for moving between machines, or for handing a game to
+someone else. The panel shows "Loading..." until the server has sent the
+slot list; each button acts on a fresh read of its slot.
+
+Saves an older build left in the browser's `localStorage` are not lost: while
+one has no file yet, the panel offers **"Copy browser saves to files"**. It
+copies each valid browser save into the file slot of the same number only if
+that slot is empty (never overwriting), reports how many it copied and
+skipped, and never changes or deletes the browser's copy. The offer goes away
+once every browser save has been copied or its slot is taken.
+
 The Menu's **"Load a game"** offers the same list (load and import
 only) and drops you straight onto the board.
 
@@ -654,7 +682,13 @@ what the game will use — see `src/map-editor/`.
   self-play harness that soaks it (`fuzzHarness.ts`), and the save-file
   format and its validation. Fully
   unit-tested and independent of Phaser (the browser-side half of saving —
-  `localStorage` and file download/upload — lives in `src/ui/saveStorage.ts`).
+  the client of the save API, the read-only import of old `localStorage`
+  saves and file download/upload — lives in `src/ui/saveStorage.ts`).
+- `server/` — the save API: `saveApi.ts` is the pure request handler (slot
+  allow-list, origin check, size cap, validation, tested against an in-memory
+  file system), `fileSaveFs.ts` the real files, `saveApiPlugin.ts` the Vite
+  plugin that serves it on the dev and preview servers. Storage only; no
+  game rule.
 - `src/scenes/` — the Phaser UI: menu, army builder, placement, board,
   game-over.
 - `src/ui/` — shared rendering helpers (hex grid rendering/camera, session

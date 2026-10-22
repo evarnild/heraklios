@@ -135,6 +135,38 @@ export async function clickButton(page: Page, label: string, index?: number): Pr
   await clickCanvas(page, pt);
 }
 
+/**
+ * Waits until the Save/Load panel has its slot list from the save API: until
+ * then its buttons are off (the rows say "Loading..."), and a disabled button
+ * is not a click target. `manage` mode only (it has Save buttons).
+ */
+export async function waitSavePanelLoaded(page: Page): Promise<void> {
+  await page.waitForFunction(() => window.__heraklios.buttonCount('Save') === 6);
+}
+
+/**
+ * Waits until the slot row whose Save button is at `savePoint` has a Load
+ * button, i.e. until that slot's own save has been written and shown. (Any
+ * Load button at all is not enough: the autosave row has one already.)
+ */
+export async function waitLoadOnRowOf(page: Page, savePoint: { x: number; y: number }): Promise<void> {
+  await page.waitForFunction((y) => {
+    const n = window.__heraklios.buttonCount('Load');
+    for (let i = 0; i < n; i++) if (Math.abs(window.__heraklios.buttonToCanvas('Load', i).y - y) < 1) return true;
+    return false;
+  }, savePoint.y);
+}
+
+/** The index of the panel's Load button on the same row as a Save button at `savePoint`. */
+export async function loadOnSameRowAs(page: Page, savePoint: { x: number; y: number }): Promise<number> {
+  const n = await page.evaluate(() => window.__heraklios.buttonCount('Load'));
+  for (let i = 0; i < n; i++) {
+    const p = await page.evaluate((j) => window.__heraklios.buttonToCanvas('Load', j), i);
+    if (Math.abs(p.y - savePoint.y) < 1) return i;
+  }
+  throw new Error('No Load button on the saved row');
+}
+
 /** Centres the camera on `hex`, then clicks it. */
 export async function clickHex(page: Page, hex: Hex): Promise<void> {
   const pt = await hexPoint(page, hex);

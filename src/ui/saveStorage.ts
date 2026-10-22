@@ -1,6 +1,7 @@
 import { session, setSeatControls } from './session';
 import {
   buildSavedGame,
+  isValidSavedGame,
   parseSavedGame,
   type EdgeCode,
   type SavedGame,
@@ -10,15 +11,7 @@ import {
 /** Manual save slots offered in the Save/Load panel. */
 export const SLOT_COUNT = 6;
 
-const SLOT_KEY_PREFIX = 'heraklios.save.slot';
-/** Autosave lives in its own key so it can never clobber a deliberate save. */
-const AUTOSAVE_KEY = 'heraklios.save.autosave';
-
 export type SlotId = number | 'autosave';
-
-function storageKey(slot: SlotId): string {
-  return slot === 'autosave' ? AUTOSAVE_KEY : `${SLOT_KEY_PREFIX}${slot}`;
-}
 
 /**
  * Captures the whole current game as a save file. `attackedThisPhase` and
@@ -76,50 +69,158 @@ export function applySavedGame(save: SavedGame): {
   };
 }
 
-/**
- * Reads a slot, returning null when empty — and also when the stored value is
- * corrupt or from an unsupported version, so one bad slot can never stop the
- * panel from listing the others.
- */
-export function readSlot(slot: SlotId): SavedGame | null {
-  let raw: string | null;
+// ---------------------------------------------------------------------------
+// Saves live as files behind the local save API (intents/45-save-api, spec
+// B3, B5, B6). There is no browser fallback: every call below goes to
+// `/api/saves` on the server that serves the game, and a failure is reported,
+// never swallowed. Reads return `{ ok: false }` when the server did not
+// answer (network error or an unexpected status), so a caller can tell
+// "empty slot" from "server down" — the panel words them differently.
+// ---------------------------------------------------------------------------
+
+/** A read that reached the server (`ok`) or did not. */
+export type FileRead<T> = { ok: true; value: T } | { ok: false };
+
+const savePath = (slot: SlotId): string => `/api/saves/${slot}`;
+
+/** `fetch`, with a network error turned into `null`. */
+async function call(path: string, init?: RequestInit): Promise<Response | null> {
   try {
-    raw = localStorage.getItem(storageKey(slot));
+    return await fetch(path, init);
+  } catch {
+    return null;
+  }
+}
+
+/** A slot's save. An empty slot (404) or an invalid file is `value: null`. */
+export async function readSave(slot: SlotId): Promise<FileRead<SavedGame | null>> {
+  const res = await call(savePath(slot));
+  if (!res) return { ok: false };
+  if (res.status === 404) return { ok: true, value: null };
+  if (!res.ok) return { ok: false };
+  try {
+    const parsed = parseSavedGame(await res.text());
+    return { ok: true, value: 'save' in parsed ? parsed.save : null };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/** Every slot that holds a valid save, in one request. */
+export async function readAllSaves(): Promise<FileRead<Map<SlotId, SavedGame>>> {
+  const res = await call('/api/saves');
+  if (!res || !res.ok) return { ok: false };
+  try {
+    const body = (await res.json()) as Record<string, unknown>;
+    const saves = new Map<SlotId, SavedGame>();
+    for (const slot of ALL_SLOTS) {
+      const value = body[`${slot}`];
+      if (isValidSavedGame(value)) saves.set(slot, value);
+    }
+    return { ok: true, value: saves };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/** Stores a save in a slot. False if the server did not store it. */
+export async function writeSave(slot: SlotId, save: SavedGame): Promise<boolean> {
+  const res = await call(savePath(slot), {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(save),
+  });
+  return res !== null && res.ok;
+}
+
+/** Empties a slot (also when it already was). False if the server did not. */
+export async function clearSave(slot: SlotId): Promise<boolean> {
+  const res = await call(savePath(slot), { method: 'DELETE' });
+  return res !== null && res.ok;
+}
+
+// ---------------------------------------------------------------------------
+// Import of saves an older build left in this browser (spec B8). Read-only on
+// `localStorage`: nothing here writes or deletes a browser key.
+// ---------------------------------------------------------------------------
+
+const SLOT_KEY_PREFIX = 'heraklios.save.slot';
+/** The autosave had its own key so it could never clobber a deliberate save. */
+const AUTOSAVE_KEY = 'heraklios.save.autosave';
+
+const ALL_SLOTS: SlotId[] = ['autosave', ...Array.from({ length: SLOT_COUNT }, (_, i) => i + 1)];
+
+/** The only part of `Storage` the import may touch. */
+export type BrowserStorage = Pick<Storage, 'getItem'>;
+
+function browserKey(slot: SlotId): string {
+  return slot === 'autosave' ? AUTOSAVE_KEY : `${SLOT_KEY_PREFIX}${slot}`;
+}
+
+function defaultStorage(): BrowserStorage | null {
+  try {
+    return globalThis.localStorage ?? null;
   } catch {
     return null; // storage unavailable (private mode, disabled cookies)
   }
-  if (!raw) return null;
-  const result = parseSavedGame(raw);
-  return 'save' in result ? result.save : null;
 }
 
-/** Writes a slot. Returns false if storage rejected it (quota/unavailable),
- * so the caller can tell the player rather than silently losing the save. */
-export function writeSlot(slot: SlotId, save: SavedGame): boolean {
-  try {
-    localStorage.setItem(storageKey(slot), JSON.stringify(save));
-    return true;
-  } catch {
-    return false;
+/** The raw text a browser slot holds, for each slot that holds anything. */
+function browserRaw(storage: BrowserStorage | null): Map<SlotId, string> {
+  const held = new Map<SlotId, string>();
+  for (const slot of ALL_SLOTS) {
+    try {
+      const raw = storage?.getItem(browserKey(slot));
+      if (raw) held.set(slot, raw);
+    } catch {
+      // unreadable: treated as empty
+    }
   }
+  return held;
 }
 
-export function clearSlot(slot: SlotId): void {
-  try {
-    localStorage.removeItem(storageKey(slot));
-  } catch {
-    // nothing to do — the slot is effectively unavailable either way
+/** The browser saves that are valid, by slot. */
+export function browserSaves(storage: BrowserStorage | null = defaultStorage()): Map<SlotId, SavedGame> {
+  const saves = new Map<SlotId, SavedGame>();
+  for (const [slot, raw] of browserRaw(storage)) {
+    const parsed = parseSavedGame(raw);
+    if ('save' in parsed) saves.set(slot, parsed.save);
   }
+  return saves;
 }
 
-/** True if any slot (including the autosave) holds a loadable game — used to
- * decide whether the Menu shows its "Load game" button at all. */
-export function hasAnySave(): boolean {
-  if (readSlot('autosave') !== null) return true;
-  for (let slot = 1; slot <= SLOT_COUNT; slot++) {
-    if (readSlot(slot) !== null) return true;
+/** Whether the panel should offer the copy: a valid browser save whose file slot is empty. */
+export function hasCopyableBrowserSaves(
+  files: ReadonlyMap<SlotId, SavedGame>,
+  storage: BrowserStorage | null = defaultStorage(),
+): boolean {
+  return [...browserSaves(storage).keys()].some((slot) => !files.has(slot));
+}
+
+/**
+ * Copies each valid browser save into the same file slot, only if that slot
+ * is empty — never overwriting. Counts what was copied and what was skipped
+ * (invalid, or the slot is taken). Null when the server did not answer at
+ * the start; `stopped` when it stopped answering partway, so the caller can
+ * say how many were copied before that.
+ */
+export async function copyBrowserSaves(
+  storage: BrowserStorage | null = defaultStorage(),
+): Promise<{ copied: number; skipped: number; stopped: boolean } | null> {
+  const files = await readAllSaves();
+  if (!files.ok) return null;
+  let copied = 0;
+  let skipped = 0;
+  for (const [slot, raw] of browserRaw(storage)) {
+    const parsed = parseSavedGame(raw);
+    if ('error' in parsed || files.value.has(slot)) {
+      skipped++;
+      continue;
+    }
+    if (!(await writeSave(slot, parsed.save))) return { copied, skipped, stopped: true };
+    copied++;
   }
-  return false;
+  return { copied, skipped, stopped: false };
 }
 
 /**

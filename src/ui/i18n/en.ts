@@ -311,7 +311,17 @@ export const en = {
     empty: '— empty —',
     summary: (turn: number, who: string, phase: string) => `Turn ${turn} — ${who} (${phase})`,
     summaryUnknown: 'unknown',
-    savingFailed: 'Saving failed — browser storage is full or unavailable.',
+    loading: 'Loading…',
+    unreachable: "The game server isn't answering.",
+    savingFailed: "The game server isn't answering — nothing was saved.",
+    loadingFailed: "The game server isn't answering — nothing was loaded.",
+    deletingFailed: "The game server isn't answering — nothing was deleted.",
+    autosaveFailed: "Autosave failed: the game server isn't answering.",
+    copyBrowserSaves: 'Copy browser saves to files',
+    copyStopped: (copied: number) =>
+      `Browser saves copied to files: ${copied}, then the game server stopped answering.`,
+    copiedBrowserSaves: (copied: number, skipped: number) =>
+      `Browser saves copied to files: ${copied}, skipped: ${skipped}.`,
     overwrote: (slot: number | string, summary: string) => `Overwrote slot ${slot} (${summary}).`,
     savedTo: (slot: number | string) => `Saved to slot ${slot}.`,
     slotEmpty: 'That slot is empty.',

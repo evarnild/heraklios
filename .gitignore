@@ -21,3 +21,6 @@ CLAUDE.local.md
 # Playwright output from `npm run e2e`.
 test-results/
 playwright-report/
+
+# Saved games written by the local save API (server/, intents/45-save-api).
+saves/
