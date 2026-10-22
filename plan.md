@@ -222,7 +222,7 @@ sync when something merges** — it went stale once and the user caught it.
 
 | Item | Type · status |
 | --- | --- |
-| [§46](intents/46-ship-skill/) /ship merges a reviewed intent, does the bookkeeping, pushes and removes its worktree and branch | feature · accepted (building) |
+| [§46](intents/46-ship-skill/) /ship merges a reviewed intent, does the bookkeeping, pushes and removes its worktree and branch | feature · in-review |
 
 ### Queued
 
