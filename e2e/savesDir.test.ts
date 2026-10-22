@@ -5,7 +5,7 @@ import { existsSync, mkdtempSync, rmSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createDirLock } from './savesDir';
+import { ACQUIRE_TIMEOUT_MS, STALE_MS, createDirLock } from './savesDir';
 
 const STALE = 5_000;
 let dir: string;
@@ -41,7 +41,7 @@ describe('createDirLock', () => {
     await expect(mk().acquire(200)).rejects.toThrow('Could not take');
   });
 
-  it.fails('T1: a throwing cleanup still releases, and the error propagates', async () => {
+  it('T1: a throwing cleanup still releases, and the error propagates', async () => {
     const a = mk();
     await a.acquire();
     await expect(a.withHeld(() => { throw new Error('EPERM'); })).rejects.toThrow('EPERM');
@@ -49,7 +49,7 @@ describe('createDirLock', () => {
     await mk().acquire(200);
   });
 
-  it.fails('T2: a worker that never got the lock runs no cleanup and leaves the holder lock', async () => {
+  it('T2: a worker that never got the lock runs no cleanup and leaves the holder lock', async () => {
     await mk().acquire();
     const b = mk();
     await expect(b.acquire(100)).rejects.toThrow('Could not take');
@@ -59,7 +59,7 @@ describe('createDirLock', () => {
     expect(existsSync(path)).toBe(true);
   });
 
-  it.fails('T6: a holder that lost its lock to a takeover does not remove the new holder lock', async () => {
+  it('T6: a holder that lost its lock to a takeover does not remove the new holder lock', async () => {
     const a = mk();
     await a.acquire();
     backdate(STALE + 1_000);
@@ -69,5 +69,11 @@ describe('createDirLock', () => {
     expect(existsSync(path)).toBe(true);
     b.release();
     expect(existsSync(path)).toBe(false);
+  });
+
+  it('T7: the timing rule between STALE_MS, the acquire timeout and the test timeout', () => {
+    const TEST_TIMEOUT_MS = 30_000; // playwright.config.ts `timeout`
+    expect(STALE_MS).toBeGreaterThan(TEST_TIMEOUT_MS);
+    expect(STALE_MS - ACQUIRE_TIMEOUT_MS).toBeLessThanOrEqual(ACQUIRE_TIMEOUT_MS);
   });
 });
