@@ -373,3 +373,65 @@ describe('live checks', () => {
     expect(r.errors.join()).toMatch(/live-check: "owed" or "not-needed"/);
   });
 });
+
+describe('e2e specs count as tests', () => {
+  const fixWith = (paths) => checkChange(base({ diff: paths.map((path) => ({ path, added: 5, deleted: 1 })) }));
+  const noTest = /no test changed/;
+
+  it('does not route a fix whose failing-first test is an e2e spec (the shape of section 40)', () => {
+    const r = fixWith([
+      'src/scenes/BoardScene.ts',
+      'src/scenes/PlacementScene.ts',
+      'src/ui/devHook.ts',
+      'README.md',
+      'e2e/naval.spec.ts',
+      'e2e/placement.spec.ts',
+    ]);
+    expect(r.routes.join()).not.toMatch(noTest);
+    expect(formatResult(r).verdict).toBe('PASS');
+  });
+
+  it('routes a refactor that removed lines from an e2e spec', () => {
+    const r = checkChange(
+      base({
+        branch: 'refactor/27-split',
+        metadata: meta({ type: 'refactor' }),
+        diff: [
+          { path: 'src/scenes/BoardScene.ts', added: 10, deleted: 20 },
+          { path: 'e2e/naval.spec.ts', added: 0, deleted: 3 },
+        ],
+      }),
+    );
+    expect(r.routes.join()).toMatch(/existing tests lost lines \(e2e\/naval\.spec\.ts\)/);
+  });
+
+  it('counts a nested spec', () => {
+    expect(fixWith(['src/ui/x.ts', 'e2e/sub/dir/x.spec.ts']).routes.join()).not.toMatch(noTest);
+  });
+
+  it('does not count e2e support code', () => {
+    expect(fixWith(['src/ui/x.ts', 'e2e/helpers.ts']).routes.join()).toMatch(noTest);
+    expect(fixWith(['src/ui/x.ts', 'e2e/global-setup.ts']).routes.join()).toMatch(noTest);
+  });
+
+  it('does not count a spec file outside e2e/', () => {
+    expect(fixWith(['src/ui/x.ts', 'docs/example.spec.ts']).routes.join()).toMatch(noTest);
+  });
+
+  it('still routes engine rule code accompanied only by an e2e change', () => {
+    for (const type of ['feature', 'fix']) {
+      const r = checkChange(
+        base({
+          branch: `${type === 'fix' ? 'fix' : 'feat'}/27-x`,
+          metadata: meta({ type, spec_accepted: '2026-10-07' }),
+          intentFiles: ['intent.md', 'spec.md', 'plan.md', 'metadata.yml'],
+          diff: [
+            { path: 'src/engine/combat.ts', added: 30, deleted: 2 },
+            { path: 'e2e/naval.spec.ts', added: 5, deleted: 0 },
+          ],
+        }),
+      );
+      expect(r.routes.join()).toMatch(/Rule code .* no test change/);
+    }
+  });
+});
