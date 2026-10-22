@@ -41,18 +41,27 @@ export function planSteps(s) {
 
 /**
  * Whether review.md states why a ROUTE is fine (REVIEW-POLICY.md says only
- * "ROUTE with the reason already stated in review.md"). Interpretation: the
- * text outside the `## Type check` section (which only pastes the tool's
- * output, route lines included) mentions "route", "routes" or "routed".
+ * "ROUTE with the reason already stated in review.md"). Interpretation: in
+ * the current round only (everything before a `# Round N (history)` heading;
+ * earlier rounds never count), outside the `## Type check` section (which
+ * only pastes the tool's output), a line has both the word ROUTE in capitals
+ * and the word "reason" (the forms of §38 and §40: "ROUTE, reason stated",
+ * "ROUTE, reason above", "... Reason:"), without saying there is none ("no
+ * reason found", "not stated"). A pasted "check:intent -> ROUTE (exit 2)", a
+ * Passes row "| 2 | Type check | ROUTE |" or a lowercase "route" in prose say
+ * nothing about why, so the run stops and the owner decides.
  */
 export function routeReasonStated(reviewText) {
-  const outside = [];
+  const negated =
+    /\b(?:no|not|without|missing)\s+(?:\w+\s+)?reason\b|\breason\s+(?:not|unknown|missing)\b|\bnot\s+(?:stated|given|explained)\b/i;
   let inTypeCheck = false;
   for (const line of reviewText.split(/\r?\n/)) {
+    if (/^# Round\b/.test(line)) break;
     if (/^## /.test(line)) inTypeCheck = /^## Type check\b/.test(line);
-    if (!inTypeCheck) outside.push(line);
+    if (inTypeCheck) continue;
+    if (/\bROUTE\b/.test(line) && /\breason\b/i.test(line) && !negated.test(line)) return true;
   }
-  return /\broute[sd]?\b/i.test(outside.join('\n'));
+  return false;
 }
 
 /**
@@ -193,7 +202,8 @@ export function moveRowToShipped(planText, id, row) {
 
 /** Whether metadata (parsed) and plan.md already carry the bookkeeping. */
 export function isBookkept(metadata, planText, id) {
-  return metadata.status === 'done' && !!metadata.merged && isShipped(planText, id);
+  const merged = typeof metadata.merged === 'string' && metadata.merged !== ''; // an empty `merged:` parses as []
+  return metadata.status === 'done' && merged && isShipped(planText, id);
 }
 
 /** Commit message: subject, then the caller's attribution lines after a blank line (spec B9). */

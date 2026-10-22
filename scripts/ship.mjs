@@ -50,8 +50,10 @@ function parseShipArgs(argv) {
   const out = { id: null, liveChecked: null, dryRun: false, cleanup: false, trailers: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === '--live-checked') out.liveChecked = argv[++i] ?? '';
-    else if (a === '--trailer') out.trailers.push(argv[++i] ?? '');
+    if (a === '--live-checked') {
+      out.liveChecked = (argv[++i] ?? '').trim();
+      if (!out.liveChecked) throw new Error('--live-checked needs the owner words (quoted), not an empty string');
+    } else if (a === '--trailer') out.trailers.push(argv[++i] ?? '');
     else if (a === '--dry-run') out.dryRun = true;
     else if (a === '--cleanup') out.cleanup = true;
     else if (/^\d+$/.test(a) && out.id === null) out.id = a;
@@ -113,7 +115,7 @@ function locate(root, id) {
   const file = dir && join(root, dir, 'metadata.yml');
   if (!file || !existsSync(file)) throw new Stop('start', `no branch and no intents/${id}-*/ on main: nothing to ship for §${id}.`);
   const metadata = parseMetadata(readFileSync(file, 'utf8'));
-  if (!metadata.merged) throw new Stop('start', `the branch for §${id} does not exist and main has no merged: record for it.`);
+  if (typeof metadata.merged !== 'string' || !metadata.merged) throw new Stop('start', `the branch for §${id} does not exist and main has no merged: record for it.`);
   return { dir, metadata, branch: branchFor({ type: metadata.type, id, slug: metadata.slug }), branchExists: false };
 }
 
@@ -132,7 +134,7 @@ ${dirty}`);
 }
 
 /** Step B4: where it runs and what must be clean. */
-function checkStart(root, id, loc) {
+function checkStart(root, loc, dryRun) {
   if (pathKey(git(process.cwd(), 'rev-parse', '--show-toplevel')) !== pathKey(root)) {
     throw new Stop('start', `run from the main checkout (${root}), not from a worktree.`);
   }
@@ -141,6 +143,11 @@ function checkStart(root, id, loc) {
   checkMetadataClean(root, loc);
   checkPlanClean(root);
   if (!gitOk(root, 'remote', 'get-url', 'origin')) throw new Stop('start', 'main has no remote named origin to push to.');
+  // --dry-run does not fetch (it changes nothing, remote-tracking refs included): origin/main is as last fetched.
+  if (!dryRun) gitOk(root, 'fetch', '-q', 'origin');
+  if (gitOk(root, 'rev-parse', '--verify', '-q', 'origin/main') && !gitOk(root, 'merge-base', '--is-ancestor', 'origin/main', 'main')) {
+    throw new Stop('start', 'origin/main has commits that main lacks, so the push would be rejected. Bring main up to date with origin first, then re-run.');
+  }
 }
 
 function readState(root, id, loc, opts) {
@@ -151,7 +158,6 @@ function readState(root, id, loc, opts) {
     const meta = parseMetadata(readFileSync(join(root, loc.dir, 'metadata.yml'), 'utf8'));
     bookkept = isBookkept(meta, readFileSync(join(root, 'plan.md'), 'utf8'), id);
   }
-  gitOk(root, 'fetch', '-q', 'origin');
   const originMain = (() => {
     try {
       return git(root, 'rev-parse', '--verify', '-q', 'origin/main');
@@ -252,31 +258,50 @@ function findMergeCommit(root, branch) {
 /**
  * The plan.md half of the bookkeeping: the intent's row moves to Shipped. Kept
  * apart from the metadata.yml half (and called from one place) so that it can
- * be dropped when the queue becomes a generated view (§47). Returns the files it wrote.
+ * be dropped when the queue becomes a generated view (§47). Pure: returns the
+ * file's old and new text; bookkeeping() writes them.
  */
 function bookkeepPlan(root, loc, hash) {
   const id = loc.metadata.id;
   const review = readReview(root, loc.branch, loc.dir).header ?? {};
   const meta = loc.metadata;
   const row = shippedRow({ id, slug: meta.slug, title: meta.title, type: meta.type, tier: review.tier, rounds: review.round ?? '1', hash });
-  const planFile = join(root, 'plan.md');
-  writeFileSync(planFile, moveRowToShipped(readFileSync(planFile, 'utf8'), id, row));
-  return ['plan.md'];
+  const file = join(root, 'plan.md');
+  const before = readFileSync(file, 'utf8');
+  return { rel: 'plan.md', file, before, after: moveRowToShipped(before, id, row) };
 }
 
-/** The metadata.yml half: `merged:` and `status: done`. */
+/** The metadata.yml half: `merged:` and `status: done` (old and new text, like bookkeepPlan). */
 function bookkeepMetadata(root, loc, hash) {
-  const metaFile = join(root, loc.dir, 'metadata.yml');
-  writeFileSync(metaFile, markMerged(readFileSync(metaFile, 'utf8'), hash, today()));
-  return [`${loc.dir}/metadata.yml`];
+  const file = join(root, loc.dir, 'metadata.yml');
+  const before = readFileSync(file, 'utf8');
+  return { rel: `${loc.dir}/metadata.yml`, file, before, after: markMerged(before, hash, today()) };
 }
 
+/**
+ * All or nothing: both new texts are computed before anything is written, and
+ * a failed write or commit puts both files back and unstages them, so the
+ * leftover is never mistaken for another session's work by the next run.
+ */
 function bookkeeping(root, loc, trailers) {
   const id = loc.metadata.id;
   const hash = findMergeCommit(root, loc.branch).slice(0, 7);
-  const files = [...bookkeepMetadata(root, loc, hash), ...bookkeepPlan(root, loc, hash)];
-  const commit = commitPaths(root, files, commitMessage(`§${id}: merged (${hash}); status done, plan.md row to Shipped`, trailers));
-  return `merged: ${hash}, status done, plan.md row moved to Shipped (${commit})`;
+  let edits;
+  try {
+    edits = [bookkeepMetadata(root, loc, hash), bookkeepPlan(root, loc, hash)];
+  } catch (e) {
+    throw new Stop('bookkeeping', `could not prepare the bookkeeping (nothing was written): ${errText(e)}`);
+  }
+  try {
+    for (const x of edits) writeFileSync(x.file, x.after);
+    const message = commitMessage(`§${id}: merged (${hash}); status done, plan.md row to Shipped`, trailers);
+    const commit = commitPaths(root, edits.map((x) => x.rel), message);
+    return `merged: ${hash}, status done, plan.md row moved to Shipped (${commit})`;
+  } catch (e) {
+    for (const x of edits) writeFileSync(x.file, x.before);
+    gitOk(root, 'restore', '--staged', '--', ...edits.map((x) => x.rel));
+    throw new Stop('bookkeeping', `the bookkeeping commit failed; both files were restored and unstaged (the merge stays): ${errText(e)}`);
+  }
 }
 
 function push(root) {
@@ -321,6 +346,7 @@ const log = [];
 const say = (status, id, text) => log.push(`  ${status.padEnd(8)} ${id.padEnd(13)} ${text}`);
 
 function dryRun(root, loc, steps) {
+  say('note', 'fetch', 'a dry run does not fetch: origin/main is as last fetched');
   for (const s of steps) say(s.status === 'done' || s.status === 'n/a' ? s.status : 'would', s.id, s.label);
   if (loc.state.merged) return;
   // check:intent would fail only because the live check is not recorded yet; the run records it first.
@@ -331,18 +357,28 @@ function dryRun(root, loc, steps) {
   else say('WOULD STOP', 'preconditions', `${result.failed}: ${result.message}`);
 }
 
-/** Steps 1 to 3: live check, preconditions, merge. Returns nothing; throws Stop. */
+/** A hint for a refusal: main may already carry a merge of an older tip of this branch (a red verify, then more commits). */
+function priorMergeHint(root, id) {
+  try {
+    const found = git(root, 'log', 'main', '--merges', '--format=%h', `--grep=^Merge §${id}:`).split(/\r?\n/).filter(Boolean);
+    return found.length ? `\nNote: main already carries ${found[0]} "Merge §${id}: …", a merge of an earlier tip of this branch. Decide with the owner what to do with it; the script changes nothing.` : '';
+  } catch {
+    return '';
+  }
+}
+
+/** Steps 1 to 3: live check, preconditions, merge. Throws Stop. */
 function beforeMerge(root, loc, opts, wt) {
   if (loc.state.merged) return say('skipped', 'merge', 'already merged into main');
+  const id = loc.metadata.id;
   // Review-only preconditions first, so a refusal happens before anything is written.
   const first = evaluatePreconditions(root, loc, false).result;
-  if (!first.ok) throw new Stop('preconditions', `${first.failed}: ${first.message}`);
+  if (!first.ok) throw new Stop('preconditions', `${first.failed}: ${first.message}${priorMergeHint(root, id)}`);
   if (opts.liveChecked !== null && !loc.state.liveCheckRecorded) {
     say('done', 'live-check', recordLiveCheck(root, loc, wt, opts, opts.trailers));
   }
   const { result, checkIntent } = evaluatePreconditions(root, loc, true);
-  if (!result.ok) throw new Stop('preconditions', `${result.failed}: ${result.message}
-${checkIntent?.output ?? ''}`);
+  if (!result.ok) throw new Stop('preconditions', `${result.failed}: ${result.message}\n${checkIntent?.output ?? ''}${priorMergeHint(root, id)}`);
   say('done', 'preconditions', `hold (check:intent ${checkIntent.verdict})`);
   say('done', 'merge', `merged ${loc.branch} into main (${mergeBranch(root, loc, opts.trailers).slice(0, 7)})`);
 }
@@ -388,7 +424,7 @@ function main() {
   let left = null;
   try {
     const loc = locate(root, opts.id);
-    checkStart(root, opts.id, loc);
+    checkStart(root, loc, opts.dryRun);
     const { wt, state } = readState(root, opts.id, loc, opts);
     loc.state = state;
     if (opts.dryRun) {

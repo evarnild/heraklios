@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   checkPreconditions,
+  isShipped,
   commitMessage,
   isBookkept,
   markLiveChecked,
@@ -70,15 +71,28 @@ describe('checkPreconditions', () => {
 
 describe('routeReasonStated', () => {
   const review = (body) => `verdict: attest\n\n${body}\n`;
-  it('ignores the route lines pasted into the Type check section', () => {
-    expect(routeReasonStated(review('## Type check\nROUTE\n  route: Declared fix, but no test changed.\n\n## Findings\n- none'))).toBe(false);
+  it('ignores the route lines pasted into the Type check section, even with the word reason', () => {
+    expect(routeReasonStated(review('## Type check\nROUTE, reason stated\n  route: Declared fix, but no test changed.\n\n## Findings\n- none'))).toBe(false);
   });
-  it('finds a reason written elsewhere', () => {
-    expect(routeReasonStated(review('## Type check\nROUTE\n\n## Findings\n- The ROUTE is expected: the fix is a config change.'))).toBe(true);
-    expect(routeReasonStated(review('## Not checked\n- routed on purpose'))).toBe(true);
+  it('accepts the forms of reviews 38 and 40', () => {
+    expect(routeReasonStated(review('## Passes\n| 2 | Type check | ROUTE, reason above |'))).toBe(true);
+    expect(routeReasonStated(review('## Passes\n| 2 | Type check | ROUTE, reason stated below |'))).toBe(true);
+    expect(routeReasonStated(review('`check:intent` says ROUTE: "Declared fix, but no test changed." Reason:\nthe fix is an e2e scenario.'))).toBe(true);
   });
-  it('is false when route is never mentioned', () => {
+  it('refuses a ROUTE with no stated reason', () => {
+    expect(routeReasonStated(review('## Findings\n- check:intent ROUTE: no reason found, left to the owner'))).toBe(false);
+    expect(routeReasonStated(review('## Findings\n- ROUTE, reason not stated'))).toBe(false);
+    expect(routeReasonStated(review('## Verified\n- npm run check:intent -> ROUTE (exit 2)'))).toBe(false);
+    expect(routeReasonStated(review('## Passes\n| 2 | Type check | ROUTE |'))).toBe(false);
+    expect(routeReasonStated(review('| 1 | Intent | pass (the Board has no route back; reason: reload) |'))).toBe(false);
     expect(routeReasonStated(review('## Findings\n- none'))).toBe(false);
+  });
+  it('reads the current round only', () => {
+    const text = '# Round 2\nverdict: attest\n\n## Type check\nPASS\n\n## Findings\n- none\n\n# Round 1 (history)\n- ROUTE, reason stated\n';
+    expect(routeReasonStated(text)).toBe(false);
+    // and a history block after the Type check section must not hide... or supply... a reason
+    expect(routeReasonStated('verdict: x\n\n## Type check\nROUTE\n\n# Round 1 (history)\n- ROUTE, reason stated\n')).toBe(false);
+    expect(routeReasonStated('verdict: x\n\n## Findings\n- ROUTE, reason stated\n\n# Round 1 (history)\n')).toBe(true);
   });
 });
 
@@ -176,6 +190,12 @@ describe('moveRowToShipped', () => {
     expect(moveRowToShipped(text, 9, ROW)).toContain('[§90](c/) three');
   });
 
+  it('does not read a table under another heading as the Shipped table (L12)', () => {
+    const text = ['### Shipped', '', 'Nothing yet.', '', '### Queued', '', '| Item | x |', '| [§9](intents/9-thing/) thing |'].join('\n');
+    expect(isShipped(text, 9)).toBe(false);
+    expect(() => moveRowToShipped(text, 9, ROW)).toThrow(/Shipped/);
+  });
+
   it('is a no-op when the row is already in Shipped, and refuses a plan without a Shipped table', () => {
     const done = moveRowToShipped(PLAN.join('\n'), 9, ROW);
     expect(moveRowToShipped(done, 9, ROW)).toBe(done);
@@ -196,6 +216,9 @@ describe('shippedRow / isBookkept', () => {
     expect(isBookkept({ status: 'done', merged: 'abc' }, shipped, 9)).toBe(true);
     expect(isBookkept({ status: 'done', merged: 'abc' }, PLAN.join('\n'), 9)).toBe(false);
     expect(isBookkept({ status: 'in-review', merged: '' }, shipped, 9)).toBe(false);
+    expect(isBookkept({ status: 'in-review', merged: 'abc' }, shipped, 9)).toBe(false);
+    expect(isBookkept({ status: 'done', merged: '' }, shipped, 9)).toBe(false);
+    expect(isBookkept({ status: 'done', merged: [] }, shipped, 9)).toBe(false);
   });
 });
 

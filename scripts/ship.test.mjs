@@ -28,9 +28,9 @@ let repo;
 let origin;
 const wt = (name) => join(sandbox, 'heraklios-wt', name);
 const git = (cwd, ...args) => execFileSync('git', args, { cwd, env: GIT_ENV, encoding: 'utf8' }).trim();
-const ship = (args, verify = VERIFY_OK) =>
+const ship = (args, verify = VERIFY_OK, opts = {}) =>
   spawnSync(process.execPath, [SHIP, ...args], {
-    cwd: repo,
+    cwd: opts.cwd ?? repo,
     env: { ...GIT_ENV, HERAKLIOS_SHIP_VERIFY: verify },
     encoding: 'utf8',
   });
@@ -69,7 +69,7 @@ const planText = (ids) =>
     '',
   ]);
 
-const metadataText = (id, eol) =>
+const metadataText = (id, eol, live = '') =>
   [
     '# generated-by: test',
     `id: ${id}`,
@@ -80,7 +80,7 @@ const metadataText = (id, eol) =>
     'intent_accepted: 2026-10-01',
     'spec_accepted: 2026-10-01',
     'plan_approved: 2026-10-01',
-    'live_checked:',
+    `live_checked:${live ? ` ${live}` : ''}`,
     'merged:',
     '',
   ].join(eol);
@@ -91,29 +91,33 @@ const metadataText = (id, eol) =>
  * extra file in the work commit and the review text.
  */
 function makeIntent(id, extra = {}) {
-  const { verdict = 'escalate', liveCheck = 'not-needed', file = `docs/t${id}.md`, body = '', eol = '\n' } = extra;
+  const { verdict = 'escalate', liveCheck = 'not-needed', file = `docs/t${id}.md`, body = '', eol = '\n', live = '', afterReview, reviewedCommit } = extra;
   const branch = `feat/${id}-t${id}`;
   const path = wt(`${id}-t${id}`);
   git(repo, 'worktree', 'add', '-q', '-b', branch, path, 'main');
   const dir = join(path, 'intents', `${id}-t${id}`);
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, 'metadata.yml'), metadataText(id, eol));
+  writeFileSync(join(dir, 'metadata.yml'), metadataText(id, eol, live));
   for (const f of ['intent.md', 'spec.md', 'plan.md']) writeFileSync(join(dir, f), `# §${id} ${f}\n`);
   mkdirSync(dirname(join(path, file)), { recursive: true });
   writeFileSync(join(path, file), `work ${id}\n`);
   git(path, 'add', '.');
   git(path, 'commit', '-q', '-m', `§${id}: work`);
-  const reviewed = git(path, 'rev-parse', '--short', 'HEAD');
+  let reviewed = git(path, 'rev-parse', '--short', 'HEAD');
+  // a commit that is not in the branch's history: the branch was rebased or amended after the review
+  if (reviewedCommit === 'sibling') reviewed = git(path, 'commit-tree', 'HEAD^{tree}', '-p', 'main', '-m', 'old review base').slice(0, 7);
+  else if (reviewedCommit) reviewed = reviewedCommit;
   writeFileSync(
     join(dir, 'review.md'),
     `# §${id} review\n\nverdict: ${verdict}\ntier: reviewed\nreviewed-commit: ${reviewed}\nround: 2\nsampled: no\nlive-check: ${liveCheck}\n\n## Type check\nPASS\n\n## Findings\n- none\n${body}`,
   );
   git(path, 'add', '.');
   git(path, 'commit', '-q', '-m', `§${id}: review`);
+  if (afterReview) afterReview(path);
   return { branch, path, dir: `intents/${id}-t${id}` };
 }
 
-const IDS = [11, 12, 13, 14, 15, 16, 17, 18, 19];
+const IDS = Array.from({ length: 36 }, (_, i) => 11 + i);
 
 beforeAll(() => {
   sandbox = mkdtempSync(join(tmpdir(), 'h46-ship-'));
@@ -242,6 +246,9 @@ describe('npm run ship', { timeout: 90_000 }, () => {
     expect(git(repo, 'log', '--merges', '--format=%s', 'main').split('\n').filter((s) => s === 'Merge §14: Thing 14')).toHaveLength(1);
     expect(git(origin, 'rev-parse', 'main')).toBe(git(repo, 'rev-parse', 'main'));
     expect(read('intents', '14-t14', 'metadata.yml')).toContain('status: done');
+    // the hash is the merge commit of the branch tip (second parent), found again after a restart
+    const mergeOf14 = git(repo, 'log', '-1', '--merges', '--format=%h', '--grep=^Merge §14:', 'main');
+    expect(read('intents', '14-t14', 'metadata.yml')).toContain(`merged: ${mergeOf14}    # `);
     expect(existsSync(w.path)).toBe(false);
     expect(branchExists(w.branch)).toBe(false);
 
@@ -249,6 +256,8 @@ describe('npm run ship', { timeout: 90_000 }, () => {
     const head = git(repo, 'rev-parse', 'main');
     const again = ship(['14']);
     expect(again.status, out(again)).toBe(0);
+    expect(again.stdout).toMatch(/skipped\s+bookkeeping/);
+    expect(again.stdout).toMatch(/skipped\s+push/);
     expect(git(repo, 'rev-parse', 'main')).toBe(head);
   });
 
@@ -279,6 +288,10 @@ describe('npm run ship', { timeout: 90_000 }, () => {
     expect(branchExists(w.branch)).toBe(true);
     expect(existsSync(w.path)).toBe(true);
 
+    const still = ship(['16', '--cleanup']);
+    expect(still.stdout).toMatch(/LEFT\s+remove/);
+    expect(branchExists(w.branch)).toBe(true);
+
     rmSync(join(w.path, 'open-in-an-editor.txt'));
     const c = ship(['16', '--cleanup']);
     expect(c.status, out(c)).toBe(0);
@@ -296,10 +309,326 @@ describe('npm run ship', { timeout: 90_000 }, () => {
     expect(git(repo, 'rev-parse', 'main')).toBe(before);
     expect(branchExists(bad.branch)).toBe(true);
 
-    const ok = makeIntent(19, { file: 'src/engine/x19.ts', body: '\n## Not checked\n- The ROUTE is expected: a one-line constant, no rule changes.\n' });
+    const ok = makeIntent(19, { file: 'src/engine/x19.ts', body: '\n## Not checked\n- ROUTE, reason stated: a one-line constant, no rule changes.\n' });
     const r2 = ship(['19']);
     expect(r2.status, out(r2)).toBe(0);
     expect(r2.stdout).toMatch(/hold \(check:intent ROUTE\)/);
     expect(branchExists(ok.branch)).toBe(false);
+  });
+});
+
+/** Another clone pushes a commit to origin, so origin/main is ahead of the repo's main. */
+function pushFromElsewhere(name) {
+  const clone = join(sandbox, name);
+  git(sandbox, 'clone', '-q', origin, clone);
+  writeFileSync(join(clone, `${name}.txt`), 'someone else\n');
+  git(clone, 'add', '.');
+  git(clone, 'commit', '-q', '-m', `elsewhere ${name}`);
+  git(clone, 'push', '-q', 'origin', 'main');
+}
+
+const snapshot = (w) => ({
+  main: git(repo, 'rev-parse', 'main'),
+  origin: git(origin, 'rev-parse', 'main'),
+  branch: w ? git(repo, 'rev-parse', w.branch) : null,
+});
+
+describe('npm run ship: preconditions, wiring and refusals', { timeout: 90_000 }, () => {
+  it('refuses a commit added after the reviewed commit, naming the file, and changes nothing', () => {
+    const w = makeIntent(28, {
+      afterReview: (p) => {
+        writeFileSync(join(p, 'docs', 'sneaky.md'), 'not reviewed\n');
+        git(p, 'add', '.');
+        git(p, 'commit', '-q', '-m', 'sneaky');
+      },
+    });
+    const before = snapshot(w);
+    const r = ship(['28']);
+    expect(r.status, out(r)).toBe(1);
+    expect(r.stdout).toMatch(/STOPPED\s+preconditions\s+unreviewed-changes/);
+    expect(r.stdout).toContain('docs/sneaky.md');
+    expect(snapshot(w)).toEqual(before);
+    expect(existsSync(w.path)).toBe(true);
+  });
+
+  it('refuses a branch whose reviewed-commit is no longer in its history, or does not exist', () => {
+    const rebased = makeIntent(29, { reviewedCommit: 'sibling' });
+    const before = snapshot(rebased);
+    const r = ship(['29']);
+    expect(r.status, out(r)).toBe(1);
+    expect(r.stdout).toMatch(/STOPPED\s+preconditions\s+reviewed-commit/);
+    expect(r.stdout).toMatch(/not an ancestor/);
+    expect(snapshot(rebased)).toEqual(before);
+
+    const bogus = makeIntent(30, { reviewedCommit: 'deadbee' });
+    const r2 = ship(['30']);
+    expect(r2.stdout).toMatch(/STOPPED\s+preconditions\s+reviewed-commit/);
+    expect(existsSync(bogus.path)).toBe(true);
+  });
+
+  it('stops when the intent folder on main has uncommitted changes', () => {
+    const w = makeIntent(31);
+    mkdirSync(join(repo, 'intents', '31-t31'), { recursive: true });
+    writeFileSync(join(repo, 'intents', '31-t31', 'note.md'), 'a draft from another session\n');
+    try {
+      const before = snapshot(w);
+      const r = ship(['31']);
+      expect(r.status, out(r)).toBe(1);
+      expect(r.stdout).toMatch(/STOPPED\s+start\s+intents\/31-t31/);
+      expect(snapshot(w)).toEqual(before);
+    } finally {
+      rmSync(join(repo, 'intents', '31-t31'), { recursive: true, force: true });
+    }
+  });
+
+  it("stops at the merge on another session's staged file, and keeps their unstaged and untracked files out of every commit", () => {
+    const w = makeIntent(32);
+    const readme = read('README.md');
+    writeFileSync(join(repo, 'staged.txt'), 'staged by someone else\n');
+    git(repo, 'add', 'staged.txt');
+    try {
+      // git itself refuses to merge over a staged change: the run stops there and touches nothing
+      const before = snapshot(w);
+      const stopped = ship(['32']);
+      expect(stopped.status, out(stopped)).toBe(1);
+      expect(stopped.stdout).toMatch(/STOPPED\s+merge/);
+      expect(snapshot(w)).toEqual(before);
+      expect(git(repo, 'status', '--porcelain')).toBe('A  staged.txt');
+    } finally {
+      git(repo, 'restore', '--staged', 'staged.txt');
+    }
+    // unstaged and untracked files can stay; they must not be swept into the commits
+    writeFileSync(join(repo, 'README.md'), `${readme}edited by someone else\n`);
+    try {
+      const r = ship(['32']);
+      expect(r.status, out(r)).toBe(0);
+      expect(git(repo, 'status', '--porcelain').split(/\r?\n/).sort()).toEqual(['?? staged.txt', 'M README.md']);
+      expect(git(repo, 'diff', '--name-only', 'HEAD~1', 'HEAD').split(/\r?\n/).sort()).toEqual(['intents/32-t32/metadata.yml', 'plan.md']);
+      const merge = git(repo, 'log', '-1', '--merges', '--format=%H', 'main');
+      const merged = git(repo, 'diff', '--name-only', `${merge}^1`, merge).split(/\r?\n/);
+      expect(merged).not.toContain('staged.txt');
+      expect(merged).not.toContain('README.md');
+    } finally {
+      rmSync(join(repo, 'staged.txt'), { force: true });
+      writeFileSync(join(repo, 'README.md'), readme);
+    }
+  });
+
+  it('stops before recording the live check when the worktree metadata.yml has uncommitted changes', () => {
+    const w = makeIntent(33, { liveCheck: 'owed' });
+    const meta = join(w.path, w.dir, 'metadata.yml');
+    writeFileSync(meta, `${readFileSync(meta, 'utf8')}# a half-written edit\n`);
+    const before = snapshot(w);
+    const r = ship(['33', '--live-checked', 'ok']);
+    expect(r.status, out(r)).toBe(1);
+    expect(r.stdout).toMatch(/STOPPED\s+live-check\s+.*uncommitted/);
+    expect(snapshot(w)).toEqual(before);
+    expect(readFileSync(meta, 'utf8')).toContain('# a half-written edit');
+  });
+
+  it('stops when the main checkout is on another branch', () => {
+    const w = makeIntent(34);
+    git(repo, 'switch', '-q', '-c', 'other');
+    try {
+      const before = snapshot(w);
+      const r = ship(['34']);
+      expect(r.status, out(r)).toBe(1);
+      expect(r.stdout).toMatch(/STOPPED\s+start\s+the main checkout is on "other"/);
+      expect(snapshot(w)).toEqual(before);
+    } finally {
+      git(repo, 'switch', '-q', 'main');
+    }
+  });
+
+  it('refuses to run from inside a worktree, even for that worktree', () => {
+    const w = makeIntent(35);
+    const before = snapshot(w);
+    const r = ship(['35'], VERIFY_OK, { cwd: w.path });
+    expect(r.status, out(r)).toBe(1);
+    expect(r.stdout).toMatch(/STOPPED\s+start\s+run from the main checkout/);
+    expect(snapshot(w)).toEqual(before);
+  });
+
+  it('stops when there is no origin to push to', () => {
+    const w = makeIntent(36);
+    git(repo, 'remote', 'rename', 'origin', 'upstream');
+    try {
+      const before = git(repo, 'rev-parse', 'main');
+      const r = ship(['36']);
+      expect(r.status, out(r)).toBe(1);
+      expect(r.stdout).toMatch(/STOPPED\s+start\s+main has no remote named origin/);
+      expect(git(repo, 'rev-parse', 'main')).toBe(before);
+      expect(branchExists(w.branch)).toBe(true);
+    } finally {
+      git(repo, 'remote', 'rename', 'upstream', 'origin');
+    }
+  });
+
+  it('stops when origin/main has commits main lacks, before merging anything', () => {
+    const w = makeIntent(37);
+    pushFromElsewhere('elsewhere37');
+    const before = git(repo, 'rev-parse', 'main');
+    const r = ship(['37']);
+    expect(r.status, out(r)).toBe(1);
+    expect(r.stdout).toMatch(/STOPPED\s+start\s+origin\/main has commits that main lacks/);
+    expect(git(repo, 'rev-parse', 'main')).toBe(before);
+    expect(branchExists(w.branch)).toBe(true);
+    git(repo, 'merge', '-q', '--ff-only', 'origin/main'); // catch main up for the tests after this one
+  });
+
+  it('refuses empty --live-checked words', () => {
+    for (const words of ['', '   ']) {
+      const r = ship(['11', '--live-checked', words]);
+      expect(r.status).toBe(1);
+      expect(r.stderr).toMatch(/--live-checked needs the owner/);
+    }
+  });
+
+  it('does not fetch on --dry-run, and says so', () => {
+    makeIntent(45);
+    pushFromElsewhere('elsewhere45');
+    const remoteTracking = git(repo, 'rev-parse', 'origin/main');
+    const r = ship(['45', '--dry-run']);
+    expect(r.status, out(r)).toBe(0);
+    expect(r.stdout).toMatch(/does not fetch/);
+    expect(git(repo, 'rev-parse', 'origin/main')).toBe(remoteTracking);
+    git(repo, 'fetch', '-q', 'origin');
+    git(repo, 'merge', '-q', '--ff-only', 'origin/main');
+  });
+
+  it('names an existing merge of the branch when its tip moved after a red verify', () => {
+    const w = makeIntent(46);
+    expect(ship(['46'], VERIFY_RED).status).toBe(1);
+    writeFileSync(join(w.path, 'docs', 'more46.md'), 'later\n');
+    git(w.path, 'add', '.');
+    git(w.path, 'commit', '-q', '-m', 'more work after the merge');
+    const r = ship(['46']);
+    expect(r.status, out(r)).toBe(1);
+    expect(r.stdout).toMatch(/STOPPED\s+preconditions/);
+    expect(r.stdout).toMatch(/main already carries [0-9a-f]+ "Merge §46/);
+  });
+
+  it('does not re-record a live check that is already on the branch', () => {
+    makeIntent(39, { liveCheck: 'owed', live: '2026-10-01 by-agent    # owner: "earlier"' });
+    const r = ship(['39', '--live-checked', 'new words']);
+    expect(r.status, out(r)).toBe(0);
+    expect(r.stdout).not.toMatch(/done\s+live-check/);
+    expect(git(repo, 'log', 'main', '--format=%s', '--grep=§39: live check')).toBe('');
+    const meta = read('intents', '39-t39', 'metadata.yml');
+    expect(meta).toContain('"earlier"');
+    expect(meta).not.toContain('new words');
+  });
+
+  it('stops on an intent with no branch and no merge record, and on an unknown id', () => {
+    const dir = join(repo, 'intents', '44-t44');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'metadata.yml'), metadataText(44, '\n'));
+    git(repo, 'add', 'intents/44-t44');
+    git(repo, 'commit', '-q', '-m', 'an intent on main with no branch');
+    git(repo, 'push', '-q', 'origin', 'main');
+    const r = ship(['44']);
+    expect(r.status, out(r)).toBe(1);
+    expect(r.stdout).toMatch(/STOPPED\s+start\s+the branch for §44 does not exist and main has no merged/);
+    const r2 = ship(['99']);
+    expect(r2.status).toBe(1);
+    expect(r2.stdout).toMatch(/nothing to ship for §99/);
+  });
+});
+
+describe('npm run ship: failures after the merge', { timeout: 90_000 }, () => {
+  const hook = () => join(repo, '.git', 'hooks', 'pre-commit');
+  const marker = () => join(repo, '.git', 'reject-commit');
+
+  it('leaves the bookkeeping untouched when plan.md has no Shipped table, and resumes once it has', () => {
+    const w = makeIntent(40);
+    const plan = read('plan.md');
+    writeFileSync(join(repo, 'plan.md'), plan.replace('### Shipped', '### Done'));
+    git(repo, 'commit', '-q', '-am', 'rename the Shipped heading');
+    const r = ship(['40']);
+    expect(r.status, out(r)).toBe(1);
+    expect(r.stdout).toMatch(/STOPPED\s+bookkeeping/);
+    expect(git(repo, 'status', '--porcelain')).toBe('');
+    expect(git(repo, 'log', '-1', '--merges', '--format=%s', 'main')).toBe('Merge §40: Thing 40');
+    expect(read('intents', '40-t40', 'metadata.yml')).toContain('status: in-review');
+
+    writeFileSync(join(repo, 'plan.md'), plan);
+    git(repo, 'commit', '-q', '-am', 'restore the Shipped heading');
+    const again = ship(['40']);
+    expect(again.status, out(again)).toBe(0);
+    expect(read('intents', '40-t40', 'metadata.yml')).toContain('status: done');
+    expect(branchExists(w.branch)).toBe(false);
+  });
+
+  it('puts both files back and unstages them when the bookkeeping commit is rejected, then resumes', () => {
+    makeIntent(41);
+    writeFileSync(
+      hook(),
+      '#!/bin/sh\n[ -e "$(git rev-parse --git-dir)/reject-commit" ] && { echo "rejected by the test hook" >&2; exit 1; }\nexit 0\n',
+      { mode: 0o755 },
+    );
+    writeFileSync(marker(), '');
+    try {
+      const r = ship(['41']);
+      expect(r.status, out(r)).toBe(1);
+      expect(r.stdout).toMatch(/STOPPED\s+bookkeeping/);
+      expect(r.stdout).toMatch(/rejected by the test hook/);
+      expect(git(repo, 'status', '--porcelain')).toBe('');
+      expect(read('intents', '41-t41', 'metadata.yml')).toContain('status: in-review');
+      rmSync(marker());
+      const again = ship(['41']);
+      expect(again.status, out(again)).toBe(0);
+      expect(read('intents', '41-t41', 'metadata.yml')).toContain('status: done');
+    } finally {
+      rmSync(hook(), { force: true });
+      rmSync(marker(), { force: true });
+    }
+  });
+
+  it('aborts a conflicting merge and leaves main as it was', () => {
+    const w = makeIntent(42, { file: 'docs/c42.md' });
+    writeFileSync(join(repo, 'docs', 'c42.md'), 'main says something else\n');
+    git(repo, 'add', 'docs/c42.md');
+    git(repo, 'commit', '-q', '-m', 'a conflicting change on main');
+    git(repo, 'push', '-q', 'origin', 'main');
+    const before = snapshot(w);
+    const r = ship(['42']);
+    expect(r.status, out(r)).toBe(1);
+    expect(r.stdout).toMatch(/STOPPED\s+merge/);
+    expect(snapshot(w)).toEqual(before);
+    expect(git(repo, 'status', '--porcelain')).toBe('');
+    expect(existsSync(join(repo, '.git', 'MERGE_HEAD'))).toBe(false);
+    expect(existsSync(w.path)).toBe(true);
+  });
+
+  it('resumes a push that was rejected, without a second bookkeeping commit', () => {
+    const w = makeIntent(38);
+    const good = git(repo, 'remote', 'get-url', 'origin');
+    git(repo, 'remote', 'set-url', 'origin', join(sandbox, 'no-such-origin.git'));
+    const originBefore = git(origin, 'rev-parse', 'main');
+    try {
+      const r = ship(['38']);
+      expect(r.status, out(r)).toBe(1);
+      expect(r.stdout).toMatch(/STOPPED\s+push/);
+      expect(git(origin, 'rev-parse', 'main')).toBe(originBefore);
+      expect(existsSync(w.path)).toBe(true);
+    } finally {
+      git(repo, 'remote', 'set-url', 'origin', good);
+    }
+    const again = ship(['38']);
+    expect(again.status, out(again)).toBe(0);
+    expect(again.stdout).toMatch(/skipped\s+merge/);
+    expect(again.stdout).toMatch(/skipped\s+bookkeeping/);
+    expect(again.stdout).toMatch(/done\s+push/);
+    expect(git(origin, 'rev-parse', 'main')).toBe(git(repo, 'rev-parse', 'main'));
+    expect(git(repo, 'log', 'main', '--format=%s', '--grep=^§38: merged').split(/\r?\n/)).toHaveLength(1);
+  });
+
+  it('refuses --cleanup on a branch that is not merged, and keeps it (branch -d, never -D)', () => {
+    const w = makeIntent(43);
+    git(repo, 'worktree', 'remove', w.path);
+    const r = ship(['43', '--cleanup']);
+    expect(r.status, out(r)).toBe(1);
+    expect(r.stdout).toMatch(/STOPPED\s+remove/);
+    expect(branchExists(w.branch)).toBe(true);
   });
 });
