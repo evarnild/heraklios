@@ -24,7 +24,7 @@ Written against `main` at `c617fcb`.
 lists every intent in `intents/` on `main`, grouped **In flight** (accepted,
 in-progress, in-review), **Queued** (draft), **Shipped** (done, newest
 first), **Stopped** (abandoned, deferred), one line each: `§id`, title,
-type, status, gates (the `I·S·P·L` summary `npm run sessions` already
+type, status, gates (the `I·S·P` summary `npm run sessions` already
 prints), and the merge hash for shipped ones. `--json` gives the same as
 data. Nothing is written to disk (owner's decision: command only).
 
@@ -71,7 +71,13 @@ parts go to:
 (`CLAUDE.md`, `AGENTS.md`, the agents, `/review`, `/spawn`,
 `scripts/spawn-intent.mjs` messages); "the coordinator view" →
 `OVERVIEW.md` + `npm run queue`. References to an intent's own `plan.md`
-(`intents/<id>-<slug>/plan.md`) are untouched.
+(`intents/<id>-<slug>/plan.md`) are untouched. The 13 links in
+`plan-history.md` into the root file (`#1-…`, `#4-…` → `docs/runbook.md`;
+`#10-sequenced-queue` → `OVERVIEW.md`; `#21-…` → its `plan-history.md`
+section) move too. **Amended 2026-10-22, owner's decision:** the ~250
+"plan.md §N" comments in 31 `src/` files, which point at sections already
+archived in `plan-history.md`, stay; `OVERVIEW.md` says that such a comment
+means `plan-history.md` §N.
 
 **B6 — The next id.** `/intent` §4.1 takes one more than the highest `§N`
 found in `plan-history.md`, `OVERVIEW.md`, the `intents/` folders on `main`
@@ -107,8 +113,9 @@ just its queue, since what's left (snapshot, history map) moves to
   as in-review from `branch`; `--next-id` counts an intent folder that
   exists only on a branch.
 - **AC3** — no stale pointer: `git grep -n "plan\.md"` outside
-  `plan-history.md`, `intents/*/` and the intent template finds only
-  references to an intent's own `plan.md`; `git grep -n "§4"` finds every
+  `plan-history.md`, `intents/*/`, the intent template and `src/` (B5
+  amendment) finds only references to an intent's own `plan.md`; `git grep
+  -n "§4"` finds every
   runbook pointer naming `docs/runbook.md`. Run by the review and pasted.
 - **AC4** — `npm run queue` on the branch prints every intent §26–§47 with
   the status its `metadata.yml` holds (the review compares a sample).
