@@ -45,8 +45,10 @@ doubt, it is a feature.**
 The declaration is a claim; `npm run check:intent` is the evidence. It
 compares what arrived against what the type should look like and reports
 `ROUTE` when they disagree — an "adjustment" that touched `src/engine/`, a
-"fix" with no test, a "refactor" that deleted test lines. A route is not a
-block: re-declare the type (and add the missing artefacts) or say in
+"fix" with no test, a "refactor" that deleted test lines. A test is a `*.test.*` unit test or an
+`e2e/**/*.spec.ts` scenario, counted when its file changed (the check never
+reads test content); rule code in `src/engine` or `src/data` still needs a
+unit test. A route is not a block: re-declare the type (and add the missing artefacts) or say in
 `review.md` why the mismatch is fine. Expected noise: renaming or moving a
 test file shows as lines deleted from the old path, so a refactor that does
 it routes — say so in `review.md`.
