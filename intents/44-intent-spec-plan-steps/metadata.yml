@@ -2,7 +2,7 @@
 id: 44
 slug: intent-spec-plan-steps
 type: feature
-status: in-progress
+status: in-review
 title: /spec and /build-plan skills write the spec and the plan, stamped
 review_tier:
 intent_accepted: 2026-10-22 by-agent    # owner's "yes" in chat

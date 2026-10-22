@@ -140,3 +140,21 @@ Re-read on `main` at `4ba8209`:
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-10-22 — subtasks 1-7
+
+Commits: `5e07b69` (scan, 1), `434f2b1` (README section, 2), `c09beb6`
+(/spec, 3), `0ae3f24` (/build-plan, 4), `6b5ee5f` (/intent 0.1.3, 5),
+`c3708d1` (/grid rule + sdlc.md + CLAUDE.md, 6), and the hand-over commit
+(this entry, `status: in-review`, 7).
+
+Shipped: `artefactOrigins` with 4 new tests (scan-lib tests 4 -> 8 in the
+file; full suite 720 passed, 46 files); the three mutants (swap names, drop
+name check, unstamped as hand) fail 3, 2 and 1 of the tests. `verify`
+green, lint 21 (cap unchanged), `check:intent` PASS. `sdlc:scan`: spec.md 0
+by /spec, 8 hand, 0 unstamped; plan.md 0 by /build-plan, 13 hand, 2
+unstamped; equals the `grep` tally (templates excluded).
+
+Divergences: `metadata.yml` went to `status: in-progress` inside the first
+commit. The game `README.md` is untouched (process change, no game
+behaviour, no Known simplification). The AC4 dry run is the owner's.
