@@ -37,8 +37,21 @@ npm run e2e     # browser smoke suite: four test-mode scenarios and the language
 ```
 
 `npm run e2e` needs a one-off `npx playwright install chromium` (about
-720 MB, outside the repo) and port 5232 free. It is separate from
-`verify`.
+720 MB, outside the repo) and port 5232 free. A second suite started from
+another worktree is refused cleanly and leaves the first alone; started from
+the same worktree it is refused too but can still break the first (it clears
+`test-results/` on startup), so run one suite per worktree at a time. It is
+separate from `verify`.
+
+A red run is read before it is rerun. On Windows the run's output ends with
+a line if the machine slept during it (a laptop on critical battery does:
+Chromium then reports `ERR_NETWORK_IO_SUSPENDED` and the scenarios time out
+waiting for the game); rerun such a run on mains power. The suite runs two
+workers on purpose: with Playwright's default (five on a 20-thread machine)
+the parallel software-rendered Chromiums starved each other and most runs
+timed out although the game had loaded. Any other red run is a real failure:
+open its trace (`npx playwright show-trace`, path printed with the failure)
+instead of rerunning.
 
 To make a change — intent, plan, build, review, merge — see
 [`sdlc.md`](sdlc.md).
