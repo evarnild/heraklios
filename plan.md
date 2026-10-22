@@ -227,6 +227,7 @@ sync when something merges** — it went stale once and the user caught it.
 | Item | Type · status |
 | --- | --- |
 | [§29](intents/29-grid-live-check-counts/) Count live checks in the SDLC scan and grid (after §28) | feature · draft |
+| [§46](intents/46-ship-skill/) /ship merges a reviewed intent, does the bookkeeping, pushes and removes its worktree and branch | feature · accepted |
 | [§45](intents/45-save-api/) Games are saved as files on this PC, reached by the game through a local API | feature · accepted |
 
 All fully-shipped rows that previously lived here (Stage 3b, §17,

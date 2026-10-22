@@ -1,0 +1,17 @@
+# generated-by: heraklios/intent@0.1.4
+id: 46
+slug: ship-skill
+type: feature
+status: accepted
+title: /ship merges a reviewed intent, does the bookkeeping, pushes and removes its worktree and branch
+review_tier:
+intent_accepted: 2026-10-22 by-agent    # owner: "yes to 46"
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+follows_up:
+links:
+  - REVIEW-POLICY.md    "Merging": the preconditions and bookkeeping the skill follows
+  - intents/28-live-checks-and-merge-rule    the agent-merge rule
+  - intents/27-parallel-sessions    npm run spawn -- <id> --remove
