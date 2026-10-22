@@ -2,7 +2,7 @@
 id: 43
 slug: center-view-on-turn
 type: feature
-status: accepted
+status: in-review
 title: Centre the view on the new player's land units when their turn starts
 review_tier:
 intent_accepted: 2026-10-21 by-agent    # owner: "center on land units only, skip live check and then accept the intent"

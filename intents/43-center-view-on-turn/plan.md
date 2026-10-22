@@ -112,3 +112,17 @@ Re-read on `main` at `a500ab6`:
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-10-22 — implementation (subtasks 1-6)
+
+Commits: see `git log main..feat/43-center-view-on-turn`.
+
+- **1.** `src/ui/viewCentre.ts` (`landUnitsCentre(units, owner)`, `nearestHex`) and `viewCentre.test.ts` (6 tests). AC1 mutants, each killed: no domain filter (2 tests fail), no `destroyed` filter (1), no owner filter (2), sum without dividing (2).
+- **2.** `MapView.centerOnPoint`; `BoardScene.centreOnActivePlayer()` called in `create` and `loadInPlace` (before `maybeStartAiTurn()`) and in `commitEndPhase`'s `phase === 'movement'` branch (after the gameOver return; AI seats' endPhase passes through it too). Exactly three call sites.
+- **3.** Dev hook `viewCentre()`.
+- **4.** `e2e/view-centre.spec.ts`. Red first (calls not yet wired: player 1 not centred, 488 px off); its first version also failed on a board-edge clamp (228 px with the calls wired), so the check became clamp-aware: it compares the target's canvas position with its position after the hook's own `centerOn` (same clamping), within one hex width (44 px). Red re-run with `centreOnActivePlayer` disabled: failed "player 1 centred when the Board opens" (260 px); green with it restored.
+- **5.** README: new "The view at the start of a turn" section.
+- **6.** `npm run verify` green (45 files, 704 tests; lint 21 warnings, cap unchanged). The suite now has 9 tests, not 8 (the plan miscounted §36's three language tests); all 9 pass with `--workers=1`; `--repeat-each=5` on the new file passes 5/5 with `--workers=1`.
+
+Divergences: (a) commit order: MapView method, hook and scenario came before the BoardScene wiring so the scenario could be shown red. (b) With Playwright's default parallel workers, every scenario (old ones too) times out at 30 s with the game loaded and an empty page snapshot: the known machine slowdown signature, not a failure of this change; `--workers=1` is green. (c) `landUnitsCentre` takes `(units, owner)` as in the plan; the spec's `unitType` parameter was unnecessary (`unitType(unit)` from the engine).
+Live check (AC5) remains owed to the owner.
