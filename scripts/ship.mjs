@@ -21,7 +21,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseGate, parseMetadata, parseReviewHeader } from './intent-check-lib.mjs';
 import { appendEvent, findIntentDir, git, mainCheckout, readIntentMetadataFromBranch } from './session-io.mjs';
-import { branchFor, parseWorktreeList, pathKey } from './session-lib.mjs';
+import { branchFor, parseWorktreeList, pathKey, worktreePathFor } from './session-lib.mjs';
 import {
   checkPreconditions,
   commitMessage,
@@ -174,7 +174,7 @@ function readState(root, id, loc, opts) {
       bookkept,
       // Not "pushed" before the bookkeeping commit: main will still move.
       pushed: bookkept && originMain !== null && originMain === git(root, 'rev-parse', 'main'),
-      cleanedUp: !wt && !loc.branchExists,
+      cleanedUp: !wt && !loc.branchExists && !leftoverFolder(root, id, loc),
     },
   };
 }
@@ -314,7 +314,21 @@ function push(root) {
   return `pushed origin/main ${before}..${git(root, 'rev-parse', '--short', 'main')}`;
 }
 
-/** Step 7. Returns report text and whether something is left for the owner. */
+/**
+ * A worktree folder that is still on disk although git lists no worktree for
+ * it: removal unregistered it but something (a session, an editor) held the
+ * folder open. Looked up by the path spawn creates, so it is found whether or
+ * not the branch still exists.
+ */
+function leftoverFolder(root, id, loc) {
+  if (worktreeOf(root, loc.branch)) return null; // still registered: cleanup removes it
+  const path = worktreePathFor(root, id, loc.metadata.slug);
+  return existsSync(path) ? path : null;
+}
+
+const folderLeft = (path, id) => `${path} is still on disk (something held it open); delete it by hand, then run: npm run ship -- ${id} --cleanup`;
+
+/** Step 7. Returns report text and what, if anything, is left for the owner. */
 function cleanup(root, id, loc) {
   const parts = [];
   const wt = loc.branchExists ? worktreeOf(root, loc.branch) : undefined;
@@ -325,9 +339,6 @@ function cleanup(root, id, loc) {
       return { text: `could not remove ${wt.path}: ${why}`, left: `exit any session or program using ${wt.path}, then run: npm run ship -- ${id} --cleanup` };
     }
     parts.push(`removed worktree ${wt.path}`);
-    if (existsSync(wt.path)) {
-      return { text: parts.join('; '), left: `git no longer lists ${wt.path} but the folder is still there (something held it open); delete it by hand, then run: npm run ship -- ${id} --cleanup` };
-    }
   }
   if (loc.branchExists && gitOk(root, 'show-ref', '--verify', '--quiet', `refs/heads/${loc.branch}`)) {
     try {
@@ -337,6 +348,8 @@ function cleanup(root, id, loc) {
     }
     parts.push(`deleted branch ${loc.branch}`);
   }
+  const folder = (wt && existsSync(wt.path) ? wt.path : null) ?? leftoverFolder(root, id, loc);
+  if (folder) return { text: parts.join('; ') || 'worktree and branch already gone', left: folderLeft(folder, id) };
   return { text: parts.join('; ') || 'worktree and branch already gone', left: null };
 }
 

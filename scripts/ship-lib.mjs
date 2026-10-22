@@ -39,6 +39,16 @@ export function planSteps(s) {
   });
 }
 
+/** Ways a line that mentions a reason says there is none (one alternative each; ship-lib.test.mjs has a phrase per entry). */
+const NO_REASON = [
+  /\b(?:no|not|without|missing)\s+(?:\w+\s+)?reason\b/i, // "no reason found"
+  /\breason\s+(?:not|unknown|missing|unclear)\b/i, // "reason unclear"
+  /\breason\s*:\s*(?:none|unknown|n\/a|tbd)\b/i, // "reason: none"
+  /\bnot\s+(?:stated|given|explained)\b/i, // "the reason was not given"
+  /\b(?:is|was)n['’]t\s+(?:stated|given|explained)\b/i, // "the reason isn't stated"
+  /\bto be (?:decided|determined)\b|\bleft to the owner\b/i, // "reason to be decided by the owner"
+];
+
 /**
  * Whether review.md states why a ROUTE is fine (REVIEW-POLICY.md says only
  * "ROUTE with the reason already stated in review.md"). Interpretation: in
@@ -52,14 +62,13 @@ export function planSteps(s) {
  * nothing about why, so the run stops and the owner decides.
  */
 export function routeReasonStated(reviewText) {
-  const negated =
-    /\b(?:no|not|without|missing)\s+(?:\w+\s+)?reason\b|\breason\s+(?:not|unknown|missing)\b|\bnot\s+(?:stated|given|explained)\b/i;
+  const negated = (line) => NO_REASON.some((re) => re.test(line));
   let inTypeCheck = false;
   for (const line of reviewText.split(/\r?\n/)) {
     if (/^# Round\b/.test(line)) break;
     if (/^## /.test(line)) inTypeCheck = /^## Type check\b/.test(line);
     if (inTypeCheck) continue;
-    if (/\bROUTE\b/.test(line) && /\breason\b/i.test(line) && !negated.test(line)) return true;
+    if (/\bROUTE\b/.test(line) && /\breason\b/i.test(line) && !negated(line)) return true;
   }
   return false;
 }

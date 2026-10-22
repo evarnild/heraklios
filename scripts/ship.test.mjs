@@ -2,7 +2,7 @@
 // main checkout, a bare `origin` and `heraklios-wt/` beside it) in the OS temp
 // dir. Never the real repository: the script merges and pushes.
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, rmdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -117,7 +117,7 @@ function makeIntent(id, extra = {}) {
   return { branch, path, dir: `intents/${id}-t${id}` };
 }
 
-const IDS = Array.from({ length: 36 }, (_, i) => 11 + i);
+const IDS = Array.from({ length: 40 }, (_, i) => 11 + i);
 
 beforeAll(() => {
   sandbox = mkdtempSync(join(tmpdir(), 'h46-ship-'));
@@ -327,6 +327,16 @@ function pushFromElsewhere(name) {
   git(clone, 'push', '-q', 'origin', 'main');
 }
 
+/** Fetches and fast-forwards main to origin/main; never throws, so it can sit in a finally. */
+function catchUpWithOrigin() {
+  try {
+    git(repo, 'fetch', '-q', 'origin');
+    git(repo, 'merge', '-q', '--ff-only', 'origin/main');
+  } catch {
+    // the failing assertion is the thing to read
+  }
+}
+
 const snapshot = (w) => ({
   main: git(repo, 'rev-parse', 'main'),
   origin: git(origin, 'rev-parse', 'main'),
@@ -377,7 +387,13 @@ describe('npm run ship: preconditions, wiring and refusals', { timeout: 90_000 }
       expect(r.stdout).toMatch(/STOPPED\s+start\s+intents\/31-t31/);
       expect(snapshot(w)).toEqual(before);
     } finally {
-      rmSync(join(repo, 'intents', '31-t31'), { recursive: true, force: true });
+      // only the file this test wrote: were the folder tracked (a mutant let the run merge), it is not ours to delete
+      rmSync(join(repo, 'intents', '31-t31', 'note.md'), { force: true });
+      try {
+        rmdirSync(join(repo, 'intents', '31-t31'));
+      } catch {
+        // not empty or already gone
+      }
     }
   });
 
@@ -468,12 +484,15 @@ describe('npm run ship: preconditions, wiring and refusals', { timeout: 90_000 }
     const w = makeIntent(37);
     pushFromElsewhere('elsewhere37');
     const before = git(repo, 'rev-parse', 'main');
-    const r = ship(['37']);
-    expect(r.status, out(r)).toBe(1);
-    expect(r.stdout).toMatch(/STOPPED\s+start\s+origin\/main has commits that main lacks/);
-    expect(git(repo, 'rev-parse', 'main')).toBe(before);
-    expect(branchExists(w.branch)).toBe(true);
-    git(repo, 'merge', '-q', '--ff-only', 'origin/main'); // catch main up for the tests after this one
+    try {
+      const r = ship(['37']);
+      expect(r.status, out(r)).toBe(1);
+      expect(r.stdout).toMatch(/STOPPED\s+start\s+origin\/main has commits that main lacks/);
+      expect(git(repo, 'rev-parse', 'main')).toBe(before);
+      expect(branchExists(w.branch)).toBe(true);
+    } finally {
+      catchUpWithOrigin(); // for the tests after this one, whatever happened here
+    }
   });
 
   it('refuses empty --live-checked words', () => {
@@ -488,12 +507,14 @@ describe('npm run ship: preconditions, wiring and refusals', { timeout: 90_000 }
     makeIntent(45);
     pushFromElsewhere('elsewhere45');
     const remoteTracking = git(repo, 'rev-parse', 'origin/main');
-    const r = ship(['45', '--dry-run']);
-    expect(r.status, out(r)).toBe(0);
-    expect(r.stdout).toMatch(/does not fetch/);
-    expect(git(repo, 'rev-parse', 'origin/main')).toBe(remoteTracking);
-    git(repo, 'fetch', '-q', 'origin');
-    git(repo, 'merge', '-q', '--ff-only', 'origin/main');
+    try {
+      const r = ship(['45', '--dry-run']);
+      expect(r.status, out(r)).toBe(0);
+      expect(r.stdout).toMatch(/does not fetch/);
+      expect(git(repo, 'rev-parse', 'origin/main')).toBe(remoteTracking);
+    } finally {
+      catchUpWithOrigin();
+    }
   });
 
   it('names an existing merge of the branch when its tip moved after a red verify', () => {
@@ -630,5 +651,73 @@ describe('npm run ship: failures after the merge', { timeout: 90_000 }, () => {
     expect(r.status, out(r)).toBe(1);
     expect(r.stdout).toMatch(/STOPPED\s+remove/);
     expect(branchExists(w.branch)).toBe(true);
+  });
+});
+
+describe('npm run ship: leftovers and what a commit may hold', { timeout: 90_000 }, () => {
+  const slashes = (t) => t.replace(/\\/g, '/').toLowerCase();
+
+  it('reports a folder left behind after git unregistered the worktree, until the folder is gone', () => {
+    const w = makeIntent(47);
+    writeFileSync(join(w.path, 'busy.txt'), 'untracked: git worktree remove refuses this\n');
+    const first = ship(['47']);
+    expect(first.stdout).toMatch(/LEFT\s+remove\s+could not remove/);
+    // what a held-open folder does on Windows: git unregisters the worktree, the folder stays
+    rmSync(join(w.path, 'busy.txt'));
+    git(repo, 'worktree', 'remove', w.path);
+    mkdirSync(w.path, { recursive: true });
+    writeFileSync(join(w.path, 'held-open.txt'), 'still here\n');
+
+    const second = ship(['47', '--cleanup']);
+    expect(second.status, out(second)).toBe(0);
+    expect(second.stdout).toMatch(/LEFT\s+remove/);
+    expect(slashes(second.stdout)).toContain(slashes(w.path));
+    expect(second.stdout).toMatch(/delete it by hand/);
+    expect(branchExists(w.branch)).toBe(false); // the branch goes even so
+
+    const third = ship(['47', '--cleanup']); // the branch is gone now; the folder is still reported
+    expect(third.stdout).toMatch(/LEFT\s+remove/);
+    expect(slashes(third.stdout)).toContain(slashes(w.path));
+
+    rmSync(w.path, { recursive: true, force: true });
+    const fourth = ship(['47', '--cleanup']);
+    expect(fourth.status, out(fourth)).toBe(0);
+    expect(fourth.stdout).toMatch(/done\s+remove/);
+    expect(fourth.stdout).not.toMatch(/Left for you/);
+  });
+
+  it('never commits a file another session stages while verify runs', () => {
+    makeIntent(48);
+    const stageDuringVerify = `node -e "require('fs').writeFileSync('other.txt','x');require('child_process').execFileSync('git',['add','other.txt'])"`;
+    try {
+      const r = ship(['48'], stageDuringVerify);
+      expect(r.status, out(r)).toBe(0);
+      expect(git(repo, 'diff', '--name-only', 'HEAD~1', 'HEAD').split(/\r?\n/).sort()).toEqual(['intents/48-t48/metadata.yml', 'plan.md']);
+      expect(git(repo, 'status', '--porcelain')).toBe('A  other.txt');
+    } finally {
+      try {
+        git(repo, 'restore', '--staged', 'other.txt');
+      } catch {
+        // not staged: nothing to undo
+      }
+      rmSync(join(repo, 'other.txt'), { force: true });
+    }
+  });
+
+  it('does not take an unrelated merge for the branch merge when the branch went in without one', () => {
+    const w = makeIntent(49);
+    git(repo, 'merge', '-q', '--ff-only', w.branch); // merged by hand, fast-forward: no merge commit of its own
+    git(repo, 'switch', '-q', '-c', 'side49');
+    writeFileSync(join(repo, 'side49.txt'), 'unrelated\n');
+    git(repo, 'add', 'side49.txt');
+    git(repo, 'commit', '-q', '-m', 'unrelated work');
+    git(repo, 'switch', '-q', 'main');
+    git(repo, 'merge', '-q', '--no-ff', 'side49', '-m', 'merge of an unrelated branch');
+    git(repo, 'push', '-q', 'origin', 'main');
+    const r = ship(['49']);
+    expect(r.status, out(r)).toBe(1);
+    expect(r.stdout).toMatch(/STOPPED\s+bookkeeping\s+cannot find the merge commit/);
+    expect(git(repo, 'status', '--porcelain')).toBe('');
+    expect(read('intents', '49-t49', 'metadata.yml')).toContain('status: in-review');
   });
 });

@@ -80,12 +80,25 @@ describe('routeReasonStated', () => {
     expect(routeReasonStated(review('`check:intent` says ROUTE: "Declared fix, but no test changed." Reason:\nthe fix is an e2e scenario.'))).toBe(true);
   });
   it('refuses a ROUTE with no stated reason', () => {
-    expect(routeReasonStated(review('## Findings\n- check:intent ROUTE: no reason found, left to the owner'))).toBe(false);
+    expect(routeReasonStated(review('## Findings\n- check:intent ROUTE: no reason found'))).toBe(false);
     expect(routeReasonStated(review('## Findings\n- ROUTE, reason not stated'))).toBe(false);
     expect(routeReasonStated(review('## Verified\n- npm run check:intent -> ROUTE (exit 2)'))).toBe(false);
     expect(routeReasonStated(review('## Passes\n| 2 | Type check | ROUTE |'))).toBe(false);
     expect(routeReasonStated(review('| 1 | Intent | pass (the Board has no route back; reason: reload) |'))).toBe(false);
     expect(routeReasonStated(review('## Findings\n- none'))).toBe(false);
+  });
+  // one phrase per way of saying "no reason"; each is caught by exactly one pattern in NO_REASON
+  it.each([
+    ['ROUTE: no reason found'],
+    ['ROUTE, reason unclear'],
+    ['ROUTE, reason: none'],
+    ['ROUTE; the reason was not given'],
+    ["ROUTE; the reason isn't stated"],
+    ['ROUTE: Reason to be decided by the owner'],
+  ])('refuses "%s"', (line) => {
+    expect(routeReasonStated(review(`## Findings\n- ${line}`))).toBe(false);
+    // the same line, with a real reason in place of the negation, is accepted
+    expect(routeReasonStated(review('## Findings\n- ROUTE, reason stated: a config-only change'))).toBe(true);
   });
   it('reads the current round only', () => {
     const text = '# Round 2\nverdict: attest\n\n## Type check\nPASS\n\n## Findings\n- none\n\n# Round 1 (history)\n- ROUTE, reason stated\n';
