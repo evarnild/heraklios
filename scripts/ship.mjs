@@ -315,13 +315,13 @@ function push(root) {
 }
 
 /**
- * A worktree folder that is still on disk although git lists no worktree for
- * it: removal unregistered it but something (a session, an editor) held the
- * folder open. Looked up by the path spawn creates, so it is found whether or
- * not the branch still exists.
+ * The worktree folder, when it is still on disk although git has removed or
+ * never lists the worktree: removal unregistered it but something (a session,
+ * an editor) held the folder open. Looked up by the path spawn creates, so it
+ * is found whether or not the branch still exists. Call it only after a
+ * registered worktree has been removed (a failed removal returns earlier).
  */
 function leftoverFolder(root, id, loc) {
-  if (worktreeOf(root, loc.branch)) return null; // still registered: cleanup removes it
   const path = worktreePathFor(root, id, loc.metadata.slug);
   return existsSync(path) ? path : null;
 }
