@@ -73,7 +73,11 @@ export function saveApiMiddleware(fs: () => SaveFs): Connect.NextHandleFunction 
 export function saveApiPlugin(): Plugin {
   // The folder depends on the project root, known only once Vite resolved its config.
   let dir = '';
-  const handler = saveApiMiddleware(() => fileSaveFs(dir));
+  // ONE store per plugin, built on first use (after configResolved): its per-slot
+  // write queue only works if every request goes through the same instance. The dev
+  // and preview servers of a process share it.
+  let store: SaveFs | null = null;
+  const handler = saveApiMiddleware(() => (store ??= fileSaveFs(dir)));
   return {
     name: 'heraklios-save-api',
     configResolved(config) {

@@ -382,12 +382,13 @@ export class SaveLoadPanel {
         this.status(messages().saves.savingFailed);
         return;
       }
+      // Refresh the rows first: a failed refresh says "isn't answering" and must not hide the result.
+      await this.loadList();
       this.status(
         result.stopped
           ? messages().saves.copyStopped(result.copied)
           : messages().saves.copiedBrowserSaves(result.copied, result.skipped),
       );
-      await this.loadList();
     });
   }
 

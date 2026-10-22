@@ -161,7 +161,8 @@ has no save API.
 
 There is no browser fallback: if the server stops while a tab is open, a
 save, load or delete says so in the panel ("The game server isn't answering
-- nothing was saved"; a copy that stops partway reports how many it had copied) and an autosave that fails says so in the Board's log.
+- nothing was saved"; a copy that stops partway reports how many it had
+copied) and an autosave that fails says so in the Board's log.
 **"Export to file"** / **"Import from file"** still round-trip a `.json`
 save for backup, for moving between machines, or for handing a game to
 someone else. The panel shows "Loading..." until the server has sent the

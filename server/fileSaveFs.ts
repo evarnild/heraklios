@@ -29,21 +29,42 @@ function isMissing(e: unknown): boolean {
   return (e as NodeJS.ErrnoException)?.code === 'ENOENT';
 }
 
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+/** What `renameOver` needs from the outside; tests inject failures and a fake clock. */
+export interface RenameOps {
+  rename(from: string, to: string): Promise<void>;
+  sleep(ms: number): Promise<void>;
+  /** 0 <= jitter() < 1 */
+  jitter(): number;
+}
+
+const realOps: RenameOps = {
+  rename,
+  sleep: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
+  jitter: Math.random,
+};
+
+/** Error codes of a rename that may succeed a moment later (Windows: the target is open or being replaced). */
+const TRANSIENT = new Set(['EPERM', 'EBUSY', 'EACCES']);
+export const RENAME_ATTEMPTS = 8;
 
 /**
  * Renames over the target. On Windows a rename onto a file that is open or
- * being replaced (another handle, antivirus) fails with EPERM/EBUSY/EACCES
- * for a moment, so those are retried a few times before giving up.
+ * being replaced (another handle, antivirus, another server process on the
+ * same folder) fails with EPERM/EBUSY/EACCES for a moment, so those are
+ * retried with a growing, jittered pause: attempt n waits 25n ms plus up to
+ * 25 ms, at most 7 pauses, under 0.9 s in all. That bound is the limit:
+ * two server processes (dev and preview) hammering one slot for longer than
+ * that can still lose a write with a 500, which the game reports as a failed
+ * save.
  */
-async function renameOver(from: string, to: string): Promise<void> {
+export async function renameOver(from: string, to: string, ops: RenameOps = realOps): Promise<void> {
   for (let attempt = 1; ; attempt++) {
     try {
-      return await rename(from, to);
+      return await ops.rename(from, to);
     } catch (e) {
       const code = (e as NodeJS.ErrnoException).code;
-      if (attempt >= 5 || (code !== 'EPERM' && code !== 'EBUSY' && code !== 'EACCES')) throw e;
-      await sleep(25 * attempt);
+      if (attempt >= RENAME_ATTEMPTS || !code || !TRANSIENT.has(code)) throw e;
+      await ops.sleep(25 * attempt + Math.floor(ops.jitter() * 25));
     }
   }
 }
@@ -92,5 +113,5 @@ export function fileSaveFs(dir: string): SaveFs {
       await rm(temp, { force: true });
       throw e;
     }
-}
+  }
 }
