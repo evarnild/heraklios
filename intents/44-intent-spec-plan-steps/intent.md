@@ -1,5 +1,5 @@
 <!-- generated-by: heraklios/intent@0.1.2 -->
-# §44 — /intent writes the spec and the plan as stamped steps
+# §44 — /spec and /plan skills write the spec and the plan, stamped
 
 **Type:** feature
 **Originator:** me (Eric), from the 2026-10-20 grid refresh
@@ -29,11 +29,12 @@ So:
 
 ## Outcome
 
-- `/intent` has two more steps, each with its own instructions in
-  `SKILL.md`: a **spec step** (feature only, after `intent_accepted`) and
-  a **plan step** (feature, fix, refactor, after the gate before it). Each
-  says what to read first, what the artefact must contain, and how to
-  validate it before handing it to the owner, like the intent step does.
+- Two new skills sit beside `/intent` (owner's decision, 2026-10-22:
+  three skills, not one): **`/spec`** (feature only, after
+  `intent_accepted`) and **`/plan`** (feature, fix, refactor, after the
+  gate before it). Each says what to read first, what the artefact must
+  contain, and how to validate it before handing it to the owner, like
+  `/intent` does. The rules the three share live in one place.
 - A spec or plan the step produces carries a stamp that says so, distinct
   from the intent's (exact form for the spec), so `sdlc:scan` can tell a
   skill-made spec or plan from a hand-made one.
@@ -88,6 +89,7 @@ So:
   stamp the scan reads, and has design questions; likely more than 5
   files (`SKILL.md`, scan + its tests, possibly `check-intent`,
   `intents/README.md`, `sdlc.md`, the grid's level table).
-- One skill with three steps rather than separate `/spec` and `/plan`
-  skills, as asked ("spec step in intent").
-- The version bumps to 0.2.0 (new behaviour).
+- ~~One skill with three steps~~ — changed 2026-10-22 by the owner after
+  weighing it: **three skills** (`/intent`, `/spec`, `/plan`), each
+  short and loaded only when used, versioned and stamped on its own, with
+  their shared rules kept in one place so the copies can't drift.

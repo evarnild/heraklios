@@ -3,7 +3,7 @@ id: 44
 slug: intent-spec-plan-steps
 type: feature
 status: accepted
-title: /intent writes the spec and the plan as stamped steps
+title: /spec and /plan skills write the spec and the plan, stamped
 review_tier:
 intent_accepted: 2026-10-22 by-agent    # owner's "yes" in chat
 spec_accepted:
