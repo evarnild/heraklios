@@ -198,7 +198,8 @@ and rendering.
   that skip straight to a populated board for manual testing).
 - `server/` — the local save API (§45): saves are one JSON file per slot in
   `saves/` (or `HERAKLIOS_SAVES_DIR`). `saveApi.ts` is the pure handler
-  (slot allow-list, Origin check, 2 MB cap, `parseSavedGame` before write;
+  (Host allow-list checked first against DNS rebinding, then Origin check, slot
+  allow-list, 2 MB cap, `parseSavedGame` before write;
   tested with an in-memory file system), `fileSaveFs.ts` the real files,
   `saveApiPlugin.ts` a Vite plugin mounting it on the dev AND preview
   servers (registered in `vite.config.ts`). Boundary: no game rule in it,

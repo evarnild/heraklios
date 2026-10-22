@@ -7,7 +7,7 @@ import { RENAME_ATTEMPTS, fileNameOf, fileSaveFs, renameOver, savesDir, slotOfFi
 // Every rename the real fs layer makes goes through this spy, which records how
 // many are in flight at once on the same target (they must never overlap: that is
 // what fails with EPERM on Windows) and in what order they finished.
-const renames = vi.hoisted(() => ({ inFlight: new Map<string, number>(), maxInFlight: 0, total: 0, delayMs: 5, temps: [] as string[] }));
+const renames = vi.hoisted(() => ({ inFlight: new Map<string, number>(), maxInFlight: 0, total: 0, delayMs: 5, temps: [] as string[], failNext: 0 }));
 vi.mock('node:fs/promises', async (importOriginal) => {
   const real = await importOriginal<typeof import('node:fs/promises')>();
   return {
@@ -18,6 +18,10 @@ vi.mock('node:fs/promises', async (importOriginal) => {
     },
     rename: async (from: string, to: string) => {
       renames.total++;
+      if (renames.failNext > 0) {
+        renames.failNext--;
+        throw Object.assign(new Error('EPERM (injected)'), { code: 'EPERM' });
+      }
       const n = (renames.inFlight.get(to) ?? 0) + 1;
       renames.inFlight.set(to, n);
       renames.maxInFlight = Math.max(renames.maxInFlight, n);
@@ -39,6 +43,7 @@ beforeEach(() => {
   renames.total = 0;
   renames.delayMs = 5;
   renames.temps = [];
+  renames.failNext = 0;
   dir = mkdtempSync(join(tmpdir(), 'h45-fs-'));
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
@@ -146,6 +151,36 @@ describe('the per-slot write queue', () => {
   });
 });
 
+describe('remove goes through the slot queue', () => {
+  it('PUT then DELETE issued back to back leaves no file', async () => {
+    const fs = fileSaveFs(dir);
+    renames.delayMs = 40; // the write is still renaming when the delete is issued
+    const put = fs.write('4', 'x');
+    const del = fs.remove('4');
+    await Promise.all([put, del]);
+    expect(await fs.read('4')).toBeNull();
+    expect(readdirSync(dir)).toEqual([]);
+  });
+});
+
+describe('the retry inside a real write', () => {
+  it('a write whose rename fails transiently still succeeds, after a real pause', async () => {
+    const fs = fileSaveFs(dir);
+    renames.delayMs = 0;
+    const clean = Date.now();
+    await fs.write('2', 'baseline'); // the same write with no failure
+    const baseline = Date.now() - clean;
+    renames.failNext = 2;
+    const started = Date.now();
+    await fs.write('1', 'kept');
+    // two failures: pauses of 25 and 50 ms (plus jitter) on top of the plain write
+    expect(Date.now() - started - baseline).toBeGreaterThanOrEqual(40);
+    expect(renames.total).toBe(4); // baseline 1 + 2 failures + the success
+    expect(await fs.read('1')).toBe('kept');
+    expect(readdirSync(dir).sort()).toEqual(['slot-1.json', 'slot-2.json']);
+  });
+});
+
 describe('renameOver (the retry)', () => {
   const eperm = () => Object.assign(new Error('EPERM'), { code: 'EPERM' });
   function ops(failures: Error[]): RenameOps & { sleeps: number[]; calls: number } {
@@ -174,6 +209,13 @@ describe('renameOver (the retry)', () => {
     const o = ops([Object.assign(new Error(code), { code })]);
     await renameOver('a', 'b', o);
     expect(o.calls).toBe(2);
+  });
+
+  it('has a budget of 8 attempts: it succeeds after 7 transient errors', async () => {
+    expect(RENAME_ATTEMPTS).toBe(8);
+    const o = ops(Array.from({ length: 7 }, () => eperm()));
+    await renameOver('a', 'b', o);
+    expect(o.calls).toBe(8);
   });
 
   it('gives up after the limit with the error, within a bounded total pause', async () => {

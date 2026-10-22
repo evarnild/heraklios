@@ -83,12 +83,11 @@ export function fileSaveFs(dir: string): SaveFs {
       }
     },
     write(slot, text) {
-      const run = (queues.get(slot) ?? Promise.resolve()).catch(() => undefined).then(() => writeOnce(slot, text));
-      queues.set(slot, run);
-      return run;
+      return enqueue(slot, () => writeOnce(slot, text));
     },
-    async remove(slot) {
-      await rm(pathOf(slot), { force: true });
+    // Through the same queue as writes: a DELETE issued after a PUT must run after it.
+    remove(slot) {
+      return enqueue(slot, () => rm(pathOf(slot), { force: true }));
     },
     async list() {
       try {
@@ -99,6 +98,12 @@ export function fileSaveFs(dir: string): SaveFs {
       }
     },
   };
+
+  function enqueue(slot: Slot, job: () => Promise<void>): Promise<void> {
+    const run = (queues.get(slot) ?? Promise.resolve()).catch(() => undefined).then(job);
+    queues.set(slot, run);
+    return run;
+  }
 
   async function writeOnce(slot: Slot, text: string): Promise<void> {
     await mkdir(dir, { recursive: true });
