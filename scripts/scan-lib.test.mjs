@@ -59,6 +59,12 @@ describe('artefactOrigins', () => {
     expect(o['plan.md']).toEqual({ skill: 0, hand: 1, unstamped: 0 });
   });
 
+  it('does not match a skill name that merely starts with the right one', () => {
+    const o = artefactOrigins([stamps('heraklios/spec-x@0.1.0', 'heraklios/build-plan-x@0.1.0')]);
+    expect(o['spec.md']).toEqual({ skill: 0, hand: 1, unstamped: 0 });
+    expect(o['plan.md']).toEqual({ skill: 0, hand: 1, unstamped: 0 });
+  });
+
   it('counts an intent without the file nowhere', () => {
     const o = artefactOrigins([stamps(undefined, 'heraklios/build-plan@0.1.0')]);
     expect(o['spec.md']).toEqual({ skill: 0, hand: 0, unstamped: 0 });

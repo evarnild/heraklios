@@ -134,15 +134,16 @@ points to this section and adds only what is its own.
 3. **Quote sources at their wording.** A rule, a line of code or an earlier
    decision is cited with its path and the passage as written, not
    paraphrased.
-4. **Record the `main` commit** the artefact was checked against (short
-   hash), in the artefact itself.
+4. **Record the `main` commit** a spec or plan was checked against (short
+   hash), in the artefact itself. An intent states a problem and is not
+   checked against code, so it records none.
 5. **Stamp the first line** of every file you write, in the form under
    "Stamps" with the skill's own name and version.
 6. **Validate before handing over.** Check the draft against its template
    and the skill's own checklist.
 7. **Report what is weak**, plainly: open assumptions, claims you could not
    verify, anything the owner should look at first.
-8. **Stop for the owner.** Never record a gate: see "Who edits what". The
+8. **Stop for the owner.** Never record a gate on your own: see "Who edits what". The
    next step you name is the owner accepting it, or saying yes so an agent
    records it with `by-agent`.
 

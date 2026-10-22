@@ -3,7 +3,7 @@ name: intent
 description: Draft or sharpen a heraklios intent (intents/<id>-<slug>/intent.md + metadata.yml) for a fix, feature, refactor, adjustment or experiment. Use when starting any new piece of heraklios work, turning a bug found while playing or a review finding into work, or backfilling an intent for a plan that came first. Invoke as /intent --fix|--feature|--refactor|--adjust|--exp <what you have>.
 metadata:
   owner: evarnild
-  version: 0.1.3
+  version: 0.1.4
   scope: repository
   status: experimental
   review-tier: reviewed
@@ -12,14 +12,12 @@ metadata:
 # /intent — draft and validate an intent
 
 You are running the refinement interview asynchronously: turn whatever the
-user has into an intent good enough to accept, asking **only** the questions
-the material does not already answer. The user accepts; you record a gate only on the
-user's request, with `by-agent` (`intents/README.md` → "Who edits what").
+user has into an intent good enough to accept. Follow `intents/README.md` →
+"Drafting an artefact" for what the drafting skills share; this file adds only
+what is the intent's own.
 
-Stamp: `<!-- generated-by: heraklios/intent@0.1.3 -->` as the first line of
-every file you write.
-Follow `intents/README.md` → "Drafting an artefact" for what the drafting
-skills share.
+Stamp: `<!-- generated-by: heraklios/intent@0.1.4 -->` as the first line of
+`intent.md` and `metadata.yml`.
 
 ## 1. Settle the type
 
@@ -27,9 +25,9 @@ From the flag (`--fix`, `--feature`, `--refactor`, `--adjust`, `--exp`) or,
 without one, from the material. If it is ambiguous, it is a **feature** —
 say so and why. Rules for each type are in `intents/README.md`; read it.
 
-## 2. Gather what already exists — before asking anything
+## 2. Gather what already exists
 
-Look, in this order, and quote what you use:
+Look, in this order:
 
 - the user's message and anything pasted or linked (GitHub issue via `gh`, a
   `review.md` finding, a `plan-history.md` follow-up such as §19.5);
@@ -43,8 +41,7 @@ Look, in this order, and quote what you use:
 
 ## 3. Ask only the missing questions, by type
 
-Ask at most one round, batched. Use the type's question set from
-`intents/_templates/intent.md`:
+Use the type's question set from `intents/_templates/intent.md`:
 
 - **fix** — what broke, since when, impact (does it corrupt a game or a
   save?), reproduction, which test will fail first.
@@ -57,9 +54,7 @@ Ask at most one round, batched. Use the type's question set from
   lines, no rule code — otherwise propose fix or feature instead.
 - **experiment** — the question, the containment, what happens to the result.
 
-Skip any question the material already answered. If the user says "just
-draft it", fill gaps with your best reading and list each one under
-**Assumptions I made**.
+If the user says "just draft it", fill gaps with your best reading.
 
 ## 4. Write the artefacts
 
@@ -83,9 +78,9 @@ draft it", fill gaps with your best reading and list each one under
 5. If the material came from a GitHub issue, offer to post the sharpened
    problem statement back to it — don't post without a yes.
 
-## 5. Validate against the template and report
+## 5. Validate against the template
 
-Check the draft and tell the user plainly what is still weak:
+Check the draft for:
 
 - Problem states a problem, not a solution.
 - Outcome is checkable by someone else.
@@ -94,7 +89,6 @@ Check the draft and tell the user plainly what is still weak:
 - Adjustment: blast radius really is small.
 - Assumptions are listed, not buried.
 
-End with: the folder path, the type and why, open assumptions, and the next
-step — "accept by setting `intent_accepted: <date>` in metadata.yml, or say yes and I'll record it with `by-agent`", then the
-spec (feature) or plan (fix/refactor) comes next.
+Report the folder path and the type and why. The spec (feature) or plan
+(fix/refactor) comes next.
 Next skill: `/spec <id>` for a feature, `/build-plan <id>` for a fix or refactor.

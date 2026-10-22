@@ -163,7 +163,7 @@ if (asJson) {
   console.log('## Intents');
   console.log(`total: ${r.intents.total} · by type: ${JSON.stringify(r.intents.byType)} · by status: ${JSON.stringify(r.intents.byStatus)} · skill-stamped: ${r.intents.withSkillStamp}`);
   for (const [file, o] of Object.entries(r.intents.artefactOrigins)) {
-    console.log(`${file}: ${o.skill} by /${file === 'spec.md' ? 'spec' : 'build-plan'} � ${o.hand} hand (old stamp) � ${o.unstamped} unstamped`);
+    console.log(`${file}: ${o.skill} by /${file === 'spec.md' ? 'spec' : 'build-plan'} · ${o.hand} hand (old stamp) · ${o.unstamped} unstamped`);
   }
   for (const rv of r.intents.reviews) console.log(`  review §${rv.id}: verdict ${rv.verdict}, tier ${rv.tier}, round ${rv.round}, sampled ${rv.sampled}`);
   console.log('\n## Gates recorded (owner / agent)');

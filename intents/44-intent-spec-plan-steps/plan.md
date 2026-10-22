@@ -49,7 +49,7 @@ Re-read on `main` at `4ba8209`:
   `heraklios/<skill>@<version>` stamp convention; `grid/SKILL.md:33`
   "## 2. Score each stage", `:41-42` the L2 rule.
 - `intents/README.md` — `## Who edits what` (`:83`), its spawned-session
-  bullet naming "the skills" for `spec.md`/`plan.md` (`:114-117`);
+  bullet naming "the skills" for `spec.md`/`plan.md` (`:115-118`);
   `## Stamps` (`:121-126`); `## Status values` (`:128`). The new
   "Drafting an artefact" section goes before `## Stamps`.
 - `sdlc.md` — step 1 (`:19`, `/intent`), step 2 "Spec — features only"
@@ -63,8 +63,8 @@ Re-read on `main` at `4ba8209`:
   `scripts/**/*.test.mjs`.
 - `intents/_templates/spec.md`, `plan.md` — the sections B4.3 and B5.3
   name.
-- Today's stamps on specs and plans: 23 files, 19 stamped
-  `heraklios/intent@0.1.x` (6 × `0.1.1`, 13 × `0.1.2`), 4 unstamped
+- Today's stamps on specs and plans: 21 files (templates excluded, at `6c2d960`), 19 stamped
+  `heraklios/intent@0.1.x` (6 × `0.1.1`, 13 × `0.1.2`), 2 unstamped
   (before §44's own files).
 
 ## Subtasks
@@ -158,3 +158,27 @@ unstamped; equals the `grep` tally (templates excluded).
 Divergences: `metadata.yml` went to `status: in-progress` inside the first
 commit. The game `README.md` is untouched (process change, no game
 behaviour, no Known simplification). The AC4 dry run is the owner's.
+
+### 2026-10-22 — rework after review round 1
+
+1. `scripts/sdlc-scan.mjs`: the lone 0xB7 separators rewritten as UTF-8 `·`.
+   Real output:
+   `spec.md: 0 by /spec · 8 hand (old stamp) · 0 unstamped` /
+   `plan.md: 0 by /build-plan · 13 hand (old stamp) · 2 unstamped`.
+2. `scan-lib.test.mjs`: case `heraklios/spec-x@0.1.0` on a spec (and
+   `build-plan-x` on a plan) is hand; the `startsWith(skill)` mutant now
+   fails 1 of 9 tests.
+3. README rule 8: "Never record a gate on your own".
+4. `/intent` thinned to 0.1.4: its restatements of the shared rules (quote
+   what you use, one batched round, report, accept/by-agent sentence) are
+   replaced by the pointer. This goes beyond the spec's B2 limit for
+   /intent, on the owner's request (2026-10-22, "resume 44 implementer with
+   all findings"). Decision on README rule 4: it applies to spec and plan
+   only (an intent is not checked against code), so rule 4 now says so;
+   `intents/_templates` unchanged. Stamp line now names `intent.md` and
+   `metadata.yml` (B6).
+5. `/grid` bumped to 0.1.2 (version and stamp).
+6. Factual corrections above the marker, on the review's request: plan.md
+   "23 files ... 4 unstamped" -> "21 files (templates excluded, at
+   `6c2d960`), 19 stamped, 2 unstamped"; plan.md citation `:114-117` ->
+   `:115-118`; intent.md "23"/"4" -> "21"/"2".
