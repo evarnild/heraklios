@@ -6,7 +6,7 @@ status: accepted
 title: /ship merges a reviewed intent, does the bookkeeping, pushes and removes its worktree and branch
 review_tier:
 intent_accepted: 2026-10-22 by-agent    # owner: "yes to 46"
-spec_accepted:
+spec_accepted: 2026-10-22 by-agent    # owner's "yes" in chat
 plan_approved:
 live_checked:
 merged:
