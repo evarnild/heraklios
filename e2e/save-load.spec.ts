@@ -21,7 +21,7 @@ import {
   waitLoadOnRowOf,
   waitSavePanelLoaded,
 } from './helpers';
-import { SAVES_DIR } from './savesDir';
+import { SAVES_DIR, acquireSaveLock, releaseSaveLock } from './savesDir';
 
 const DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]] as const;
 const SAVE_LOAD = '💾 Save / Load';
@@ -29,7 +29,11 @@ const SLOT_1_FILE = join(SAVES_DIR, 'slot-1.json');
 
 // The workers share one saves folder and --repeat-each reruns the scenario:
 // start without a slot-1 file, so a read can never see an earlier run's.
-test.beforeEach(() => rmSync(SLOT_1_FILE, { force: true }));
+test.beforeEach(async () => {
+  await acquireSaveLock(); // one save scenario at a time across the workers
+  rmSync(SLOT_1_FILE, { force: true });
+});
+test.afterEach(() => releaseSaveLock());
 
 /**
  * The state minus the game clock: `elapsedMs` ticks every frame while the

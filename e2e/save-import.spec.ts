@@ -16,7 +16,7 @@ import {
   waitLoadOnRowOf,
   waitSavePanelLoaded,
 } from './helpers';
-import { SAVES_DIR } from './savesDir';
+import { SAVES_DIR, acquireSaveLock, releaseSaveLock } from './savesDir';
 
 const SAVE_LOAD = '💾 Save / Load';
 const COPY = 'Copy browser saves to files';
@@ -26,13 +26,16 @@ const SLOT_6_FILE = join(SAVES_DIR, 'slot-6.json');
 
 const withoutClock = ({ elapsedMs: _clock, ...rest }: Awaited<ReturnType<typeof state>>) => rest;
 
-test.beforeEach(() => {
+// One save scenario at a time across the workers (see acquireSaveLock).
+test.beforeEach(async () => {
+  await acquireSaveLock();
   rmSync(SLOT_5_FILE, { force: true });
   rmSync(SLOT_6_FILE, { force: true });
 });
 test.afterEach(() => {
   rmSync(SLOT_5_FILE, { force: true });
   rmSync(SLOT_6_FILE, { force: true });
+  releaseSaveLock(); // last: the files are gone before the next scenario starts
 });
 
 test('a browser save is copied into its empty file slot and loads from there', async ({ page, context }) => {

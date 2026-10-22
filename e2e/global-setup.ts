@@ -5,7 +5,7 @@ import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } f
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build } from 'vite';
-import { SAVES_DIR } from './savesDir';
+import { SAVES_DIR, SAVE_LOCK } from './savesDir';
 
 const HOOK = '__heraklios';
 
@@ -19,6 +19,7 @@ function filesUnder(dir: string): string[] {
 export default async function globalSetup(): Promise<void> {
   // A fresh, empty folder for the save API (removed again by global-teardown.ts).
   rmSync(SAVES_DIR, { recursive: true, force: true });
+  rmSync(SAVE_LOCK, { recursive: true, force: true }); // a crashed run may have left it
   mkdirSync(SAVES_DIR, { recursive: true });
   const outDir = mkdtempSync(join(tmpdir(), 'h32-build-'));
   try {
