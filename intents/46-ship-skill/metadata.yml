@@ -2,14 +2,14 @@
 id: 46
 slug: ship-skill
 type: feature
-status: in-review
+status: done
 title: /ship merges a reviewed intent, does the bookkeeping, pushes and removes its worktree and branch
 review_tier:
 intent_accepted: 2026-10-22 by-agent    # owner: "yes to 46"
 spec_accepted: 2026-10-22 by-agent    # owner's "yes" in chat
 plan_approved: 2026-10-22 by-agent    # owner's "yes" in chat
 live_checked: 2026-10-22 by-agent    # owner: "46: live check done"
-merged:
+merged: d2d841a
 follows_up:
 links:
   - REVIEW-POLICY.md    "Merging": the preconditions and bookkeeping the skill follows

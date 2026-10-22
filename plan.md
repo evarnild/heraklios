@@ -217,12 +217,12 @@ sync when something merges** — it went stale once and the user caught it.
 | [§43](intents/43-center-view-on-turn/) the view jumps to the new player's land units at the start of their turn, and when the Board opens or loads (feature, Attested, 1 review round, 1 LOW worth-a-look; see [review.md](intents/43-center-view-on-turn/review.md)) | `2727059` |
 | [§44](intents/44-intent-spec-plan-steps/) /spec and /build-plan skills write the spec and the plan, stamped; /intent thinned to 0.1.4; the scan tells skill-made specs and plans from hand-made (feature, Reviewed, 3 review rounds; see [review.md](intents/44-intent-spec-plan-steps/review.md)) | `364afc5` |
 | [§45](intents/45-save-api/) Games are saved as files on this PC behind a localhost save API (dev and preview); no browser fallback, read-only import of old browser saves (feature, Reviewed, 4 review rounds; see [review.md](intents/45-save-api/review.md)) | `56bda03` |
+| [§46](intents/46-ship-skill/) /ship merges a reviewed intent (preconditions, merge, verify, bookkeeping, push, worktree and branch removal), stopping at the first failing step; scripts/ship.mjs + skill 0.1.0 (feature, Reviewed, 3 review rounds; see [review.md](intents/46-ship-skill/review.md)) | `d2d841a` |
 
 ### In flight
 
 | Item | Type · status |
 | --- | --- |
-| [§46](intents/46-ship-skill/) /ship merges a reviewed intent, does the bookkeeping, pushes and removes its worktree and branch | feature · in-review |
 
 ### Queued
 
