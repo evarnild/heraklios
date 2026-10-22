@@ -6,7 +6,7 @@ status: accepted
 title: Centre the view on the new player's land units when their turn starts
 review_tier:
 intent_accepted: 2026-10-21 by-agent    # owner: "center on land units only, skip live check and then accept the intent"
-spec_accepted:
+spec_accepted: 2026-10-22 by-agent    # owner: "keep the live check and then accept spec and draft plan"
 plan_approved:
 live_checked:
 merged:

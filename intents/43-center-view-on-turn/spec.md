@@ -95,12 +95,10 @@ the pieces of the player" is the average position of their land units
 - **AC4** — the existing four game scenarios still pass: they centre the
   camera themselves before each click (`e2e/helpers.ts` `clickHex`), so
   the jump doesn't move their targets.
-- **AC5** — live check: owed by path (`src/scenes/**`, `src/ui/**`); the
-  owner asked to skip it (intent → Constraints). Under today's policy the
-  smoke suite can't stand in for new visual behaviour, so `/review`
-  decides under the policy then in force. If owed, the steps: Test mode,
-  end both phases, and the view jumps to player 2's army; then let an AI
-  game run a round.
+- **AC5** — live check, owed by path (`src/scenes/**`, `src/ui/**`) and
+  kept (owner, 2026-10-22): Test mode → the view starts on player 1's
+  army → end both phases → the view jumps to player 2's army; then a game
+  with an AI seat for one round, watching the view follow each seat.
 
 ## Non-functional
 

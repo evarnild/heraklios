@@ -54,15 +54,9 @@ What exists (`main` at `d74b8fe`):
   scene only calls it and moves the camera.
 - The camera is clamped to the board's bounds (`MapView.enableDrag`
   `setBounds`); centring near an edge stops at the edge.
-- **Live check: the owner asks to skip it** (2026-10-21), with an e2e
-  scenario as the proof instead. Under today's `REVIEW-POLICY.md` →
-  "Live checks" that is not yet allowed: `src/scenes/**` and `src/ui/**`
-  owe one by path, and the smoke-suite exception covers only behaviour an
-  *existing* scenario already covers that is neither new nor visual. So
-  this intent delivers the scenario (the dev hook can read the camera,
-  `devHook.ts` `centerOn`/`hexToCanvas`); whether it replaces the live
-  check is settled at `/review` under the policy then in force, or by a
-  policy change (the 2026-10-20 grid's proposal) before it.
+- **Live check: kept** (owner, 2026-10-22, reversing the 2026-10-21 wish
+  to skip it). `src/scenes/**` and `src/ui/**` owe one by path. The e2e
+  scenario is delivered as well, as automated cover for later changes.
 
 ## Type-specific questions
 
