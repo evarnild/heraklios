@@ -215,12 +215,12 @@ sync when something merges** — it went stale once and the user caught it.
 | [§42](intents/42-intent-check-counts-e2e/) `check:intent` counts `e2e/**/*.spec.ts` as tests for the fix and refactor rules (rule code still needs a unit test) (fix, follows up §32, Attested, 1 review round, no findings; see [review.md](intents/42-intent-check-counts-e2e/review.md)) | `781f346` |
 | [§41](intents/41-e2e-dev-server-first-load/) e2e red runs explained — a sleep is named in the output, and the suite runs two workers (five parallel software-rendered Chromiums starved each other); the shared port refuted (fix, follows up §32, Attested, 3 review rounds; see [review.md](intents/41-e2e-dev-server-first-load/review.md)) | `cfab5de` |
 | [§43](intents/43-center-view-on-turn/) the view jumps to the new player's land units at the start of their turn, and when the Board opens or loads (feature, Attested, 1 review round, 1 LOW worth-a-look; see [review.md](intents/43-center-view-on-turn/review.md)) | `2727059` |
+| [§44](intents/44-intent-spec-plan-steps/) /spec and /build-plan skills write the spec and the plan, stamped; /intent thinned to 0.1.4; the scan tells skill-made specs and plans from hand-made (feature, Reviewed, 3 review rounds; see [review.md](intents/44-intent-spec-plan-steps/review.md)) | `364afc5` |
 
 ### In flight
 
 | Item | Type · status |
 | --- | --- |
-| [§44](intents/44-intent-spec-plan-steps/) /spec and /build-plan skills write the spec and the plan, stamped | feature · in-review |
 
 ### Queued
 

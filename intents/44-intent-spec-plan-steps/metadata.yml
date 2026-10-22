@@ -2,14 +2,14 @@
 id: 44
 slug: intent-spec-plan-steps
 type: feature
-status: in-review
+status: done
 title: /spec and /build-plan skills write the spec and the plan, stamped
 review_tier:
 intent_accepted: 2026-10-22 by-agent    # owner's "yes" in chat
 spec_accepted: 2026-10-22 by-agent    # owner: "build-plan and then accept it" (three skills, /build-plan)
 plan_approved: 2026-10-22 by-agent    # owner's "yes" in chat
 live_checked: 2026-10-22 by-agent    # owner: "live checked" in chat (the /intent /spec /build-plan dry run)
-merged:
+merged: 364afc5    # 2026-10-22, merged by Claude on the owner's explicit request in chat
 follows_up:
 links:
   - docs/sdlc-grid.md    2026-10-20 grid: Design L1 because no skill produces specs; their stamp overstates L2
