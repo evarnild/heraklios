@@ -1,0 +1,16 @@
+# generated-by: heraklios/intent@0.1.4
+id: 48
+slug: e2e-save-lock-hooks
+type: fix
+status: draft
+title: e2e save-lock hooks touch nothing unless they hold the lock, and always release it
+review_tier:
+intent_accepted:
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+follows_up: 45
+links:
+  - intents/45-save-api/review.md    round 4 LOW (hooks) and nit (STALE_MS)
+  - intents/45-save-api    introduced the cross-worker save lock
