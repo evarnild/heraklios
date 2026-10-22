@@ -194,4 +194,12 @@ lock file added (out of scope). `shouldCheck(status, platform)` now lives in
 (passed false; failed/timedout/interrupted true on win32; any status false
 on linux); mutant dropping the `passed` check now fails "skips a passed
 run". Tests 704 total. Results below.
-e2e after rework: 7/7 passed, verify green (21 warnings), check:intent PASS.
+verify green (704 tests, 21 warnings), check:intent PASS. e2e: the first two
+runs after the rework were RED (5 of 7 timed out at 30 s; the first was logged
+here wrongly as a pass by mistake, corrected now). No sleep in the event log, port
+free, no other suite. Trace of the second: every request returned 200 (the game
+loaded), but each Evaluate/Screenshot step took 1-2 s instead of ~50 ms, so
+the scenarios ran out of the 30 s timeout: a browser/machine slowdown at that
+moment (CPU load 13% afterwards, battery 100%, Balance power mode, many apps
+open), a THIRD red-run kind that the sleep line does not name. The third run
+passed 7/7 (19.4 s). Cause of the slowdown not found; recorded as an open lead.
