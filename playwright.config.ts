@@ -10,6 +10,8 @@ const HOST = '127.0.0.1';
 
 export default defineConfig({
   testDir: 'e2e',
+  // Scenarios are *.spec.ts only: the *.test.ts files in e2e/ are vitest unit tests.
+  testMatch: '**/*.spec.ts',
   globalSetup: './e2e/global-setup.ts',
   globalTeardown: './e2e/global-teardown.ts',
   timeout: 30_000,

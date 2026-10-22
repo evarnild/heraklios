@@ -21,31 +21,51 @@ export const SAVES_DIR = join(tmpdir(), 'heraklios-e2e-saves-5232');
 export const SAVE_LOCK = `${SAVES_DIR}.lock`;
 const STALE_MS = 60_000;
 
-/** This worker holds the lock (a failed acquire must not release someone else's). */
-let held = false;
+export interface DirLock {
+  acquire(timeoutMs?: number): Promise<void>;
+  release(): void;
+  /** The afterEach entry point: the old behaviour (cleanup, then release), unguarded. */
+  withHeld(cleanup: () => void | Promise<void>): Promise<void>;
+}
 
-export async function acquireSaveLock(timeoutMs = 25_000): Promise<void> {
-  const start = Date.now();
-  for (;;) {
-    try {
-      mkdirSync(SAVE_LOCK);
-      held = true;
-      return;
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
+/** A lock on a folder path; `held` is per instance (a failed acquire must not release someone else's). */
+export function createDirLock(path: string, { staleMs, pollMs = 50 }: { staleMs: number; pollMs?: number }): DirLock {
+  let held = false;
+
+  async function acquire(timeoutMs = 25_000): Promise<void> {
+    const start = Date.now();
+    for (;;) {
+      try {
+        mkdirSync(path);
+        held = true;
+        return;
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
+      }
+      try {
+        if (Date.now() - statSync(path).mtimeMs > staleMs) rmSync(path, { recursive: true, force: true });
+      } catch {
+        // released between the two calls: try again
+      }
+      if (Date.now() - start > timeoutMs) throw new Error('Could not take the save-scenario lock (another worker holds it)');
+      await new Promise((resolve) => setTimeout(resolve, pollMs));
     }
-    try {
-      if (Date.now() - statSync(SAVE_LOCK).mtimeMs > STALE_MS) rmSync(SAVE_LOCK, { recursive: true, force: true });
-    } catch {
-      // released between the two calls: try again
-    }
-    if (Date.now() - start > timeoutMs) throw new Error('Could not take the save-scenario lock (another worker holds it)');
-    await new Promise((resolve) => setTimeout(resolve, 50));
   }
+
+  function release(): void {
+    if (!held) return;
+    held = false;
+    rmSync(path, { recursive: true, force: true });
+  }
+
+  async function withHeld(cleanup: () => void | Promise<void>): Promise<void> {
+    await cleanup();
+    release();
+  }
+
+  return { acquire, release, withHeld };
 }
 
-export function releaseSaveLock(): void {
-  if (!held) return;
-  held = false;
-  rmSync(SAVE_LOCK, { recursive: true, force: true });
-}
+const saveLock = createDirLock(SAVE_LOCK, { staleMs: STALE_MS });
+export const acquireSaveLock = saveLock.acquire;
+export const releaseSaveLock = saveLock.release;
