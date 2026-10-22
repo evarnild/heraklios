@@ -10,12 +10,12 @@ Written against `main` at `c617fcb`.
 | Source | What it settles |
 | --- | --- |
 | `plan.md` "How To Manage This Plan" | "A queue row is one line … with the type and the status from its `metadata.yml` (which is the source of truth for status)"; "it mirrors `metadata.yml`, which wins if they disagree" |
-| `plan.md` sections | Current Snapshot `:71`, Current Queue `:166` (Shipped `:171`, In flight `:220`, Queued `:227`), Backlog Map `:237`, History Map `:260`, §1 Agent workflow `:336`, §4 Runbook `:420` |
+| `plan.md` sections | Current Snapshot `:71`, Current Queue `:166` (Shipped `:171`, In flight `:220`, Queued `:227`), Backlog Map `:238`, History Map `:261`, §1 Agent workflow `:337`, §4 Runbook `:421` |
 | `intents/README.md:8-11` | "`plan.md` at the repo root stays the **coordinator view** — snapshot, queue, backlog, history map." |
 | `intents/README.md:26-28` | the id is "the same numbering `plan.md`, `plan-history.md` and the commit messages already use" |
 | `scripts/session-io.mjs:53` `readIntentMetadataFromBranch`, `:80` `readIntentMetadata`; `scripts/session-lib.mjs:21` `branchFor` | reading an intent's metadata from its branch or from `main` |
 | `scripts/sdlc-scan.mjs:75` | `isPlanOnly = (s) => /^Plan[:\s]/i.test(s)`: commits by subject, not by file |
-| References to the root `plan.md` | `CLAUDE.md:43`, `:61`, `:117`, `:123`, `:142`; `AGENTS.md:10`, `:15`, `:40`; `REVIEW-POLICY.md:140`, `:168`; `intents/README.md:8`, `:26`; `sdlc.md` (step 6); `.claude/skills/intent/SKILL.md` (§2 gather, §4.1 id, §4.4 queue row); `.claude/skills/sessions/SKILL.md:15`, `:40`; `.claude/skills/spawn/SKILL.md:61`, `:65`; `.claude/skills/review/SKILL.md:49`; `.claude/agents/heraklios-implementer.md:3`, `:26`, `:31`; `.claude/agents/heraklios-reviewer.md:62`, `:69`, `:98`, `:114`; `.codex/agents/heraklios-implementer.toml:12`, `:14`; `scripts/session-lib.mjs:263`; `scripts/spawn-intent.mjs:7`, `:127` |
+| References to the root `plan.md` | `CLAUDE.md:43`, `:61`, `:117`, `:123`, `:142`; `AGENTS.md:10`, `:15`, `:40`; `REVIEW-POLICY.md:140`, `:168`; `intents/README.md:8`, `:26`; `sdlc.md:13` (next id), step 6; `.claude/skills/intent/SKILL.md` (§2 gather, §4.1 id, §4.4 queue row); `.claude/skills/sessions/SKILL.md:15`, `:40`; `.claude/skills/spawn/SKILL.md:61`, `:65`; `.claude/skills/review/SKILL.md:49`; `.claude/agents/heraklios-implementer.md:3`, `:26`, `:31`; `.claude/agents/heraklios-reviewer.md:62`, `:69`, `:98`, `:114`; `.codex/agents/heraklios-implementer.toml:12`, `:14`; `scripts/session-lib.mjs:263`; `scripts/spawn-intent.mjs:7`, `:127` |
 
 ## Behaviour
 
