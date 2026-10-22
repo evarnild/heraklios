@@ -3,10 +3,148 @@
 
 verdict: rework
 tier: reviewed
-reviewed-commit: b45d85c
-round: 1
+reviewed-commit: 53cf09f
+round: 2
 sampled: no
 live-check: owed
+
+Tier set by inputs 1 and 2 (save path; `review_tier: reviewed`). Passes run
+by the `heraklios-reviewer` agent; results the coordinator re-ran are
+marked. Round 1's M1, M3, M4 and the LOWs are resolved and proved by probe
+and mutant. M2's rework has a structural bug: the per-slot write queue is
+rebuilt on every request, so it never queues; concurrent writes survive
+only because of the rename retry, which no test covers. One cheap LOW: the
+partial-copy message is overwritten in the very case it describes.
+
+## Passes
+| # | Pass | Result |
+| --- | --- | --- |
+| 1 | Intent and plan match | findings (1) — M2's queue not in effect (M1) |
+| 2 | Type check | FAIL on the owed live check only (the owner's) |
+| 3 | Rulebook fidelity | not run — digital-only |
+| 4 | Tests prove the rule, not only pass | findings (2) — six M2 survivors (M1); the panel's `stopped` handling (L1) |
+| 5 | Engine/presentation boundary and conventions | pass |
+| 6 | Numbers in prose | findings (1) — Progress's queue claim and its "(1)" kill (M1) |
+| 7 | Documentation | pass (nit `README.md:164`) |
+| 8 | Guardrails and hygiene | pass — lint 21/21, UTF-8 clean |
+| 9 | Repository-specific footguns | pass |
+
+## Type check
+```
+type-check: FAIL (intent 45, feature)
+  error: A live check is owed and not recorded. Do the steps in intents/45-save-api/review.md → ## Live check, then set live_checked: <date> in intents/45-save-api/metadata.yml.
+```
+The only error is the owed live check.
+
+## Findings
+- **MEDIUM** (M1) `server/saveApiPlugin.ts:76`, `:63`;
+  `server/fileSaveFs.ts:53`, `:64-67` — the write queue lives in each
+  `fileSaveFs` instance, and the plugin builds a new one per request
+  (`saveApiMiddleware(() => fileSaveFs(dir))`, with `fs()` called per
+  request; re-read by the coordinator), so it never queues. Reviewer's
+  evidence: 40 concurrent writes to one slot gave 0 rename failures with
+  one instance and 20 EPERM out of 60 renames with one per write; live, 20
+  × 8 PUTs gave 160 × 204, but with a no-retry mutant on the same server 56
+  × 500. Older autosaves can land over newer ones (6 of 30 trials with one
+  instance per write, 0 of 30 shared; `BoardScene.ts:991` is
+  fire-and-forget). Mutants surviving all 813 tests: shared temp name
+  alone; no queue alone; a queue that stays blocked after a rejected write;
+  no retry; retry on every error code; no backoff. Needs rework: build the
+  `SaveFs` once per plugin, lazily after `configResolved` (`let fs; () =>
+  (fs ??= fileSaveFs(dir))`); a middleware-level test that concurrent PUTs
+  through `saveApiMiddleware` reach one instance (real `fileSaveFs`, temp
+  dir; the last PUT wins, no rename fails); a test that a rejected write
+  doesn't block the next one; a test of `renameOver`'s retry and its bound
+  with an injected EPERM; correct the Progress claim.
+- **LOW** (L1) `src/ui/saveLoadPanel.ts:385-391` — after `copyStopped` the
+  code calls `loadList()`, which with the server down sets "The game server
+  isn't answering." over it (re-read by the coordinator). On the Board both
+  lines reach the log; on the Menu only the second stays. Needs rework
+  (cheap): skip `loadList()` when `stopped`, or set the status after it;
+  check it in the live check.
+- **LOW** — two processes on one folder (dev + preview) under 20 × 16
+  alternating PUTs gave 1 × 500 in 320; the retry budget is 25 + 50 + 75 +
+  100 ms. Worth a look: a longer or jittered backoff, or accept and note it.
+- **LOW** (nits) `server/fileSaveFs.ts:95` closing `}` at column 0;
+  `README.md:164` unwrapped (about 130 characters).
+
+## Not checked
+- The game in a real browser beyond e2e: panel layout, French — the live
+  check.
+- A request body aborted mid-upload.
+- `npm run preview` on the stable checkout (the review used the worktree's
+  preview).
+- Chrome's real local-network protections (simulated with Host headers);
+  antivirus file locks.
+
+## Live check
+- owed: rule 1 (`src/ui/**`, `BoardScene.ts`, `vite.config.ts`); new and
+  visual. After the rework.
+- steps, in `C:/Users/eric/src/heraklios-wt/45-save-api`:
+  1. `npm run dev -- --port 5245 --strictPort --host 127.0.0.1` → open
+     `http://127.0.0.1:5245` → **Test mode** → **💾 Save / Load**: "Loading…"
+     then the rows → Save to slot 2: "Saved to slot 2." and
+     `saves/slot-2.json` exists, readable JSON.
+  2. Stop and restart the server, reload, Test mode, panel → Load slot 2 →
+     the same position.
+  3. Tab open, stop the server → Save: "The game server isn't answering —
+     nothing was saved."; **Export to file** still downloads; play on to the
+     next phase: the log shows "Autosave failed: the game server isn't
+     answering."
+  4. Restart, reload; devtools: `localStorage.setItem('heraklios.save.slot3',
+     <contents of saves/slot-2.json>)` with no `slot-3.json` → panel →
+     **Copy browser saves to files** → "copied: 1, skipped: 0", the button
+     goes, `slot-3.json` exists, the key unchanged → Load slot 3.
+  5. The same offer from the Menu's **Load a game**.
+  6. French: the panel and its messages.
+  7. Optional (a race, hard by hand): seed three browser slots and stop the
+     server mid-copy → "…copied to files: N, then the game server stopped
+     answering." If it can't be reproduced, its unit test stands in.
+  8. Optional: `http://localhost:5245` works too; a LAN address gets no
+     save API (deliberate).
+  9. Once on stable: `bash scripts/update-stable.sh`, `npm run preview`
+     there → save and load a slot → the file in that checkout's `saves/`.
+  10. Delete the worktree's `saves/` afterwards if not wanted.
+
+## Verified myself vs. taken on trust
+- Coordinator, re-run: HEAD `53cf09f`, worktree clean; `npm run
+  check:intent` → FAIL on the live check only; read
+  `server/saveApiPlugin.ts:60-78` (a `fileSaveFs` per request),
+  `server/fileSaveFs.ts:50-68` (the queue per instance) and
+  `src/ui/saveLoadPanel.ts:383-391` (`loadList()` after the stopped
+  message).
+- Reviewer agent: `npm run verify` → 50 files, 813 passed, lint 21/21;
+  `npm run e2e` → 10 passed; the two save scenarios `--repeat-each=3` → 6
+  passed; temp folder gone, no `saves/`; `git merge-tree` with `main` clean;
+  UTF-8 on 28 changed files; M1 live probes on its own dev (5291) and
+  preview (5293) servers (attacker Host → 403 on every route, with or
+  without a matching Origin; HTTP/1.0 with no Host → 403; the three local
+  hosts → 200; `https` Origin → 403; same origin → 200/204; LAN host →
+  403); 33 vitest mutants (M1, M3, M4 and LOW mutants killed; the six M2
+  survivors above); 3 e2e mutants (delay passes; no save and no write
+  fail); the concurrent-write and ordering measurements; servers stopped
+  by their own PIDs, temp folder removed.
+- Taken on trust: the implementer's first-run EPERM count; Chrome's real
+  protections; antivirus behaviour.
+
+# Round 1 (history)
+
+- verdict: rework
+- tier: reviewed
+- reviewed-commit: b45d85c
+- round: 1
+- sampled: no
+- live-check: owed
+
+Resolutions (round 2, all in `53cf09f`):
+- MEDIUM M1 DNS rebinding: **fixed** (Host allow-list first; live probes on
+  dev and preview; six mutants killed).
+- MEDIUM M2 concurrent writes: **outcome holds, design defective** — no
+  500s live, but only through the untested retry (round 2 M1).
+- MEDIUM M3 adapter untested: **fixed** (15 tests; P1–P6 killed).
+- MEDIUM M4 vacuous e2e wait: **fixed** (delay passes, no-save fails).
+- LOWs (scheme, cap boundary, health 405, invalid read, README:157):
+  **fixed**; partial-copy message: **code fixed, UI defect** (round 2 L1).
 
 Tier set by input 1 (`src/ui/saveStorage.ts`, Reviewed) and input 2
 (`review_tier: reviewed`). Passes run by the `heraklios-reviewer` agent;
@@ -17,7 +155,7 @@ bypassed by DNS rebinding because the plugin runs before Vite's own host
 check; concurrent writes to one slot fail; the plugin adapter has no
 tests; and the e2e wait for the saved file proves nothing.
 
-## Passes
+### Passes
 | # | Pass | Result |
 | --- | --- | --- |
 | 1 | Intent and plan match | findings (1) — B4's purpose isn't met under DNS rebinding (M1); otherwise B1–B11, divergences recorded |
@@ -30,13 +168,13 @@ tests; and the e2e wait for the saved file proves nothing.
 | 8 | Guardrails and hygiene | pass — lint 21/21, no dependency, UTF-8 clean |
 | 9 | Repository-specific footguns | pass |
 
-## Type check
+### Type check
 ```
 type-check: PASS (intent 45, feature)
   note:  24 file(s), 1407 line(s) changed outside intents/.
 ```
 
-## Findings
+### Findings
 - **MEDIUM** (M1) `server/saveApiPlugin.ts:83`, `:86`; `server/saveApi.ts:63-70`
   — **DNS rebinding bypasses B4.** The middleware is added inside
   `configureServer` / `configurePreviewServer`, which in Vite 6.4.3 run
@@ -93,7 +231,7 @@ type-check: PASS (intent 45, feature)
 - **LOW** (L6) `README.md:157` — "refuses requests from another website's
   page" isn't true until M1 is fixed.
 
-## Not checked
+### Not checked
 - The game in a real browser beyond e2e: a stopped server with the tab
   open, the panel's layout — the live check.
 - `npm run preview` (stable) not run by the review; nothing tests the
@@ -104,7 +242,7 @@ type-check: PASS (intent 45, feature)
   rebinding attack (simulated with Host headers only).
 - The save sizes in Progress (2907 B, 2124 B).
 
-## Live check
+### Live check
 - owed: rule 1 (`src/ui/**`, `src/scenes/BoardScene.ts`, `vite.config.ts`);
   new and visual, so the smoke suite can't stand in. After the rework.
 - steps, in `C:/Users/eric/src/heraklios-wt/45-save-api`:
@@ -134,7 +272,7 @@ type-check: PASS (intent 45, feature)
   a silent failure), the import copies only into empty slots and never
   changes the browser's copy.
 
-## Verified myself vs. taken on trust
+### Verified myself vs. taken on trust
 - Coordinator, re-run: HEAD `b45d85c`, worktree clean; `npm run
   check:intent` → PASS; a throwaway dev server on port 5292 with
   `HERAKLIOS_SAVES_DIR` in a temp folder: `GET /` with `Host:
