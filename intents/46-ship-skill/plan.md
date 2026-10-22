@@ -152,3 +152,12 @@ Re-read on `main` at `1bf02b3`:
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-10-22 — build (subtasks 1-6)
+
+- Commits: `edbc11d` ship-lib + tests (1); `f19bb2b` ship.mjs + `npm run ship` (2, 4); `6f5dfc6` sandbox end-to-end tests (3); the skill (5); CLAUDE.md and sdlc.md (6); this entry and status in-review. `git log main..HEAD` has the hashes.
+- Shipped: `scripts/ship-lib.mjs` (pure), `scripts/ship.mjs`, `.claude/skills/ship/SKILL.md` 0.1.0. Tests: ship-lib 28, ship end-to-end 9 (sandbox repo with bare origin: full ship, rework, dirty plan.md, owed live check, red verify then resume, dry run, busy worktree then --cleanup, ROUTE without and with a reason). Full suite 758 passed; lint 21 warnings (cap 21, unchanged).
+- Mutants (full `npx vitest run` each, all killed): accept rework (1 failed), skip ancestor check (2), allow any file (1), treat ROUTE as PASS (1), drop line-ending handling (3), append outside Shipped (5), ignore already merged (2).
+- Safety grep of `scripts/ship*.mjs` for `--force`, `reset`, ` -D`, `add -A`, `add .`, `kill`: only comments in ship.mjs and `worktree remove --force` in the test teardown of the throwaway sandbox.
+- Done on the coordinator's request (the queue may become a generated view, §47): the plan.md half of the bookkeeping (`bookkeepPlan`, `moveRowToShipped`) is separate from the metadata.yml half (`bookkeepMetadata`, `markMerged`) and called from one place; B4's dirty-plan.md check (`checkPlanClean`) is separate from the dirty-metadata check (`checkMetadataClean`).
+- Divergences: (a) the review-only part of precondition 1 (verdict, ancestor, files) is checked before step 1 writes the live check, so a refused run changes nothing (AC2); the full set, including check:intent, runs after the live check is recorded. (b) "ROUTE with the reason stated in review.md" is read as: the text outside `## Type check` mentions route/routes/routed (a code comment and `routeReasonStated` record it). (c) A conflicted `git merge` is followed by `git merge --abort` to leave main as it was. (d) `--dry-run` reports `pushed` as to-do until the bookkeeping exists, and notes that check:intent runs after the live check when `--live-checked` is given. (e) README.md has no section for process tooling, so it is unchanged; CLAUDE.md and sdlc.md carry the docs.
