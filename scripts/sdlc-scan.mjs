@@ -10,7 +10,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { GATE_FIELDS, parseMetadata } from './intent-check-lib.mjs';
-import { gateShares, metadataProblems } from './scan-lib.mjs';
+import { artefactOrigins, gateShares, metadataProblems } from './scan-lib.mjs';
 
 const args = process.argv.slice(2);
 const flag = (name) => {
@@ -133,6 +133,7 @@ const report = {
     byType: countBy(intents, 'type'),
     byStatus: countBy(intents, 'status'),
     withSkillStamp: stamped,
+    artefactOrigins: artefactOrigins(intents),
     reviews: intents.filter((i) => i.review).map((i) => ({ id: i.id, ...i.review })),
   },
   outcome: {
@@ -161,6 +162,9 @@ if (asJson) {
   console.log(`context file: ${yes(r.readiness.contextFile)} · verify: ${yes(r.readiness.verifyCommand)} · lint: ${yes(r.readiness.lint)} · review policy: ${yes(r.readiness.reviewPolicy)} · type check: ${yes(r.readiness.typeCheck)}\n`);
   console.log('## Intents');
   console.log(`total: ${r.intents.total} · by type: ${JSON.stringify(r.intents.byType)} · by status: ${JSON.stringify(r.intents.byStatus)} · skill-stamped: ${r.intents.withSkillStamp}`);
+  for (const [file, o] of Object.entries(r.intents.artefactOrigins)) {
+    console.log(`${file}: ${o.skill} by /${file === 'spec.md' ? 'spec' : 'build-plan'} · ${o.hand} hand (old stamp) · ${o.unstamped} unstamped`);
+  }
   for (const rv of r.intents.reviews) console.log(`  review §${rv.id}: verdict ${rv.verdict}, tier ${rv.tier}, round ${rv.round}, sampled ${rv.sampled}`);
   console.log('\n## Gates recorded (owner / agent)');
   for (const [field, n] of Object.entries(r.gateShares)) console.log(`${field}: ${n.owner} owner · ${n.agent} agent`);

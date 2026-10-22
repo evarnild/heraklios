@@ -42,3 +42,31 @@ export function gateShares(intents) {
   }
   return out;
 }
+
+// Which skill is allowed to have written each artefact (§44): a stamp names
+// the skill, so a spec only counts as skill-made when /spec stamped it.
+const ARTEFACT_SKILL = { 'spec.md': 'heraklios/spec', 'plan.md': 'heraklios/build-plan' };
+
+/**
+ * Per artefact (spec.md, plan.md): how many files the step's skill made
+ * (stamp name matches the file), how many are hand-made under another stamp,
+ * and how many are unstamped. An intent without the file is counted nowhere.
+ * The stamp is `name@version`, as sdlc-scan.mjs reads it; any version counts.
+ *
+ * @param {{stamps:Record<string,string|null>}[]} intents
+ * @returns {Record<string,{skill:number, hand:number, unstamped:number}>}
+ */
+export function artefactOrigins(intents) {
+  const out = {};
+  for (const [file, skill] of Object.entries(ARTEFACT_SKILL)) {
+    out[file] = { skill: 0, hand: 0, unstamped: 0 };
+    for (const i of intents) {
+      if (!(file in i.stamps)) continue;
+      const stamp = i.stamps[file];
+      if (!stamp) out[file].unstamped += 1;
+      else if (stamp.split('@')[0] === skill) out[file].skill += 1;
+      else out[file].hand += 1;
+    }
+  }
+  return out;
+}

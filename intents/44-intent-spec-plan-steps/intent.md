@@ -16,8 +16,8 @@ with no written procedure, and then stamped `heraklios/intent@0.1.x` as if
 0.1.2) covers drafting and validating the intent only; its last line says
 "then the spec (feature) or plan (fix/refactor) comes next" and stops.
 So:
-- the stamp on 19 of the 23 `spec.md` and `plan.md` files in `intents/`
-  (6 × `@0.1.1`, 13 × `@0.1.2`; the other 4 carry none) claims a skill wrote them when none did,
+- the stamp on 19 of the 21 `spec.md` and `plan.md` files in `intents/`
+  (6 × `@0.1.1`, 13 × `@0.1.2`; the other 2 carry none; templates excluded, at `6c2d960`) claims a skill wrote them when none did,
   and `npm run sdlc:scan`'s "skill-stamped" count includes them;
 - how a spec or plan is built (which sources to read, what to verify
   against the code, how to number behaviours, what the plan's "Verified

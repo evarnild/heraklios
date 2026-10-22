@@ -23,12 +23,12 @@ number after the highest one in `plan.md` / `plan-history.md`.
 
 **2. Spec — features only**
 
-- `spec.md` says what will be built.
+- Run `/spec <id>`; `spec.md` says what will be built.
 - You record `spec_accepted`.
 
 **3. Plan: how it will be built**
 
-- `plan.md` lists the files, the tests and the steps.
+- Run `/build-plan <id>`; `plan.md` lists the files, the tests and the steps.
 - `plan_approved` is your decision; you or the agent you ask records it. No code before this gate: `check:intent` fails
   a change whose code came first.
 

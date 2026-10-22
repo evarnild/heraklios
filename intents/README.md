@@ -115,8 +115,40 @@ type needs were recorded.
 - **A spawned session** (`npm run spawn`, `CLAUDE.md` → "Parallel
   sessions") is the implementer for its intent, with one addition: if the
   gates its type needs are not recorded yet, it may draft the missing
-  `spec.md` or `plan.md` with the skills, then stops for you to accept it.
+  `spec.md` (`/spec`) or `plan.md` (`/build-plan`) with the skills, then stops for you to accept it.
 - **The reviewer / `/review`** writes `review.md` and nothing else here.
+
+## Drafting an artefact
+
+`/intent`, `/spec` and `/build-plan` draft `intent.md`, `spec.md` and
+`plan.md`. What they do the same way is written here once; each `SKILL.md`
+points to this section and adds only what is its own.
+
+1. **Gather before asking.** Read what exists first (the intent, the
+   template, `plan.md`, `plan-history.md`, `README.md` "Known
+   simplifications", `docs/research/`, the code on current `main`) and quote
+   what you use.
+2. **Ask at most one batched round**, only for what the material leaves
+   open. If you skip a question, decide and list the decision, with its
+   reason, under "Assumptions I made".
+3. **Quote sources at their wording.** A rule, a line of code or an earlier
+   decision is cited with its path and the passage as written, not
+   paraphrased.
+4. **Record the `main` commit** a spec or plan was checked against (short
+   hash), in the artefact itself. An intent states a problem and is not
+   checked against code, so it records none.
+5. **Stamp the first line** of every file you write, in the form under
+   "Stamps" with the skill's own name and version.
+6. **Validate before handing over.** Check the draft against its template
+   and the skill's own checklist.
+7. **Report what is weak**, plainly: open assumptions, claims you could not
+   verify, anything the owner should look at first.
+8. **Stop for the owner.** Never record a gate on your own: see "Who edits what". The
+   next step you name is the owner accepting it, or saying yes so an agent
+   records it with `by-agent`.
+
+An artefact that already exists is revised in place: read it, keep what
+still holds, and say what changed.
 
 ## Stamps
 

@@ -3,7 +3,7 @@ name: grid
 description: Draft or update heraklios's AI-native SDLC grid (docs/sdlc-grid.md) — the L0–L4 level per stage (Intent, Design, Build, Test, Deploy, Maintain), the evidence behind each, the outcome measures, and the two stages to move next. Use at the start of a quarter, after a pilot change, or when asked "where does heraklios stand".
 metadata:
   owner: evarnild
-  version: 0.1.1
+  version: 0.1.2
   scope: repository
   status: experimental
   review-tier: reviewed
@@ -16,7 +16,7 @@ the user confirms. The scan cannot see deliberate choices ("Maintain is out
 of scope", "Design and Build are one step for features") — keep any the user
 already recorded.
 
-Stamp: keep or add `<!-- generated-by: heraklios/grid@0.1.1 -->` as the first
+Stamp: keep or add `<!-- generated-by: heraklios/grid@0.1.2 -->` as the first
 line of `docs/sdlc-grid.md`.
 
 ## 1. Collect evidence — don't ask for it
@@ -40,6 +40,9 @@ A level counts only when its trace exists:
   present; `npm run verify` ran.
 - **L2** — a versioned skill produced it: the artefact carries a
   `generated-by:` stamp. Required from the start — no self-assessment.
+  Design (and the plan half of Build) count as L2 only for the specs
+  (plans) that `npm run sdlc:scan` reports as made by `/spec`
+  (`/build-plan`); files under an old stamp count as hand-made, so L1.
 - **L3/L4** — a trigger fired, not a person: show the hook / schedule
   config and its run log. Without that, it is not L3.
 

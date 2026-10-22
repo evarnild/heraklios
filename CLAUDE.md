@@ -63,7 +63,8 @@ and in `intents/README.md` / `REVIEW-POLICY.md` win if they disagree.
   (features), plan, review report, metadata. Read `intents/README.md` for
   the types, gates and branch naming (`feat/27-…`, `fix/27-…`).
 - No code before the plan's gate is recorded in `metadata.yml`.
-- `/intent` drafts an intent, `/review` runs `REVIEW-POLICY.md` and writes
+- `/intent` drafts an intent, `/spec` a feature's spec, `/build-plan` a
+  plan, `/review` runs `REVIEW-POLICY.md` and writes
   `review.md`, `/grid` refreshes `docs/sdlc-grid.md`, `/spawn` and
   `/sessions` run parallel work (below).
 - An agent records a gate (`metadata.yml`) only on the owner's request in
