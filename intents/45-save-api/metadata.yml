@@ -7,7 +7,7 @@ title: Games are saved as files on this PC, reached by the game through a local 
 review_tier: reviewed    # save format and storage (src/engine/saveGame.ts, src/ui/saveStorage.ts) are Reviewed paths
 intent_accepted: 2026-10-22 by-agent    # owner's "yes" in chat
 spec_accepted: 2026-10-22 by-agent    # owner: "yes to the 45 spec" (no fallback, read-only import)
-plan_approved:
+plan_approved: 2026-10-22 by-agent    # owner: "yes to 45"
 live_checked:
 merged:
 follows_up:
