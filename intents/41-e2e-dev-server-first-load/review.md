@@ -3,10 +3,118 @@
 
 verdict: rework
 tier: attested
-reviewed-commit: 7f2bc39
-round: 1
+reviewed-commit: 55c8c85
+round: 2
 sampled: no
 live-check: not-needed
+
+Tier set by input 1 (paths: `scripts/**`, `README.md`, intent files); no
+rule; nothing raises it. Passes run by the `heraklios-reviewer` agent; the
+results quoted below that the coordinator re-ran are marked. Round 1's
+findings are resolved. Two things remain: the intent's "first runs pass 3
+times" failed again (red, red, green, in both the implementer's and the
+reviewer's runs, with a third failure kind still undiagnosed), and the
+README now calls every non-sleep red run "a real failure", which today's
+four red runs contradict.
+
+## Passes
+| # | Pass | Result |
+| --- | --- | --- |
+| 1 | Intent and plan match | findings (1) — outcome partly met (M1) |
+| 2 | Type check | pass |
+| 3 | Rulebook fidelity | not run — no rule |
+| 4 | Tests prove the rule, not only pass | findings (1) — 3 of 4 mutants killed; the reporter's call site survives (L1) |
+| 5 | Engine/presentation boundary and conventions | pass — the decision is the pure, tested `shouldCheck` |
+| 6 | Numbers in prose | pass — 704 tests and 21 warnings reproduced |
+| 7 | Documentation | findings (1) — M2; round 1's port sentence is now accurate |
+| 8 | Guardrails and hygiene | pass — lint 21/21, no new dependency |
+| 9 | Repository-specific footguns | pass — no `retries`, no game code |
+
+## Type check
+```
+type-check: PASS (intent 41, fix)
+  note:  5 file(s), 183 line(s) changed outside intents/.
+```
+
+## Findings
+- **MEDIUM** (pass 1) `intent.md` → Outcome vs. Progress — **met:** the
+  shared-port lead is refuted (a second suite from another worktree is
+  refused cleanly; the same-worktree hazard is documented), and a sleep is
+  named in a red run's output. **Partly met:** "cause found, on demand":
+  a sleep caused §38's red run (event log), but a sleep can't be made on
+  demand. **Not met:** "the first `npm run e2e` … passes, 3 times": red,
+  red, green again (both the implementer's round-2 runs and the
+  reviewer's). A third kind is open: the game loads (165 × 200, no
+  failures), every step takes 0.4–2.2 s, scenarios run 34–37 s and hit the
+  30 s timeout; no sleep, CPU 6–24 %. Needs rework, **the owner's call**:
+  (a) close §41 on its narrowed result (record the decision in Progress)
+  and open a follow-up fix for the slowdown with the leads below, or (b)
+  keep diagnosing here.
+- **MEDIUM** `README.md:47-49` — "Any other red run is a real failure:
+  open its trace … instead of rerunning." Today's four red runs had no
+  sleep line and no code fault, and the next run passed unchanged; a
+  reader following this sentence chases a code defect that isn't there.
+  Needs rework: name the third kind (trace shows the game loaded, every
+  step 1–2 s, scenarios time out at 30 s → a known, open slowdown: read
+  the trace, then rerun), keeping "read before rerun".
+- **LOW** `scripts/sleep-reporter.mjs:24` — the call site is untested:
+  `if (!shouldCheck(…)) return;` → `if (false) return;` passes all 704
+  (re-run by the coordinator). Worth a look: an `onEnd` test with an
+  injected reader. Acceptable as thin glue, as the plan says.
+- **LOW** (lead for the follow-up) — in run 1's `land-move` trace, steps
+  were 0.3–2.2 s until about 33 s, then 16–177 ms once the other workers
+  had finished or timed out: contention between the parallel workers, not
+  a busy machine (CPU 6–24 %). Red, red, green appeared in both rounds,
+  which may be the on-demand reproduction ("first runs after idle"). Try
+  `--workers=1`, and check GPU vs. software GL (SwiftShader).
+
+## Not checked
+- The cause of the third kind (worker contention, software GL, Defender,
+  first-after-idle): observed, not diagnosed.
+- A true fresh `/spawn` first run.
+- The same-worktree ENOENT mechanism: taken on trust from the
+  implementer's single run (round 1's own failing pair had the third-kind
+  signature, so it isn't evidence for it); the README says "can", which
+  that run supports.
+- The reporter's call site (L1); non-Windows only by `shouldCheck`'s unit
+  test.
+
+## Live check
+not needed — `scripts/`, `README.md` and intent files only; no path rule
+applies.
+
+## Verified myself vs. taken on trust
+- Coordinator, re-run: `git rev-parse HEAD` → `55c8c85`; `npm run verify`
+  → lint 0 errors / 21 warnings (cap 21), **704 passed**; `npm run
+  check:intent` → PASS; mutant M4 (reporter ignores `shouldCheck`) →
+  survived, 704 passed, file restored, `git status --short` clean; read
+  `README.md:44-50`.
+- Reviewer agent (not re-run by the coordinator): `git diff 20f3c86 HEAD`
+  read in full; mutants M1 (drop `passed`), M2 (drop platform), M3
+  (`win32` → `darwin`) killed; e2e run 1 — 4 failed, 3 passed (57.7 s),
+  run 2 — 3 failed, 4 passed (55.4 s), run 3 — 7 passed (27.2 s), port
+  5232 free before each, on AC (100 %), no Kernel-Power events since
+  09:15, CPU samples 6–57 %; traces of runs 1–2 analysed (no failed
+  requests, no console errors, slow steps listed above), kept under the
+  scratchpad `mut41r2/run1`, `run2`.
+- Taken on trust: the implementer's round-2 e2e runs and the ENOENT run.
+
+# Round 1 (history)
+
+- verdict: rework
+- tier: attested
+- reviewed-commit: 7f2bc39
+- round: 1
+- sampled: no
+- live-check: not-needed
+
+Resolutions (round 2):
+- MEDIUM README same-worktree sentence: **fixed** in `26e62fa` (now
+  accurate; supported by the implementer's ENOENT run, not by round 1's
+  own failing pair, which had the third-kind signature).
+- LOW reporter `passed` guard: **fixed for the decision** (`shouldCheck`,
+  tested, M1–M3 killed); the call site remains (round 2 L1).
+- LOW lock-file lead: **declined** as out of scope; the README rule kept.
 
 Tier set by input 1 (paths): `scripts/**`, `playwright.config.ts` (build
 config) and `README.md` wording are Attested at most; `review_tier` empty;
@@ -18,7 +126,7 @@ But this review reproduced the other half of the implementer's own side
 note: **two suites in the same worktree can break the first**, and the
 README now says the opposite. That sentence needs correcting.
 
-## Passes
+### Passes
 | # | Pass | Result |
 | --- | --- | --- |
 | 1 | Intent and plan match | pass — subtasks 1, 2, 4, 5, 6 done; 3 skipped with evidence, as the plan allows |
@@ -31,13 +139,13 @@ README now says the opposite. That sentence needs correcting.
 | 8 | Guardrails and hygiene | pass — lint 21/21; no new dependency; the reporter swallows every error and returns nothing, so the exit status can't change |
 | 9 | Repository-specific footguns | pass — no `retries` |
 
-## Type check
+### Type check
 ```
 type-check: PASS (intent 41, fix)
   note:  5 file(s), 162 line(s) changed outside intents/.
 ```
 
-## Findings
+### Findings
 - **MEDIUM** `README.md:40-41` — "a second suite started meanwhile is
   refused cleanly and does not disturb the first" is true **across
   worktrees** but not **within one**. In this worktree, a second
@@ -66,7 +174,7 @@ type-check: PASS (intent 41, fix)
   a lock file the global setup checks before anything else) or keep the
   README rule.
 
-## Not checked
+### Not checked
 - **Whether earlier flakes were sleeps or same-worktree collisions**:
   their times weren't recorded, so neither can be matched now.
 - **The reporter on a red run that really overlaps a sleep, end to end**:
@@ -75,12 +183,12 @@ type-check: PASS (intent 41, fix)
 - **Non-Windows platforms**: the platform check is read, not run.
 - A true fresh `/spawn` first run (as in the Progress).
 
-## Live check
+### Live check
 not needed — `scripts/`, `playwright.config.ts` and `README.md` only; no
 path rule applies, and the behaviour is the suite's output, proven by the
 runs and calls below.
 
-## Verified myself vs. taken on trust
+### Verified myself vs. taken on trust
 - `git log main..fix/41-e2e-dev-server-first-load`: `b2afaf3`, `4d5674a`,
   `3898bda`, `7f2bc39`. `status: in-review`. Read `git diff main...HEAD`
   in full (config, two scripts, tests, README).
