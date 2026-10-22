@@ -2,7 +2,7 @@
 id: 45
 slug: save-api
 type: feature
-status: accepted
+status: in-progress
 title: Games are saved as files on this PC, reached by the game through a local API
 review_tier: reviewed    # save format and storage (src/engine/saveGame.ts, src/ui/saveStorage.ts) are Reviewed paths
 intent_accepted: 2026-10-22 by-agent    # owner's "yes" in chat
