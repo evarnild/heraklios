@@ -1,12 +1,110 @@
 <!-- generated-by: heraklios/review@0.1.4 -->
 # §41 review — An e2e run can fail before any scenario: the game's first load never arrives
 
-verdict: rework
+verdict: attest
 tier: attested
-reviewed-commit: 55c8c85
-round: 2
+reviewed-commit: 5738684
+round: 3
 sampled: no
 live-check: not-needed
+
+Tier set by input 1 (paths: `playwright.config.ts` build config,
+`scripts/**`, `README.md`, intent files); no rule. Round 2's open outcome
+is now met: the third red-run kind is **reproduced on demand by the worker
+count** and fixed with `workers: 2`, shown failing-first (default workers
+red) and passing after. The README names it. Nothing needs rework.
+
+## Passes
+| # | Pass | Result |
+| --- | --- | --- |
+| 1 | Intent and plan match | pass — outcomes met (below); option (b), the owner's call, recorded in Progress |
+| 2 | Type check | pass |
+| 3 | Rulebook fidelity | not run — no rule |
+| 4 | Tests prove the rule, not only pass | pass — the comparison run below is the failing-first proof; the reporter call site is still untested (L1, carried) |
+| 5 | Engine/presentation boundary and conventions | pass |
+| 6 | Numbers in prose | pass — the config comment's counts match the Progress table; my runs match their direction |
+| 7 | Documentation | pass — `README.md:46-54` names the sleep and the worker-count cause and keeps "read the trace before rerunning" |
+| 8 | Guardrails and hygiene | pass — lint 21/21; no `retries` |
+| 9 | Repository-specific footguns | pass |
+
+## Type check
+```
+type-check: PASS (intent 41, fix)
+  note:  5 file(s), 191 line(s) changed outside intents/.
+```
+
+## Outcome, against the intent
+- **Cause found, on demand:** yes for the third kind (worker count: 5 →
+  red, 1–3 → green, reproduced by the implementer and here); the sleep
+  kind is named from the event log (not reproducible on demand, by its
+  nature); the shared-port lead is refuted.
+- **First runs pass 3 times:** 3/3 here with the new config, in the
+  existing worktree (not a fresh `/spawn`: Not checked).
+- **Two suites at once:** from another worktree refused cleanly; from the
+  same worktree documented as harmful.
+
+## Findings
+- **LOW** `intents/41-e2e-dev-server-first-load/metadata.yml:13` —
+  `follows_up:` is empty, but the intent says to set `follows_up: 32` if
+  the cause is in §32's suite setup, and it is: `playwright.config.ts` was
+  created by §32 (`git log --diff-filter=A` → its commit) without a
+  `workers` setting, so Playwright's parallel default applied. Worth a
+  look: set `follows_up: 32` before the merge (a `metadata.yml`-only change
+  after the reviewed commit is allowed by "Merging" precondition 1), so
+  the scan counts it against §32's tier.
+- **LOW** (carried) `scripts/sleep-reporter.mjs:24` — the call site of
+  `shouldCheck` is untested (round 2 mutant M4 survives). Worth a look.
+- **LOW** — which resource five software-rendered Chromiums starve
+  (SwiftShader's threads, the GPU process, I/O) is not shown; the fix
+  rests on the measured effect. If a faster machine or a Playwright
+  upgrade changes it, the comment's numbers are the baseline. Worth a
+  look only if e2e goes red again.
+
+## Not checked
+- A true fresh `/spawn` first run (fresh `npm ci`, cold caches).
+- The starved resource (above).
+- The reporter on a run that really overlaps a sleep, end to end (round
+  1 drove it against a past window).
+
+## Live check
+not needed — `playwright.config.ts`, `scripts/`, `README.md` and intent
+files only; no path rule applies.
+
+## Verified myself vs. taken on trust
+- `git log e641d37..fix/41-e2e-dev-server-first-load` → `5738684`; read
+  its diff of `playwright.config.ts`, `README.md` and the Progress.
+  `status: in-review`.
+- `npm run verify` (worktree, `5738684`): lint 0 errors / 21 warnings (cap
+  21); **704 passed**.
+- `npm run check:intent`: PASS (above).
+- Port 5232 free before the runs; no other worktree's suite running.
+- `npx playwright test` (config, 2 workers), 3 runs: **7 passed (23.4 s),
+  7 passed (23.7 s), 7 passed (23.9 s)**.
+- `npx playwright test --workers=5`, 2 runs: **4 failed / 3 passed
+  (57.2 s)**, **5 failed / 2 passed (1.0 m)** — the failing-first side.
+- `git log --diff-filter=A -- playwright.config.ts` on `main`: created in
+  §32's work.
+- `git status --short` afterwards: clean.
+- Taken on trust: the implementer's SwiftShader check
+  (`WEBGL_debug_renderer_info`) and its worker table; the §43 agent's
+  matching observation.
+
+# Round 2 (history)
+
+- verdict: rework
+- tier: attested
+- reviewed-commit: 55c8c85
+- round: 2
+- sampled: no
+- live-check: not-needed
+
+Resolutions (round 3):
+- MEDIUM outcome partly met: **resolved** — owner chose (b); the third
+  kind reproduced by worker count and fixed (`5738684`).
+- MEDIUM README "any other red run is a real failure": **fixed** in
+  `5738684` (names the worker-count cause).
+- LOW reporter call site: **open**, worth a look.
+- LOW worker-contention lead: **confirmed** and fixed.
 
 Tier set by input 1 (paths: `scripts/**`, `README.md`, intent files); no
 rule; nothing raises it. Passes run by the `heraklios-reviewer` agent; the
@@ -17,7 +115,7 @@ reviewer's runs, with a third failure kind still undiagnosed), and the
 README now calls every non-sleep red run "a real failure", which today's
 four red runs contradict.
 
-## Passes
+### Passes
 | # | Pass | Result |
 | --- | --- | --- |
 | 1 | Intent and plan match | findings (1) — outcome partly met (M1) |
@@ -30,13 +128,13 @@ four red runs contradict.
 | 8 | Guardrails and hygiene | pass — lint 21/21, no new dependency |
 | 9 | Repository-specific footguns | pass — no `retries`, no game code |
 
-## Type check
+### Type check
 ```
 type-check: PASS (intent 41, fix)
   note:  5 file(s), 183 line(s) changed outside intents/.
 ```
 
-## Findings
+### Findings
 - **MEDIUM** (pass 1) `intent.md` → Outcome vs. Progress — **met:** the
   shared-port lead is refuted (a second suite from another worktree is
   refused cleanly; the same-worktree hazard is documented), and a sleep is
@@ -68,7 +166,7 @@ type-check: PASS (intent 41, fix)
   which may be the on-demand reproduction ("first runs after idle"). Try
   `--workers=1`, and check GPU vs. software GL (SwiftShader).
 
-## Not checked
+### Not checked
 - The cause of the third kind (worker contention, software GL, Defender,
   first-after-idle): observed, not diagnosed.
 - A true fresh `/spawn` first run.
@@ -79,11 +177,11 @@ type-check: PASS (intent 41, fix)
 - The reporter's call site (L1); non-Windows only by `shouldCheck`'s unit
   test.
 
-## Live check
+### Live check
 not needed — `scripts/`, `README.md` and intent files only; no path rule
 applies.
 
-## Verified myself vs. taken on trust
+### Verified myself vs. taken on trust
 - Coordinator, re-run: `git rev-parse HEAD` → `55c8c85`; `npm run verify`
   → lint 0 errors / 21 warnings (cap 21), **704 passed**; `npm run
   check:intent` → PASS; mutant M4 (reporter ignores `shouldCheck`) →
