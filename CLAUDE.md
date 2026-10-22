@@ -27,6 +27,7 @@ npm run check:intent  # does this branch's change match its intent? (intents/REA
 npm run sdlc:scan  # the evidence behind docs/sdlc-grid.md
 npm run spawn -- <id>  # parallel session for an intent (see "Parallel sessions")
 npm run ship -- <id>  # merge a reviewed intent, bookkeep, push, remove worktree and branch (the /ship skill)
+npm run queue      # the intent queue, generated from metadata.yml (--next-id, --json); nobody edits it
 npm run sessions   # what every worktree/session is doing
 npm run e2e        # browser smoke suite (Playwright, port 5232) — not part of verify;
                    # once per machine: npx playwright install chromium
@@ -41,7 +42,7 @@ server already on 5232, so stop a dev server there first.
 Run a single test file: `npx vitest run src/engine/combat.test.ts`.
 Run tests matching a name: `npx vitest run -t "pattern"`.
 Type-check without emitting: `./node_modules/.bin/tsc --noEmit` — never bare
-`npx tsc`, which false-greens without a local install (plan.md §4). The build uses `tsc -b`,
+`npx tsc`, which false-greens without a local install (`docs/runbook.md` §4). The build uses `tsc -b`,
 which is incremental — delete `tsconfig.tsbuildinfo` if a stale build info
 file ever seems to mask an error).
 
@@ -59,7 +60,9 @@ same commit, or a later change can spend the slack. Never raise it.
 → build → review → merge, and what each type requires); the rules below
 and in `intents/README.md` / `REVIEW-POLICY.md` win if they disagree.
 
-- `plan.md` is the coordinator view (snapshot, queue, backlog, history map).
+- The queue is generated, never hand-kept: `npm run queue` lists every intent
+  with its status (from its branch while unmerged, else `main`). `OVERVIEW.md` is
+  the short, owner-edited snapshot and history map.
   Each work item's detail lives in `intents/<id>-<slug>/` — intent, spec
   (features), plan, review report, metadata. Read `intents/README.md` for
   the types, gates and branch naming (`feat/27-…`, `fix/27-…`).
@@ -116,13 +119,13 @@ npm run sessions -- --log 30    # the raw event tail
   shows as `needs you`; Claude Code's idle "waiting for your input"
   reminder shows as `idle`, but never hides a prompt still waiting on you —
   only your next prompt, the turn ending or the session ending clears it.
-- **Only the coordinator** edits `plan.md`, runs `/spawn`, `/sessions` and
+- **Only the coordinator** runs `/spawn`, `/sessions` and
   `/review`, and sends "main moved, rebase" notices. The owner merges (or
   asks the coordinator to, per "Merging"), one branch at a time, running
   `npm run verify` on `main` after each merge.
 - **A spawned session** works only on its branch and its intent. Its
   `CLAUDE.local.md` (gitignored, written by spawn) says which intent, branch
-  and port it has. It never edits `plan.md`, never merges, and sets
+  and port it has. It never edits the queue (it is generated, `npm run queue`), never merges, and sets
   `status: in-review` when done.
 - **`/spawn` launches the implementer itself** when `metadata.yml` already
   records the gate the type needs (`plan_approved` for feature/fix/refactor,
@@ -141,7 +144,7 @@ npm run sessions -- --log 30    # the raw event tail
   once. Merges and reviews are serial, so more sessions mostly add rebases.
 - Spawned worktrees live outside the repo on purpose, so vite, vitest and
   eslint never pick up a nested checkout. They get a real `node_modules`
-  from `npm ci`, never a junction (`plan.md` §4).
+  from `npm ci`, never a junction (`docs/runbook.md` §4).
 
 ## Architecture
 
@@ -168,7 +171,7 @@ and rendering.
   can force) and `ActionObserver` (an after-the-fact "what action just got
   committed" hook — NOT a top-level action chooser; see its doc comment for
   why unifying hotseat and AI action *selection* is still open, deferred to
-  Stage 4). Stage 2 (plan.md §6.3) adds `rng.ts` (a seeded LCG for
+  Stage 4). Stage 2 (`plan-history.md` §6.3) adds `rng.ts` (a seeded LCG for
   deterministic replay), `randomAgent.ts`'s `RandomAgent` (a trivial
   uniform-random `PlayerAgent`, driven by that seed), and `fuzzHarness.ts`
   (`playRandomGame(seed)`, a fully headless self-play driver — no Phaser,

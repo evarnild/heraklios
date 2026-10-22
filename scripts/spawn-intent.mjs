@@ -4,7 +4,7 @@
 //
 // Turns intent <id> into a ready parallel session: a worktree on the intent's
 // branch in ../heraklios-wt/<id>-<slug>, its own node_modules (npm ci, never
-// a junction; see plan.md §4), a reserved dev port, and a CLAUDE.local.md
+// a junction; see docs/runbook.md §4), a reserved dev port, and a CLAUDE.local.md
 // brief the session loads on start. `--remove` takes the worktree down once
 // the branch is merged; the branch itself is left for the owner to delete.
 // Workflow: CLAUDE.md → "Parallel sessions".
@@ -124,7 +124,7 @@ function remove() {
   if (!wt) fail(`no worktree for §${id}. See npm run sessions.`);
   const nm = join(wt.path, 'node_modules');
   if (existsSync(nm) && lstatSync(nm).isSymbolicLink()) {
-    fail(`${nm} is a link. Removing the worktree would wipe its target (plan.md §4). Delete the link first: cmd //c rmdir "${nm}"`);
+    fail(`${nm} is a link. Removing the worktree would wipe its target (docs/runbook.md §4). Delete the link first: cmd //c rmdir "${nm}"`);
   }
   try {
     git(root, 'merge-base', '--is-ancestor', wt.branch, 'main');

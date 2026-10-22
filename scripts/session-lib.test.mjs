@@ -315,7 +315,8 @@ describe('sessionBrief', () => {
     expect(brief).toContain('# You are the session for §28 — naval-retreat');
     expect(brief).toContain('`feat/28-naval-retreat`');
     expect(brief).toContain('--port 5228 --strictPort --host 127.0.0.1');
-    expect(brief).toContain('Do not edit `plan.md`');
+    expect(brief).toContain('Nobody edits the queue');
+    expect(brief).not.toContain('Do not edit `plan.md`');
     expect(brief).toContain('Do not merge into `main`');
     expect(brief).toContain('never switch branch');
     expect(brief).toContain('main checkout at `C:/Users/eric/src/heraklios`');

@@ -32,9 +32,7 @@ You are the **coordinator** (the main checkout). This skill wraps
    depends on an unmerged branch, and say so). If the intent folder was
    uncommitted here, the script moves it into the worktree. Tell the owner
    that.
-5. **Update the queue.** In `plan.md` → Current Queue, move the intent's row
-   to **In flight** if it isn't there.
-6. **Launch or hand over.** Read the worktree's `metadata.yml`. The gate the
+5. **Launch or hand over.** Read the worktree's `metadata.yml`. The gate the
    type needs is `plan_approved` for a feature, fix or refactor, and
    `intent_accepted` for an adjustment or experiment. A bare date and
    `<date> by-agent` both count as recorded; anything else does not.
@@ -48,7 +46,7 @@ You are the **coordinator** (the main checkout). This skill wraps
    - **Missing:** don't launch. Report the path, branch, port and gates, say
      which gate is missing, and give the hand-over: `cd "<path>" && claude`,
      or open the folder in the Claude Code desktop app.
-7. **On completion.** Report the implementer's result (branch, commits,
+6. **On completion.** Report the implementer's result (branch, commits,
    verify output, assumptions) and offer `/review`. Don't run it unprompted,
    record a gate or merge; those stay with the owner.
 
@@ -58,9 +56,7 @@ Only after the owner has merged the branch.
 
 1. `npm run spawn -- <id> --remove`. The script refuses when the branch isn't
    merged into `main`, when the worktree has uncommitted files, or when its
-   `node_modules` is a link (`plan.md` §4). Report the refusal as it is. Don't
+   `node_modules` is a link (`docs/runbook.md` §4). Report the refusal as it is. Don't
    reach for `--unmerged` or `--force` unless the owner asks.
 2. Mention the `git branch -d <branch>` the script prints. Deleting the
    branch is the owner's call.
-3. Move the row in `plan.md` to Shipped with the merge commit, per §26's
-   queue rules.

@@ -10,7 +10,7 @@ Every change follows the same path; its **type** decides how much of it you
 do. Work from a Claude Code session started in the main checkout
 (`C:\Users\eric\src\heraklios`) — that is the **coordinator**, and it is
 where `CLAUDE.md`, the skills and the hooks load. The id is the next `§`
-number after the highest one in `plan.md` / `plan-history.md`.
+number `npm run queue -- --next-id` prints.
 
 ## The steps
 
@@ -84,8 +84,7 @@ uncommitted files.
   **and** the diff, then merge.
 
 Merging is: `git merge --no-ff` on `main` → `npm run verify` on `main` → set
-`merged:` and `status: done` in `metadata.yml` → the coordinator moves the
-`plan.md` row to Shipped → push → `npm run spawn -- <id> --remove` if you
+`merged:` and `status: done` in `metadata.yml` → push → `npm run spawn -- <id> --remove` if you
 used a worktree. You can ask Claude to do the merge, the push or the
 removal — each only when you ask for it, for that change, in the current
 conversation. `/ship <id>` does all of it in order and stops at the first

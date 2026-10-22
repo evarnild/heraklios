@@ -137,8 +137,8 @@ Asked to merge, it first checks, and refuses naming the one that failed:
    covers this).
 
 Then it merges with `--no-ff`, runs `npm run verify` on `main`, and does the
-bookkeeping: `merged:` and `status: done` in `metadata.yml`, the `plan.md`
-row to Shipped.
+bookkeeping: `merged:` and `status: done` in `metadata.yml`. There is no queue row to move:
+`npm run queue` is generated.
 
 ## Passes
 
@@ -165,7 +165,7 @@ Each pass reports `pass`, `findings`, or `not run` (with why).
    first; die rolls and phase changes stay undo boundaries; `GameState` shape
    changes update `saveGame.ts` + `saveStorage.ts` + `SAVE_VERSION`; every
    ambiguous-rule interpretation has a code comment.
-6. **Numbers in prose.** Every measurement in `plan.md`, `plan-history.md`,
+6. **Numbers in prose.** Every measurement in the intent's `plan.md`, `plan-history.md`,
    `README.md`, intent artefacts and test comments is reproducible.
 7. **Documentation.** `README.md` documents new behaviour in its existing
    style; an implemented "Known simplification" has moved out of that list;

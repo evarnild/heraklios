@@ -7,13 +7,13 @@ context, but keep Claude-specific files and Codex-specific files separate.
 
 - Read `CLAUDE.md` for the project overview, architecture, and coding
   conventions.
-- Treat `plan.md`'s Current Queue as the queue/status overview; each queued
-  item's detail lives in `intents/<id>-<slug>/` (see `intents/README.md`).
+- Treat `npm run queue` as the queue/status overview (it is generated from
+  each intent's `metadata.yml`; nobody edits it); each item's detail lives in `intents/<id>-<slug>/` (see `intents/README.md`).
 - Apply `REVIEW-POLICY.md` when reviewing; the procedures in
   `.claude/skills/*/SKILL.md` (`intent`, `review`, `grid`) are plain markdown
   and apply to Codex sessions too.
-- Do not edit `plan.md` unless the user explicitly asks for a plan/status
-  update.
+- Do not edit `OVERVIEW.md` unless the user explicitly asks for an
+  overview update.
 
 ## Ownership Boundaries
 
@@ -37,7 +37,7 @@ context, but keep Claude-specific files and Codex-specific files separate.
 
 - Use `npm run verify` (build + lint + test) and `npm run check:intent` for
   final verification. Do not raise the lint warning cap in `package.json`.
-- Do not use bare `npx tsc --noEmit` as final proof; `plan.md` documents a
+- Do not use bare `npx tsc --noEmit` as final proof; `docs/runbook.md` documents a
   false-green failure mode when `node_modules` is missing.
 - If a worktree lacks dependencies, prefer installing dependencies in that
   worktree instead of junctioning `node_modules`.

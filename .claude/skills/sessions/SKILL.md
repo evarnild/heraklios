@@ -11,11 +11,13 @@ metadata:
 
 # /sessions — what is everyone doing
 
-Run from the main checkout. This skill reads; it changes nothing except
-`plan.md`'s queue rows when they disagree with the facts.
+Run from the main checkout. This skill reads; it changes nothing.
 
 ## 1. Gather
 
+- `npm run queue` — every intent by status (In flight, Queued, Shipped,
+  Stopped), read from `metadata.yml` and the intents' branches. It is
+  generated; there is nothing to keep in step with it.
 - `npm run sessions` — the table (needs-you first), the rows behind `main`
   and the rows ready for review.
 - `npm run sessions -- --log 30` (or the N the owner gave) when the table
@@ -37,9 +39,6 @@ Run from the main checkout. This skill reads; it changes nothing except
 4. **Stale.** Sessions idle or closed for more than a day with work not
    `in-review`, and worktrees whose branch is merged (suggest
    `/spawn <id> --remove`).
-5. **Queue drift.** If `plan.md`'s Current Queue disagrees with a worktree's
-   `metadata.yml` status, fix the row. The metadata is the source of
-   truth. This is the only edit this skill makes.
 
 Keep it short: one line per session unless something is wrong.
 

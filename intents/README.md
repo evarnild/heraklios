@@ -5,9 +5,11 @@ do we want" to "merged". This is heraklios's slice of the AI-native SDLC: each
 stage ends by writing something the next stage reads, and the chain is the
 audit trail of who asked for what and who approved it.
 
-`plan.md` at the repo root stays the **coordinator view** — snapshot,
-queue, backlog, history map. It never holds a work item's detail again; its
-queue rows point here. `plan-history.md` stays the archive of everything
+The queue is **generated**: `npm run queue` lists every intent here with its
+type, status and gates, reading each `metadata.yml` (from the intent's branch
+while unmerged, else from `main`). Nobody edits it. `OVERVIEW.md` at the repo
+root is the short, owner-edited snapshot and history map, and
+`docs/runbook.md` the agent runbook. `plan-history.md` stays the archive of everything
 shipped before this folder existed.
 
 ## Layout
@@ -23,10 +25,12 @@ intents/
   _templates/      what the skills fill in; usable raw by hand
 ```
 
-**The id is the next `§` number** — the same numbering `plan.md`,
+**The id is the next `§` number** — the same numbering `OVERVIEW.md`,
 `plan-history.md` and the commit messages already use, so `§27`,
 `intents/27-…/` and `feat/27-…` all name the same thing. Take the number
-after the highest one used in either plan file.
+`npm run queue -- --next-id` prints: one more than the highest used in
+`plan-history.md`, `OVERVIEW.md` and the `intents/` folders on `main` and on
+every local branch.
 
 ## Types
 
@@ -160,5 +164,5 @@ when you edit the file; remove it only if you rewrote the file from scratch.
 ## Status values
 
 `draft` → `accepted` → `in-progress` → `in-review` → `done` (or `abandoned`
-/ `deferred`). The status here is the source of truth; the one-line row in
-`plan.md`'s queue mirrors it.
+/ `deferred`). The status here is the source of truth; `npm run queue` reads it, and
+there is no other copy.

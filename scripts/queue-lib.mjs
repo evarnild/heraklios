@@ -1,5 +1,5 @@
 // Pure logic behind `npm run queue` (§47): the intent queue, generated from
-// each intent's metadata.yml instead of hand-kept in a root plan.md. Kept free
+// each intent's metadata.yml instead of hand-kept in a file. Kept free
 // of git/fs calls so it can be unit-tested; see queue-lib.test.mjs. The git
 // half is queue.mjs.
 import { gateSummary } from './session-lib.mjs';

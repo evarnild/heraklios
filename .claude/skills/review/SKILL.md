@@ -46,7 +46,7 @@ npm run e2e             # only when the diff touches src/scenes, src/ui, src/mai
 ```
 
 If `node_modules` is missing in a worktree, `npm install` there (see
-`plan.md` §4 — never junction into a worktree you'll delete, never trust bare
+`docs/runbook.md` §4 — never junction into a worktree you'll delete, never trust bare
 `npx tsc`). A red `verify` or a FAIL type check is an immediate `rework`
 verdict; still run the remaining passes you can, so one round catches as
 much as possible. **One exception:** a FAIL whose only error is "A live
