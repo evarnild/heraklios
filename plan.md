@@ -214,6 +214,7 @@ sync when something merges** — it went stale once and the user caught it.
 | [§40](intents/40-naval-turn-buttons/) naval Turn buttons turn the way they sit — left counter-clockwise, right clockwise, on the Board and on Placement; Placement e2e scenario and a read-only `placement()` dev hook (fix, Attested, 2 review rounds, 1 MEDIUM invalid-UTF-8 finding fixed, live check run by the owner; see [review.md](intents/40-naval-turn-buttons/review.md)) | `fc19324` |
 | [§42](intents/42-intent-check-counts-e2e/) `check:intent` counts `e2e/**/*.spec.ts` as tests for the fix and refactor rules (rule code still needs a unit test) (fix, follows up §32, Attested, 1 review round, no findings; see [review.md](intents/42-intent-check-counts-e2e/review.md)) | `781f346` |
 | [§41](intents/41-e2e-dev-server-first-load/) e2e red runs explained — a sleep is named in the output, and the suite runs two workers (five parallel software-rendered Chromiums starved each other); the shared port refuted (fix, follows up §32, Attested, 3 review rounds; see [review.md](intents/41-e2e-dev-server-first-load/review.md)) | `cfab5de` |
+| [§43](intents/43-center-view-on-turn/) the view jumps to the new player's land units at the start of their turn, and when the Board opens or loads (feature, Attested, 1 review round, 1 LOW worth-a-look; see [review.md](intents/43-center-view-on-turn/review.md)) | `2727059` |
 
 ### In flight
 
@@ -225,7 +226,6 @@ sync when something merges** — it went stale once and the user caught it.
 | Item | Type · status |
 | --- | --- |
 | [§29](intents/29-grid-live-check-counts/) Count live checks in the SDLC scan and grid (after §28) | feature · draft |
-| [§43](intents/43-center-view-on-turn/) Centre the view on the new player's land units when their turn starts | feature · accepted |
 
 All fully-shipped rows that previously lived here (Stage 3b, §17,
 §18, §19, §24 and earlier) are in the [Shipped](#shipped) table above; see

@@ -2,14 +2,14 @@
 id: 43
 slug: center-view-on-turn
 type: feature
-status: in-review
+status: done
 title: Centre the view on the new player's land units when their turn starts
 review_tier:
 intent_accepted: 2026-10-21 by-agent    # owner: "center on land units only, skip live check and then accept the intent"
 spec_accepted: 2026-10-22 by-agent    # owner: "keep the live check and then accept spec and draft plan"
 plan_approved: 2026-10-22 by-agent    # owner: "43: yes sub-agent"
 live_checked: 2026-10-22 by-agent    # owner: "check ok" in chat
-merged:
+merged: 2727059    # 2026-10-22, merged by Claude on the owner's explicit request in chat
 follows_up:
 links:
   - intents/32-e2e-smoke-suite    the dev hook can read the camera; a scenario could cover this
