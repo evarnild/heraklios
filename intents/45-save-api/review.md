@@ -1,93 +1,92 @@
 <!-- generated-by: heraklios/review@0.1.4 -->
 # §45 review — Games are saved as files on this PC, reached by the game through a local API
 
-verdict: rework
+verdict: escalate
 tier: reviewed
-reviewed-commit: bf15e0f
-round: 3
+reviewed-commit: 065ad3b
+round: 4
 sampled: no
 live-check: owed
 
 Tier set by inputs 1 and 2 (save path; `review_tier: reviewed`). Passes run
 by the `heraklios-reviewer` agent; results the coordinator re-ran are
-marked. Round 2's M1 is fixed and proved: one store per plugin, every queue
-and retry mutant killed (all six round-2 survivors included), concurrent
-writes all succeed and land in order live. One finding needs rework, an e2e
-isolation defect older than this rework (the e2e files are unchanged since
-`53cf09f`) that fails the plan's own AC3 command: two copies of one save
-scenario on the two workers delete each other's slot files. Three LOWs.
+marked. Every round-3 finding is fixed and proved: the cross-worker lock
+serialises the save scenarios (AC3 3/3 runs, stress 60/60, mixed 20/20;
+no-op and instant-takeover lock mutants fail 6 of 10; longest hold 5.1 s;
+never left behind), `remove` goes through the slot queue, and round 3's
+three retry survivors are killed. No finding needs rework; one LOW asks to
+harden the e2e hooks after a failure. Next: the owner reads the diff, does
+the live check, then merges.
 
 ## Passes
 | # | Pass | Result |
 | --- | --- | --- |
-| 1 | Intent and plan match | findings (1) — AC3 ("new scenarios run 3×") not reliable (M1) |
+| 1 | Intent and plan match | pass — AC3 holds; nothing beyond round 3's findings |
 | 2 | Type check | FAIL on the owed live check only (the owner's) |
 | 3 | Rulebook fidelity | not run — digital-only |
-| 4 | Tests prove the rule, not only pass | findings (2) — e2e repeats collide (M1); retry wiring/budget survivors (L2) |
-| 5 | Engine/presentation boundary and conventions | pass — engine untouched, `SAVE_VERSION` 3, panel and BoardScene wiring only |
-| 6 | Numbers in prose | pass — 51 files / 827 tests / lint 21, "under 0.9 s" (max 868 ms), Progress mutant counts re-derived |
-| 7 | Documentation | findings (1) — `README.md:164` (L3); nit CLAUDE.md |
-| 8 | Guardrails and hygiene | pass — lint 21/21, cap unchanged, no new dependency, UTF-8 clean on 29 files |
+| 4 | Tests prove the rule, not only pass | findings (1 LOW) — every rework mutant a green run can reach is killed; failure-only paths (E3, E4, E6) probed directly |
+| 5 | Engine/presentation boundary and conventions | pass — engine untouched, `SAVE_VERSION` 3, `src/` unchanged since `bf15e0f` |
+| 6 | Numbers in prose | pass — 51 files, 830 tests, lint 21; "at least 40 ms"; `RENAME_ATTEMPTS` 8 |
+| 7 | Documentation | pass — README "—" fixed; CLAUDE.md Host allow-list named |
+| 8 | Guardrails and hygiene | pass — lint 21/21, cap unchanged, no dependency, UTF-8 clean on 29 files |
 | 9 | Repository-specific footguns | pass |
 
 ## Type check
 ```
 type-check: FAIL (intent 45, feature)
   error: A live check is owed and not recorded. Do the steps in intents/45-save-api/review.md → ## Live check, then set live_checked: <date> in intents/45-save-api/metadata.yml.
-  note:  26 file(s), 1999 line(s) changed outside intents/.
+  note:  26 file(s), 2098 line(s) changed outside intents/.
 ```
 The only error is the owed live check.
 
 ## Findings
-- **MEDIUM** (M1) `e2e/save-import.spec.ts:29-36`, `:44-49`;
-  `e2e/save-load.spec.ts:32` — parallel repeats of one scenario collide on
-  the shared slot files. All workers share one server and one `SAVES_DIR`;
-  with `--repeat-each` Playwright runs two copies of a scenario at once, and
-  each copy's `beforeEach`/`afterEach` `rmSync` deletes the other's
-  `slot-5.json`/`slot-6.json` (and one copy's copy into slot 5 makes the
-  other's "the copy is offered" false). Reviewer: the AC3 command failed
-  2 of 6 on the first run; `save-import --repeat-each=10 --workers=2` 11
-  of 30 over three runs; `--workers=1` 20 of 20. Coordinator re-ran:
-  `--workers=2` 6 failed / 4 passed, `--workers=1` 10/10. Plain `npm run
-  e2e` (one run each) passes. Needs rework: serialise the save scenarios
-  across workers (e.g. a lock in `e2e/savesDir.ts` — exclusive `mkdirSync`
-  of a lock folder in `SAVES_DIR`, retried until free, taken in
-  `beforeEach`, released in `afterEach`; no new dependency), or give each
-  copy its own slots; then AC3 3× and a `--repeat-each=10 --workers=2`
-  stress of `save-import`.
-- **LOW** (L1) `server/fileSaveFs.ts:90-92` — `remove` bypasses the slot's
-  write queue: a DELETE 3 ms after two PUTs to slot 4 answered 204, but the
-  file was back in 17 of 30 trials. In play only the autosave PUT is
-  unawaited (`BoardScene.ts:991`). Worth a look: chain `remove` on `queues`
-  like `write`, with a PUT-then-DELETE test.
-- **LOW** (L2) `server/fileSaveFs.ts:111`, `:48`, `:42` — retry proven in
-  isolation, but not its use in the write path nor its budget: `writeOnce`
-  calling `rename` instead of `renameOver` survived 4 of 6 runs;
-  `RENAME_ATTEMPTS = 4` survives; an instant `realOps.sleep` survives.
-  Worth a look: a spy rename throwing EPERM once inside `fs.write`; a test
-  that `renameOver` succeeds after `RENAME_ATTEMPTS - 1` transient errors.
-- **LOW** (L3) `README.md:164` — the rewrap starts a line with `- nothing
-  was saved";`, which CommonMark renders as a bullet; it also quotes "-"
-  where `en.ts:316` has "—". Worth a look: use "—" and rewrap.
-- Nit: `CLAUDE.md`'s `server/` entry names the Origin check but not the
-  Host allow-list now checked first.
+- **LOW** `e2e/save-import.spec.ts:35-39`, `e2e/save-load.spec.ts:36` — the
+  `afterEach` hooks don't depend on holding the lock; this matters only
+  after an earlier failure (a red run gets redder, a green run never turns
+  red). A failed 25 s acquire still runs `save-import`'s `rmSync` of the
+  holder's `slot-5.json`/`slot-6.json`; and if that `rmSync` throws (EPERM),
+  `releaseSaveLock()` never runs, and since `STALE_MS` (60 s) exceeds the
+  acquire timeout (25 s), every save scenario starting in the next ~35–60 s
+  fails with "Could not take the save-scenario lock" (E7, E8: 1 and 3
+  failures, 25 s each). Worth a look: clean up only when the lock is held,
+  release in `finally` (e.g. a `withSaveLockHeld(cleanup)` helper in
+  `e2e/savesDir.ts`).
+- Nit: in-run takeover only rescues an acquire starting when the lock is
+  already >35 s old; a crashed run's lock is cleared by global setup.
+  Either set `STALE_MS` below the acquire timeout (above the 30 s test
+  timeout) or say why in the comment.
+- Coordinator observation (not a finding yet): in five stress runs of both
+  save scenarios (`--repeat-each=10 --workers=2`, 100 tests), one
+  `save-load.spec.ts:57` test failed in the first run; its output wasn't
+  captured, and the next 80 passed. Cause unknown.
 
 ## Not checked
-- The panel's copy-stopped ordering (round 2 L1 fix): reverting it (U1)
-  passes all 827 tests; presentation code, live-check step 7.
-- The game in a real browser beyond e2e: layout, French, a stopped server
-  with the tab open — the live check.
-- What `save-load`'s single failure in the reviewer's first AC3 run was
-  (output cut off, 70 reruns clean); the shared-folder pattern is likely,
-  not established.
-- A request body aborted mid-upload.
-- `npm run preview` on the stable checkout.
-- Real antivirus locks; Chrome's own local-network protections.
-- R13 (dropping the `!code` guard) is equivalent, not counted.
+- **PUT-PUT-DELETE with no gap** (by design, not a finding): with a 3 ms
+  gap no file is left in 30 trials; sent at the same instant the file stays
+  30 of 30, because a request reaches the store only after its body is read
+  (`saveApiPlugin.ts:53`), so a body-less DELETE overtakes PUT bodies still
+  arriving. Concurrent requests on separate connections have no defined
+  order, and the game never sends them so (one panel action at a time; only
+  the autosave PUT is unawaited).
+- Lock paths that run only after a failure have no automated test (probed
+  directly: release by a non-holder leaves the lock; a 61 s-old lock taken
+  over in 58 ms; teardown clears a leaked lock). Known weakness, unreachable
+  under the 30 s test timeout: after a takeover, the original holder's
+  release removes the new holder's lock.
+- A Playwright test timing out while holding the lock (relied on
+  `afterEach` running after a timeout).
+- The `save-load` failure in the coordinator's first stress run (above).
+- U1, the panel's copy-stopped message order — live-check step 7.
+- The game in a real browser beyond e2e (layout, French, a stopped server
+  with the tab open) — the live check.
+- A request body aborted mid-upload; `npm run preview` on the stable
+  checkout; antivirus locks; Chrome's local-network protections.
+- R13 is equivalent, not counted.
 
 ## Live check
 - owed: rule 1 (`src/ui/**`, `BoardScene.ts`, `vite.config.ts`); new and
-  visual. After the rework.
+  visual, so the smoke suite can't stand in. Nothing user-facing changed
+  this round; the steps are round 3's.
 - steps, in `C:/Users/eric/src/heraklios-wt/45-save-api`:
   1. `npm run dev -- --port 5245 --strictPort --host 127.0.0.1` → open
      `http://127.0.0.1:5245` → **Test mode** → **💾 Save / Load**:
@@ -99,19 +98,20 @@ The only error is the owed live check.
      nothing was saved."; **Export to file** still downloads; play on to
      the next movement phase: the log shows "Autosave failed: the game
      server isn't answering."
-  4. Restart, reload; devtools: `localStorage.setItem('heraklios.save.slot3',
-     <contents of saves/slot-2.json>)` with no `slot-3.json` → panel →
-     **Copy browser saves to files** → "Browser saves copied to files: 1,
-     skipped: 0.", the button goes, `slot-3.json` exists, the key unchanged
-     → Load slot 3.
+  4. Restart, reload; with no `slot-3.json`, in devtools
+     `localStorage.setItem('heraklios.save.slot3', <contents of
+     saves/slot-2.json>)` → panel → **Copy browser saves to files** →
+     "Browser saves copied to files: 1, skipped: 0.", the button goes,
+     `slot-3.json` exists, the key unchanged → Load slot 3.
   5. The same offer from the Menu's **Load a game**.
   6. French: the panel and its messages.
   7. Round 2's L1 fix (no test covers it): seed two or three browser slots
      (`heraklios.save.slot4`, `slot5`…) whose file slots are empty, click
-     Copy and stop the server at once (a race; retry a few times) → "Browser
-     saves copied to files: N, then the game server stopped answering."
-     stays in the panel, on the Board and from the Menu, not replaced by
-     "The game server isn't answering." If the race can't be hit, say so.
+     Copy and stop the server at once (a race; retry a few times) →
+     "Browser saves copied to files: N, then the game server stopped
+     answering." stays in the panel, on the Board and from the Menu, not
+     replaced by "The game server isn't answering." If the race can't be
+     hit, say so.
   8. Optional: `http://localhost:5245` works too; a LAN address gets no
      save API (deliberate).
   9. Once on stable: `bash scripts/update-stable.sh`, `npm run preview`
@@ -119,28 +119,50 @@ The only error is the owed live check.
   10. Delete the worktree's `saves/` afterwards if not wanted.
 
 ## Verified myself vs. taken on trust
-- Coordinator, re-run: HEAD `bf15e0f`, worktree clean; read
-  `e2e/save-import.spec.ts:25-62` (shared slot files removed in
-  `beforeEach`/`afterEach`), `server/fileSaveFs.ts:84-92` (`remove` outside
-  the queue), `README.md:160-166`; `npx playwright test
-  e2e/save-import.spec.ts --repeat-each=10 --workers=2` → 6 failed, 4
-  passed; the same with `--workers=1` → 10 passed; `git status --short`
-  clean, no `saves/` afterwards.
-- Reviewer agent: `npm run verify` → 51 files, 827 passed, lint 21/21;
-  `npm run check:intent` → FAIL on the live check only; `npm run e2e` → 10
-  passed; the two save scenarios `--repeat-each=3` over six runs → 2
-  failed, then 6/6, 6/6, 1 failed, 6/6, 6/6; stress runs as in M1; 26
-  mutants with the full suite (plugin P1–P3, queue Q1–Q4, temp name T1,
-  retry R1–R10, R12 killed; R11, W1, W2, U1 survive, R13 equivalent; all
-  six round-2 survivors killed), files restored, status clean; live on its
-  own dev (5291) and preview (5293) servers with a temp
-  `HERAKLIOS_SAVES_DIR`: 20 × 8 concurrent PUTs → 160 × 204; 30 ordering
-  trials → last save on disk every time (round 2: 6/30 wrong); two
-  processes 960 × 204 (round 2: 1 × 500 in 320); attacker Host → 403; the
-  PUT-PUT-DELETE probe (L1); servers stopped by their own PIDs, temp
-  folder removed; `git merge-tree` with `main` clean; UTF-8 on 29 files.
-- Taken on trust: the implementer's first-survival of the shared-temp-name
-  mutant; round 1's save sizes; Chrome's protections; antivirus behaviour.
+- Coordinator, re-run: HEAD `065ad3b`, worktree clean; `npm run
+  check:intent` → FAIL on the live check only; `npx playwright test
+  e2e/save-import.spec.ts e2e/save-load.spec.ts --repeat-each=10
+  --workers=2` five times → 19 passed / 1 failed (`save-load.spec.ts:57`,
+  output not kept), then 20/20 four times; `git status --short` clean, no
+  `saves/` or lock left.
+- Reviewer agent: `npm run verify` → 51 files, 830 passed, lint 21/21;
+  `npm run e2e` → 10/10; AC3 3 runs → 6/6 each; `save-import` and
+  `save-load` stress 3 runs each → 10/10; mixed `--repeat-each=5` 2 runs →
+  10/10; a lock watcher sampling every 20 ms (longest hold 5,059 ms,
+  acquire timeout never fired, lock never left); server mutants with the
+  full suite (remove outside the queue, `writeOnce` plain `rename`,
+  `RENAME_ATTEMPTS = 4`, instant sleep, enqueue without `.catch`, queue not
+  stored, write bypassing the queue — all killed; the timing ones 8 of 8;
+  the unmutated file 30/30); e2e mutants (no-op lock 6/10 failed, instant
+  takeover 6/10, setup not clearing killed with a planted lock, missing
+  releases 1 and 3 failures; release by anyone, no takeover, teardown not
+  clearing survive green runs — probed directly); live on its own Vite
+  (127.0.0.1:5291, temp `HERAKLIOS_SAVES_DIR`): 160 × 204, last save on
+  disk 20/20, PUT-PUT-DELETE (3 ms) 0/30 left (round 3: 17/30), no gap
+  30/30 left, foreign Host/Origin/rebinding → 403; servers stopped by their
+  own PIDs, temp folders removed; `git merge-tree` with `main` clean;
+  UTF-8 on 29 files.
+- Taken on trust: rounds 1–3's passes over the unchanged `src/` code (re-
+  checked unchanged and green); Playwright running `afterEach` after a
+  timeout; antivirus and Chrome behaviour.
+
+# Round 3 (history)
+
+- verdict: rework
+- tier: reviewed
+- reviewed-commit: bf15e0f
+- round: 3
+- sampled: no
+- live-check: owed
+
+Resolutions (round 4, in `6d98a4b`, `065ad3b`):
+- MEDIUM M1 e2e save scenarios collide: **fixed** (cross-worker lock; AC3
+  3/3, stress 60/60, mixed 20/20; lock mutants fail 6/10); hook hardening
+  after a failure is round 4's LOW.
+- LOW L1 `remove` outside the queue: **fixed** (killed 8/8; live 0/30 with
+  a 3 ms gap); a DELETE at the same instant stays unordered by design.
+- LOW L2 retry not pinned: **fixed** (R11, W1, W2 killed).
+- LOW L3 README bullet: **fixed**. Nit CLAUDE.md: **fixed**.
 
 # Round 2 (history)
 
