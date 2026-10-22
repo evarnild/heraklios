@@ -26,6 +26,7 @@ npm run verify     # build + lint + test — THE check before a change is done
 npm run check:intent  # does this branch's change match its intent? (intents/README.md)
 npm run sdlc:scan  # the evidence behind docs/sdlc-grid.md
 npm run spawn -- <id>  # parallel session for an intent (see "Parallel sessions")
+npm run ship -- <id>  # merge a reviewed intent, bookkeep, push, remove worktree and branch (the /ship skill)
 npm run sessions   # what every worktree/session is doing
 npm run e2e        # browser smoke suite (Playwright, port 5232) — not part of verify;
                    # once per machine: npx playwright install chromium
@@ -66,7 +67,8 @@ and in `intents/README.md` / `REVIEW-POLICY.md` win if they disagree.
 - `/intent` drafts an intent, `/spec` a feature's spec, `/build-plan` a
   plan, `/review` runs `REVIEW-POLICY.md` and writes
   `review.md`, `/grid` refreshes `docs/sdlc-grid.md`, `/spawn` and
-  `/sessions` run parallel work (below).
+  `/sessions` run parallel work (below), and `/ship <id>` merges a reviewed
+  intent when the owner asks (`REVIEW-POLICY.md` → "Merging").
 - An agent records a gate (`metadata.yml`) only on the owner's request in
   the current conversation, with `by-agent` after the date; a subagent never
   does (`intents/README.md` → "Who edits what").
