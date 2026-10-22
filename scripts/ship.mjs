@@ -385,15 +385,14 @@ function beforeMerge(root, loc, opts, wt) {
 
 /** Steps 4 to 6: verify, bookkeeping, push. */
 function afterMerge(root, loc, opts) {
-  let moved = false;
   if (loc.state.bookkept) {
     say('skipped', 'bookkeeping', 'already on main');
   } else {
     say('done', 'verify', runVerify(root));
     say('done', 'bookkeeping', bookkeeping(root, loc, opts.trailers));
-    moved = true;
   }
-  if (loc.state.pushed && !moved) say('skipped', 'push', 'origin/main is already at main');
+  // pushed is only ever true once the bookkeeping is on main, so a run that just booked always pushes
+  if (loc.state.pushed) say('skipped', 'push', 'origin/main is already at main');
   else say('done', 'push', push(root));
 }
 

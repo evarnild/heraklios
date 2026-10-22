@@ -38,9 +38,13 @@ another.
    commits as `--trailer "<line>"` (repeat the flag). The script adds none of
    its own.
 3. **Run:** `npm run ship -- <id> [--live-checked "…"] [--trailer "…"]…`
-4. **"Can §N ship?"** or any question about readiness: run
-   `npm run ship -- <id> --dry-run` instead. It changes nothing and prints
-   every step as done, to do, or the first thing that would stop it.
+4. **`/ship <id> --dry-run`, or "can §N ship?"** or any question about
+   readiness: run `npm run ship -- <id> --dry-run` instead. It changes
+   nothing (it does not even fetch) and prints every step as done, to do, or
+   the first thing that would stop it.
+5. **Where:** the script runs only from the main checkout, on `main`. From
+   a worktree it stops at `start` with "run from the main checkout"; relay
+   that, don't work around it.
 
 ## Relay the report
 

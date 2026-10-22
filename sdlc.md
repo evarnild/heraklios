@@ -90,7 +90,8 @@ used a worktree. You can ask Claude to do the merge, the push or the
 removal — each only when you ask for it, for that change, in the current
 conversation. `/ship <id>` does all of it in order and stops at the first
 step that fails (`/ship <id> --dry-run`, or "can §N ship?", only reports);
-say in the same message that you ran the live check if you did. It first checks that nothing but the review and the
+say in the same message that you ran the live check if you did. Run it from
+the main checkout, on `main`. It first checks that nothing but the review and the
 metadata changed after the reviewed commit, that `check:intent` passes,
 and that any owed live check is recorded, and refuses if not
 (`REVIEW-POLICY.md` → "Merging").

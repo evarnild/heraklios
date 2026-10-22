@@ -282,7 +282,7 @@ describe('npm run ship', { timeout: 90_000 }, () => {
     writeFileSync(join(w.path, 'open-in-an-editor.txt'), 'untracked: git worktree remove refuses this\n');
     const r = ship(['16']);
     expect(r.status, out(r)).toBe(0);
-    expect(r.stdout).toMatch(/LEFT\s+remove/);
+    expect(r.stdout).toMatch(/LEFT\s+remove\s+could not remove/);
     expect(r.stdout).toContain(`npm run ship -- 16 --cleanup`);
     expect(git(origin, 'rev-parse', 'main')).toBe(git(repo, 'rev-parse', 'main')); // everything before it was done
     expect(branchExists(w.branch)).toBe(true);
