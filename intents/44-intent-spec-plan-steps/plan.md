@@ -42,7 +42,7 @@ plan half of Build from that (spec B1–B9).
 
 Re-read on `main` at `4ba8209`:
 
-- `.claude/skills/intent/SKILL.md` — frontmatter `version: 0.1.2` (`:5`),
+- `.claude/skills/intent/SKILL.md` — frontmatter `version: 0.1.2` (`:6`),
   stamp line `:19`, §1–§5, last lines `:95-97` ("then the spec (feature)
   or plan (fix/refactor) comes next").
 - `.claude/skills/review/SKILL.md:18`, `grid/SKILL.md:19` — the
