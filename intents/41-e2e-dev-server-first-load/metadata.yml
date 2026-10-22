@@ -10,7 +10,7 @@ spec_accepted:
 plan_approved: 2026-10-21 by-agent    # owner's "yes" in chat
 live_checked:
 merged:
-follows_up:
+follows_up: 32    # the cause: §32's playwright.config.ts left Playwright's parallel default (review round 3)
 links:
   - intents/38-e2e-first-run-flake    closed on the capture alone; its review caught this run's trace
   - intents/32-e2e-smoke-suite    the suite and its fixed port 5232
