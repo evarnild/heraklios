@@ -10,7 +10,7 @@ Written against `main` at `c617fcb`.
 | Source | What it settles |
 | --- | --- |
 | `plan.md` "How To Manage This Plan" | "A queue row is one line … with the type and the status from its `metadata.yml` (which is the source of truth for status)"; "it mirrors `metadata.yml`, which wins if they disagree" |
-| `plan.md` sections | Current Snapshot `:71`, Current Queue `:166` (Shipped `:171`, In flight `:220`, Queued `:227`), Backlog Map `:238`, History Map `:261`, §1 Agent workflow `:337`, §4 Runbook `:421` |
+| `plan.md` sections | Current Snapshot `:71`, Current Queue `:166` (Shipped `:171`, In flight `:220`, Queued `:227`), Backlog Map `:238`, History Map `:261`, §1 Agent workflow `:337`, §4 Runbook `:420` |
 | `intents/README.md:8-11` | "`plan.md` at the repo root stays the **coordinator view** — snapshot, queue, backlog, history map." |
 | `intents/README.md:26-28` | the id is "the same numbering `plan.md`, `plan-history.md` and the commit messages already use" |
 | `scripts/session-io.mjs:53` `readIntentMetadataFromBranch`, `:80` `readIntentMetadata`; `scripts/session-lib.mjs:21` `branchFor` | reading an intent's metadata from its branch or from `main` |
