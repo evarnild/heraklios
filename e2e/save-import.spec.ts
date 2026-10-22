@@ -16,7 +16,7 @@ import {
   waitLoadOnRowOf,
   waitSavePanelLoaded,
 } from './helpers';
-import { SAVES_DIR, acquireSaveLock, releaseSaveLock } from './savesDir';
+import { SAVES_DIR, acquireSaveLock, withSaveLockHeld } from './savesDir';
 
 const SAVE_LOAD = '💾 Save / Load';
 const COPY = 'Copy browser saves to files';
@@ -32,11 +32,14 @@ test.beforeEach(async () => {
   rmSync(SLOT_5_FILE, { force: true });
   rmSync(SLOT_6_FILE, { force: true });
 });
-test.afterEach(() => {
-  rmSync(SLOT_5_FILE, { force: true });
-  rmSync(SLOT_6_FILE, { force: true });
-  releaseSaveLock(); // last: the files are gone before the next scenario starts
-});
+// Only a worker that holds the lock cleans up, and it always releases; the
+// files are gone before the next scenario starts (withSaveLockHeld).
+test.afterEach(() =>
+  withSaveLockHeld(() => {
+    rmSync(SLOT_5_FILE, { force: true });
+    rmSync(SLOT_6_FILE, { force: true });
+  }),
+);
 
 test('a browser save is copied into its empty file slot and loads from there', async ({ page, context }) => {
   // 1. Produce a real save: play to the board, save into slot 6, keep its text, empty the slot again.

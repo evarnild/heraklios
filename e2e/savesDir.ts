@@ -91,5 +91,4 @@ export function createDirLock(path: string, { staleMs, pollMs = 50 }: { staleMs:
 
 const saveLock = createDirLock(SAVE_LOCK, { staleMs: STALE_MS });
 export const acquireSaveLock = saveLock.acquire;
-export const releaseSaveLock = saveLock.release;
 export const withSaveLockHeld = saveLock.withHeld;
