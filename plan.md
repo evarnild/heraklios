@@ -212,6 +212,7 @@ sync when something merges** — it went stale once and the user caught it.
 | [§38](intents/38-e2e-first-run-flake/) e2e failures name their scenario and keep a trace — partial close on the owner's call, cause not found (fix, Attested, 1 review round; cause carried to [§41](intents/41-e2e-dev-server-first-load/); see [review.md](intents/38-e2e-first-run-flake/review.md)) | `a28db5b` |
 | [§39](intents/39-spawn-launches-implementer/) /spawn launches the implementer subagent in the worktree when the needed gate is recorded (adjustment, Reviewed tier because `.claude/skills/**`, 2 review rounds, 3 LOW fixed, live check run by the owner; see [review.md](intents/39-spawn-launches-implementer/review.md)) | `67b07c8` |
 | [§40](intents/40-naval-turn-buttons/) naval Turn buttons turn the way they sit — left counter-clockwise, right clockwise, on the Board and on Placement; Placement e2e scenario and a read-only `placement()` dev hook (fix, Attested, 2 review rounds, 1 MEDIUM invalid-UTF-8 finding fixed, live check run by the owner; see [review.md](intents/40-naval-turn-buttons/review.md)) | `fc19324` |
+| [§42](intents/42-intent-check-counts-e2e/) `check:intent` counts `e2e/**/*.spec.ts` as tests for the fix and refactor rules (rule code still needs a unit test) (fix, follows up §32, Attested, 1 review round, no findings; see [review.md](intents/42-intent-check-counts-e2e/review.md)) | `781f346` |
 
 ### In flight
 
@@ -224,6 +225,7 @@ sync when something merges** — it went stale once and the user caught it.
 | Item | Type · status |
 | --- | --- |
 | [§29](intents/29-grid-live-check-counts/) Count live checks in the SDLC scan and grid (after §28) | feature · draft |
+| [§43](intents/43-center-view-on-turn/) Centre the view on the new player's land units when their turn starts | feature · accepted |
 
 All fully-shipped rows that previously lived here (Stage 3b, §17,
 §18, §19, §24 and earlier) are in the [Shipped](#shipped) table above; see
