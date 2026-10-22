@@ -40,6 +40,9 @@ A level counts only when its trace exists:
   present; `npm run verify` ran.
 - **L2** — a versioned skill produced it: the artefact carries a
   `generated-by:` stamp. Required from the start — no self-assessment.
+  Design (and the plan half of Build) count as L2 only for the specs
+  (plans) that `npm run sdlc:scan` reports as made by `/spec`
+  (`/build-plan`); files under an old stamp count as hand-made, so L1.
 - **L3/L4** — a trigger fired, not a person: show the hook / schedule
   config and its run log. Without that, it is not L3.
 
