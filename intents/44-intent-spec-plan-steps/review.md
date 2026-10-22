@@ -3,10 +3,104 @@
 
 verdict: escalate
 tier: reviewed
-reviewed-commit: 4846a17
-round: 2
+reviewed-commit: b9a28f0
+round: 3
 sampled: no
 live-check: owed
+
+Tier set by input 1 (`.claude/skills/**`, Reviewed). Round 3 covers the
+owner-requested fixes of round 2's three LOWs (`b9a28f0`), run by the
+coordinator. All three are fixed as asked; nothing else changed. Nothing
+needs rework: **escalate** — the owner reads the diff, then the dry run.
+
+## Passes
+| # | Pass | Result |
+| --- | --- | --- |
+| 1 | Intent and plan match | pass — the spec is amended (dated, on the owner's request) to match what is built; `spec_accepted` unchanged |
+| 2 | Type check | FAIL on the owed live check only (the owner's to clear) |
+| 3 | Rulebook fidelity | not run — no game rule |
+| 4 | Tests prove the rule, not only pass | pass — no code changed this round; round 2's mutants stand |
+| 5 | Engine/presentation boundary and conventions | pass |
+| 6 | Numbers in prose | pass |
+| 7 | Documentation | pass — `/intent`'s closing names `intent_accepted` again; its stamp line gives the `#` form for `metadata.yml` |
+| 8 | Guardrails and hygiene | pass — lint 21/21; every changed file valid UTF-8; `/intent` EOL `i/lf` as on `main` |
+| 9 | Repository-specific footguns | not applicable |
+
+## Type check
+```
+type-check: FAIL (intent 44, feature)
+  error: A live check is owed and not recorded. Do the steps in intents/44-intent-spec-plan-steps/review.md → ## Live check, then set live_checked: <date> in intents/44-intent-spec-plan-steps/metadata.yml.
+```
+The only error is the owed live check.
+
+## Findings
+None.
+
+## Not checked
+- **What the skills do when run**: the live check below.
+- Claude Code's built-in command list for `/spec` / `/build-plan`
+  collisions.
+- `docs/sdlc-grid.md` not regenerated.
+- The scan's print/JSON wiring has no unit test (checked by hand in
+  round 2).
+
+## Live check
+- owed: rule 3 (a skill's behaviour shows only when it runs; spec AC4).
+- steps:
+  1. `cd C:/Users/eric/src/heraklios-wt/44-intent-spec-plan-steps &&
+     claude`.
+  2. `/intent --feature throwaway: a dummy feature for the dry run`; note
+     the id. `intent.md` line 1 is `<!-- generated-by:
+     heraklios/intent@0.1.4 -->`, `metadata.yml` line 1 is `#
+     generated-by: heraklios/intent@0.1.4`; every gate empty; the closing
+     says "accept by setting `intent_accepted` … or say yes" and names
+     `/spec <id>`. Say yes.
+  3. `/build-plan <id>`: stops, names `spec_accepted` as missing, writes
+     nothing.
+  4. `/spec <id>`: line 1 `<!-- generated-by: heraklios/spec@0.1.0 -->`;
+     "Written against `main` at <hash>"; the template's sections, B1…,
+     AC1… each naming its proof; closing "accept by setting
+     `spec_accepted` … or say yes"; `spec_accepted:` still empty. Say yes.
+  5. `/build-plan <id>`: line 1 `<!-- generated-by:
+     heraklios/build-plan@0.1.0 -->`; "Re-read on `main` at <hash>" with
+     `path:line` entries; Goal, Risks, Subtasks, Tests, Validation,
+     Assumptions, empty Progress; no questions; `plan_approved:` empty.
+  6. `npm run sdlc:scan`: `spec.md: 1 by /spec · …`, `plan.md: 1 by
+     /build-plan · …`.
+  7. Clean up: delete `intents/<id>-throwaway*`, `git restore plan.md`,
+     `git status --short` empty; commit nothing.
+- you should see: the stamps, sections and commit lines above, the
+  refusal before `spec_accepted`, no gate recorded by a skill, and the
+  scan counting the two files.
+
+## Verified myself vs. taken on trust
+- `git log dc87917..feat/44-intent-spec-plan-steps` → `b9a28f0`; read its
+  diff in full: `/intent` `SKILL.md` (stamp line: HTML comment for
+  `intent.md`, `# generated-by:` for `metadata.yml`; closing "Next step:
+  accept by setting `intent_accepted: <date>` in metadata.yml, or say
+  yes." before the Next-skill line); `spec.md` (dated amendment note; B2
+  `/intent` 0.1.4 thinned, rule 4 for spec and plan only; B6 both stamp
+  forms; last Assumption); `plan.md` Progress entry.
+- `npm run verify` (worktree, `b9a28f0`): lint 0 errors / 21 warnings (cap
+  21); **721 passed**.
+- `npm run check:intent`: FAIL on the live check only (above).
+- `iconv -f UTF-8 -t UTF-8` over every file in `git diff --name-only
+  main...HEAD`: none bad. `git ls-files --eol` on `/intent`: `i/lf w/lf`.
+- Taken on trust: nothing new this round.
+
+# Round 2 (history)
+
+- verdict: escalate
+- tier: reviewed
+- reviewed-commit: 4846a17
+- round: 2
+- sampled: no
+- live-check: owed
+
+Resolutions (round 3, all in `b9a28f0`, on the owner's request):
+- LOW N1 `/intent` closing without `intent_accepted`: **fixed**.
+- LOW N2 stamp form for `metadata.yml`: **fixed** (`#` form named).
+- LOW N3 spec still said 0.1.3: **fixed** (spec amended, dated).
 
 Tier set by input 1 (`.claude/skills/**`, Reviewed). Passes run by the
 `heraklios-reviewer` agent; the results the coordinator re-ran are marked.
@@ -16,7 +110,7 @@ implementer with all findings"), which goes beyond the spec's B2 limit for
 `/intent` and is recorded in Progress. Nothing needs rework: **escalate** —
 the owner reads the diff, then the dry run (live check).
 
-## Passes
+### Passes
 | # | Pass | Result |
 | --- | --- | --- |
 | 1 | Intent and plan match | findings (2, LOW) — N1, N3 |
@@ -29,7 +123,7 @@ the owner reads the diff, then the dry run (live check).
 | 8 | Guardrails and hygiene | pass — lint 21/21; every changed file valid UTF-8 |
 | 9 | Repository-specific footguns | not applicable |
 
-## Type check
+### Type check
 ```
 type-check: FAIL (intent 44, feature)
   error: A live check is owed and not recorded. Do the steps in intents/44-intent-spec-plan-steps/review.md → ## Live check, then set live_checked: <date> in intents/44-intent-spec-plan-steps/metadata.yml.
@@ -37,7 +131,7 @@ type-check: FAIL (intent 44, feature)
 ```
 The only error is the owed live check.
 
-## Findings
+### Findings
 - **LOW** (N1) `.claude/skills/intent/SKILL.md:92-94` — thinning the
   closing dropped the gate's name: `intent_accepted` no longer appears in
   `/intent` (main had it at `:96`), while `/spec` and `/build-plan` close
@@ -54,7 +148,7 @@ The only error is the owed live check.
   records the owner-requested divergence to `0.1.4`. Worth a look: amend
   the spec at the merge if the owner wants the accepted text to match.
 
-## Not checked
+### Not checked
 - **What the skills do when run** (preconditions, stamps, sections, no
   gate recorded on their own): the live check below.
 - Claude Code's built-in command list for `/spec` / `/build-plan`
@@ -62,7 +156,7 @@ The only error is the owed live check.
 - `docs/sdlc-grid.md` not regenerated.
 - The scan's print/JSON wiring has no unit test (checked by hand).
 
-## Live check
+### Live check
 - owed: rule 3 (a skill's behaviour shows only when it runs; spec AC4).
 - steps:
   1. `cd C:/Users/eric/src/heraklios-wt/44-intent-spec-plan-steps &&
@@ -91,7 +185,7 @@ The only error is the owed live check.
   refusal before `spec_accepted`, no gate recorded by a skill, and the
   scan counting the two files.
 
-## Verified myself vs. taken on trust
+### Verified myself vs. taken on trust
 - Coordinator, re-run: HEAD `4846a17`, worktree clean; `npm run
   check:intent` — FAIL on the live check only (above); `iconv -f UTF-8`
   over all files in `git diff --name-only main...HEAD` — none bad; `npm
