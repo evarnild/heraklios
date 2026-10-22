@@ -8,7 +8,7 @@ review_tier:
 intent_accepted: 2026-10-22 by-agent    # owner's "yes" in chat
 spec_accepted: 2026-10-22 by-agent    # owner: "build-plan and then accept it" (three skills, /build-plan)
 plan_approved: 2026-10-22 by-agent    # owner's "yes" in chat
-live_checked:
+live_checked: 2026-10-22 by-agent    # owner: "live checked" in chat (the /intent /spec /build-plan dry run)
 merged:
 follows_up:
 links:
