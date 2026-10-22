@@ -4,7 +4,8 @@
 Accepted intent: [intent.md](intent.md)
 
 Written against `main` at `228f1e3`. (Written by hand: `/spec`, §44, is
-still in review.)
+still in review.) Revised 2026-10-22: no browser fallback, a read-only
+import of browser saves instead (owner).
 
 ## Sources that apply
 
@@ -27,7 +28,8 @@ preview server (`npm run preview`, which the stable copy runs). So it
 starts and stops with the game, on the same host and port, with no second
 process, no proxy, and no new dependency. It listens wherever Vite does:
 `localhost` by default (owner's decision: this PC only). A static copy of
-`dist/` served any other way has no API, and the game falls back (B6).
+`dist/` served any other way has no API: saving fails with a message
+(B6), and that setup isn't supported.
 
 **B2 — Where the files go.** One file per slot in a saves folder:
 `slot-1.json` … `slot-6.json`, `autosave.json`. The folder is
@@ -41,7 +43,7 @@ half-written save.
 
 | Request | Response |
 | --- | --- |
-| `GET /api/health` | `200 {"ok":true,"saves":"file"}` |
+| `GET /api/health` | `200 {"ok":true}` (for tools and later features; the game doesn't probe it) |
 | `GET /api/saves` | `200` and `{ "<slot>": <SavedGame> }` for every slot holding a valid save (invalid or unreadable files are left out, like `readSlot`) |
 | `GET /api/saves/:slot` | `200` and the save, or `404` if empty or invalid |
 | `PUT /api/saves/:slot` | body: a `SavedGame` JSON; `204` when stored; `400` if it doesn't parse or isn't valid (`parseSavedGame`); `413` above 2 MB |
@@ -57,38 +59,37 @@ present and isn't the server's own origin gets `403`. This stops another
 website open in the same browser from reading or writing saves on
 `localhost`; the game itself sends same-origin requests.
 
-**B5 — The game's storage layer becomes asynchronous.** `saveStorage.ts`
-gets a `SaveStore` with two backends of the same shape: `read(slot)`,
-`readAll()`, `write(slot, save)`, `clear(slot)`, all returning promises,
-results as today (`null` for empty/invalid, `false` for a failed write).
-- **file backend:** `fetch` to the API (B3);
-- **browser backend:** today's `localStorage` code, wrapped.
+**B5 — The game's storage goes through the API.** `saveStorage.ts`'s
+`readSlot` / `writeSlot` / `clearSlot` are replaced by an asynchronous
+client of B3: `read(slot)`, `readAll()`, `write(slot, save)`,
+`clear(slot)`, returning promises, results as today (`null` for empty or
+invalid, `false` for a failed write). Their callers
+(`saveLoadPanel.ts`, the `BoardScene` autosave) use it. The
+`localStorage` slot code goes away, except the read-only part B8 needs.
 
-`readSlot`/`writeSlot`/`clearSlot` as synchronous functions go away; their
-callers (`saveLoadPanel.ts`, `BoardScene` autosave) use the store.
+**B6 — No fallback; failures are visible** (owner's decision). The API is
+served by the same server as the game, so when it is down the game
+doesn't load either; the remaining case is a tab left open while the
+server stops. Then:
+- a manual save, load or delete fails and the panel's status line says
+  "The game server isn't answering — nothing was saved" (or loaded /
+  deleted), and **Export to file** still works as the manual backup;
+- a failed autosave writes one line to the Board's log ("Autosave failed:
+  the game server isn't answering") instead of failing silently.
 
-**B6 — Choosing the backend, and the fallback.** Once per page load, the
-first use of the store calls `GET /api/health` with a 1.5 s timeout; `200`
-picks the file backend, anything else (no server, error, timeout) the
-browser backend, for the rest of the page's life (owner's decision:
-fallback kept). If a file-backend request later fails (server stopped), that
-operation falls back to the browser backend and the panel says so
-(B7); a lost autosave is never silent: it goes to the browser instead.
+**B7 — What the player sees.** The Save/Load panel shows "Loading…" until
+the slot list arrives, then the rows as today, plus B6's messages and B8's
+offer (both languages, via the §35 tables). Nothing else changes.
 
-**B7 — What the player sees.** The Save/Load panel:
-- shows "Saving to files on this PC" or "Saving in this browser" in its
-  header (both languages, via the §35 tables);
-- shows "Loading…" until the slot list arrives, then the rows as today;
-- after a fallback (B6), its status line says the save went to the
-  browser instead.
-
-Nothing else in the game changes.
-
-**B8 — Browser saves when the server is there.** If the file backend is in
-use and the browser still holds saves, the panel offers **"Copy browser
-saves to files"**: it copies each browser slot into the same file slot
-**only if that file slot is empty**, never overwriting, then reports how
-many it copied and how many it skipped. Browser saves aren't deleted.
+**B8 — Import of browser saves** (owner's decision: drop the fallback,
+keep the import). When the panel opens and the browser still holds any
+save (`localStorage` keys `heraklios.save.slot1`–`6`, the autosave key),
+it offers **"Copy browser saves to files"**. The copy writes each valid
+browser save into the **same file slot only if that slot is empty**, never
+overwriting, and reports how many it copied and skipped. It **reads
+`localStorage` and never writes or deletes it**. The offer is shown while
+any browser save exists that isn't already in its file slot; once every
+browser save has been copied (or its slot is taken), it no longer shows.
 
 **B9 — Pure parts, tested.** The plugin's request handling is a pure
 function `handleSaveApi(request, fs)` in `server/saveApi.ts`, with the file
@@ -101,12 +102,13 @@ and response to it and supplies the real file system.
 `playwright.config.ts`'s `webServer` sets `HERAKLIOS_SAVES_DIR` to a fresh
 temporary folder (created in global setup, removed in teardown), so a run
 never touches anyone's real saves. `e2e/save-load.spec.ts` keeps its
-scenario and now also checks the panel says "files". A second scenario
-blocks `/api/**` (`page.route` → abort) and runs the same save/load,
-checking the panel says "browser": the fallback, by real clicks.
+scenario, now against the server. A second scenario seeds one browser
+save (`localStorage`, before the page loads), opens the panel, clicks
+**Copy browser saves to files**, and loads it back from the file slot.
 
 **B11 — Docs.** README's "Saving and loading" section: where saves live
-(files, the folder, `HERAKLIOS_SAVES_DIR`), the fallback, the copy action.
+(files, the folder, `HERAKLIOS_SAVES_DIR`), what happens when the server
+isn't answering, and the import.
 `CLAUDE.md` → Architecture names `server/` (the Vite plugin) and its
 boundary: no game rule in it, only storage.
 
@@ -129,23 +131,27 @@ None of the rulebook. Two readings of the owner's words:
   allowed; body over 2 MB → `413`; invalid save → `400` and nothing
   written; list skips an invalid file. Mutants: drop the slot check, drop
   the origin check, drop validation before write, swap 404/204 on delete.
-- **AC2** — `saveStorage` tests (file backend with a stubbed `fetch`,
-  browser backend with a stubbed `localStorage`): backend choice on health
-  200 / error / timeout; a failed file write falls back to the browser and
-  reports it; the copy (B8) never overwrites and counts copied/skipped.
+- **AC2** — client and import tests (stubbed `fetch` and `localStorage`):
+  each call maps to its route; a network error or non-2xx gives `null` /
+  `false` and the panel's message (B6); the import copies only into empty
+  slots, skips invalid browser saves, counts copied/skipped, and never
+  calls `localStorage.setItem` or `removeItem`; the offer shows only while
+  an uncopied browser save exists. Mutants: overwrite a taken slot, write
+  to `localStorage`, show the offer with nothing left to copy.
 - **AC3** — `npm run e2e`: `save-load` passes against the server (temp
-  folder) and the new fallback scenario passes with `/api` blocked;
-  `--repeat-each=3` clean. The temp folder is gone after the run.
+  folder) and the new import scenario passes; `--repeat-each=3` clean.
+  The temp folder is gone after the run.
 - **AC4** — the round trip: a save written by the game opens as readable
   JSON in the saves folder and loads back (e2e reads the file once
   through Node in the scenario).
 - **AC5** — live check (owed by path: `src/ui/**`, `vite.config.ts`):
   `npm run dev` → save a game in slot 2 → the file appears in `saves/` →
   restart the dev server → load slot 2 → same position; stop the dev
-  server, serve `dist/` some other way (or block `/api`) → the panel says
-  "browser" and saving works; then the copy action with a browser save.
-  And once on the stable copy after `scripts/update-stable.sh` and `npm run
-  preview`.
+  server with the tab open → save → the panel says the server isn't
+  answering, and Export to file still works; with a save left in this
+  browser from before (stable, or slot data from an older build) → the
+  panel offers the copy → copy → it loads from the file slot. And once on
+  the stable copy after `scripts/update-stable.sh` and `npm run preview`.
 
 ## Non-functional
 
@@ -158,6 +164,8 @@ None of the rulebook. Two readings of the owner's words:
 - **Dependencies:** none new (Vite's plugin API, Node `fs`, `fetch`).
 - **Security:** localhost only (B1), origin check (B4), slot allow-list
   (B3), 2 MB cap, validate before write.
+- **Existing browser saves:** never modified (B8); a player who doesn't
+  copy them keeps them in the browser, readable by an older build.
 - **Tooling coverage:** `server/` must be in `tsconfig.json`'s `include`,
   linted, and its `*.test.ts` picked up by `vitest.config.ts` (today
   `src/**/*.test.ts` and `scripts/**/*.test.mjs` only).
@@ -169,7 +177,10 @@ None of the rulebook. Two readings of the owner's words:
 - Named saves or more than six slots.
 - Any other API route or feature (the intent: groundwork, saves only).
 - Running the API outside Vite, LAN access, accounts.
-- Moving browser saves automatically (B8 is an explicit action).
+- A browser fallback (owner's decision) and serving `dist/` without the
+  API.
+- Moving browser saves automatically, or deleting them after the copy
+  (B8 is an explicit, read-only action).
 - The map editor's own `localStorage` save.
 
 ## Assumptions I made
@@ -182,5 +193,7 @@ None of the rulebook. Two readings of the owner's words:
 - **Per-checkout folder** (B2), with an env override, rather than one
   shared folder: dev code under work can't damage the stable copy's saves.
 - **Copy, not move** (B8), and only into empty slots.
-- **1.5 s health timeout** (B6) and **2 MB cap** (B3): a save is one
+- **No health probe:** without a fallback there is nothing to choose
+  between; a failed request is just a failure (B6).
+- **2 MB cap** (B3): a save is one
   `GameState` as JSON, far below that (the plan measures a real one).
