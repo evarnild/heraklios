@@ -18,7 +18,7 @@ Written against `main` at `9a0ac4e`.
 | `scripts/session-lib.mjs:47-209` | `parseWorktreeList`, `parseEvents`, `latestEventByWorktree`, `sessionState`, `gateSummary`, `autoSummary`, `metadataColumns`, `sortRows`: the sessions view's logic, pure and tested |
 | `server/saveApi.ts:37-80` | the Host allow-list against DNS rebinding and the Origin check, the model for a local-only server |
 | `.claude/settings.json` | the hooks that write `.git/heraklios-sessions.jsonl`, filed by `CLAUDE_PROJECT_DIR` |
-| owner's answers, 2026-10-23 | sessions through **both** the Agent SDK (headless) and an interactive CLI in a pty; lives in `tools/orchestrator/` with its own server; `/auto`, `/review` and `/spawn` stay skills the UI launches; **staged**: §52 is the dashboard plus spawn, launching and stopping sessions with their live output and permission answers, and the gate and ship buttons |
+| owner's answers, 2026-10-23 | sessions through **both** the Agent SDK (headless) and an interactive CLI in a pty, **the pty split out to a later intent** (owner, at the spec stop: "split out the terminal"); lives in `tools/orchestrator/` with its own server; `/auto`, `/review` and `/spawn` stay skills the UI launches; **staged**: §52 is the dashboard plus spawn, launching and stopping sessions with their live output and permission answers, and the gate and ship buttons |
 
 ## Behaviour
 
@@ -68,11 +68,10 @@ headless session appears in the page with its options. The owner's click is
 the answer; nothing is allowed by default. While one waits, the intent shows
 "needs you".
 
-**B7 — Interactive sessions (pty).** "Open terminal" starts the real
-`claude` command line in a pseudo-terminal in the chosen directory (a
-worktree or the main checkout) and shows it in the page, with keyboard input.
-It is for taking a session over by hand; the orchestrator reads nothing from
-its screen. Closing the tab or "Stop" ends the process.
+**B7 — Interactive sessions: split out.** The owner moved the interactive
+terminal (the real `claude` command line in a pseudo-terminal, shown in the
+page) to a later intent. §52 has no pty and no terminal widget; B7 keeps its
+number so the other references stay stable.
 
 **B8 — Gate buttons.** For a gate whose preconditions hold (`intent_accepted`
 on a draft; `spec_accepted` once `spec.md` exists; `plan_approved` once
@@ -96,7 +95,7 @@ coordinator" rules hold unchanged. `CLAUDE.md` → "Parallel sessions" gets a
 paragraph saying so and naming `npm run orchestrator`. The skills are not
 changed or removed in §52.
 
-**B11 — Launched sessions show in `npm run sessions`.** A headless or pty
+**B11 — Launched sessions show in `npm run sessions`.** A headless
 session runs with the project's hooks, so its events are filed under its
 working directory as today's do. The orchestrator also keeps its own list of
 the processes it started, and shows both.
@@ -134,13 +133,12 @@ process list lives in memory.
 - **AC3 — the server** (`tools/orchestrator/*.test.mjs`, with an injected
   process runner and file system): a request with a foreign Host or Origin
   gets 403 and runs nothing (B2); "Ship" runs the dry-run first (B9).
-- **AC4 — live check** (owed by rule 3: processes, a pty and a browser page
-  only show in a real run):
+- **AC4 — live check** (owed by rule 3: processes and a browser page only
+  show in a real run):
   - `npm run orchestrator`, open the page: the dashboard matches
     `npm run queue` and `npm run sessions`;
   - spawn a throwaway intent; launch an implementer session; answer one
     permission prompt in the page; stop it;
-  - open a terminal on a worktree and type in it;
   - record a gate with the button (bare date, commit by you);
   - dry-run a ship. Do not ship a real intent in the check.
 - **AC5** — `npm run verify` green with lint ≤ 21 (the orchestrator's files
@@ -151,10 +149,8 @@ process list lives in memory.
 
 - **Engine/presentation split:** untouched; no `src/` change.
 - **Save format, undo, AI/harness:** untouched.
-- **Dependencies:** the Agent SDK, a pty library and a terminal widget are
-  new dev dependencies; each gets its "why" line in the plan
-  (`REVIEW-POLICY.md` pass 8). A pty library with a native build on Windows
-  is the main install risk.
+- **Dependencies:** the Agent SDK is a new dev dependency, with its "why"
+  line in the plan (`REVIEW-POLICY.md` pass 8). No pty library (B7).
 - **Tier:** `CLAUDE.md` changes and the server spawns processes that edit
   the repo; the spec argues for `review_tier: reviewed`.
 - **Security:** local-only (B2), nothing allowed by default (B6), confirm on
@@ -163,6 +159,8 @@ process list lives in memory.
 ## Out of scope
 
 - Retiring the terminal coordinator or the skills; moving `/auto` into code.
+- The interactive terminal in the page (B7), split out by the owner to a
+  later intent.
 - Remote or multi-user access, authentication beyond B2.
 - Editing intents, specs or plans in the page (it links to the files).
 - Persisting transcripts across server restarts.
