@@ -596,6 +596,24 @@ is a d6's 6 faces, so a matchup whose printed row already reaches high
 enough (quintirème vs. birème or galère, both printed as 1-2-3-4-5) becomes
 an automatic hit at +1 bonus or higher, with nowhere further to go at +2.
 
+### Message log
+
+The Board's left column keeps every message of the game in a scrollable log,
+not just the latest one: a combat report no longer vanishes when the next
+message arrives. A "Turn N — <player>" heading ("Tour N — ..." in French)
+starts each new turn or active player's messages, the newest entry is drawn
+brighter, and an elephant drift reads as one entry that grows line by line
+(it no longer starts with a copy of the combat report above it). The log has
+its own fixed area, ending above the bottom-left buttons, so a long report
+can never be drawn over them; when the history is taller than the area a
+scrollbar appears. Scroll with the mouse wheel over the log (the map does not
+zoom there; over the map the wheel zooms as before) or drag the scrollbar.
+The view follows the newest message while it is at the bottom and stays put
+when you have scrolled up. Undo and redo add their own messages and remove
+none. The log is not saved: a new or loaded game starts with an empty one
+(a load's first entry is "Game loaded."). Prompts, the status line and the
+Save / Load panel's messages are not log entries.
+
 ### Combat log detail
 
 Every combat resolution's log entry is written to be auditable against the

@@ -9,6 +9,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { MENU_CLOSE_COMBAT, activeUnitOfType, clickButton, clickHex, key, settle, startFromMenu, state, waitIdle } from './helpers';
 
+const UNDO = '↶ Undo';
 const NOTHING_TO_UNDO = 'Nothing to undo.';
 const UNDO_CLICKS = 30;
 
@@ -37,14 +38,14 @@ test('the log keeps every message, scrolls, and stays clear of the buttons (seed
   const errors = await startFromMenu(page, MENU_CLOSE_COMBAT, 'close-combat', 1);
 
   // E1: nothing to undo yet, thirty times.
-  for (let i = 0; i < UNDO_CLICKS; i++) await clickButton(page, 'Undo');
+  for (let i = 0; i < UNDO_CLICKS; i++) await clickButton(page, UNDO);
   const entries = await logEntries(page);
   expect(entries[0]!.kind).toBe('heading');
   expect(entries[0]!.text).toMatch(/^Turn 1 — /);
   expect(entries.slice(1)).toEqual(Array.from({ length: UNDO_CLICKS }, () => ({ kind: 'entry', text: NOTHING_TO_UNDO })));
   const p0 = await panel(page);
   expect(p0.bottom).toBeLessThanOrEqual(750 - 232);
-  const endGame = await page.evaluate(() => window.__heraklios.buttonToCanvas('End game'));
+  const endGame = await page.evaluate(() => window.__heraklios.buttonToCanvas('⚑ End game'));
   expect(p0.bottom, 'above the End game button').toBeLessThan(endGame.y - 8);
 
   // E2: it overflows, so the view sits at the bottom; the wheel over the log scrolls it, not the map.
@@ -56,7 +57,7 @@ test('the log keeps every message, scrolls, and stays clear of the buttons (seed
   expect(p1.offset).toBeLessThan(p0.offset);
   expect(await zoom(page)).toBe(zoom0);
   // A new entry doesn't move a view scrolled up.
-  await clickButton(page, 'Undo');
+  await clickButton(page, UNDO);
   const p2 = await panel(page);
   expect(p2.total).toBe(p0.total + 1);
   expect(p2.offset).toBe(p1.offset);
@@ -77,7 +78,7 @@ test('the log keeps every message, scrolls, and stays clear of the buttons (seed
   const dragged = await panel(page);
   expect(dragged.offset).toBeLessThan(before.offset);
   // And back to the bottom, where it follows again.
-  await wheelAt(page, { x: 100, y: 300 }, 5000);
+  for (let i = 0; i < 10; i++) await wheelAt(page, { x: 100, y: 300 }, 100);
   const bottom = await panel(page);
   expect(bottom.offset).toBe(bottom.total - bottom.visible);
 
@@ -100,7 +101,8 @@ test('the log keeps every message, scrolls, and stays clear of the buttons (seed
   expect(after.filter((e) => e.kind === 'heading')).toHaveLength(1);
   expect(after.slice(0, entries.length)).toEqual(entries);
   expect(after.length).toBeGreaterThan(entries.length + 1); // + the extra Undo and the report
-  expect(after[after.length - 1]!.text, 'the combat report is longer than one line').toContain('\n');
+  // The report is one entry of several lines; a later message (a retreat) may follow it.
+  expect(after.slice(entries.length).some((e) => e.text.includes('\n')), 'the combat report is longer than one line').toBe(true);
 
   expect(errors).toEqual([]);
 });
