@@ -1,100 +1,87 @@
 <!-- generated-by: heraklios/review@0.1.5 -->
 # §50 review — An auto mode carries one intent from acceptance to ship, stopping only for the owner's questions, the live check and the ship
 
-verdict: rework
+verdict: escalate
 tier: reviewed
-reviewed-commit: e3d02a1
-round: 4
+reviewed-commit: e577c62
+round: 5
 sampled: no
 run: manual
 live-check: owed
 
 **Tier:** set by input 1, the paths (`REVIEW-POLICY.md`, `.claude/skills/**`,
-`.claude/agents/**`), so the best verdict is `escalate`.
+`.claude/agents/**`).
 
-**Verdict:** `rework`, for one LOW finding needing mechanical rework (R4-1):
-the new mid-rework resume rule misses the case of a close before the
-implementer's first commit. There is no "Needs decision:" finding.
-- **Fixed:** R3-1, R3-2 and R3-3 (the owner decided R3-3's behaviour).
-- **Gate safety holds:** the rework is text in one paragraph and one list
-  item; nothing about gates, merging or shipping changed.
-- **If you read R4-1 as "worth a look"** instead, the verdict would be
-  `escalate`.
+**Verdict:** `escalate`. No finding needs rework, and the Reviewed tier
+needs your diff read before the merge.
+- **Fixed:** R4-1. The mid-rework resume rule now rests on the Progress
+  entry alone.
+- **Gate safety holds:** the rework is one paragraph; nothing about gates,
+  merging or shipping changed.
+- **Live check:** recorded (`73cf348`) and, by your decision, still counts.
 
-Round 4 covers `e88adc0` (the rework) and `e3d02a1` (Progress). The diff is
-one skill paragraph, one list item and a Progress entry, so the coordinator
-ran this round itself, with no reviewer agent.
+Round 5 covers `3deaca2` (the rework) and `e577c62` (Progress). The
+coordinator ran this round itself: the diff is one paragraph and a Progress
+entry.
 
 ## Passes
 | # | Pass | Result |
 | --- | --- | --- |
-| 1 | Intent and plan match | findings (1 LOW needing rework, R4-1). The rework touches only what round 3 asked for; `plan.md` changed only below `## Progress`. |
+| 1 | Intent and plan match | pass. The rework does what round 4 asked; `plan.md` changed only below `## Progress`. |
 | 2 | Type check | pass |
 | 3 | Rulebook fidelity | not run: SDLC tooling, no game rule |
-| 4 | Tests prove the rule, not only pass | not run: no code changed this round (`git diff --stat e7333ba..e3d02a1`: `SKILL.md` and `plan.md` only), so there is no behavioural line to mutate |
+| 4 | Tests prove the rule, not only pass | not run: no code changed this round (`SKILL.md` and `plan.md` only), so no behavioural line to mutate |
 | 5 | Boundary and conventions | pass, no `src/` or script change |
-| 6 | Numbers in prose | pass. Progress's "text-only" and the live-check decision match the diff and the owner's words. |
-| 7 | Documentation | pass. R3-1's stamp points at the review skill instead of a version, so it can't go stale. |
+| 6 | Numbers in prose | pass. Progress says "text-only", which matches the diff. |
+| 7 | Documentation | pass |
 | 8 | Guardrails and hygiene | pass. Lint 21 with the cap 21; no dependency. |
 | 9 | Repository-specific footguns | pass, none apply |
 
 ## Type check
 ```
 type-check: PASS (intent 50, feature)
-  note:  17 file(s), 932 line(s) changed outside intents/.
+  note:  17 file(s), 933 line(s) changed outside intents/.
 ```
 
 ## Findings
-- **LOW (R4-1)** `.claude/skills/auto/SKILL.md:77-86`: the mid-rework rule
-  covers two cases: implementer commits but no Progress entry (relaunch),
-  and no commits with no rework owed (redo the review). It misses **a
-  rework owed and no implementer commit yet**: round n's verdict is
-  `rework`, and the session closes before the implementer's first commit. A
-  mechanical rework never stops (step 5, `:183-187`), so `auto_stopped` is
-  empty and the run comes to this paragraph, which gives it no rule. Needs
-  rework: base the rule on the Progress entry alone. While round
-  `auto_round`'s `review.md` says `rework` and the implementer's Progress
-  entry for it is missing, with or without commits, relaunch the implementer
-  with the findings and wait. This follows from the owner's R3-3 decision,
-  so it is mechanical.
 - **Carried, yours:** spec B10 still says `attest` only (the B5 amendment
   overrides it in effect). Historical sampling: §36 (the 4th attested) is
   marked `sampled: yes`, §37 (the 5th) and §43 (the 10th) say `no`.
+- Nit: `.claude/skills/auto/SKILL.md:86` is one long unwrapped line.
 
 ## Not checked
-- **"The Progress entry for that rework"** is told by reading `plan.md`, as
-  an entry added after round n's `review.md` commit. No script checks it,
-  and no real resume has exercised it.
-- **Resume in a real session**, as in round 3: the sandbox run went straight
-  through to "ready for /ship". The sandbox was not updated to this rework.
+- **The resume cases in a real session.** The rule now covers every
+  combination when read through (no `review.md` for the round, a verdict
+  other than `rework`, `rework` with or without its Progress entry), but no
+  real resume has run. One known cost: a close between an `attest` or
+  `escalate` review and its stop commit redoes that review as the same
+  round. That costs time, not a round.
+- **"The Progress entry for that rework"** is told by reading `plan.md`. No
+  script checks it.
 - **R3-1 in a real run:** the new `review.md` instructions have not been
-  run. The next `/auto` on a real intent will show them.
+  run; the sandbox was not updated after `f623ccb`.
 - **Push notifications:** not visible in any file.
-- **Mutants:** none this round (pass 4); #2-#9 and #12-#16 remain the
-  implementer's report, as in round 3.
+- **Mutants:** none since round 3; #2-#9 and #12-#16 remain the
+  implementer's report.
 - **e2e:** not required; no `src/`, `e2e/` or `main.ts` change.
 
 ## Live check
 - **Owed** by rule 3 (AC5), and **recorded**: `live_checked: 2026-10-23
   by-agent` at `73cf348`, for `/auto 91` in the sandbox against `f623ccb`.
-- **It still counts** after the text-only rework: the owner's decision,
-  noted in Progress (`e3d02a1`).
+- **It still counts** after the text-only rounds 3 and 4: the owner's
+  decision, noted in Progress (`e3d02a1`).
 
 ## Verified myself vs. taken on trust
-**Coordinator, run** (worktree at `e3d02a1`, tree clean):
+**Coordinator, run** (worktree at `e577c62`, tree clean):
 - `npm run verify`: exit 0, 57 files, 988 tests, lint 21 of 21.
-- `npm run check:intent`: PASS, 17 files, 932 lines.
-- `git diff e7333ba..e3d02a1` read in full: `.claude/skills/auto/SKILL.md`
-  (`:73-86` resume paragraph, `:170-177` step 5 item 4) and `plan.md`
-  below `## Progress`. `REVIEW-POLICY.md` and `.claude/skills/review/` are
-  unchanged.
-- Re-read `SKILL.md:180-189` (step 5's `rework` branch resumes the implementer
-  with no stop, the basis of R4-1) and `.claude/skills/review/SKILL.md:18`
-  (`review@0.1.5`).
+- `npm run check:intent`: PASS, 17 files, 933 lines.
+- `git diff 8375305..e577c62` read in full: `SKILL.md:73-87` and `plan.md`
+  below `## Progress`.
+- `metadata.yml`: `status: in-review`, `live_checked` recorded.
 
 **Taken on trust:** the earlier rounds' mutant results, as listed in round 3.
 
-**For your diff read, in order:**
+**For your diff read, in order** (`git diff main...feat/50-sdlc-auto-mode`):
 1. `.claude/skills/auto/SKILL.md`: `:55-100` (resume), `:110-140` (the
    plan gate), `:155-190` (loop, cap, review, verdicts), `:235-255` (ship
    stop), `:20-34` (what it authorises);
@@ -104,6 +91,23 @@ type-check: PASS (intent 50, feature)
 5. `REVIEW-POLICY.md:52-63`, `:209-251`, with "Merging" unchanged;
 6. `sdlc.md:98-128`;
 7. `scan-lib.mjs:143-182`, `session-lib.mjs:196-199`, and their tests.
+
+# Round 4 (history)
+- verdict: rework
+- tier: reviewed
+- reviewed-commit: e3d02a1
+- round: 4
+- sampled: no
+- run: manual
+- live-check: owed
+
+Resolutions (round 5, in `3deaca2`):
+- **LOW R4-1, a close before the implementer's first commit had no rule:
+  fixed.** While the round's `review.md` says `rework` and its Progress
+  entry is missing, the implementer is relaunched; otherwise the review is
+  redone as the same round.
+- **LOW, historical sampling, and spec B10's `attest`: open, left for the
+  owner.**
 
 # Round 3 (history)
 - verdict: rework
