@@ -331,3 +331,10 @@ Read `review.md` (round 3, `f623ccb`). Commits: the "review round 3 rework" comm
 - **R3-3:** decided by the owner as the review proposed. After a close mid-rework, while the implementer's Progress entry for that rework is missing, the implementer is relaunched with round n's findings (a new `heraklios-implementer` if it cannot be resumed) and waited for; round n+1 starts only once that Progress entry exists. With no implementer commits since round n's `review.md` and no rework owed, the review is redone as the same round. The resume table has no row for the case, `CLAUDE.md` and `sdlc.md` do not describe it, so only the paragraph above the table changed.
 - The owner decided the live check recorded at 73cf348 (against f623ccb) still counts after this text-only rework.
 - The sandbox was not updated (not asked for).
+
+### 2026-10-23 — review round 4 rework (implementer)
+
+Read `review.md` (round 4, `8375305`). Commits: the "review round 4 rework" commit, plus the commit holding this entry. Text-only: `.claude/skills/auto/SKILL.md` changed, nothing under `src/` or the scripts.
+
+- **R4-1:** the mid-rework resume rule now rests on the Progress entry alone, with or without implementer commits. While round `auto_round`'s `review.md` says `rework` and the implementer's Progress entry for that rework is missing, the implementer is relaunched with that round's findings (a new `heraklios-implementer` if it cannot be resumed) and waited for; a new round starts only once that entry exists. If the verdict is not `rework`, or no `review.md` exists for the round, the round's review is redone as the same round. This covers a close before the implementer's first commit, which the commit-based rule missed. It matches step 5's rework branch.
+- The sandbox was not updated.
