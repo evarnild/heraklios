@@ -1,0 +1,17 @@
+# generated-by: heraklios/intent@0.1.5
+id: 51
+slug: army-builder-max-clear
+type: feature
+status: draft
+title: The army builder fills a unit type up to what the budget allows, or clears it, in one click
+review_tier:
+intent_accepted:
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+auto_authorized:
+auto_round:
+auto_stopped:
+follows_up:
+links:
