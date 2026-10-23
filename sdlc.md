@@ -116,7 +116,8 @@ to 5 without a prompt between them, and ends at step 6's door:
   read the diff; your next `/auto <id>` goes on to the live check or the
   ship, with no new round), a spec or plan amendment, running out of rounds,
   a live check owed, a CRITICAL finding, a red it cannot trace, a mismatch
-  in the re-check, an agent error, a worktree held by another session, or a
+  in the re-check, a plan that exists unapproved, a blocked ship dry-run, an
+  agent error, a worktree held by another session, or a
   fourth open session. Each stop writes `auto_round` and
   `auto_stopped` into `metadata.yml`, shows in `npm run sessions` and
   `npm run queue` as `auto · r<n> · <reason>`, and sends a push notification

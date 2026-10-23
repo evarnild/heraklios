@@ -80,10 +80,11 @@ and in `intents/README.md` / `REVIEW-POLICY.md` win if they disagree.
   It stops for the owner's questions, a "Needs decision:" finding, an
   `escalate` verdict (the owner reads the diff; the next `/auto <id>` goes
   on), a spec or plan amendment, running out of rounds, the live check, a
-  CRITICAL finding, any red it cannot trace, a re-check mismatch, a worktree
-  held by another session or an agent error, and ends at "ready:
+  CRITICAL finding, any red it cannot trace, a re-check mismatch, a plan that exists unapproved, a ship dry-run that
+  is blocked, a worktree held by another session, a fourth open session or an
+  agent error, and ends at "ready:
   `/ship <id>`"; it never ships, and never records `spec_accepted` or
-  `live_checked`. A stop shows in `npm run sessions` as `auto · r<n> · <reason>`.
+  `live_checked` without the owner's yes; the `/auto` authorisation covers neither. A stop shows in `npm run sessions` as `auto · r<n> · <reason>`.
 - An agent records a gate (`metadata.yml`) only on the owner's request in
   the current conversation, with `by-agent` after the date; a subagent never
   does (`intents/README.md` → "Who edits what").

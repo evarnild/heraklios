@@ -57,8 +57,12 @@ this skill allows, in this conversation.
    `auto_authorized: 2026-10-24 by-agent    # owner: "/auto 50"`.
    This is written on every `/auto <id>`, including a second one that
    resumes a stopped run; the owner's new message is the new request.
-3. Clear `auto_stopped` (leave it empty). Keep `auto_round`: a resumed run
-   continues from the recorded round and does not get a fresh budget (B9).
+3. Keep `auto_round`: a resumed run continues from the recorded round and
+   does not get a fresh budget (B9). Keep `auto_stopped` too, until the
+   resumed step has moved on: clear it (empty) in the first commit that step
+   makes, such as the round-start write of step 5, the record of a passed
+   live check, or the ship stop of step 8. A session that closes right
+   after the resume then still finds the reason.
 4. Commit it (on `main` before the branch exists, on the branch after), with
    a subject `§<id>: auto run started` or `§<id>: auto run resumed`.
 
@@ -68,21 +72,26 @@ boundary, never while the implementer works.
 
 Then resume by the recorded `auto_stopped`, not by "the first step not done"
 (spec B13, amended). The reason text is the one the stop wrote (step 9); an
-empty `auto_stopped` with a recorded `auto_round` means the session closed
-mid-run, and is read as the step the branch shows (no `review.md` for round
-`auto_round` yet: redo that round's review without counting a new one).
+empty `auto_stopped` means the session closed mid-run (or right after a
+resume), and falls back to **the first step whose work is not done**:
+spec, plan, worktree, build, then the review loop. In the review loop it is
+**a new round only if the implementer has committed since round
+`auto_round`'s `review.md`** (a close mid-rework); otherwise that round's
+review is redone as the same round. An empty `auto_round` (a close before
+round 1) is round 0: the build step, then round 1.
 
 | `auto_stopped` | Resume |
 | --- | --- |
 | spec questions, spec drafted | step 2: the owner's answers or yes, then step 3 |
 | plan found the spec incomplete, plan.md exists unapproved | step 3 again, only after the owner has settled it; never approve a plan this run did not draft |
 | decision needed, spec or plan amendment needed | give the implementer the owner's answer (a new `heraklios-implementer` if it cannot be resumed), wait, then **a new round** `auto_round` + 1 (step 5, item 1) |
-| re-check mismatch | redo the re-check (step 6) for round `auto_round` and write that round's `review.md`; **no new round** |
+| re-check mismatch | redo the re-check (step 6) for round `auto_round` and write that round's `review.md`; **no new round**. If the reviewer's report is not in this conversation (a new session), redo the review as the same round, then the re-check |
 | escalate | the owner's `/auto <id>` means "diff read": go on to the live-check stop (step 7) or the ship stop (step 8) from that review's `live-check:`; **no new round** |
 | live check owed | step 7: if the owner says it passed and `live_checked` is recorded, step 8; a defect they describe goes to the implementer, then a new round |
 | out of rounds | report the open findings again; the intent continues by hand (B9) |
 | ready for /ship | run the dry-run (step 8) again and report |
-| red verify, red check:intent, critical finding, agent error, worktree held, too many sessions | clear the cause (the owner says it is), then redo the step that stopped; a failed implementer is relaunched, a failed review is redone as the same round |
+| critical finding | like a decision: give the implementer the owner's answer, wait, then **a new round** (never a re-review of an unchanged branch) |
+| red verify, red check:intent, agent error, worktree held, too many sessions | clear the cause (the owner says it is), then redo the step that stopped; a failed implementer is relaunched, a failed review is redone as the same round |
 
 A new round always passes the cap in step 5, item 1. Never redo a recorded
 gate or a finished step.
@@ -144,10 +153,12 @@ table marks "no new round" does not come through here):
 
 1. **The cap.** If `n` would be 4, **stop** with
    `auto_stopped: out of rounds, open findings below` and list the open
-   findings. The intent continues by hand.
+   findings. The intent continues by hand. `auto_round` stays at 3 (the
+   most `check:intent` accepts): at this stop, step 9 writes 3, never 4.
 2. Write `auto_round: <n>` into the branch's `metadata.yml` and commit it
    (the implementer has finished; the worktree is yours). B12 requires this
-   at each round start, so a closed session resumes at the right round.
+   at each round start, so a closed session resumes at the right round. The same commit clears
+   `auto_stopped` if a resume left it set (step 1, item 3).
 3. Delegate `/review` to `heraklios-reviewer`, telling it `run: auto` and
    that every finding needing rework must say "Needs rework:" or "Needs
    decision:" (`REVIEW-POLICY.md` → "The report").
@@ -219,7 +230,9 @@ agent (`agent error`); a worktree held by a session you didn't start
 
 ## 8. The ship stop (B10)
 
-The run ends at a merge-ready branch: the verdict is `attest`, the live
+The run ends at a merge-ready branch: the verdict is `attest`, or
+`escalate` after the owner's diff read (`/auto <id>` after an escalate
+stop), the live
 check is recorded or `not-needed`, and `npm run ship -- <id> --dry-run`
 (run from the main checkout) shows nothing in the way. It changes nothing
 and does not even fetch. Report:
@@ -240,7 +253,8 @@ only a `/ship <id>` message does.
 
 On each stop, before you report:
 
-1. Write `auto_round: <n>` and `auto_stopped: <reason>` into the branch's
+1. Write `auto_round: <n>` (the number of the round in progress or just
+   finished, never above 3) and `auto_stopped: <reason>` into the branch's
    `metadata.yml` (on `main` before the branch exists) and commit it,
    subject `§<id>: auto stopped: <reason>`. **No `#` in the reason**: a `#`
    starts a comment in `metadata.yml` and would cut the reason short. Keep it

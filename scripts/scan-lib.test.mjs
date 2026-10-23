@@ -237,7 +237,7 @@ describe('sampleDueCommand', () => {
     expect(sampleDueCommand(['--exclude', '3', '--sample-due', 'auto'], intents).stdout).toContain('= 3,');
   });
   it('exits 2 with a usage line when the value is missing or unknown', () => {
-    for (const args of [['--sample-due'], ['--sample-due', '--json'], ['--sample-due', 'bot'], ['--sample-due', 'auto', '--exclude']]) {
+    for (const args of [['--sample-due'], ['--sample-due', '--json'], ['--sample-due', 'bot'], ['--sample-due', 'auto', '--exclude'], ['--sample-due', 'auto', '--exclude', '--json']]) {
       const r = sampleDueCommand(args, intents);
       expect(r.exit).toBe(2);
       expect(r.stderr).toMatch(/usage: sdlc:scan -- --sample-due <auto\|manual>/);
