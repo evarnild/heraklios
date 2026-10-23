@@ -164,3 +164,25 @@ because the diff touches `src/scenes/**` and `e2e/**`.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-10-23 — all five subtasks
+
+Commits: 1bd5f04 (filledCount + 6 tests), 5769378 (buttons), 82c5361 (dev hook
+`armyBuilder()`), d1c1c97 (e2e/army-builder.spec.ts), 506b594 (README).
+Shipped as planned. Verify: 57 test files, 994 tests, lint 21 warnings (cap
+unchanged at 21). `npm run e2e`: 13 passed (new scenario included).
+`check:intent`: PASS. No mutants run.
+Divergence: the hook reader is a module-level helper `armyBuilderSnapshot`
+rather than inline, because inline pushed `installDevHook` past 80 lines (a
+22nd warning). `ArmyBuilderScene.create` stays over 80 lines, so the cap is
+not lowered.
+
+### 2026-10-23 — review round 1 rework
+
+Commit a2f1626: `e2e/army-builder.spec.ts` now drives a second row while
+archers hold 10 (`»` row 3 then `«` row 3) and asserts the whole `counts`
+object and the totals (130, then 50). Mutants, one at a time: S9 (`«` wired to
+the first type) killed, S10 (`»` wired to the first type) killed (1 failed
+each). Verify: 57 files, 994 tests, lint 21. `npm run e2e`: 13 passed.
+`check:intent` fails only on the owed live check (owner's gate). Button
+positions and spec.md untouched.

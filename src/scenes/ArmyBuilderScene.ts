@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { UNIT_TYPES } from '../data/units';
-import { validateArmy, defaultArmySelection, ARMY_BUDGET } from '../engine/army';
+import { validateArmy, defaultArmySelection, filledCount, ARMY_BUDGET } from '../engine/army';
 import { session, resetToMenu } from '../ui/session';
 import { skipAiArmySeats } from '../ui/aiSetup';
 import { showConfirmDialog } from '../ui/confirmDialog';
@@ -14,6 +14,9 @@ export class ArmyBuilderScene extends Phaser.Scene {
   private errorText!: Phaser.GameObjects.Text;
   private confirmBtn!: Phaser.GameObjects.Text;
   private countTexts: Record<string, Phaser.GameObjects.Text> = {};
+  // The `«` / `»` buttons per unit type; refresh() dims them when a click would change nothing.
+  private clearBtns: Record<string, Phaser.GameObjects.Text> = {};
+  private fillBtns: Record<string, Phaser.GameObjects.Text> = {};
 
   constructor() {
     super('ArmyBuilder');
@@ -96,6 +99,21 @@ export class ArmyBuilderScene extends Phaser.Scene {
       this.add.text(20, y, unitName(unit.id), { fontSize: '15px', color: '#ffffff' });
       this.add.text(220, y, t.builder.costAndMax(unit.cost, unit.maxCount), { fontSize: '13px', color: '#a89878' });
 
+      const rowBtn = { fontSize: '18px', color: '#fff', backgroundColor: '#553', padding: { x: 10, y: 2 } };
+      // `«` clears the type, `»` fills it up to what the budget and its maximum allow (§51).
+      const clear = this.add.text(370, y, '«', rowBtn).setInteractive({ useHandCursor: true });
+      const fill = this.add.text(490, y, '»', rowBtn).setInteractive({ useHandCursor: true });
+      this.clearBtns[unit.id] = clear;
+      this.fillBtns[unit.id] = fill;
+      clear.on('pointerdown', () => {
+        selection[unit.id] = 0;
+        this.refresh();
+      });
+      fill.on('pointerdown', () => {
+        selection[unit.id] = filledCount(selection, unit.id);
+        this.refresh();
+      });
+
       const minus = this.add
         .text(400, y, '-', { fontSize: '18px', color: '#fff', backgroundColor: '#553', padding: { x: 10, y: 2 } })
         .setInteractive({ useHandCursor: true });
@@ -159,6 +177,9 @@ export class ArmyBuilderScene extends Phaser.Scene {
     const selection = session.armySelections[this.playerIndex]!;
     for (const unit of UNIT_TYPES) {
       this.countTexts[unit.id]!.setText(String(selection[unit.id] ?? 0));
+      // Dimmed, not disabled: a click on a dimmed button changes nothing anyway.
+      this.clearBtns[unit.id]!.setAlpha((selection[unit.id] ?? 0) === 0 ? 0.4 : 1);
+      this.fillBtns[unit.id]!.setAlpha(filledCount(selection, unit.id) === (selection[unit.id] ?? 0) ? 0.4 : 1);
     }
     const result = validateArmy(selection);
     this.totalText.setColor(result.valid ? '#ffe08a' : '#ff6a6a');

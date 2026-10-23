@@ -78,3 +78,19 @@ export function defaultArmySelection(): ArmySelection {
   selection['biremes'] = 1;
   return selection;
 }
+
+/**
+ * The count the army builder's fill button (`»`) sets for one unit type: as
+ * many as fit in what is left of the 400 points, bounded by the type's
+ * maximum. Interpretation (§51): "the maximum number of units available with
+ * the budget" means the most that fits in the remaining points. It does not
+ * swap out other types to make room, and it never lowers a count (with the
+ * budget spent or exceeded, or the type at its maximum, the count is
+ * unchanged). Pure: the selection is not mutated.
+ */
+export function filledCount(selection: ArmySelection, typeId: string): number {
+  const type = getUnitType(typeId);
+  const count = selection[typeId] ?? 0;
+  const { remaining } = validateArmy(selection);
+  return Math.max(count, Math.min(type.maxCount, count + Math.floor(remaining / type.cost)));
+}
