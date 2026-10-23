@@ -90,8 +90,9 @@ export class MapView {
    * created world objects (unit markers) get excluded from it too. */
   private uiCamera: Phaser.Cameras.Scene2D.Camera | null = null;
   onHexClick: ((hex: HexCoord) => void) | null = null;
-  /** True for a screen point where the wheel must not zoom (the Board's log panel scrolls there; §49). */
-  wheelBlocked: ((x: number, y: number) => boolean) | null = null;
+  /** True for a screen point where the wheel must not zoom and a press must not start a map drag
+   * (the Board's log panel scrolls and its thumb drags there; §49). */
+  pointerBlocked: ((x: number, y: number) => boolean) | null = null;
   /** Fired on `pointerover`/`pointerout`, mirroring `onHexClick` exactly (see
    * `:71-80`'s per-hex wiring below) — a hook for callers that want to react
    * to hover themselves. `MapView` does NOT rely on this to drive its own
@@ -227,6 +228,7 @@ export class MapView {
     let lastX = 0;
     let lastY = 0;
     this.scene.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      if (this.pointerBlocked?.(p.x, p.y)) return;
       dragging = true;
       lastX = p.x;
       lastY = p.y;
@@ -254,7 +256,7 @@ export class MapView {
     this.scene.input.on(
       'wheel',
       (pointer: Phaser.Input.Pointer, _objects: unknown, _dx: number, deltaY: number) => {
-        if (this.wheelBlocked?.(pointer.x, pointer.y)) return;
+        if (this.pointerBlocked?.(pointer.x, pointer.y)) return;
         const factor = deltaY > 0 ? 0.9 : 1.1;
         const newZoom = Phaser.Math.Clamp(cam.zoom * factor, MIN_ZOOM, MAX_ZOOM);
         if (newZoom === cam.zoom) return;

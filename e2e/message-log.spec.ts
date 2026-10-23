@@ -69,6 +69,9 @@ test('the log keeps every message, scrolls, and stays clear of the buttons (seed
   // E3: dragging the thumb scrolls.
   const before = await panel(page);
   expect(before.thumb).not.toBeNull();
+  const archersHex = (await activeUnitOfType(page, 'archers')).position;
+  const archersAt = () => page.evaluate((h) => window.__heraklios.hexToCanvas(h), archersHex);
+  const archersBefore = await archersAt();
   const box = await canvasBox(page);
   await page.mouse.move(box.x + before.thumb!.x, box.y + before.thumb!.y);
   await page.mouse.down();
@@ -77,6 +80,8 @@ test('the log keeps every message, scrolls, and stays clear of the buttons (seed
   await frames(page);
   const dragged = await panel(page);
   expect(dragged.offset).toBeLessThan(before.offset);
+  // The drag scrolls the log only: the map must not pan with it.
+  expect(await archersAt(), 'the map did not pan').toEqual(archersBefore);
   // And back to the bottom, where it follows again.
   for (let i = 0; i < 10; i++) await wheelAt(page, { x: 100, y: 300 }, 100);
   const bottom = await panel(page);
@@ -104,5 +109,41 @@ test('the log keeps every message, scrolls, and stays clear of the buttons (seed
   // The report is one entry of several lines; a later message (a retreat) may follow it.
   expect(after.slice(entries.length).some((e) => e.text.includes('\n')), 'the combat report is longer than one line').toBe(true);
 
+  expect(errors).toEqual([]);
+});
+
+// B2: a heading when the active player changes within a turn, and again when the turn changes.
+test('a new heading starts the next player and the next turn (seed 1)', async ({ page }) => {
+  const errors = await startFromMenu(page, MENU_CLOSE_COMBAT, 'close-combat', 1);
+  const headings = async () => (await logEntries(page)).filter((e) => e.kind === 'heading').map((e) => e.text);
+  const active = async () => {
+    const st = await state(page);
+    return { player: st.seatOrder[st.activePlayerIndex], turn: st.turnNumber };
+  };
+  const first = await active();
+  await clickButton(page, UNDO);
+  expect(await headings()).toHaveLength(1);
+
+  // End phases until the other player is up, then log something for them.
+  while ((await active()).player === first.player) {
+    await clickButton(page, 'End phase');
+    await settle(page);
+  }
+  expect((await active()).turn, 'same turn, other player').toBe(first.turn);
+  await clickButton(page, UNDO);
+  const second = await headings();
+  expect(second).toHaveLength(2);
+  expect(second[1]).toMatch(new RegExp(`^Turn ${first.turn} — `));
+  expect(second[1]).not.toBe(second[0]);
+
+  // And on to the next turn.
+  while ((await active()).turn === first.turn) {
+    await clickButton(page, 'End phase');
+    await settle(page);
+  }
+  await clickButton(page, UNDO);
+  const third = await headings();
+  expect(third).toHaveLength(3);
+  expect(third[2]).toMatch(new RegExp(`^Turn ${first.turn + 1} — `));
   expect(errors).toEqual([]);
 });

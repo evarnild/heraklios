@@ -55,13 +55,16 @@ function placeThumb(rect: Phaser.GameObjects.Rectangle, x: number, y: number, si
 function drawLines(pool: Phaser.GameObjects.Text[], lines: DisplayLine[], offset: number): void {
   pool.forEach((t, i) => {
     const line = lines[offset + i];
+    // Phaser redraws a Text on every set call, even for an unchanged value.
     if (!line) {
-      t.setText('');
+      if (t.text !== '') t.setText('');
       return;
     }
-    t.setText(line.text);
-    t.setColor(line.kind === 'heading' ? HEADING : line.newest ? NEWEST : DIM);
-    t.setFontStyle(line.kind === 'heading' ? 'bold' : '');
+    const color = line.kind === 'heading' ? HEADING : line.newest ? NEWEST : DIM;
+    const fontStyle = line.kind === 'heading' ? 'bold' : '';
+    if (t.text !== line.text) t.setText(line.text);
+    if (t.style.color !== color) t.setColor(color);
+    if (t.style.fontStyle !== fontStyle) t.setFontStyle(fontStyle);
   });
 }
 
@@ -108,7 +111,9 @@ export function createLogPanel(scene: Phaser.Scene, mapView: MapView, bounds: Lo
   const contains = (x: number, y: number): boolean => inBounds(bounds, x, y);
 
   const scrollTo = (next: number): void => {
-    offset = clampOffset(next, lines.length, visible);
+    const clamped = clampOffset(next, lines.length, visible);
+    if (clamped === offset) return;
+    offset = clamped;
     draw();
   };
 

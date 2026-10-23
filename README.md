@@ -611,8 +611,9 @@ zoom there; over the map the wheel zooms as before) or drag the scrollbar.
 The view follows the newest message while it is at the bottom and stays put
 when you have scrolled up. Undo and redo add their own messages and remove
 none. The log is not saved: a new or loaded game starts with an empty one
-(a load's first entry is "Game loaded."). Prompts, the status line and the
-Save / Load panel's messages are not log entries.
+(a load's first entry is "Game loaded."). The status line and the dialogs (retreat,
+advance, exchange, the Save / Load panel itself) are not log entries; the
+Board's prompts and the Save / Load panel's results are.
 
 ### Combat log detail
 

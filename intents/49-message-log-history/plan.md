@@ -336,3 +336,33 @@ Divergences from the plan:
   report with a newline appears after the earlier entries (a retreat message
   may follow it), not that it is the last entry.
 - Not done: live check (owed to the owner).
+
+### 2026-10-23 - review round 1 rework
+
+Commit: the one after 2111b1d (this entry's commit).
+
+Fixed:
+- MEDIUM thumb drag panned the map: `MapView.wheelBlocked` became
+  `pointerBlocked`, checked by the wheel handler and by `enableDrag`'s
+  `pointerdown`. E3 now asserts the archers' `hexToCanvas` is unchanged across
+  the drag. Red before the fix ("the map did not pan"), green after.
+- MEDIUM README: the status line and the dialogs (retreat, advance, exchange,
+  the Save / Load panel itself) are not log entries; the Board's prompts and
+  the Save / Load panel's results are. spec.md left to the coordinator.
+- MEDIUM untested wiring: new e2e test in message-log.spec.ts (heading for the
+  other player in the same turn, then for the next turn); save-load.spec.ts
+  asserts a heading then "Game loaded." after the load.
+- LOW S2: `follow(10, 40, 3, 5) = 0` and `follow(10, 40, 12, 5) = 7` added.
+- LOW logPanel: `scrollTo` returns early when the offset is unchanged; text,
+  colour and font style are set only when they differ.
+
+Mutants re-run, each restored by copy, tree clean after: turn-only heading key
+(killed by the new heading e2e test), `this.logHistory = new LogHistory()`
+dropped from `resetSceneState` (killed by save-load.spec.ts), drag not blocked
+(killed by E3's "map did not pan"), `follow` returning `prevOffset` (killed by
+S2).
+
+Not done, on purpose: the bold-heading measuring LOW (only if the live check
+shows a long name running under the scrollbar) and the drift e2e LOW (needs a
+test-mode shortcut for an elephant scenario that does not exist; B3 stays with
+the live check).

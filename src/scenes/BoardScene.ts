@@ -835,7 +835,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // them, whatever the length of a combat report. Depth 29, one below the
     // buttons', pinned to the HUD camera by the panel itself.
     this.logPanel = createLogPanel(this, this.mapView, logPanelBounds(height, PANEL_WIDTH));
-    this.mapView.wheelBlocked = (x, y) => this.logPanel.contains(x, y);
+    this.mapView.pointerBlocked = (x, y) => this.logPanel.contains(x, y);
 
     this.mapView.pinUIObjects([
       panelBg,

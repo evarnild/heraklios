@@ -119,6 +119,9 @@ describe('scroll arithmetic', () => {
     expect(follow(15, 20, 23, 5)).toBe(18);
     expect(follow(10, 20, 23, 5)).toBe(10);
     expect(follow(18, 23, 24, 5)).toBe(19);
+    // A shrinking history: a scrolled-up view is clamped, not left past the end.
+    expect(follow(10, 40, 3, 5)).toBe(0);
+    expect(follow(10, 40, 12, 5)).toBe(7);
   });
 
   it('S3: thumb size and position, and its inverse', () => {
