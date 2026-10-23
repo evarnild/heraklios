@@ -6,12 +6,12 @@ status: accepted
 title: The army builder fills a unit type up to what the budget allows, or clears it, in one click
 review_tier:
 intent_accepted: 2026-10-23 by-agent    # owner: "yes /auto 51"
-spec_accepted:
+spec_accepted: 2026-10-23 by-agent    # owner: "yes" (to the spec stop of /auto 51)
 plan_approved:
 live_checked:
 merged:
 auto_authorized: 2026-10-23 by-agent    # owner: "yes /auto 51"
 auto_round:
-auto_stopped: spec drafted, waiting for spec_accepted
+auto_stopped:
 follows_up:
 links:
