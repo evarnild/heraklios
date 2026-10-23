@@ -304,3 +304,20 @@ Read `review.md` (`da3ce47`) and the amended spec (`810ad37`: B5 escalate contin
 Mutants, full vitest each, restored by copy, `git status --short` clean after: all 16 earlier ones re-run and killed (same killers; the `queueLine` one by T6), plus 5 new, all killed: MS1 `run` read dropped (parseReviewFields tests), the strict `auto`/`manual` rule loosened (the template-line test), MS3 `--exclude` ignored (sampleDueCommand MS3 test and the usage test), the value check removed (usage test), MS2 `auto` dropped from the sessions columns (metadataColumns MS2 test).
 
 Sandbox (the clone only): `main` reset to this branch's final commit with the §91 intent commit re-applied on top; a local bare `origin` at `scratchpad/auto-origin.git` with `main` pushed; `git remote -v` shows only that folder. `ship.mjs` was not run. Paths: sandbox `C:/Users/eric/AppData/Local/Temp/claude/C--Users-eric-src-heraklios/d4d8f463-fc75-4c39-80e6-361cdb7ead3e/scratchpad/auto-sandbox`; bare repo `.../scratchpad/auto-origin.git`.
+### 2026-10-23 — review round 2 rework (implementer)
+
+Read `review.md` (`3c3d80a`). Commits: the "review round 2 rework" commit, plus the commit holding this entry. `verify` green (57 files, 988 tests, lint 21 of 21); `check:intent` FAIL only for the owed live check, as the review said.
+
+- **R2-1:** the `/auto` resume gains the empty-`auto_stopped` fallback ("the first step whose work is not done"; in the review loop a new round only if the implementer committed since round `auto_round`'s `review.md`, else the same round's review is redone; an empty `auto_round` is round 0, build then round 1). The re-check mismatch row redoes the review as the same round when the reviewer's report is not in the conversation. Step 1 item 3 no longer clears `auto_stopped` at the resume: it is cleared in the first commit the resumed step makes (the round-start write of step 5, a recorded live check, the ship stop).
+- **R2-2:** step 8's precondition is "`attest`, or `escalate` after the owner's diff read". Spec B10 untouched.
+- **R2-3:** at the out-of-rounds stop `auto_round` stays at 3; step 9 says never above 3.
+- **R2-4:** `CLAUDE.md`: "never records `spec_accepted` or `live_checked` without the owner's yes; the `/auto` authorisation covers neither".
+- **R2-5:** "plan exists unapproved" and "ship dry-run blocked" added to both stop lists, the fourth open session to `CLAUDE.md`.
+- **R2-6:** a CRITICAL finding has its own resume row, like a decision: the implementer first, then a new round.
+- **LOW:** `--exclude --json` added to the usage test; the `startsWith('--')` mutant is killed.
+
+Mutants from the reviewer's batch (`scratchpad/mut50`, #2 to #18, one at a time, full vitest each, restored by copy, `git status --short` clean after; #0 and #1 were run by the reviewer): 14 killed (#2 to #10, #12 to #16, by the `parseReviewFields`, `sampleDueCommand` and `metadataColumns` tests named in the log), 3 survived:
+- #11 `reviews` not filtered for intents with a review: **equivalent**. An intent without a review becomes `{id}` with no `verdict`, which `sampleDue` never counts (it needs `verdict === 'attest'`).
+- #17 `sdlc-scan.mjs` drops `run` after `parseReviewFields`, and #18 `sessions.mjs` drops the metadata columns: both are the one-line glue in the two CLI scripts, which have no test harness; the lib functions they call are covered (MS1 and MS2 in the lib). Known and left as is.
+
+Sandbox (the clone only): `main` set to this branch's final commit with the §91 intent commit re-applied, force-pushed to the local bare `auto-origin.git`; `git remote -v` shows only that.
