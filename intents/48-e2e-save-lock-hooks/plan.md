@@ -249,3 +249,24 @@ imported from `playwright.config.ts` (not tried). Subtask 1's `withHeld` was a
 deliberate unguarded stub so T1/T2 could be run red. `releaseSaveLock` is no
 longer exported (nothing used it). The owner is a file `owner` inside the lock
 folder; a release finding no owner file does nothing.
+
+### 2026-10-23 - review round 1 rework
+
+Changes in `e2e/savesDir.test.ts` only (`e2e/savesDir.ts` unchanged):
+T8 (the MEDIUM: A acquires and releases through `withHeld`, B acquires, A's
+`acquire(100)` rejects, A's `withHeld(spy)` leaves the spy uncalled and B's
+folder in place), T9 (fake timers: `acquire()` with no argument rejects after
+`ACQUIRE_TIMEOUT_MS`, kills the 60 s default), T10 (release with the owner
+file missing leaves the folder; done, the optional item), and T7 now reads
+the test timeout from `playwright.config.ts` (`config.timeout`), which loads
+cleanly in vitest. Tests: 54 files, 912 tests; lint 21.
+
+Mutants re-run against the full `npx vitest run`, `savesDir.ts` restored by
+copy, `git status` clean of mutants: M7 (delete `held = false;` in release)
+killed by T8; default timeout 60 s killed by T9; missing owner removes the
+folder killed by T10; release ignoring owner T6; release outside `finally`
+T1; withHeld guard dropped T2, T8; held before mkdir T2, T8; no timeout check
+T2, T3, T5, T8, T9; takeover removed T4, T6; comparison flipped T2-T6, T8, T9;
+acquire not writing owner T1, T6, T8; `STALE_MS` 60 s and 25 s T7. Survivor:
+`if (!held) return` dropped from `release`, equivalent (the owner check
+already stops a non-holder), as the review noted. `npm run e2e`: 10 passed.

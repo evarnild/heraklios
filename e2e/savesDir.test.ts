@@ -5,6 +5,7 @@ import { existsSync, mkdtempSync, rmSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import config from '../playwright.config';
 import { ACQUIRE_TIMEOUT_MS, STALE_MS, createDirLock } from './savesDir';
 
 const STALE = 5_000;
@@ -72,8 +73,43 @@ describe('createDirLock', () => {
   });
 
   it('T7: the timing rule between STALE_MS, the acquire timeout and the test timeout', () => {
-    const TEST_TIMEOUT_MS = 30_000; // playwright.config.ts `timeout`
+    const TEST_TIMEOUT_MS = config.timeout!;
     expect(STALE_MS).toBeGreaterThan(TEST_TIMEOUT_MS);
     expect(STALE_MS - ACQUIRE_TIMEOUT_MS).toBeLessThanOrEqual(ACQUIRE_TIMEOUT_MS);
+  });
+
+  it('T8: a holder that released and later fails to acquire touches nothing of the new holder', async () => {
+    const a = mk();
+    await a.acquire();
+    const spy = vi.fn();
+    await a.withHeld(spy);
+    expect(spy).toHaveBeenCalledTimes(1);
+    const b = mk();
+    await b.acquire();
+    await expect(a.acquire(100)).rejects.toThrow('Could not take');
+    spy.mockClear();
+    await a.withHeld(spy);
+    expect(spy).not.toHaveBeenCalled();
+    expect(existsSync(path)).toBe(true);
+  });
+
+  it('T9: acquire with no argument gives up after ACQUIRE_TIMEOUT_MS', async () => {
+    await mk().acquire();
+    vi.useFakeTimers();
+    try {
+      const outcome = createDirLock(path, { staleMs: 1e9, pollMs: 10 }).acquire().then(() => 'acquired', (e: Error) => e.message);
+      await vi.advanceTimersByTimeAsync(ACQUIRE_TIMEOUT_MS + 1_000);
+      await expect(outcome).resolves.toContain('Could not take');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('T10: release with the owner file missing leaves the folder', async () => {
+    const a = mk();
+    await a.acquire();
+    rmSync(join(path, 'owner'));
+    a.release();
+    expect(existsSync(path)).toBe(true);
   });
 });
