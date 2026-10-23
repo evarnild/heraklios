@@ -72,13 +72,18 @@ boundary, never while the implementer works.
 
 Then resume by the recorded `auto_stopped`, not by "the first step not done"
 (spec B13, amended). The reason text is the one the stop wrote (step 9); an
-empty `auto_stopped` means the session closed mid-run (or right after a
-resume), and falls back to **the first step whose work is not done**:
-spec, plan, worktree, build, then the review loop. In the review loop it is
-**a new round only if the implementer has committed since round
-`auto_round`'s `review.md`** (a close mid-rework); otherwise that round's
-review is redone as the same round. An empty `auto_round` (a close before
-round 1) is round 0: the build step, then round 1.
+empty `auto_stopped` means the session closed mid-run, and falls back to
+**the first step whose work is not done**: spec, plan, worktree, build, then
+the review loop. In the review loop, a close mid-rework is told by round
+`auto_round`'s `review.md` and the implementer's `## Progress` entry in
+`plan.md`. While the implementer has commits since that `review.md` but the
+Progress entry for that rework is missing, the rework is unfinished: relaunch
+the implementer with round `auto_round`'s findings (a new
+`heraklios-implementer` if it cannot be resumed) and wait. **A new round
+starts only once that Progress entry exists.** With no implementer commits
+since that `review.md` and no rework owed, that round's review is redone as
+the same round. An empty `auto_round` (a close before round 1) is round 0:
+the build step, then round 1.
 
 | `auto_stopped` | Resume |
 | --- | --- |
@@ -162,8 +167,14 @@ table marks "no new round" does not come through here):
 3. Delegate `/review` to `heraklios-reviewer`, telling it `run: auto` and
    that every finding needing rework must say "Needs rework:" or "Needs
    decision:" (`REVIEW-POLICY.md` → "The report").
-4. **Re-check (step 6) before writing `review.md`.** Then write it with
-   `run: auto` and commit it on the branch.
+4. **Re-check (step 6) before writing `review.md`.** Then read
+   `.claude/skills/review/SKILL.md` and write `review.md` as its step 4 does:
+   its stamp line as the first line (`<!-- generated-by:
+   heraklios/review@<the version that skill states> -->`, copied from the
+   skill, never remembered), the format of `REVIEW-POLICY.md` → "The report",
+   including `## Type check` with the pasted `npm run check:intent` output and
+   the `## Verified myself vs. taken on trust` heading, with `run: auto`.
+   Commit it on the branch.
 5. Act on the verdict:
    - **`escalate`**: always stop, `auto_stopped: escalate, owner reads the
      diff`. The Reviewed tier needs the owner's diff read. The owner's next
