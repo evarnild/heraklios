@@ -321,3 +321,13 @@ Mutants from the reviewer's batch (`scratchpad/mut50`, #2 to #18, one at a time,
 - #17 `sdlc-scan.mjs` drops `run` after `parseReviewFields`, and #18 `sessions.mjs` drops the metadata columns: both are the one-line glue in the two CLI scripts, which have no test harness; the lib functions they call are covered (MS1 and MS2 in the lib). Known and left as is.
 
 Sandbox (the clone only): `main` set to this branch's final commit with the §91 intent commit re-applied, force-pushed to the local bare `auto-origin.git`; `git remote -v` shows only that.
+
+### 2026-10-23 — review round 3 rework (implementer)
+
+Read `review.md` (round 3, `f623ccb`). Commits: the "review round 3 rework" commit, plus the commit holding this entry. Text-only: `.claude/skills/auto/SKILL.md` changed, nothing under `src/` or the scripts. The owner said "rework all", so the two worth-a-look findings are fixed with the LOW.
+
+- **R3-1:** step 5, item 4 now tells the coordinator to read `.claude/skills/review/SKILL.md` and write `review.md` as its step 4 does: the stamp line copied from that skill (no version hard-coded in `/auto`), the `REVIEW-POLICY.md` "The report" format, `## Type check` with the pasted `check:intent` output, the `## Verified myself vs. taken on trust` heading, `run: auto`.
+- **R3-2:** the leftover "(or right after a resume)" is dropped from the empty-`auto_stopped` fallback.
+- **R3-3:** decided by the owner as the review proposed. After a close mid-rework, while the implementer's Progress entry for that rework is missing, the implementer is relaunched with round n's findings (a new `heraklios-implementer` if it cannot be resumed) and waited for; round n+1 starts only once that Progress entry exists. With no implementer commits since round n's `review.md` and no rework owed, the review is redone as the same round. The resume table has no row for the case, `CLAUDE.md` and `sdlc.md` do not describe it, so only the paragraph above the table changed.
+- The owner decided the live check recorded at 73cf348 (against f623ccb) still counts after this text-only rework.
+- The sandbox was not updated (not asked for).
