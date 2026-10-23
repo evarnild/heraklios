@@ -1,89 +1,75 @@
 <!-- generated-by: heraklios/review@0.1.5 -->
 # §51 review — The army builder fills a unit type up to what the budget allows, or clears it, in one click
 
-verdict: rework
+verdict: attest
 tier: attested
-reviewed-commit: 469702b
-round: 1
+reviewed-commit: e404793
+round: 2
 sampled: no
 run: auto
 live-check: owed
 
-**Tier:** set by input 1, the paths (`src/scenes/**`, `src/ui/**`,
-`src/engine/army.ts`, `e2e/**` and README wording are all Attested). Input 2
-doesn't raise it: `review_tier:` is empty, and this is a digital-only
-feature. Input 3 doesn't either: there is no CRITICAL or HIGH finding.
+**Tier:** set by input 1, the paths, as in round 1. Inputs 2 and 3 don't
+raise it: `review_tier:` is empty, and there is no CRITICAL or HIGH finding.
 
-**Verdict:** `rework`, for one MEDIUM finding marked "Needs rework:": the
-smoke scenario never proves that `«` and `»` change only their own row.
-There is no "Needs decision:" finding. Passes run by the
-`heraklios-reviewer` agent; the coordinator re-ran verify, check:intent,
-e2e and both surviving mutants (below).
+**Verdict:** `attest`. The round-1 MEDIUM is resolved (S9, S10 and a new S12
+are killed), and no finding needs rework. The reviewer agent proposed
+`escalate`; the coordinator restated it as `attest`, because the policy
+gives `escalate` only at the Reviewed tier. Before the merge, the live check
+is owed (rule 1), and the carried LOW is yours to judge in it.
+
+Round 2 covers `a2f1626` (the e2e rework) and `e3e765f` (Progress);
+`e404793` only sets `auto_round: 2`. Passes run by the `heraklios-reviewer`
+agent; the coordinator re-ran verify, check:intent, e2e, S9, S10 and S12.
 
 ## Passes
 | # | Pass | Result |
 | --- | --- | --- |
-| 1 | Intent and plan match | pass. The diff is subtasks 1-5. The one divergence (the hook reader as a module-level `armyBuilderSnapshot`, for the lint cap) is recorded in Progress. |
-| 2 | Type check | pass |
-| 3 | Rulebook fidelity | pass. Digital-only; the 400-point rule (`docs/research/02-rules-transcription.md:32`, `:40-41`) is unchanged, and Confirm still goes through `validateArmy`. |
-| 4 | Tests prove the rule, not only pass | findings (1). 17 mutants: 15 killed, 2 survived (S9, S10). |
-| 5 | Boundary and conventions | pass. The arithmetic is `filledCount` (`src/engine/army.ts:91-96`) with its interpretation comment (`:82-90`); the scene assigns 0, calls `filledCount` and sets alpha. |
-| 6 | Numbers in prose | pass. 57 files, 994 tests, lint 21 and e2e 13 passed reproduce; the test comments' sums (390, 475) are right. `create` is now 122 lines, still one warning. |
-| 7 | Documentation | pass. `README.md:87-89` names `»`, `«` and the dimming; the e2e line at `:36` has no count. |
-| 8 | Guardrails and hygiene | pass. Lint 21 of 21, `package.json` untouched, no new dependency. |
-| 9 | Repository-specific footguns | pass, none apply (AI seats still skip the screen) |
+| 1 | Intent and plan match | pass. `a2f1626` is one 13-line block (`e2e/army-builder.spec.ts:39-50`), as round 1 asked; `plan.md` changed only below `## Progress`; no change to `src/`, `spec.md`, README or the button positions. |
+| 2 | Type check | pass apart from the owed live check (the owner's gate) |
+| 3 | Rulebook fidelity | pass, unchanged from round 1 |
+| 4 | Tests prove the rule, not only pass | pass. S9, S10 and S12 killed; round 1's other 15 mutants are on code unchanged since `469702b`. |
+| 5 | Boundary and conventions | pass, unchanged (the rework is e2e only) |
+| 6 | Numbers in prose | pass. Progress's counts reproduce; "fantassins-lourds, 10 pt, max 8" matches `src/data/units.ts:61-65`; 10×5 + 8×10 = 130. |
+| 7 | Documentation | pass, unchanged |
+| 8 | Guardrails and hygiene | pass. Lint 21 of 21; `package.json` untouched. |
+| 9 | Repository-specific footguns | pass, none apply |
 
 ## Type check
 ```
-type-check: PASS (intent 51, feature)
-  note:  6 file(s), 189 line(s) changed outside intents/.
+type-check: FAIL (intent 51, feature)
+  error: A live check is owed and not recorded. Do the steps in intents/51-army-builder-max-clear/review.md → ## Live check, then set live_checked: <date> in intents/51-army-builder-max-clear/metadata.yml.
+  note:  6 file(s), 202 line(s) changed outside intents/.
 ```
+The only error is the owed live check, which you clear; not rework.
 
 ## Findings
-- **MEDIUM** `e2e/army-builder.spec.ts:33-53` (proving
-  `src/scenes/ArmyBuilderScene.ts:109`, `:113`): two mutants survive.
-  - **S9:** `«` wired to the first type
-    (`selection[UNIT_TYPES[0]!.id] = 0`).
-  - **S10:** `»` wired to the first type
-    (`selection[UNIT_TYPES[0]!.id] = filledCount(selection, UNIT_TYPES[0]!.id)`).
-
-  The scenario only clears or fills row 0 (archers); its other click (`»`
-  on row 3) comes with the budget spent, so it can't show which type is
-  written. Spec B2 and B3's "No other type's count changes" is unproven,
-  though the plan's Tests table claims AC2 catches "the wrong type".
-  Needs rework: drive a second row while another type holds a count, and
-  assert the whole `counts` object. For example, `»` row 0 then `»` row 3
-  gives archers 10, fantassins-lourds 8, total 130; then `«` row 3 gives
-  archers 10, fantassins-lourds 0, total 50.
-- **LOW** `src/scenes/ArmyBuilderScene.ts:104-105`: the buttons sit edge to
-  edge (`«` spans x 370-401 and `-` 400-431; `+` 460-491 and `»` 490-521),
-  so each pair reads as one bar, and a dimmed `«` looks like the dark half
-  of `-`. This matches the spec's positions, so it is not a defect. Worth a
-  look in the live check; a gap would change the spec (a decision for you).
-- Nit: `spec.md`'s source table cites `02-rules-transcription.md:33` and
-  `:41`; the passages are at `:32` and `:40-41`.
+- **LOW (carried, yours)** `src/scenes/ArmyBuilderScene.ts:104-105`: the
+  buttons sit edge to edge (`«` x 370-401 against `-` 400-431; `+` 460-491
+  against `»` 490-521), so each pair reads as one bar. These are the spec's
+  positions, so it is not a defect. Worth a look in the live check; a gap
+  would change spec B1 (a decision for you).
+- **Nit (carried):** `spec.md`'s source table cites
+  `02-rules-transcription.md:33` and `:41`; the passages are at `:32-33`
+  and `:40-41`.
 
 ## Not checked
-- **On-screen text:** the hook's `total` and `counts` come from
-  `session.armySelections` and `validateArmy`, not from the rendered
-  `totalText` or `countTexts`. The on-screen total, its colour, the error
-  lines and Confirm's alpha after `«`/`»` are for the live check (S7 and S8,
-  a missing `refresh()`, are killed through the alpha `refresh()` sets).
-- **French:** the e2e runs in English only (the reviewer's probe ran French,
-  with no scenario).
-- **The second hotseat seat:** `clearBtns` and `fillBtns` are rebuilt per
-  `create`; not exercised by e2e.
-- **The dev hook:** no mutants run on it; its guard by name and read-only
-  copy were checked by reading.
+- **On-screen text:** the rendered total and its colour, the error lines and
+  Confirm's alpha after `«`/`»`. The hook reads the session, not the
+  rendered text.
+- **French:** the e2e runs in English only.
+- **The second hotseat seat:** not exercised by e2e.
+- **The dev hook:** no mutants on it.
 - **Production build:** the hook's absence is taken from `src/main.ts:27`
-  (`import.meta.env.DEV`) and the e2e global setup's check.
-- **Visual judgement:** whether the edge-to-edge buttons and 0.4 dimming read
-  clearly (LOW above).
+  and the e2e global setup.
+- **Visual judgement:** the 0.4 dimming and the edge-to-edge buttons.
+- **Merge state:** the branch is 4 commits behind `main` (§52's intent and
+  spec files only, no overlap). No merge tried.
 
 ## Live check
 - **Owed** by rule 1 (`src/scenes/ArmyBuilderScene.ts`, `src/ui/devHook.ts`).
   The smoke-suite exception doesn't apply: the behaviour is new and visual.
-- **Steps** (after the rework):
+- **Steps:**
   1. In `C:/Users/eric/src/heraklios-wt/51-army-builder-max-clear`, run
      `npm run dev -- --port 5251 --strictPort --host 127.0.0.1` and open
      `http://127.0.0.1:5251/`.
@@ -107,38 +93,47 @@ type-check: PASS (intent 51, feature)
   B5. Also judge the edge-to-edge buttons (LOW).
 
 ## Verified myself vs. taken on trust
-**Coordinator, re-run** (worktree at `469702b`, tree clean):
-- `npm run verify`: exit 0, 57 files, 994 tests, lint 21 of 21 (matches the
-  reviewer and the implementer).
-- `npm run check:intent`: PASS, 6 files, 189 lines (matches).
+**Coordinator, re-run** (worktree at `e404793`):
+- `npm run verify`: exit 0, 57 files, 994 tests, lint 21 of 21 (matches).
+- `npm run check:intent`: FAIL only on the owed live check, 6 files, 202
+  lines (matches).
 - `npm run e2e`: 13 passed, including `e2e/army-builder.spec.ts:13`
-  (matches).
-- S9 (`ArmyBuilderScene.ts`, `«` wired to the first type): file changed,
-  `npx playwright test e2e/army-builder.spec.ts`: 1 passed, **survived**
-  (matches).
-- S10 (`»` wired to the first type): 1 passed, **survived** (matches).
-  Both restored by copy; `git status --short` empty, `git diff --quiet`
-  passes.
+  (matches). Port 5232 free before.
+- S9 (`«` wired to the first type), S10 (`»` wired to the first type), S12
+  (`«` clears every type), one at a time on `ArmyBuilderScene.ts`, each
+  checked as applied, with `npx playwright test e2e/army-builder.spec.ts`:
+  **1 failed each, killed** (matches). Restored by copy; `git diff --quiet`
+  passes, `git status --short` empty.
+- Note: the coordinator's first verify and e2e run overlapped with the
+  mutant runs; both were re-run alone on the clean tree, with the results
+  above.
 
 **Reviewer agent** (same worktree and HEAD):
-- `npm run verify`, `check:intent` and `npm run e2e` (13 passed in 27.2 s)
-  as above.
-- Engine mutants on `src/engine/army.ts`, full vitest each, restored by
-  copy: E1 (drop the `min` with `maxCount`), E2 (floor to ceil), E3
-  (`remaining` to `ARMY_BUDGET`), E4 (drop the `max(count, …)`), E5 (write
-  into the input), E6 (count read as 0): all killed by the AC1 tests.
-- Scene mutants on `ArmyBuilderScene.ts`, with the army-builder spec each:
-  S1 (`«` doesn't set 0), S2a (`»` acts like `+`), S2b (`»` ignores the
-  budget), S3/S4 (`«` dimming inverted/removed), S5/S6 (`»` dimming
-  inverted/removed), S7/S8 (no `refresh()`): all killed; S9 and S10
-  survived.
-- A browser probe on its own `vite` at 5251 (saves dir in the scratchpad),
-  English and French: button centres 385.5, 415.5, 475.5, 505.5; `»` row 3
-  gave 8, `»` row 12 gave 3 (total 170); `«` row 3 left triremes 3 (total
-  90); no console errors. Server stopped, port 5251 free. Evidence only, not
-  the live check.
+- `git diff ff024e8..e404793` read in full: e2e +13, `plan.md` Progress +10,
+  `metadata.yml` `auto_round`.
+- `npm run verify`, `check:intent`, `npm run e2e` (13 passed in 28.0 s),
+  S9, S10, S12 as above.
 - `npm run sdlc:scan -- --sample-due auto --exclude 51`: nth attested auto
   change = 1, every 3, `sampled: no`.
-- Nothing pushed; no commit or file written by the reviewer.
+- `main` is untouched by the branch; nothing pushed.
 
-**Taken on trust:** nothing from the implementer's summary.
+**Taken on trust:** round 1's other 15 mutants were not re-run (their code
+is unchanged).
+
+# Round 1 (history)
+- verdict: rework
+- tier: attested
+- reviewed-commit: 469702b
+- round: 1
+- sampled: no
+- run: auto
+- live-check: owed
+
+Resolutions (round 2, in `a2f1626`):
+- **MEDIUM, S9 and S10 survived (the e2e never proved "no other type's
+  count changes"): fixed.** The scenario fills and clears row 3 while
+  archers hold 10 and asserts the whole `counts` object; S9, S10 and the
+  new S12 are killed.
+- **LOW, edge-to-edge buttons: carried, yours** (live check).
+- **Nit, spec citation lines: carried, yours.**
+
