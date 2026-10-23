@@ -66,6 +66,10 @@ today.
 - `attest` goes to the live-check stop (B8), or, when the check is
   `not-needed`, to the ship stop (B10).
 - `escalate` always stops: the Reviewed tier needs the owner's diff read.
+  **Amended 2026-10-23, owner's decision after review round 1 (F3):** after
+  an `escalate` stop, the owner's next `/auto <id>` means "diff read". The
+  run goes on to the live-check stop (B8) or the ship stop (B10), with no new
+  review round.
 
 **B6 — The coordinator's re-check.** Before writing each round's
 `review.md`, the coordinator re-runs in the worktree:
@@ -116,6 +120,10 @@ never runs `/ship` itself.
 - On each stop, the coordinator writes `auto_round: <n>` and
   `auto_stopped: <reason>` into the branch's `metadata.yml` (on `main`
   before the branch exists) and commits it.
+- **Amended 2026-10-23, owner's decision after review round 1:** the
+  coordinator also writes and commits `auto_round: <n>` when each review
+  round starts, so a session closed mid-round resumes at the right round
+  (B13).
 - `npm run sessions` and `npm run queue` show `auto · r<n> · <reason>` for
   that intent. Resuming clears `auto_stopped`.
 - Each stop also sends a push notification naming the intent and the reason,
@@ -124,7 +132,16 @@ never runs `/ship` itself.
 **B13 — The run lives in the coordinator session.** Closing that session
 pauses the run. A later `/auto <id>` in a new session reads `auto_round` and
 `auto_stopped` and resumes from the recorded state. The owner's new message
-is the new request.
+is the new request. **Amended 2026-10-23 (review round 1, F2/F3):**
+"resumes from the recorded state" means by the stop reason, not "the first
+step not done":
+- a decision or an amendment: the implementer gets the owner's answer, then
+  round n+1;
+- a re-check mismatch: the re-check for round n is redone, with no new
+  round;
+- `escalate`: as B5's amendment says;
+- a live check owed: back at B8;
+- ready for `/ship`: the dry-run runs again and is reported.
 
 **B14 — Counting.**
 - The review header gains `run: auto | manual`.
