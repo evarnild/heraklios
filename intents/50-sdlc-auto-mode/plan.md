@@ -247,3 +247,46 @@ Mutants restored by copy, never `git checkout --`.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+### 2026-10-23 — subtasks 1 to 7 (implementer)
+
+Commits (all `npm run verify` green at each; lint 21 warnings, cap 21, unchanged):
+
+- `adcb2f8` subtask 1: `parseAuto`, `AUTO_FIELDS`, `AUTO_MAX_ROUND`, `checkAuto` in `intent-check-lib.mjs`; template keys. T1 to T4.
+- `4edaa4e` subtask 2: `autoSummary`, the `auto` column, `queueLine`/`queueData`. T5, T6.
+- `fe31788` subtask 3, first half, **the move as its own commit**: `qualityByTier` into `scan-lib.mjs`, inline code verbatim. T7 expected numbers were first produced by running a verbatim copy of the pre-move inline code on the fixture (a scratch script, `{attested: 4/1/2, reviewed: 1/1/1}`), and `npm run sdlc:scan` output on this repo is byte-identical before and after (diffed against `git show HEAD:scripts/sdlc-scan.mjs`).
+- `f936661` subtask 3, second half: `runOf`, `qualityByRun`, `sampleDue`, `--sample-due <auto|manual> [--exclude <id>]`, the `run` header read, the report's per-run block. T8, T9.
+- `ddc8c4c` subtasks 4 to 6: `.claude/skills/auto/SKILL.md`; `intents/README.md`, `REVIEW-POLICY.md`, `CLAUDE.md`, `sdlc.md`; `/review` skill 0.1.5 and the reviewer agent; a tightened T6 assertion.
+- the commit that holds this entry: Progress and `status: in-review` (subtask 7).
+
+Tests: 57 files, 977 tests (`npm run verify`). `npm run check:intent`: PASS (intent 50, feature). No `src/**` or `e2e/**` change, so no e2e run.
+
+Mutants (full vitest per mutant, backup and restore by copy, `git status --short` clean after each), 16, all killed:
+
+| Mutant | Killed by |
+| --- | --- |
+| `auto.round > AUTO_MAX_ROUND` to `> 4` | T2 `auto_round "4" is an error` |
+| `GATE_RE` widened to `by-[a-z]+` | T1 `by-auto` malformed, T3, the existing `by-claude` and malformed-gate tests |
+| `by:` always `owner` | T1, `parseGate` by-agent test, `gateShares` test |
+| `authorized` read by a looser rule | T1 (several) |
+| comment stripping removed | `parseMetadata` tests (T4 included in the file) |
+| round omitted from `autoSummary` | T5, T6 |
+| `autoSummary` shown without `auto_authorized` | T5, T6 |
+| `queueLine` always appends the summary | **survived at first** (an empty string in the middle is not a trailing space); T6 now asserts no run of 3 spaces, and the mutant is killed by it |
+| follow-up counted against the fix's own tier | T7, T8 |
+| missing `run:` counted as `auto` | T8 (two tests), T9 |
+| follow-ups not split by run | T8 (two tests) |
+| reverts not split by run | T8 (two tests) |
+| `sampleDue` one shared counter | T9 `the two kinds count separately` |
+| rate 5 for auto | T9 (three tests) |
+| non-attested counted | T9 `escalate, rework and unreadable verdicts do not count` |
+| `excludeId` ignored | T9 `the intent under review is left out` |
+
+Divergences from the plan:
+
+- **`qualityByRun` is a separate function.** The plan has `qualityByTier` return the per-tier object "plus `byRun`". Adding a `byRun` key would put a non-tier key among the tier names the report iterates, so `qualityByTier` keeps its T7-pinned shape (with an optional run-kind filter argument) and `qualityByRun` returns `{ auto, manual }` of that shape. The scan's JSON gains `perRun`.
+- **`auto_round` is written at the start of each review round, as well as at a stop** (skill step 5.2 and 9). B12 says on each stop; B13 needs the round to survive a closed session that never stopped cleanly, and `npm run sessions` shows `auto · r<n>` while running only if it is written then.
+- **`--exclude <id>`** on `--sample-due`: not in the plan. `/review` runs before the intent's own `review.md` exists in round 1, but in later rounds an earlier round's `review.md` is there and would count as another change.
+- **`README.md` (the game's) is untouched**: it has no SDLC section and no "Known simplification" for this item.
+- The `/review` skill is bumped 0.1.4 to 0.1.5 (stamp and metadata).
+
+Live-check sandbox (plan, Validation): a clone with no `origin`, at `C:/Users/eric/AppData/Local/Temp/claude/C--Users-eric-src-heraklios/d4d8f463-fc75-4c39-80e6-361cdb7ead3e/scratchpad/auto-sandbox`, its `main` set to the final §50 commit, `npm ci` done, and one accepted fix intent committed on its `main`: **§91 `clip-nonpositive-max`** (`clip('abc', 0)` returns `'ab…'`; fix it in `scripts/session-lib.mjs` with a test in `scripts/session-lib.test.mjs`). Its `intent_accepted` is set by the setup (comment says so), not by the owner. Port for a spawned §91 worktree is 5291. Delete the clone after the check; never ship from it.
