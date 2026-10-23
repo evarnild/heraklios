@@ -76,13 +76,14 @@ empty `auto_stopped` means the session closed mid-run, and falls back to
 **the first step whose work is not done**: spec, plan, worktree, build, then
 the review loop. In the review loop, a close mid-rework is told by round
 `auto_round`'s `review.md` and the implementer's `## Progress` entry in
-`plan.md`. While the implementer has commits since that `review.md` but the
-Progress entry for that rework is missing, the rework is unfinished: relaunch
-the implementer with round `auto_round`'s findings (a new
-`heraklios-implementer` if it cannot be resumed) and wait. **A new round
-starts only once that Progress entry exists.** With no implementer commits
-since that `review.md` and no rework owed, that round's review is redone as
-the same round. An empty `auto_round` (a close before round 1) is round 0:
+`plan.md`, whether or not the implementer has committed yet. While that
+`review.md` says `rework` (step 5 resumes the implementer without a stop, so
+`auto_stopped` is empty) and the Progress entry for that rework is missing,
+the rework is unfinished: relaunch the implementer with round `auto_round`'s
+findings (a new `heraklios-implementer` if it cannot be resumed) and wait.
+**A new round starts only once that Progress entry exists.** Otherwise (that
+verdict is not `rework`, or no `review.md` exists for the round) the round's
+review is redone as the same round. An empty `auto_round` (a close before round 1) is round 0:
 the build step, then round 1.
 
 | `auto_stopped` | Resume |
