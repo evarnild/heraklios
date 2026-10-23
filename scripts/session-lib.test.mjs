@@ -7,6 +7,7 @@ import {
   eventRecordFrom,
   formatEvent,
   formatStatusTable,
+  sessionsData,
   gateSummary,
   latestEventByWorktree,
   metadataColumns,
@@ -360,5 +361,41 @@ describe('sessionBrief', () => {
     expect(brief).toContain('main checkout at `C:/Users/eric/src/heraklios`');
     expect(brief).toContain('set `status: in-review` in');
     expect(brief).toContain('`intents/28-naval-retreat/` (type: feature)');
+  });
+});
+
+describe('sessionsData (sessions --json, spec §52 B3)', () => {
+  const now = Date.parse('2026-10-07T12:00:00Z');
+  it('gives the table rows as data, in table order, with the age in seconds', () => {
+    const rows = [
+      {
+        id: '27', branch: 'refactor/27-x', path: 'C:/wt/27-x', status: 'in-progress', gates: 'I·P', auto: '',
+        ahead: 2, behind: 0, dirty: 3, port: 5227,
+        session: { state: 'working', since: '2026-10-07T11:56:00Z', detail: '' },
+      },
+      {
+        id: '30', branch: 'feat/30-y', path: 'C:/wt/30-y', status: 'accepted', gates: 'I·-·-', auto: 'auto · r1',
+        ahead: 0, behind: 1, dirty: 0, port: 5230,
+        session: { state: 'needs you', since: '2026-10-07T11:59:30Z', detail: 'Claude needs permission' },
+      },
+      { id: null, branch: 'main', path: 'C:/repo', session: { state: 'no events', since: null, detail: '' } },
+    ];
+    expect(sessionsData(rows, now)).toEqual([
+      {
+        id: '30', branch: 'feat/30-y', path: 'C:/wt/30-y', status: 'accepted', gates: 'I·-·-', auto: 'auto · r1',
+        ahead: 0, behind: 1, dirty: 0, port: 5230,
+        session: { state: 'needs you', since: '2026-10-07T11:59:30Z', ageSeconds: 30, detail: 'Claude needs permission' },
+      },
+      {
+        id: '27', branch: 'refactor/27-x', path: 'C:/wt/27-x', status: 'in-progress', gates: 'I·P', auto: '',
+        ahead: 2, behind: 0, dirty: 3, port: 5227,
+        session: { state: 'working', since: '2026-10-07T11:56:00Z', ageSeconds: 240, detail: '' },
+      },
+      {
+        id: null, branch: 'main', path: 'C:/repo', status: null, gates: '', auto: '',
+        ahead: null, behind: null, dirty: null, port: null,
+        session: { state: 'no events', since: null, ageSeconds: null, detail: '' },
+      },
+    ]);
   });
 });

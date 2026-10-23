@@ -241,6 +241,32 @@ export function formatStatusTable(rows, now) {
   return lines.join('\n');
 }
 
+/**
+ * The rows `formatStatusTable` prints, as plain data for `sessions --json`
+ * (spec §52 B3): same order, every field spelled out, the session's age in
+ * whole seconds (null without a timestamp) instead of the "4m" text.
+ */
+export function sessionsData(rows, now) {
+  return sortRows(rows).map((r) => ({
+    id: r.id ?? null,
+    branch: r.branch ?? null,
+    path: r.path ?? null,
+    status: r.status ?? null,
+    gates: r.gates ?? '',
+    auto: r.auto ?? '',
+    ahead: r.ahead ?? null,
+    behind: r.behind ?? null,
+    dirty: r.dirty ?? null,
+    port: r.port ?? null,
+    session: {
+      state: r.session.state,
+      since: r.session.since ?? null,
+      ageSeconds: r.session.since ? Math.max(0, Math.round((now - Date.parse(r.session.since)) / 1000)) : null,
+      detail: r.session.detail ?? '',
+    },
+  }));
+}
+
 function describeSession(session, now) {
   const a = age(session.since, now);
   return a ? `${session.state} (${a})` : session.state;
