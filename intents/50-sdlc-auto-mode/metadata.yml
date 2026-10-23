@@ -6,7 +6,7 @@ status: accepted
 title: An auto mode carries one intent from acceptance to ship, stopping only for the owner's questions, the live check and the ship
 review_tier:
 intent_accepted: 2026-10-23 by-agent    # owner: "yes"
-spec_accepted:
+spec_accepted: 2026-10-23 by-agent    # owner: "yes to 50"
 plan_approved:
 live_checked:
 merged:
