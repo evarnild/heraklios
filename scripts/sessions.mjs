@@ -9,6 +9,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { eventLogPath, git, mainCheckout, readIntentMetadata } from './session-io.mjs';
 import {
+  autoSummary,
   formatEvent,
   formatStatusTable,
   gateSummary,
@@ -49,6 +50,7 @@ function rowFor(wt, latest) {
     path: wt.path,
     status: intent?.metadata.status ?? null,
     gates: gateSummary(intent?.metadata),
+    auto: autoSummary(intent?.metadata),
     ...aheadBehind(wt.branch),
     dirty: dirtyCount(wt.path),
     port: parsed ? portFor(parsed.id) : null,
