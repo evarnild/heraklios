@@ -32,7 +32,11 @@ data. Nothing is written to disk (owner's decision: command only).
 branch exists and isn't merged into `main`, the status and gates are read
 from that branch's `metadata.yml` (an implementer sets `in-review` there,
 not on `main`); otherwise from `main`. The line says which (`branch` /
-`main`).
+`main`). **Amended 2026-10-23, owner's decision ("main wins"):** when
+`main`'s `metadata.yml` holds a terminal status (`done`, `abandoned`,
+`deferred`), `main` wins over any branch, so a branch kept unmerged on
+purpose (§30's `exp/30-browser-test-probe`) doesn't show a finished
+intent as in flight.
 
 **B3 — The root `plan.md` is retired.** It is removed in this change. Its
 parts go to:

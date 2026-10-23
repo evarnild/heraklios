@@ -2,13 +2,13 @@
 id: 47
 slug: queue-from-metadata
 type: feature
-status: accepted
+status: in-review
 title: The intent queue is generated from metadata.yml; the root plan.md stops carrying status
 review_tier:
 intent_accepted: 2026-10-22 by-agent    # owner's "yes" in chat
 spec_accepted: 2026-10-22 by-agent    # owner: "yes to the 47 spec"
 plan_approved: 2026-10-22 by-agent    # owner: "yes" (plan and the spec amendment of 152fc94)
-live_checked:
+live_checked: 2026-10-23 by-agent    # owner: "47: live check done"
 merged:
 follows_up:
 links:

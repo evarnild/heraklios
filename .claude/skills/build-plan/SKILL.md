@@ -13,8 +13,7 @@ metadata:
 
 Follow `intents/README.md` → "Drafting an artefact" for everything the three
 drafting skills share. This file adds only what is the plan's own. It is not
-Claude Code's plan mode, and it writes `plan.md` in the intent's folder, not
-the root `plan.md`.
+Claude Code's plan mode, and it writes `plan.md` in the intent's folder.
 
 Stamp: `<!-- generated-by: heraklios/build-plan@0.1.0 -->` as the first line
 of `plan.md`.

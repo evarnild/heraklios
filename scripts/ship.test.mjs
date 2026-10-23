@@ -45,31 +45,7 @@ const branchExists = (b) => {
   }
 };
 
-const CRLF = (lines) => lines.join('\r\n') + '\r\n';
-const planText = (ids) =>
-  CRLF([
-    '# Plan',
-    '',
-    '### Shipped',
-    '',
-    '| Item | Merge |',
-    '| --- | --- |',
-    '| [§1](intents/1-old/) old | `0000001` |',
-    '',
-    '### In flight',
-    '',
-    '| Item | Type · status |',
-    '| --- | --- |',
-    '',
-    '### Queued',
-    '',
-    '| Item | Type · status |',
-    '| --- | --- |',
-    ...ids.map((id) => `| [§${id}](intents/${id}-t${id}/) thing ${id} | feature · in review |`),
-    '',
-  ]);
-
-const metadataText = (id, eol, live = '') =>
+const metadataText = (id, eol, live = '', noMerged = false) =>
   [
     '# generated-by: test',
     `id: ${id}`,
@@ -81,7 +57,7 @@ const metadataText = (id, eol, live = '') =>
     'spec_accepted: 2026-10-01',
     'plan_approved: 2026-10-01',
     `live_checked:${live ? ` ${live}` : ''}`,
-    'merged:',
+    ...(noMerged ? [] : ['merged:']),
     '',
   ].join(eol);
 
@@ -91,13 +67,13 @@ const metadataText = (id, eol, live = '') =>
  * extra file in the work commit and the review text.
  */
 function makeIntent(id, extra = {}) {
-  const { verdict = 'escalate', liveCheck = 'not-needed', file = `docs/t${id}.md`, body = '', eol = '\n', live = '', afterReview, reviewedCommit } = extra;
+  const { verdict = 'escalate', liveCheck = 'not-needed', file = `docs/t${id}.md`, body = '', eol = '\n', live = '', afterReview, reviewedCommit, noMerged = false } = extra;
   const branch = `feat/${id}-t${id}`;
   const path = wt(`${id}-t${id}`);
   git(repo, 'worktree', 'add', '-q', '-b', branch, path, 'main');
   const dir = join(path, 'intents', `${id}-t${id}`);
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, 'metadata.yml'), metadataText(id, eol, live));
+  writeFileSync(join(dir, 'metadata.yml'), metadataText(id, eol, live, noMerged));
   for (const f of ['intent.md', 'spec.md', 'plan.md']) writeFileSync(join(dir, f), `# §${id} ${f}\n`);
   mkdirSync(dirname(join(path, file)), { recursive: true });
   writeFileSync(join(path, file), `work ${id}\n`);
@@ -117,8 +93,6 @@ function makeIntent(id, extra = {}) {
   return { branch, path, dir: `intents/${id}-t${id}` };
 }
 
-const IDS = Array.from({ length: 40 }, (_, i) => 11 + i);
-
 beforeAll(() => {
   sandbox = mkdtempSync(join(tmpdir(), 'h46-ship-'));
   repo = join(sandbox, 'repo');
@@ -128,7 +102,6 @@ beforeAll(() => {
   git(repo, 'init', '-q', '-b', 'main');
   git(repo, 'config', 'core.autocrlf', 'false'); // byte-exact whatever the machine's global setting
   writeFileSync(join(repo, 'README.md'), 'probe\n');
-  writeFileSync(join(repo, 'plan.md'), planText(IDS));
   git(repo, 'add', '.');
   git(repo, 'commit', '-q', '-m', 'init');
   git(repo, 'remote', 'add', 'origin', origin);
@@ -173,10 +146,6 @@ describe('npm run ship', { timeout: 90_000 }, () => {
     expect(meta).toContain(`merged: ${merge}    # `);
     expect(meta).toContain(`by-agent    # owner: "it looks 'right'"\r\n`);
     expect(meta.replace(/\r\n/g, '')).not.toMatch(/[\r\n]/); // every line ending stayed CRLF
-    const plan = read('plan.md');
-    expect(plan).toContain(`feature, Reviewed, 2 review rounds; see [review.md](intents/11-t11/review.md)) | \`${merge}\` |\r\n`);
-    expect(plan.replace(/\r\n/g, '')).not.toMatch(/[\r\n]/);
-    expect(plan).not.toContain('thing 11 | feature');
     expect(git(repo, 'status', '--porcelain')).toBe('');
     expect(git(repo, 'log', '-1', '--format=%B')).toContain(TRAILER);
     const events = readFileSync(join(repo, '.git', 'heraklios-sessions.jsonl'), 'utf8').split(/\r?\n/);
@@ -199,23 +168,6 @@ describe('npm run ship', { timeout: 90_000 }, () => {
     expect(git(repo, 'rev-parse', 'origin/main')).toBe(before.main);
     expect(existsSync(w.path)).toBe(true);
     expect(git(repo, 'status', '--porcelain')).toBe('');
-  });
-
-  it('stops at the start when plan.md has uncommitted changes, and never commits them', () => {
-    const w = makeIntent(13);
-    const original = read('plan.md');
-    writeFileSync(join(repo, 'plan.md'), `${original}\r\nsomeone else's edit\r\n`);
-    try {
-      const before = git(repo, 'rev-parse', 'main');
-      const r = ship(['13']);
-      expect(r.status, out(r)).toBe(1);
-      expect(r.stdout).toMatch(/STOPPED\s+start\s+plan\.md/);
-      expect(git(repo, 'rev-parse', 'main')).toBe(before);
-      expect(branchExists(w.branch)).toBe(true);
-      expect(git(repo, 'status', '--porcelain')).toBe('M plan.md');
-    } finally {
-      writeFileSync(join(repo, 'plan.md'), original);
-    }
   });
 
   it('stops when a live check is owed and the owner gave no word', () => {
@@ -419,7 +371,7 @@ describe('npm run ship: preconditions, wiring and refusals', { timeout: 90_000 }
       const r = ship(['32']);
       expect(r.status, out(r)).toBe(0);
       expect(git(repo, 'status', '--porcelain').split(/\r?\n/).sort()).toEqual(['?? staged.txt', 'M README.md']);
-      expect(git(repo, 'diff', '--name-only', 'HEAD~1', 'HEAD').split(/\r?\n/).sort()).toEqual(['intents/32-t32/metadata.yml', 'plan.md']);
+      expect(git(repo, 'diff', '--name-only', 'HEAD~1', 'HEAD').split(/\r?\n/).sort()).toEqual(['intents/32-t32/metadata.yml']);
       const merge = git(repo, 'log', '-1', '--merges', '--format=%H', 'main');
       const merged = git(repo, 'diff', '--name-only', `${merge}^1`, merge).split(/\r?\n/);
       expect(merged).not.toContain('staged.txt');
@@ -560,27 +512,18 @@ describe('npm run ship: failures after the merge', { timeout: 90_000 }, () => {
   const hook = () => join(repo, '.git', 'hooks', 'pre-commit');
   const marker = () => join(repo, '.git', 'reject-commit');
 
-  it('leaves the bookkeeping untouched when plan.md has no Shipped table, and resumes once it has', () => {
-    const w = makeIntent(40);
-    const plan = read('plan.md');
-    writeFileSync(join(repo, 'plan.md'), plan.replace('### Shipped', '### Done'));
-    git(repo, 'commit', '-q', '-am', 'rename the Shipped heading');
-    const r = ship(['40']);
+  it('stops before writing anything when metadata.yml has no merged: line', () => {
+    const w = makeIntent(50, { noMerged: true });
+    const r = ship(['50']);
     expect(r.status, out(r)).toBe(1);
-    expect(r.stdout).toMatch(/STOPPED\s+bookkeeping/);
+    expect(r.stdout).toMatch(/STOPPED\s+bookkeeping[\s\S]*could not prepare the bookkeeping \(nothing was written\)/);
     expect(git(repo, 'status', '--porcelain')).toBe('');
-    expect(git(repo, 'log', '-1', '--merges', '--format=%s', 'main')).toBe('Merge §40: Thing 40');
-    expect(read('intents', '40-t40', 'metadata.yml')).toContain('status: in-review');
-
-    writeFileSync(join(repo, 'plan.md'), plan);
-    git(repo, 'commit', '-q', '-am', 'restore the Shipped heading');
-    const again = ship(['40']);
-    expect(again.status, out(again)).toBe(0);
-    expect(read('intents', '40-t40', 'metadata.yml')).toContain('status: done');
-    expect(branchExists(w.branch)).toBe(false);
+    expect(git(repo, 'log', '-1', '--merges', '--format=%s', 'main')).toBe('Merge §50: Thing 50');
+    expect(read('intents', '50-t50', 'metadata.yml')).toContain('status: in-review');
+    expect(branchExists(w.branch)).toBe(true);
   });
 
-  it('puts both files back and unstages them when the bookkeeping commit is rejected, then resumes', () => {
+  it('puts the file back and unstages it when the bookkeeping commit is rejected, then resumes', () => {
     makeIntent(41);
     writeFileSync(
       hook(),
@@ -692,7 +635,7 @@ describe('npm run ship: leftovers and what a commit may hold', { timeout: 90_000
     try {
       const r = ship(['48'], stageDuringVerify);
       expect(r.status, out(r)).toBe(0);
-      expect(git(repo, 'diff', '--name-only', 'HEAD~1', 'HEAD').split(/\r?\n/).sort()).toEqual(['intents/48-t48/metadata.yml', 'plan.md']);
+      expect(git(repo, 'diff', '--name-only', 'HEAD~1', 'HEAD').split(/\r?\n/).sort()).toEqual(['intents/48-t48/metadata.yml']);
       expect(git(repo, 'status', '--porcelain')).toBe('A  other.txt');
     } finally {
       try {

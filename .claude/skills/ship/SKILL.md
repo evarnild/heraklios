@@ -15,7 +15,8 @@ You are the **coordinator** (the main checkout, on `main`). This skill wraps
 `npm run ship`, which does the steps as tested code. The rules it applies are
 `REVIEW-POLICY.md` → "Merging" (preconditions, `--no-ff`, `verify`,
 bookkeeping); read that section rather than relying on this file. The design
-is `intents/46-ship-skill/spec.md`.
+is `intents/46-ship-skill/spec.md` (its `plan.md` bookkeeping was removed by
+§47: the queue is generated, so the bookkeeping commit holds `metadata.yml` only).
 
 ## The request
 
@@ -23,7 +24,7 @@ is `intents/46-ship-skill/spec.md`.
 conversation, to record the live check (below), merge, push, and remove the
 worktree and branch. Run nothing without that request, and never for an id
 the owner didn't name. If no id was given, ask for it; don't guess one from
-`plan.md` or the sessions list. A request for one id doesn't carry over to
+`npm run queue` or the sessions list. A request for one id doesn't carry over to
 another.
 
 ## Run it
@@ -54,7 +55,7 @@ Then:
 
 - **Stopped:** say which step and what the script advises. Don't work around
   it: no `--force`, no reset, no `branch -D`, no hand-editing to get past a
-  check, and don't commit another session's uncommitted `plan.md` as your
+  check, and don't commit another session's uncommitted intent folder as your
   own. A red `verify` after the merge is reported, not undone; whether to
   revert is the owner's call.
 - **"Left for you":** the worktree folder is held open by a session or an

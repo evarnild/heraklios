@@ -260,7 +260,7 @@ export function sessionBrief({ id, slug, type, branch, intentDir, port, coordina
   \`intents/README.md\` → "Who edits what" allows. No code before the gates
   your type needs are recorded. If they are missing, draft the missing
   artefact and stop for the owner.
-- **Do not edit \`plan.md\`**. Its queue row is the coordinator's job.
+- **Nobody edits the queue**: \`npm run queue\` generates it from \`metadata.yml\`.
 - **Do not merge into \`main\`** and do not rebase other branches.
 - When \`npm run verify\` is green and the work is done, set \`status: in-review\` in
   \`metadata.yml\`, commit, and say so. The coordinator runs \`/review\` and the owner merges.

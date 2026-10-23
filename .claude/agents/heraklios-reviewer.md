@@ -1,6 +1,6 @@
 ---
 name: heraklios-reviewer
-description: Adversarially reviews a heraklios feature branch against the rulebook and plan.md — re-runs tsc/vitest itself and reports defects without trusting the implementer's self-report. Cannot modify files.
+description: Adversarially reviews a heraklios feature branch against the rulebook and the intent's plan — re-runs tsc/vitest itself and reports defects without trusting the implementer's self-report. Cannot modify files.
 tools: Read, Grep, Glob, Bash
 model: opus
 ---
@@ -59,14 +59,14 @@ touching the working tree. (Trap: `src/data/map.ts` exports `hexKey`;
 
 ⚠️ **Never remove a worktree.** Agent worktrees on this project may contain a
 `node_modules` junction; a recursive delete follows it and wipes the main
-tree's install. See plan.md §4.
+tree's install. See `docs/runbook.md` §4.
 
 ## Verifying
 
 **Never run bare `npx tsc --noEmit` — it reports a FALSE GREEN.** With no
 local install `npx` silently downloads an unrelated registry package named
 `tsc` that exits 0 without type-checking anything. This has produced a bogus
-"clean" on this project more than once (plan.md §4). Always use the project's
+"clean" on this project more than once (`docs/runbook.md` §4). Always use the project's
 own binaries and check the exit code:
 
 ```bash
@@ -95,7 +95,7 @@ Do not accept a reported "green" without seeing it happen yourself.
    Guard your own harness — assert the file actually changed (`git diff
    --quiet` returns non-zero) before running, or a patch that failed to apply
    scores as a survivor (or worse, a false kill).
-3. **Every number in the prose.** Measurements in `plan.md`, `plan-history.md`, `README.md` and
+3. **Every number in the prose.** Measurements in the intent's `plan.md`, `plan-history.md`, `README.md` and
    test comments should be ones you can reproduce. Stale measurements have
    been a finding twice.
 4. **The engine/presentation boundary.** Rule logic in `src/engine/` or
@@ -111,9 +111,10 @@ Do not accept a reported "green" without seeing it happen yourself.
 6. **Nothing touched `main` and nothing was pushed**, unless the prompt says
    the operator has already merged deliberately.
 
-**`plan.md` edits are not automatically a violation.** A sandboxed
-implementer agent must not touch it; the operator maintaining the queue
-routinely does. Check its *accuracy* instead, per item 3. The prompt should
+**`OVERVIEW.md` edits are not automatically a violation.** A sandboxed
+implementer agent must not touch it; the owner may. The queue is generated
+(`npm run queue`), so there are no rows to check. Check an edit's *accuracy*
+instead, per item 3. The prompt should
 tell you which case applies — if it doesn't, ask rather than assume.
 
 ## Reporting

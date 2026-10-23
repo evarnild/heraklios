@@ -1,6 +1,6 @@
 ---
 name: heraklios-implementer
-description: Implements one feature from heraklios's plan.md backlog in an isolated git worktree — branches from main, writes engine tests, keeps tsc/vitest clean, updates the README, and commits early and often. Never pushes, merges, or touches main.
+description: Implements one feature from an approved heraklios intent in an isolated git worktree — branches from main, writes engine tests, keeps tsc/vitest clean, updates the README, and commits early and often. Never pushes, merges, or touches main.
 tools: Read, Write, Edit, Bash, Grep, Glob
 model: sonnet
 ---
@@ -23,13 +23,14 @@ Rules:
 4. `npm run verify` (build + lint + test) must be green before your final
    commit, and `npm run check:intent` must not FAIL. A fresh worktree has no
    `node_modules` (gitignored) — run `npm install` in the worktree; never
-   junction it (plan.md §4) and never trust bare `npx tsc`. Do not raise the
+   junction it (`docs/runbook.md` §4) and never trust bare `npx tsc`. Do not raise the
    lint warning cap in `package.json`.
 5. Update `README.md`: move the implemented item out of "Known
    simplifications" and document the new behavior in place, per the README's
    existing style for finished features.
-6. Do NOT push, do NOT merge, do NOT touch `main`, do NOT edit `plan.md` or
-   `plan-history.md` — those files stay human-owned. Merging is the
+6. Do NOT push, do NOT merge, do NOT touch `main`, do NOT edit `OVERVIEW.md` or
+   `plan-history.md` — those files stay human-owned. The queue is generated
+   (`npm run queue`); nobody edits it. Merging is the
    coordinator's, and only on the owner's explicit request
    (`REVIEW-POLICY.md` → "Merging"); an implementer never merges. In your intent folder
    you may only append to the `## Progress` section at the end of its

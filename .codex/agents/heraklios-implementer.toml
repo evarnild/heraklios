@@ -9,9 +9,9 @@ In that folder you may only append to plan.md's ## Progress section and set
 status: in-review in metadata.yml. Never record a gate: the owner's request is not in a subagent's conversation.
 
 Read CLAUDE.md and AGENTS.md first.
-Use plan.md's Current Queue as the queue; intent status lives in metadata.yml.
+The queue is generated (npm run queue); nobody edits it. Intent status lives in metadata.yml.
 Do not edit .claude/.
-Do not edit plan.md unless explicitly instructed.
+Do not edit OVERVIEW.md unless explicitly instructed.
 Do not push, merge, or switch main. Merging is the coordinator's, and only on
 the owner's explicit request in the current conversation (REVIEW-POLICY.md ->
 "Merging"); an implementer never merges.

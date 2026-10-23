@@ -251,3 +251,161 @@ Each ends with `npm run verify` green and a commit.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-10-22 — all eight subtasks
+
+Commits (branch `feat/47-queue-from-metadata`, from `83ee9c8`):
+
+- `e1864b1` queue-lib (subtask 1)
+- `eba2f3a` queue.mjs, `npm run queue`, sandbox test (2)
+- `7ba7990` `docs/runbook.md`, `OVERVIEW.md`, root `plan.md` removed, 13
+  `plan-history.md` links re-pointed (3, 4)
+- `928f107` `/ship` without `plan.md` (5)
+- `096207a` rules, skills, agents and pointers (6, 7)
+- the Progress commit (8)
+
+What shipped:
+
+- `npm run queue [-- --json | --next-id]`: In flight, Queued, Shipped (newest
+  merge first, by position on main's first-parent log), Stopped, plus an
+  "Unrecognised status" group shown only when non-empty. Status comes from
+  the intent's branch while that branch exists and is unmerged, else from
+  `main` (B2); each line says `branch` or `main`.
+- `docs/runbook.md` (sections 1 and 4, queue pointers removed),
+  `OVERVIEW.md` (header, snapshot, pre-§26 shipped list, carried over,
+  history map), root `plan.md` removed.
+- `/ship`: `checkPlanClean`, `bookkeepPlan`, `moveRowToShipped`, `isShipped`,
+  `shippedRow` and `eolOf` gone; `isBookkept(metadata)`; the bookkeeping
+  commit holds only `metadata.yml`. The atomicity code stays for one file.
+- Rules: `/intent` 0.1.5 (no queue row; id from `--next-id`), `/sessions`
+  (no drift step; step 1 adds `npm run queue`), `/spawn` (no queue steps,
+  renumbered), `REVIEW-POLICY.md`, `CLAUDE.md`, `AGENTS.md`,
+  `intents/README.md`, `sdlc.md`, the template, both Claude agents, the Codex
+  agent, `session-lib.mjs` brief and its test, `spawn-intent.mjs` messages.
+
+Tests: `npm run verify` green, 55 files / 911 tests (main had 54 / 917:
+`queue-lib.test.mjs` 15 and `queue.test.mjs` 4 added, 25 `ship`/`ship-lib` tests net
+that checked the `plan.md` half removed or rewritten), lint 21 warnings (cap
+unchanged). `npm run check:intent`: PASS. Mutants on `queue-lib.mjs`, each
+killed by the unit tests: status from `main` always; `nextId` ignoring the
+branch ids; `nextId` ignoring `plan-history.md`; abandoned counted In
+flight; Stopped group dropped; shipped sorted by id. Run on copies, restored
+by copy.
+
+AC3, run on the branch (`git grep -n "plan\.md" -- ':!plan-history.md'
+':!intents/*/*' ':!intents/_templates/plan.md' ':!src'`). Every hit is an
+intent's own `plan.md` or the generic artefact name (`.claude/agents`,
+`build-plan`, `review`, `.codex`, `REVIEW-POLICY.md:148,168,174`,
+`intents/README.md:22,89,118,122,128,132`, `sdlc.md:31`, `scripts/` fixtures
+and the check-intent/scan rules, `docs/runbook.md:61`), except one, which the
+spec asks for:
+
+```
+OVERVIEW.md:17:- **Code comments that say `plan.md §N`** predate this file: that section is
+```
+
+The "§4" grep (`git grep -n "§4" -- ':!plan-history.md' ':!intents/*/*'
+':!src'`) finds every runbook pointer naming `docs/runbook.md`:
+
+```
+.claude/agents/heraklios-implementer.md:26:   junction it (`docs/runbook.md` §4) and never trust bare `npx tsc`. ...
+.claude/agents/heraklios-reviewer.md:62:tree's install. See `docs/runbook.md` §4.
+.claude/agents/heraklios-reviewer.md:69:"clean" on this project more than once (`docs/runbook.md` §4). ...
+.claude/skills/review/SKILL.md:49:`docs/runbook.md` §4 — never junction into a worktree you'll delete, ...
+.claude/skills/spawn/SKILL.md:59:   `node_modules` is a link (`docs/runbook.md` §4). Report the refusal ...
+CLAUDE.md:45:`npx tsc`, which false-greens without a local install (`docs/runbook.md` §4). ...
+CLAUDE.md:147:  from `npm ci`, never a junction (`docs/runbook.md` §4).
+scripts/spawn-intent.mjs:7:// a junction; see docs/runbook.md §4), a reserved dev port, ...
+scripts/spawn-intent.mjs:127:    fail(`${nm} is a link. Removing the worktree would wipe its target (docs/runbook.md §4). ...
+```
+
+(`CLAUDE.md:205`, `OVERVIEW.md:4` and `docs/runbook.md:4` also match "§4" as
+part of "§45" or "§47" or as the quoted "§4" in the runbook's header; they
+are not pointers.)
+
+AC4, `npm run queue` on the branch against each `metadata.yml` (sample):
+
+```
+In flight (3)
+  §30 ... [experiment] in-review  I  branch
+  §47 ... [feature] accepted  I·S·P  branch
+  §48 ... [fix] accepted  I·P  branch
+Queued (1)
+  §29 ... [feature] draft  -·-·-  main
+Shipped (19)
+  §46 ... [feature] done  I·S·P  main  d2d841a
+  §45 ... [feature] done  I·S·P  main  56bda03
+  §44 ... [feature] done  I·S·P  main  364afc5
+  ...
+  §26 ... [refactor] done  I·P  main  568f2a6
+```
+
+`metadata.yml` holds `done` / `merged:` d2d841a, 56bda03, 568f2a6 for §46,
+§45, §26, and `accepted` for §48 (read from its branch).
+
+Divergences from the plan:
+
+- Subtasks 6 and 7 are one commit (the pointer edits touch the same files as
+  the rule edits).
+- `README.md` is unchanged: it had no queue or `plan.md` reference and no
+  "Known simplification" for this.
+- `/ship`'s `SKILL.md` and the `/sessions` and `/spawn` skills keep their
+  `version:`; the spec bumps only `/intent`.
+- `npm run queue` also lists an "Unrecognised status" group when a
+  `metadata.yml` holds a status outside the seven in `intents/README.md`
+  (not in the spec; it shows rather than hides a typo).
+- `queue.mjs` reads `plan-history.md` and `OVERVIEW.md` from `main` and from
+  the working copy, so a branch's own edit counts in `--next-id`.
+- The first-parent log is searched for the merge hash by prefix; a hash not
+  found sorts the intent after the known ones, by id.
+- Not checked: AC5 (the live check of `/intent`, `/sessions` and `/ship` as
+  skills) is the owner's; no skill was run.
+
+### 2026-10-23 — round 2 (review round 1, verdict rework)
+
+Commit `c73bb12` (code, tests, docs) and the Progress commit after it.
+
+Review findings fixed:
+
+- **B2, main wins (owner's amendment, spec 902bf49).** `pickSource` returns
+  `main` whenever `main`'s `metadata.yml` holds `done`, `abandoned` or
+  `deferred`, whatever an unmerged branch says. Unit tests per terminal
+  status and for the non-terminal statuses still reading the branch; a
+  sandbox case with a branch left unmerged after `main` says `done`. On the
+  real repo `npm run queue` now lists §30 under Shipped with `f755609`.
+- **Uncommitted intent folders.** `--next-id` also counts the folder names
+  under the checkout's own `intents/` (sandbox case with an untracked
+  folder: 71, back to 61 once removed). For the listing I took the smaller
+  change: the listing stays "committed intents (on `main`)", and
+  `/intent` SKILL.md and `OVERVIEW.md` now say a draft is listed under
+  Queued "once committed". No `working copy` source was added.
+- **Git-half tests.** A second shipped intent merged after §2 with a lower
+  id, asserting the Shipped order (R4, R7 killed); `--json` `source:
+  'branch'` for an in-review entry and `source: 'main'` for the shipped one
+  (Q24 killed); `--next-id` with a higher `§N` only in an uncommitted
+  `OVERVIEW.md` (R1 killed), then only on `main` (R2 killed). R9 and R10
+  (the surviving cosmetic/near-equivalent mutants) stay unkilled on purpose.
+- **`/ship` S9.** `ship.test.mjs`: a branch whose `metadata.yml` lacks
+  `merged:` stops with `STOPPED bookkeeping … could not prepare the
+  bookkeeping (nothing was written)`, `git status` clean, the merge kept
+  (S9, the try/catch removed, now killed).
+- **`docs/runbook.md`** link to `../plan-history.md#13-…`.
+- **Branch conflict.** `collectEntries` catches the duplicate-id throw per
+  id and shows `main`'s metadata with source `branch conflict` (sandbox
+  test with two `fix/5-*` branches).
+- **Dropped "How To Manage This Plan" parts** (Workflow defaults table,
+  "Preserve useful postmortems", "Treat line references as unstable") moved
+  to `docs/runbook.md` §1.
+- **Nits:** the two doubled blank lines; the `/ship` SKILL.md design note
+  says the `plan.md` bookkeeping was removed by §47.
+
+Corrections to round 1's Progress: `main` had 53 files and 902 tests (not
+54 / 917), and net 10 `ship`/`ship-lib` tests were removed (902 - 10 + 19 =
+911), not 25. The AC3 pathspec that excludes the intent folders is
+`':!intents/*/*'` (the spec's `':!intents/*/'` leaves their 175 lines in).
+
+Tests now: 55 files, 922 tests, lint 21 (cap unchanged), `check:intent`
+PASS. Mutants re-run on copies, restored by copy: R4, R7, R1, R2, Q24, the
+main-wins mutant, the on-disk ids mutant, the conflict-catch mutant and S9
+all killed; none survived. `/sessions` and `/spawn` still keep their
+`version:` (the spec bumps only `/intent`).
