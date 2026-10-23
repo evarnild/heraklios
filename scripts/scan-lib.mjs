@@ -82,20 +82,60 @@ export function artefactOrigins(intents) {
  *          reverts: {subject:string}[], mergedInWindow: (intent:object) => boolean}} input
  * @returns {Record<string, {changes:number, followUps:number, reverts:number}>}
  */
-export function qualityByTier({ intents, reverts, mergedInWindow }) {
+export function qualityByTier({ intents, reverts, mergedInWindow }, runKind = null) {
   const tierOf = new Map(intents.filter((i) => i.review?.tier && mergedInWindow(i)).map((i) => [String(i.id), i.review.tier]));
+  // runKind narrows the counts to the changes of one run kind (spec §50 B14);
+  // a follow-up or revert goes to the run kind of the change it names.
+  const runOfId = new Map(intents.map((i) => [String(i.id), runOf(i.review)]));
+  const keep = (id) => runKind === null || runOfId.get(id) === runKind;
   const perTier = {};
   const bump = (tier, key) => {
     perTier[tier] ??= { changes: 0, followUps: 0, reverts: 0 };
     perTier[tier][key] += 1;
   };
-  for (const tier of tierOf.values()) bump(tier, 'changes');
+  for (const [id, tier] of tierOf) if (keep(id)) bump(tier, 'changes');
   for (const i of intents.filter((x) => x.type === 'fix' && x.followsUp)) {
-    if (tierOf.has(i.followsUp)) bump(tierOf.get(i.followsUp), 'followUps');
+    if (tierOf.has(i.followsUp) && keep(i.followsUp)) bump(tierOf.get(i.followsUp), 'followUps');
   }
   for (const c of reverts) {
     const id = /§\s?(\d+)/.exec(c.subject)?.[1];
-    if (id && tierOf.has(id)) bump(tierOf.get(id), 'reverts');
+    if (id && tierOf.has(id) && keep(id)) bump(tierOf.get(id), 'reverts');
   }
   return perTier;
+}
+
+/**
+ * The run kind a review records in its `run:` header line (REVIEW-POLICY.md →
+ * "The report"). A review with no `run:` line predates auto mode, and any
+ * value but `auto` is manual, so old reviews stay in the manual bucket.
+ */
+export function runOf(review) {
+  return review?.run === 'auto' ? 'auto' : 'manual';
+}
+
+/** Per run kind, the same per-tier counts as qualityByTier (spec §50 B14). */
+export function qualityByRun(input) {
+  return { auto: qualityByTier(input, 'auto'), manual: qualityByTier(input, 'manual') };
+}
+
+/** Sampling rate per run kind: every Nth attested change gets a full diff read (REVIEW-POLICY.md → "Sampling"). */
+export const SAMPLE_EVERY = { auto: 3, manual: 5 };
+
+/**
+ * Is the next attested change of this run kind the one to sample? Counts the
+ * attested reviews already recorded for that run kind, separately from the
+ * other kind; `excludeId` leaves out the intent under review, whose earlier
+ * rounds must not count as another change.
+ *
+ * @param {{reviews: {id?:unknown, verdict:string|null, run?:string|null}[], run:'auto'|'manual', excludeId?:unknown}} input
+ * @returns {{nth:number, due:boolean, every:number}}
+ */
+export function sampleDue({ reviews, run, excludeId = null }) {
+  const every = SAMPLE_EVERY[run];
+  if (!every) throw new Error(`unknown run kind "${run}"`);
+  const prior = reviews.filter(
+    (r) => r.verdict === 'attest' && runOf(r) === run && (excludeId === null || String(r.id) !== String(excludeId)),
+  ).length;
+  const nth = prior + 1;
+  return { nth, due: nth % every === 0, every };
 }
