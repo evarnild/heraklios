@@ -364,7 +364,7 @@ describe('session routes (spec B5, B6)', () => {
     return {
       calls,
       runningFor: () => false,
-      list: () => [{ id: 's1' }],
+      list: () => [{ sid: 's1' }],
       has: (sid) => sid === 's1',
       launch: (a) => {
         calls.push(['launch', a]);
