@@ -231,6 +231,7 @@ sync when something merges** — it went stale once and the user caught it.
 | [§29](intents/29-grid-live-check-counts/) Count live checks in the SDLC scan and grid (after §28) | feature · draft |
 | [§47](intents/47-queue-from-metadata/) The intent queue is generated from metadata.yml; the root plan.md stops carrying status | feature · accepted |
 | [§48](intents/48-e2e-save-lock-hooks/) e2e save-lock hooks touch nothing unless they hold the lock, and always release it | fix · accepted |
+| [§49](intents/49-message-log-history/) The Board keeps every message in a scrollable log, clear of the bottom-left buttons | feature · draft |
 
 All fully-shipped rows that previously lived here (Stage 3b, §17,
 §18, §19, §24 and earlier) are in the [Shipped](#shipped) table above; see

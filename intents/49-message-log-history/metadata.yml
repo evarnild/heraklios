@@ -1,0 +1,15 @@
+# generated-by: heraklios/intent@0.1.4
+id: 49
+slug: message-log-history
+type: feature
+status: draft
+title: The Board keeps every message in a scrollable log, clear of the bottom-left buttons
+review_tier:
+intent_accepted:
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+follows_up:
+links:
+  - README.md#combat-log-detail    what the combat entries hold
