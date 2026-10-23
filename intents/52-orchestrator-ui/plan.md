@@ -326,7 +326,7 @@ Divergences from the plan:
 - Locks are per intent (plus `main` for ship and a gate on `main`), and "ship
   refuses without a prior dry-run" is a per-process memory of a successful
   dry-run for that id, consumed by the real ship.
-- A live-check reviewer prompt for the implementer role adds the worktree's
+- The implementer role's prompt adds the worktree's
   `CLAUDE.local.md` brief when it exists.
 - Not done, as the spec says: no interactive terminal (B7). The live check
   (AC4) is the owner's.
