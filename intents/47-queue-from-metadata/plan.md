@@ -360,3 +360,52 @@ Divergences from the plan:
   found sorts the intent after the known ones, by id.
 - Not checked: AC5 (the live check of `/intent`, `/sessions` and `/ship` as
   skills) is the owner's; no skill was run.
+
+### 2026-10-23 — round 2 (review round 1, verdict rework)
+
+Commit `c73bb12` (code, tests, docs) and the Progress commit after it.
+
+Review findings fixed:
+
+- **B2, main wins (owner's amendment, spec 902bf49).** `pickSource` returns
+  `main` whenever `main`'s `metadata.yml` holds `done`, `abandoned` or
+  `deferred`, whatever an unmerged branch says. Unit tests per terminal
+  status and for the non-terminal statuses still reading the branch; a
+  sandbox case with a branch left unmerged after `main` says `done`. On the
+  real repo `npm run queue` now lists §30 under Shipped with `f755609`.
+- **Uncommitted intent folders.** `--next-id` also counts the folder names
+  under the checkout's own `intents/` (sandbox case with an untracked
+  folder: 71, back to 61 once removed). For the listing I took the smaller
+  change: the listing stays "committed intents (on `main`)", and
+  `/intent` SKILL.md and `OVERVIEW.md` now say a draft is listed under
+  Queued "once committed". No `working copy` source was added.
+- **Git-half tests.** A second shipped intent merged after §2 with a lower
+  id, asserting the Shipped order (R4, R7 killed); `--json` `source:
+  'branch'` for an in-review entry and `source: 'main'` for the shipped one
+  (Q24 killed); `--next-id` with a higher `§N` only in an uncommitted
+  `OVERVIEW.md` (R1 killed), then only on `main` (R2 killed). R9 and R10
+  (the surviving cosmetic/near-equivalent mutants) stay unkilled on purpose.
+- **`/ship` S9.** `ship.test.mjs`: a branch whose `metadata.yml` lacks
+  `merged:` stops with `STOPPED bookkeeping … could not prepare the
+  bookkeeping (nothing was written)`, `git status` clean, the merge kept
+  (S9, the try/catch removed, now killed).
+- **`docs/runbook.md`** link to `../plan-history.md#13-…`.
+- **Branch conflict.** `collectEntries` catches the duplicate-id throw per
+  id and shows `main`'s metadata with source `branch conflict` (sandbox
+  test with two `fix/5-*` branches).
+- **Dropped "How To Manage This Plan" parts** (Workflow defaults table,
+  "Preserve useful postmortems", "Treat line references as unstable") moved
+  to `docs/runbook.md` §1.
+- **Nits:** the two doubled blank lines; the `/ship` SKILL.md design note
+  says the `plan.md` bookkeeping was removed by §47.
+
+Corrections to round 1's Progress: `main` had 53 files and 902 tests (not
+54 / 917), and net 10 `ship`/`ship-lib` tests were removed (902 - 10 + 19 =
+911), not 25. The AC3 pathspec that excludes the intent folders is
+`':!intents/*/*'` (the spec's `':!intents/*/'` leaves their 175 lines in).
+
+Tests now: 55 files, 922 tests, lint 21 (cap unchanged), `check:intent`
+PASS. Mutants re-run on copies, restored by copy: R4, R7, R1, R2, Q24, the
+main-wins mutant, the on-disk ids mutant, the conflict-catch mutant and S9
+all killed; none survived. `/sessions` and `/spawn` still keep their
+`version:` (the spec bumps only `/intent`).
