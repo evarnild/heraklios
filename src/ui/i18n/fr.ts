@@ -190,6 +190,7 @@ export const fr: Messages = {
   },
 
   log: {
+    turnHeading: (turn: number, name: string) => `Tour ${turn} — ${name}`,
     gameLoaded: 'Partie chargée.',
     waitComputerSave: 'Attendez la fin du tour de l’ordinateur avant de sauvegarder ou de charger.',
     resolvePendingSave: 'Résolvez d’abord la retraite ou la dérive en attente avant de sauvegarder ou de charger.',

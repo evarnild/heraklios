@@ -72,8 +72,14 @@ what the Board shows today; only headings (B2) are new text.
 ## Interpretations
 
 None of the rulebook. Two readings of the intent:
-- "all messages are kept" covers the Board's log only; prompts, the status
-  line and the Save / Load panel's own messages are not entries.
+- "all messages are kept" covers the Board's log only: every message it
+  logs today is an entry, including its prompts ("select an attacker"…)
+  and the Save / Load panel's results, which reach the log through
+  `onStatus`. The status line and the dialogs (retreat, advance, exchange,
+  the Save / Load panel itself) are not entries. **Amended 2026-10-23,
+  owner's request after review round 1:** the first wording said prompts
+  and the Save / Load panel's messages were not entries, which contradicts
+  B1 and the code.
 - A drift's seed copy (`:258`) is dropped (B3) because, with a history, the
   copy would show the same combat twice. Recorded as a comment at the seed
   site.

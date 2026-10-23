@@ -85,5 +85,9 @@ test('a saved game loads back to the saved position', async ({ page }) => {
 
   expect(withoutClock(await state(page)), 'the loaded game equals the one saved').toEqual(withoutClock(saved));
   expect((await unit(page, second)).position, 'the second move is undone').toEqual(saved.units.find((u) => u.id === second)!.position);
+  // §49 B8: a loaded game starts with an empty log whose first entry is "Game loaded.".
+  const log = await page.evaluate(() => window.__heraklios.logEntries());
+  expect(log.map((e) => e.kind)).toEqual(['heading', 'entry']);
+  expect(log[1]!.text).toBe('Game loaded.');
   expect(errors).toEqual([]);
 });

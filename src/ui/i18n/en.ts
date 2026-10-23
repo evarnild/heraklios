@@ -206,6 +206,7 @@ export const en = {
   },
 
   log: {
+    turnHeading: (turn: number, name: string) => `Turn ${turn} — ${name}`,
     gameLoaded: 'Game loaded.',
     waitComputerSave: "Wait for the computer's turn to finish before saving or loading.",
     resolvePendingSave: 'Resolve the pending retreat/drift before saving or loading.',

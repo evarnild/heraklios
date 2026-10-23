@@ -55,6 +55,35 @@ export interface DevHook {
    * Read-only; a scenario clicks one, as a player would (§40).
    */
   placement(): { current: string | null; legalHexes: Hex[] };
+  /** The Board's message history, headings included (§49). */
+  logEntries(): { kind: 'heading' | 'entry'; text: string }[];
+  /** The Board's log panel: its bounds, scroll state (in lines) and the scrollbar thumb's centre, if shown (§49). */
+  logPanel(): {
+    top: number;
+    bottom: number;
+    left: number;
+    right: number;
+    offset: number;
+    total: number;
+    visible: number;
+    thumb: Point | null;
+  };
+  /** The main camera's zoom (§49: the wheel over the log must not change it). */
+  cameraZoom(): number;
+}
+
+/** `BoardScene` members the log readers use, by name; guarded like `BUSY_FIELDS`. */
+const LOG_MEMBERS = ['logHistory', 'logPanel'] as const;
+
+interface LogInternals {
+  logHistory: { entries(): readonly { kind: 'heading' | 'entry'; text: string }[] };
+  logPanel: {
+    bounds: { left: number; top: number; width: number; bottom: number };
+    offset: number;
+    total: number;
+    visible: number;
+    thumbRect(): { x: number; y: number; width: number; height: number } | null;
+  };
 }
 
 /** `PlacementScene` members `placement()` reads, by name; guarded like `BUSY_FIELDS`. */
@@ -143,8 +172,34 @@ export function installDevHook(game: Phaser.Game): void {
       }
       return { current: p.queue.find((q) => q.remaining > 0)?.typeId ?? null, legalHexes: p.currentLegalHexes() };
     },
+    logEntries: () => logInternals(board()).logHistory.entries().map((e) => ({ kind: e.kind, text: e.text })),
+    logPanel: () => logPanelSnapshot(logInternals(board()).logPanel),
+    cameraZoom: () => board().cameras.main.zoom,
   };
   (window as unknown as { __heraklios: DevHook }).__heraklios = hook;
+}
+
+function logInternals(scene: Phaser.Scene): LogInternals {
+  const b = scene as unknown as Record<string, unknown>;
+  for (const m of LOG_MEMBERS) {
+    if (!(m in b)) throw new Error(`devHook: BoardScene has no "${m}" any more — update LOG_MEMBERS`);
+  }
+  return b as unknown as LogInternals;
+}
+
+function logPanelSnapshot(panel: LogInternals['logPanel']): ReturnType<DevHook['logPanel']> {
+  const { bounds, offset, total, visible } = panel;
+  const th = panel.thumbRect();
+  return {
+    top: bounds.top,
+    bottom: bounds.bottom,
+    left: bounds.left,
+    right: bounds.left + bounds.width,
+    offset,
+    total,
+    visible,
+    thumb: th ? { x: th.x + th.width / 2, y: th.y + th.height / 2 } : null,
+  };
 }
 
 /** A visible, interactive text object as a click target, at the pixel the camera that renders it draws it. */

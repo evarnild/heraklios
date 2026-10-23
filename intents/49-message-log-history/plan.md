@@ -296,3 +296,73 @@ copy, never `git checkout --`.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-10-23 - implementation (subtasks 1-6)
+
+Commits: d1d8593 (model, panel, wiring, i18n, devHook, e2e), plus the
+follow-up commit holding the e2e fixes, the README section and this entry.
+
+Shipped: `src/ui/logHistory.ts` (+ 12 tests H1-H8, S1-S3, L1),
+`src/ui/logPanel.ts` (fixed pool of one-line texts, scrollbar, wheel, thumb
+drag), `BoardScene` routing (`logHistory` recreated in `resetSceneState`,
+`log`/`appendLine`/`logContext`, drift entry by index, seed copy dropped),
+`MapView.wheelBlocked`, `log.turnHeading` in en/fr, `devHook`
+`logEntries`/`logPanel`/`cameraZoom`, `e2e/message-log.spec.ts` (E1-E4 in one
+test), README "Message log" section.
+
+Verify: 57 files, 944 tests passed; lint 21 warnings (cap 21, unchanged: two
+new warnings from `installDevHook` and `createLogPanel` were removed by
+extracting helpers). `npm run e2e`: 11 passed (incl. message-log.spec.ts).
+
+Mutants (each run against the logHistory tests after a full-suite run; backed
+up and restored by copy, tree clean after): heading every entry (H1,H4,H7),
+heading never (H1-H4), append instead of update (H3,H4), update last entry
+(H4), blank check removed (H5), clear keeps key (H6), newest on all (H7),
+newest off by one (H7), cache ignores text (H8), clamp no lower (S1), clamp no
+upper (S1), follow when scrolled up (S2), thumb size not scaled (S3), thumb
+position not scaled (S3), bottom margin 200 (L1), line count ceil (L1). All
+killed. Not covered by a unit test: "heading compares the turn only" - the key
+is built in `BoardScene.logContext`, which is presentation; no test reaches it.
+
+Divergences from the plan:
+- `follow(prevOffset, prevTotal, newTotal, visible)` takes the previous total
+  (needed to know "was at the bottom"); the plan's signature lacked it.
+- `layoutLines` is the `LineLayout` class (`layout(entries, newest)`), which
+  owns the per-entry wrap cache; `logPanelBounds(height, panelWidth)` takes the
+  panel width as a parameter instead of importing the scene's constant.
+- E1-E4 are one Playwright test (one game, steps in order). E1 clicks the
+  Undo button `'↶ Undo'`, the End game button `'⚑ End game'` is the "above the
+  buttons" reference (Pause is hidden without a clock). E4 asserts that a
+  report with a newline appears after the earlier entries (a retreat message
+  may follow it), not that it is the last entry.
+- Not done: live check (owed to the owner).
+
+### 2026-10-23 - review round 1 rework
+
+Commit: the one after 2111b1d (this entry's commit).
+
+Fixed:
+- MEDIUM thumb drag panned the map: `MapView.wheelBlocked` became
+  `pointerBlocked`, checked by the wheel handler and by `enableDrag`'s
+  `pointerdown`. E3 now asserts the archers' `hexToCanvas` is unchanged across
+  the drag. Red before the fix ("the map did not pan"), green after.
+- MEDIUM README: the status line and the dialogs (retreat, advance, exchange,
+  the Save / Load panel itself) are not log entries; the Board's prompts and
+  the Save / Load panel's results are. spec.md left to the coordinator.
+- MEDIUM untested wiring: new e2e test in message-log.spec.ts (heading for the
+  other player in the same turn, then for the next turn); save-load.spec.ts
+  asserts a heading then "Game loaded." after the load.
+- LOW S2: `follow(10, 40, 3, 5) = 0` and `follow(10, 40, 12, 5) = 7` added.
+- LOW logPanel: `scrollTo` returns early when the offset is unchanged; text,
+  colour and font style are set only when they differ.
+
+Mutants re-run, each restored by copy, tree clean after: turn-only heading key
+(killed by the new heading e2e test), `this.logHistory = new LogHistory()`
+dropped from `resetSceneState` (killed by save-load.spec.ts), drag not blocked
+(killed by E3's "map did not pan"), `follow` returning `prevOffset` (killed by
+S2).
+
+Not done, on purpose: the bold-heading measuring LOW (only if the live check
+shows a long name running under the scrollbar) and the drift e2e LOW (needs a
+test-mode shortcut for an elephant scenario that does not exist; B3 stays with
+the live check).
