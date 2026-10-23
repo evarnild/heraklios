@@ -69,6 +69,8 @@ import {
   type PlayerId,
   type Unit,
 } from '../engine/state';
+import { createLogPanel, type LogPanel } from '../ui/logPanel';
+import { LogHistory, logPanelBounds, type LogContext } from '../ui/logHistory';
 import type { HexCoord } from '../data/map';
 import { RATIO_COLUMNS } from '../data/combatTable';
 import { RIVER_CROSSING } from '../data/terrain';
@@ -131,6 +133,8 @@ type RetreatChoice =
  * elephant drift. The actual drift stack lives in engine/drift.ts. */
 interface DriftState {
   lines: string[];
+  /** Index of this drift's entry in `logHistory`, once its first line is logged (§49 B3). */
+  entry?: number;
   onComplete: () => void;
 }
 
@@ -255,8 +259,11 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       onComplete();
       return;
     }
-    const currentLog = this.logText?.text.trim();
-    const lines = existingLines ?? (currentLog ? [currentLog] : []);
+    // §49 B3: the drift narration used to be seeded with the message already
+    // on screen (a copy of the combat report above it). The log is a history
+    // now, so that message is still visible as its own entry; the drift's
+    // entry starts empty and grows in place.
+    const lines = existingLines ?? [];
     this.driftState = { lines, onComplete };
     this.decisionPending = true;
     resolveElephantDrift(
@@ -400,7 +407,9 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * — needed because pausing/resuming doesn't change the remaining-seconds
    * count on its own, which is what the dedup check above otherwise keys on. */
   private lastClockDisplayPaused: boolean | null = null;
-  private logText!: Phaser.GameObjects.Text;
+  private logPanel!: LogPanel;
+  /** Every message the Board logged this game (§49); recreated in `resetSceneState`. */
+  private logHistory = new LogHistory();
   private resolveBtn!: Phaser.GameObjects.Text;
   private rotateCCWBtn!: Phaser.GameObjects.Text;
   private rotateCWBtn!: Phaser.GameObjects.Text;
@@ -551,6 +560,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.driftContinueResolve = null;
     this.driftContinueBtn?.setVisible(false);
     this.mapView?.clearDriftArrow();
+    this.logHistory = new LogHistory();
     this.advanceEligibleAttackers = [];
     this.advanceOfferQueue = [];
     this.history = new History();
@@ -820,21 +830,12 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       .setScrollFactor(0)
       .setDepth(30);
 
-    this.logText = this.add
-      .text(16, 178, '', {
-        fontSize: '13px',
-        color: '#a89878',
-        wordWrap: { width: PANEL_WIDTH - 32 },
-        lineSpacing: 4,
-      })
-      .setScrollFactor(0)
-      // One below the buttons' depth (30): a long combat log (several lines
-      // are routine — see `logCombatOutcome`) can grow tall enough to
-      // visually reach the save/load/undo/redo/abandon buttons below it.
-      // Equal depth would let creation order decide which one wins that
-      // overlap; this guarantees the buttons stay legible and on top
-      // regardless, without having to cap or scroll the log itself.
-      .setDepth(29);
+    // The log is a scrollable history in a fixed rectangle ending 8 px above
+    // the highest bottom-left button (§49), so nothing it holds can reach
+    // them, whatever the length of a combat report. Depth 29, one below the
+    // buttons', pinned to the HUD camera by the panel itself.
+    this.logPanel = createLogPanel(this, this.mapView, logPanelBounds(height, PANEL_WIDTH));
+    this.mapView.wheelBlocked = (x, y) => this.logPanel.contains(x, y);
 
     this.mapView.pinUIObjects([
       panelBg,
@@ -854,7 +855,6 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       this.pauseBtn,
       this.statusText,
       this.clockText,
-      this.logText,
     ]);
 
     // A resumed game already carries the right movement points and ramming
@@ -1417,10 +1417,9 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     advanceGameClock(state, delta);
     this.refreshClockText();
     if (!wasPending && state.pendingGameEnd) {
-      // Only `refreshStatus` — not `log`/`appendLine`, which REPLACE the
-      // panel (see `appendLine`'s doc comment) and would otherwise clobber
-      // whatever combat report or drift narration happens to be on screen at
-      // the exact moment the clock runs out. The status line's own "FINAL
+      // Only `refreshStatus` — not `log`/`appendLine`, which would add an
+      // entry in the middle of whatever drift narration is growing at the
+      // exact moment the clock runs out. The status line's own "FINAL
       // ROUND" suffix, wired through `refreshStatus` above, is feedback
       // enough on its own.
       this.refreshStatus();
@@ -1428,17 +1427,34 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   }
 
   private log(message: string): void {
-    this.logText.setText(message);
+    this.logHistory.add(message, this.logContext());
+    this.logPanel.render(this.logHistory);
   }
 
-  /** Like `log`, but appends to (rather than replaces) the current drift's
-   * narration when one is in progress — so the whole step-by-step story
-   * (direction, each hex, each trample) stays visible instead of each line
-   * erasing the last. Outside a drift, behaves exactly like `log`. */
+  /** The heading key and text for the current turn and active player (§49 B2). */
+  private logContext(): LogContext {
+    const state = this.state();
+    const activeId = this.activePlayerId();
+    const name = state.players[activeId]?.name ?? '';
+    return {
+      key: `${state.turnNumber}:${activeId}`,
+      heading: messages().log.turnHeading(state.turnNumber, name),
+    };
+  }
+
+  /** Like `log`, but during a drift the lines grow ONE history entry in place
+   * (§49 B3) — the whole step-by-step story (direction, each hex, each
+   * trample) reads as a block. The entry is tracked by index, so it stays the
+   * drift's even if a `log()` lands in between. Outside a drift, behaves
+   * exactly like `log`. */
   private appendLine(line: string): void {
-    if (this.driftState) {
-      this.driftState.lines.push(line);
-      this.log(this.driftState.lines.join('\n'));
+    const drift = this.driftState;
+    if (drift) {
+      drift.lines.push(line);
+      const text = drift.lines.join('\n');
+      if (drift.entry === undefined) drift.entry = this.logHistory.add(text, this.logContext());
+      else this.logHistory.update(drift.entry, text);
+      this.logPanel.render(this.logHistory);
     } else {
       this.log(line);
     }
