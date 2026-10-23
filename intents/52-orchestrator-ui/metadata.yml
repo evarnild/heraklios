@@ -1,0 +1,19 @@
+# generated-by: heraklios/intent@0.1.5
+id: 52
+slug: orchestrator-ui
+type: feature
+status: accepted
+title: Orchestrator UI to manage intents and their Claude sessions
+review_tier:
+intent_accepted: 2026-10-23 by-agent    # owner: "accept intent 52"
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+auto_authorized:
+auto_round:
+auto_stopped:
+follows_up:
+links:
+  - intents/26-ai-sdlc-kit
+  - intents/50-sdlc-auto-mode
