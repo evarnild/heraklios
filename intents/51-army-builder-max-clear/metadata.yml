@@ -12,6 +12,6 @@ live_checked:
 merged:
 auto_authorized: 2026-10-23 by-agent    # owner: "yes /auto 51"
 auto_round: 2
-auto_stopped:
+auto_stopped: live check owed
 follows_up:
 links:
