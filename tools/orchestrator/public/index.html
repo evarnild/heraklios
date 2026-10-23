@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Heraklios orchestrator</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+<h1>Heraklios orchestrator</h1>
+<span id="status">loading</span>
+</header>
+<main>
+<section id="waiting"><h2>Waiting on you</h2><div id="waiting-list"></div></section>
+<section id="sessions"><h2>Sessions</h2><div id="session-list"></div></section>
+<section id="intents"><h2>Intents</h2><div id="intent-table"></div></section>
+<section id="worktrees"><h2>Worktrees</h2><div id="worktree-table"></div></section>
+<section id="ship" hidden><h2 id="ship-title">Ship</h2><pre id="ship-output"></pre><div id="ship-controls"></div></section>
+<section id="log"><h2>Last action</h2><pre id="action-output">(nothing yet)</pre></section>
+</main>
+<script type="module" src="/app.js"></script>
+</body>
+</html>
