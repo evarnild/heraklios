@@ -7,7 +7,7 @@ title: The Board keeps every message in a scrollable log, clear of the bottom-le
 review_tier:
 intent_accepted: 2026-10-23 by-agent    # owner: "accept 49"
 spec_accepted: 2026-10-23 by-agent    # owner: "49 spec accepted, build-plan"
-plan_approved:
+plan_approved: 2026-10-23 by-agent    # owner: "yes and spawn 49" (plan 402d4be)
 live_checked:
 merged:
 follows_up:
