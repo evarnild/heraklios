@@ -1,0 +1,18 @@
+# generated-by: heraklios/intent@0.1.5
+id: 50
+slug: sdlc-auto-mode
+type: feature
+status: draft
+title: An auto mode carries one intent from acceptance to ship, stopping only for the owner's questions, the live check and the ship
+review_tier:
+intent_accepted:
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+follows_up:
+links:
+  - intents/27-parallel-sessions    the coordinator role, /spawn launching the implementer
+  - intents/46-ship-skill    /ship, the stop the run ends at
+  - intents/47-queue-from-metadata    npm run queue, where a run's state would show
+  - REVIEW-POLICY.md    gates, live checks, merging, sampling: the rules auto mode changes
