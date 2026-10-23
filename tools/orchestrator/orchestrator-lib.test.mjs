@@ -5,6 +5,7 @@ import {
   gateAllowed,
   gateWrite,
   nextStep,
+  parseCliArgs,
   roleLaunch,
   validId,
   waitingOnOwner,
@@ -253,5 +254,18 @@ describe('waitingOnOwner (spec B3)', () => {
     const input = [{ id: '2', next: { owner: 'agent' } }, { id: '1', next: { owner: 'owner' } }];
     waitingOnOwner(input);
     expect(input.map((x) => x.id)).toEqual(['2', '1']);
+  });
+});
+
+describe('parseCliArgs (spec B1)', () => {
+  it('defaults to 5299 and takes --port in both forms', () => {
+    expect(parseCliArgs([])).toEqual({ port: 5299 });
+    expect(parseCliArgs(['--port', '6000'])).toEqual({ port: 6000 });
+    expect(parseCliArgs(['--port=6001'])).toEqual({ port: 6001 });
+  });
+  it('refuses a bad port, a missing value and any other argument', () => {
+    for (const argv of [['--port'], ['--port', 'x'], ['--port', '0'], ['--port', '70000'], ['--port=1e3'], ['--host', '0.0.0.0'], ['5299']]) {
+      expect(() => parseCliArgs(argv), argv.join(' ')).toThrow();
+    }
   });
 });

@@ -683,6 +683,30 @@ It's plain HTML5 Canvas + TypeScript (no Phaser) and shares the same
 `TerrainType`/color palette as the game itself, so what you paint is exactly
 what the game will use — see `src/map-editor/`.
 
+## Orchestrator
+
+`npm run orchestrator` (from the main checkout, on `main`; `-- --port <n>`
+overrides the default 5299) serves a local page at `http://127.0.0.1:5299/`
+for running the intent workflow without a terminal coordinator. It lists every
+intent with its gates and the next step (what waits on you first) and every
+worktree with its session state, and wraps the existing scripts: Spawn and
+Remove run `npm run spawn`, Ship shows `npm run ship -- <id> --dry-run` and
+only then, after a confirm dialog, runs the real ship. A gate button writes
+today's date as a bare date (you did it, not an agent) and commits it under
+your git identity, only when the gate's preconditions hold. It can also launch
+a headless Claude Code session per intent through the Agent SDK (implementer
+in the worktree, reviewer or `/auto` in the main checkout), stream its
+messages and answer its permission prompts and questions with Allow/Deny
+clicks; nothing is allowed by itself, and Stop denies whatever is pending.
+
+It listens on 127.0.0.1 only, checks `Host` on every request and `Origin` on
+every POST (like the save API), runs commands as argument arrays with no
+shell, and writes page text only through `textContent`. It stores nothing:
+`metadata.yml`, git and the session log stay the owners of the data, and its
+list of launched sessions lives in memory until it stops. The interactive
+terminal (the real `claude` command line in the page) is not built yet.
+`npm run sessions -- --json` and `npm run queue -- --json` feed the page.
+
 ## Project structure
 
 - `src/data/` — the rules as data: unit stats, terrain effects, the land
@@ -723,6 +747,12 @@ what the game will use — see `src/map-editor/`.
   `input.ts` (mouse handling), `serialize.ts` (map.ts generation + JSON
   save/load), `main.ts` (wires it all to the DOM). The pure modules are
   unit-tested independently of the DOM.
+- `tools/orchestrator/` — the orchestrator page and server (see above), plain
+  `.mjs` with no framework: `orchestrator-lib.mjs` (next step, gate rules,
+  Host/Origin checks, role prompts), `state.mjs`, `server.mjs`/`actions.mjs`/
+  `session-routes.mjs` (the routes, tested with an injected runner and file
+  system), `sdk-sessions.mjs` (headless sessions, tested with a fake SDK
+  `query`), `node-io.mjs`/`orchestrator.mjs` (the real glue) and `public/`.
 - `docs/research/` — the original research this project is built on: the
   game's history, a full rules transcription, a plain-reference copy of
   every table, and a list of sources. Start at

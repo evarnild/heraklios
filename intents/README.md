@@ -103,6 +103,10 @@ type needs were recorded.
   `heraklios-reviewer`, any `Agent`-tool worker) never records a gate: your
   request is not in its conversation. A spawned session is a conversation
   with you, so the rule applies there.
+- **The orchestrator's gate buttons** (§52, `npm run orchestrator`). Your
+  click on a gate button, after its confirm dialog, is you writing the gate
+  directly: the page writes a bare date (no `by-agent`) and commits it under
+  your git identity. No agent is involved, and an agent never presses it.
 - **`/auto <id>`** (§50, spec B1 and B3). Your `/auto <id>` message in the
   coordinator conversation, for an intent whose `intent_accepted` is
   recorded, is a request to record that intent's `plan_approved`, and no

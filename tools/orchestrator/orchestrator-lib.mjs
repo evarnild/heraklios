@@ -169,3 +169,25 @@ export function roleLaunch(role, { id, slug, worktreePath, mainPath, brief, bran
   ];
   return { cwd: worktreePath, prompt: lines.filter((l) => l !== null).join('\n') };
 }
+
+// --- The command line (spec B1) ----------------------------------------------
+
+/** Default port: the top of the per-intent range (spec Assumptions); `--port` overrides. */
+export const DEFAULT_PORT = 5299;
+
+/** `{ port }` from `[--port <n> | --port=<n>]`. Throws on anything else, so a typo cannot start the wrong thing. */
+export function parseCliArgs(argv) {
+  let port = DEFAULT_PORT;
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    let raw = null;
+    if (a === '--port') raw = argv[++i];
+    else if (a.startsWith('--port=')) raw = a.slice('--port='.length);
+    else throw new Error(`Unknown argument ${a}. Usage: npm run orchestrator [-- --port <1-65535>]`);
+    if (!/^[0-9]{1,5}$/.test(raw ?? '') || Number(raw) < 1 || Number(raw) > 65535) {
+      throw new Error(`--port needs a number from 1 to 65535, got "${raw ?? ''}"`);
+    }
+    port = Number(raw);
+  }
+  return { port };
+}

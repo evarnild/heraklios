@@ -16,6 +16,7 @@
     "ship": "node scripts/ship.mjs",
     "sessions": "node scripts/sessions.mjs",
     "queue": "node scripts/queue.mjs",
+    "orchestrator": "node tools/orchestrator/orchestrator.mjs",
     "e2e": "playwright test",
     "verify": "npm run build && npm run lint && npm test"
   },
