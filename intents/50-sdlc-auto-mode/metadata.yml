@@ -8,7 +8,7 @@ review_tier:
 intent_accepted: 2026-10-23 by-agent    # owner: "yes"
 spec_accepted: 2026-10-23 by-agent    # owner: "yes to 50"
 plan_approved: 2026-10-23 by-agent    # owner: "yes and spawn 50" (plan eea8fcc)
-live_checked:
+live_checked: 2026-10-23 by-agent    # owner: "I ran successfully the test in the sandbox", "live checked", "record it" (/auto 91 in the sandbox, §50 at f623ccb)
 merged:
 follows_up:
 links:
