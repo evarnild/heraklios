@@ -4,6 +4,7 @@ import {
   checkChange,
   formatResult,
   parseArgs,
+  parseAuto,
   parseBranch,
   parseGate,
   parseMetadata,
@@ -433,5 +434,57 @@ describe('e2e specs count as tests', () => {
       );
       expect(r.routes.join()).toMatch(/Rule code .* no test change/);
     }
+  });
+});
+
+describe('auto fields (spec §50 B1, B3, B12)', () => {
+  const withAuto = (over) => checkChange(base({ metadata: meta(over) }));
+
+  it('T1: parseAuto reads a date, a date plus by-agent, and empty', () => {
+    expect(parseAuto({ auto_authorized: '2026-10-24' }).authorized).toEqual({ state: 'recorded', date: '2026-10-24', by: 'owner' });
+    expect(parseAuto({ auto_authorized: '2026-10-24 by-agent' }).authorized).toEqual({ state: 'recorded', date: '2026-10-24', by: 'agent' });
+    expect(parseAuto({}).authorized).toEqual({ state: 'empty' });
+    expect(parseAuto({ auto_authorized: [] }).authorized).toEqual({ state: 'empty' });
+  });
+
+  it.each(['yes', '2026-10-24 by-auto', '2026-1-2'])('T1: parseAuto reads %j as malformed', (value) => {
+    expect(parseAuto({ auto_authorized: value }).authorized.state).toBe('malformed');
+  });
+
+  it('T1: parseAuto reads the round and the reason', () => {
+    expect(parseAuto({ auto_round: '2', auto_stopped: 'live check owed' })).toMatchObject({ round: 2, stopped: 'live check owed' });
+    expect(parseAuto({ auto_round: [], auto_stopped: [] })).toMatchObject({ round: null, stopped: null });
+  });
+
+  it('T2: a malformed auto_authorized is an error naming the field', () => {
+    const r = withAuto({ auto_authorized: 'yes' });
+    expect(r.errors.join('\n')).toMatch(/auto_authorized must be empty, a YYYY-MM-DD date/);
+    expect(withAuto({ auto_authorized: '2026-10-24 by-agent' }).errors).toEqual([]);
+  });
+
+  it.each(['4', '0', 'two', '1.5', '-1'])('T2: auto_round %j is an error', (value) => {
+    expect(withAuto({ auto_round: value }).errors.join('\n')).toMatch(/auto_round must be a whole number from 1 to 3/);
+  });
+
+  it.each(['1', '2', '3'])('T2: auto_round %s passes', (value) => {
+    expect(withAuto({ auto_round: value }).errors).toEqual([]);
+  });
+
+  it('T2: an intent with no auto fields is unaffected', () => {
+    expect(checkChange(base()).errors).toEqual([]);
+    expect(withAuto({ auto_authorized: [], auto_round: [], auto_stopped: [] }).errors).toEqual([]);
+  });
+
+  it('T3: the gate grammar did not widen', () => {
+    expect(parseGate('2026-10-24 by-auto').state).toBe('malformed');
+    expect(parseGate('2026-10-24 by-agent').state).toBe('recorded');
+    // and auto_authorized is not a gate: an empty one never blocks code
+    expect(withAuto({}).errors).toEqual([]);
+  });
+
+  it('T4: a comment is stripped from auto_stopped, so the skill writes reasons without " #"', () => {
+    expect(parseMetadata('auto_stopped: live check owed  # note\n').auto_stopped).toBe('live check owed');
+    expect(parseMetadata('auto_stopped: live check owed\n').auto_stopped).toBe('live check owed');
+    expect(parseMetadata('auto_stopped: cut # here\n').auto_stopped).toBe('cut');
   });
 });
