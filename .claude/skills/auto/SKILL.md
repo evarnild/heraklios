@@ -66,8 +66,26 @@ Where the metadata lives: write only while no implementer is running in the
 worktree. All of this skill's writes happen at a stop, a start or a round
 boundary, never while the implementer works.
 
-Then pick up at the first step whose work is not done: spec (feature), plan,
-worktree, build, review loop. Never redo a recorded gate or a finished step.
+Then resume by the recorded `auto_stopped`, not by "the first step not done"
+(spec B13, amended). The reason text is the one the stop wrote (step 9); an
+empty `auto_stopped` with a recorded `auto_round` means the session closed
+mid-run, and is read as the step the branch shows (no `review.md` for round
+`auto_round` yet: redo that round's review without counting a new one).
+
+| `auto_stopped` | Resume |
+| --- | --- |
+| spec questions, spec drafted | step 2: the owner's answers or yes, then step 3 |
+| plan found the spec incomplete, plan.md exists unapproved | step 3 again, only after the owner has settled it; never approve a plan this run did not draft |
+| decision needed, spec or plan amendment needed | give the implementer the owner's answer (a new `heraklios-implementer` if it cannot be resumed), wait, then **a new round** `auto_round` + 1 (step 5, item 1) |
+| re-check mismatch | redo the re-check (step 6) for round `auto_round` and write that round's `review.md`; **no new round** |
+| escalate | the owner's `/auto <id>` means "diff read": go on to the live-check stop (step 7) or the ship stop (step 8) from that review's `live-check:`; **no new round** |
+| live check owed | step 7: if the owner says it passed and `live_checked` is recorded, step 8; a defect they describe goes to the implementer, then a new round |
+| out of rounds | report the open findings again; the intent continues by hand (B9) |
+| ready for /ship | run the dry-run (step 8) again and report |
+| red verify, red check:intent, critical finding, agent error, worktree held, too many sessions | clear the cause (the owner says it is), then redo the step that stopped; a failed implementer is relaunched, a failed review is redone as the same round |
+
+A new round always passes the cap in step 5, item 1. Never redo a recorded
+gate or a finished step.
 
 ## 2. The spec stop — features only (B2)
 
@@ -90,6 +108,11 @@ skip to step 3 (fix, refactor) or step 4 (adjustment, experiment).
 Skip when `plan_approved` is already recorded, or for an adjustment or
 experiment.
 
+0. If a `plan.md` already exists and `plan_approved` is not recorded, this
+   run did not draft it (it may be hand-edited or from an earlier session):
+   **stop** with `auto_stopped: plan exists unapproved, owner decides`
+   and ask the owner to approve it themselves or to say to redraft. Record
+   `plan_approved` only for a `plan.md` this run drafted.
 1. Draft the plan as `/build-plan` does. If `/build-plan` step 3 finds the
    spec (or, for a fix or refactor, the intent) incomplete, **stop** with
    `auto_stopped: plan found the spec incomplete`. Never decide a design
@@ -116,13 +139,15 @@ A round is one `/review`. The rounds are counted across the whole run,
 including a rework after a live-check defect (step 7), and across resumed
 sessions (`auto_round`).
 
-For each round `n` (the recorded `auto_round`, plus one):
+For each new round `n` (the recorded `auto_round`, plus one; a resume that the
+table marks "no new round" does not come through here):
 
 1. **The cap.** If `n` would be 4, **stop** with
    `auto_stopped: out of rounds, open findings below` and list the open
    findings. The intent continues by hand.
 2. Write `auto_round: <n>` into the branch's `metadata.yml` and commit it
-   (the implementer has finished; the worktree is yours).
+   (the implementer has finished; the worktree is yours). B12 requires this
+   at each round start, so a closed session resumes at the right round.
 3. Delegate `/review` to `heraklios-reviewer`, telling it `run: auto` and
    that every finding needing rework must say "Needs rework:" or "Needs
    decision:" (`REVIEW-POLICY.md` → "The report").
@@ -130,7 +155,9 @@ For each round `n` (the recorded `auto_round`, plus one):
    `run: auto` and commit it on the branch.
 5. Act on the verdict:
    - **`escalate`**: always stop, `auto_stopped: escalate, owner reads the
-     diff`. The Reviewed tier needs the owner's diff read.
+     diff`. The Reviewed tier needs the owner's diff read. The owner's next
+     `/auto <id>` means "diff read" and goes on to the live-check or ship
+     stop with no new round (spec B5, amended).
    - **`rework`**: every finding needing rework must be "Needs rework:"
      (step 7 defines mechanical). Resume the implementer with the findings
      (same agent if it can be resumed, else a new `heraklios-implementer`

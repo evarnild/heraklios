@@ -1,7 +1,7 @@
 // Pure logic behind the metadata checks of `npm run sdlc:scan` (§31). Kept
 // free of git/fs calls so it can be unit-tested; see scan-lib.test.mjs. The
 // git lookup is injected as `isCommit`.
-import { GATE_FIELDS, parseGate } from './intent-check-lib.mjs';
+import { GATE_FIELDS, parseGate, parseReviewHeader } from './intent-check-lib.mjs';
 
 // Anything else never reaches git: a value starting with `-` would be read as an option.
 const HASH_RE = /^[0-9a-f]{7,40}$/;
@@ -138,4 +138,45 @@ export function sampleDue({ reviews, run, excludeId = null }) {
   ).length;
   const nth = prior + 1;
   return { nth, due: nth % every === 0, every };
+}
+
+/**
+ * The review fields the scan reads from a review.md. `run` comes only from
+ * the header (parseReviewHeader) and only when it is exactly `auto` or
+ * `manual`: a review that copied the template line `run: auto | manual`
+ * literally is neither, so it reads as null and counts as manual (runOf).
+ */
+export function parseReviewFields(text) {
+  const field = (k) => new RegExp(`^${k}:\\s*(\\S+)`, 'm').exec(text)?.[1] ?? null;
+  const run = parseReviewHeader(text).run;
+  return {
+    verdict: field('verdict'),
+    tier: field('tier'),
+    round: field('round'),
+    sampled: field('sampled'),
+    run: run === 'auto' || run === 'manual' ? run : null,
+  };
+}
+
+const SAMPLE_USAGE = 'usage: sdlc:scan -- --sample-due <auto|manual> [--exclude <id>]';
+
+/**
+ * `npm run sdlc:scan -- --sample-due <auto|manual> [--exclude <id>]`: null when
+ * the flag is absent (the normal scan runs), else what to print and the exit
+ * code. A missing or unknown value is a usage error (exit 2), never the full
+ * report with exit 0.
+ *
+ * @returns {null|{exit:number, stdout?:string, stderr?:string}}
+ */
+export function sampleDueCommand(args, intents) {
+  const at = args.indexOf('--sample-due');
+  if (at < 0) return null;
+  const run = args[at + 1];
+  if (!['auto', 'manual'].includes(run)) return { exit: 2, stderr: SAMPLE_USAGE };
+  const ex = args.indexOf('--exclude');
+  const excludeId = ex >= 0 ? args[ex + 1] : null;
+  if (ex >= 0 && (excludeId === undefined || excludeId.startsWith('--'))) return { exit: 2, stderr: SAMPLE_USAGE };
+  const reviews = intents.filter((i) => i.review).map((i) => ({ id: i.id, ...i.review }));
+  const s = sampleDue({ reviews, run, excludeId });
+  return { exit: 0, stdout: `sample-due ${run}: nth attested ${run} change = ${s.nth}, every ${s.every}, sampled: ${s.due ? 'yes' : 'no'}` };
 }

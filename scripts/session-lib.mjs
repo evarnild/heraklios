@@ -193,6 +193,11 @@ export function autoSummary(metadata) {
   return parts.join(' · ');
 }
 
+/** The metadata-derived columns of a sessions row (status, gates, auto); empty for no metadata. */
+export function metadataColumns(metadata) {
+  return { status: metadata?.status ?? null, gates: gateSummary(metadata), auto: autoSummary(metadata) };
+}
+
 /** Same rule as check-intent: both forms of a dated gate count (parseGate). */
 function isRecorded(v) {
   return parseGate(v).state === 'recorded';

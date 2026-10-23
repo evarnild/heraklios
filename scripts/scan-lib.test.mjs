@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { artefactOrigins, gateShares, metadataProblems, qualityByRun, qualityByTier, runOf, sampleDue } from './scan-lib.mjs';
+import { artefactOrigins, gateShares, metadataProblems, qualityByRun, parseReviewFields, qualityByTier, runOf, sampleDue, sampleDueCommand } from './scan-lib.mjs';
 
 const intent = (over = {}) => ({ id: '1', merged: null, gates: {}, ...over });
 
@@ -189,5 +189,59 @@ describe('sampleDue (spec §50 B14)', () => {
 
   it('refuses a run kind it does not know', () => {
     expect(() => sampleDue({ reviews: [], run: 'bot' })).toThrow(/unknown run kind/);
+  });
+});
+
+describe('parseReviewFields (spec §50 B14)', () => {
+  const review = (...head) => ['<!-- generated-by: heraklios/review@0.1.5 -->', '# §1 review', '', ...head, '', '## Passes', ''].join('\n');
+  it('MS1: reads the header fields, run included', () => {
+    const f = parseReviewFields(review('verdict: attest', 'tier: attested', 'round: 2', 'sampled: yes', 'run: auto', 'live-check: owed'));
+    expect(f).toEqual({ verdict: 'attest', tier: 'attested', round: '2', sampled: 'yes', run: 'auto' });
+    expect(parseReviewFields(review('verdict: attest', 'run: manual')).run).toBe('manual');
+  });
+  it('reads CRLF text', () => {
+    expect(parseReviewFields(review('verdict: attest', 'run: auto').replace(/\n/g, '\r\n')).run).toBe('auto');
+  });
+  it('a review with no run: line has run null, which counts as manual', () => {
+    const f = parseReviewFields(review('verdict: attest', 'tier: attested'));
+    expect(f.run).toBeNull();
+    expect(runOf(f)).toBe('manual');
+  });
+  it('the template line "run: auto | manual" and other junk are not auto', () => {
+    for (const v of ['auto | manual', 'automatic', 'Auto', 'auto manual', '']) {
+      const f = parseReviewFields(review('verdict: attest', `run: ${v}`));
+      expect(f.run).toBeNull();
+      expect(runOf(f)).toBe('manual');
+    }
+  });
+  it('does not take a run: line from the report body', () => {
+    expect(parseReviewFields(review('verdict: attest') + 'run: auto\n').run).toBeNull();
+  });
+});
+
+describe('sampleDueCommand', () => {
+  const att = (id, run) => ({ id, review: { verdict: 'attest', tier: 'attested', ...(run ? { run } : {}) } });
+  const intents = [att('1', 'auto'), att('2', 'auto'), att('3', 'auto')];
+  it('is null without the flag, so the normal scan runs', () => {
+    expect(sampleDueCommand(['--json'], intents)).toBeNull();
+  });
+  it('prints the decision for the next attested change of that kind', () => {
+    expect(sampleDueCommand(['--sample-due', 'auto'], intents)).toEqual({
+      exit: 0,
+      stdout: 'sample-due auto: nth attested auto change = 4, every 3, sampled: no',
+    });
+    expect(sampleDueCommand(['--sample-due', 'auto'], intents.slice(0, 2)).stdout).toContain('= 3, every 3, sampled: yes');
+  });
+  it('MS3: --exclude leaves the named intent out', () => {
+    expect(sampleDueCommand(['--sample-due', 'auto', '--exclude', '3'], intents).stdout).toContain('= 3, every 3, sampled: yes');
+    expect(sampleDueCommand(['--exclude', '3', '--sample-due', 'auto'], intents).stdout).toContain('= 3,');
+  });
+  it('exits 2 with a usage line when the value is missing or unknown', () => {
+    for (const args of [['--sample-due'], ['--sample-due', '--json'], ['--sample-due', 'bot'], ['--sample-due', 'auto', '--exclude']]) {
+      const r = sampleDueCommand(args, intents);
+      expect(r.exit).toBe(2);
+      expect(r.stderr).toMatch(/usage: sdlc:scan -- --sample-due <auto\|manual>/);
+      expect(r.stdout).toBeUndefined();
+    }
   });
 });

@@ -77,8 +77,11 @@ and in `intents/README.md` / `REVIEW-POLICY.md` win if they disagree.
   plan, spawn, implement, review, and rework, for at most three review
   rounds. The owner's `/auto <id>` is a request to record that intent's
   `plan_approved` and nothing else (`intents/README.md` → "Who edits what").
-  It stops for the owner's questions, a "Needs decision:" finding, the live
-  check, a CRITICAL finding or any red it cannot trace, and ends at "ready:
+  It stops for the owner's questions, a "Needs decision:" finding, an
+  `escalate` verdict (the owner reads the diff; the next `/auto <id>` goes
+  on), a spec or plan amendment, running out of rounds, the live check, a
+  CRITICAL finding, any red it cannot trace, a re-check mismatch, a worktree
+  held by another session or an agent error, and ends at "ready:
   `/ship <id>`"; it never ships, and never records `spec_accepted` or
   `live_checked`. A stop shows in `npm run sessions` as `auto · r<n> · <reason>`.
 - An agent records a gate (`metadata.yml`) only on the owner's request in
@@ -141,7 +144,8 @@ npm run sessions -- --log 30    # the raw event tail
   `intent_accepted` for adjustment/experiment): a background
   `heraklios-implementer` agent working in the worktree. With a gate missing
   it hands over as before. On completion the coordinator reports and offers
-  `/review`; it never runs it unprompted, records a gate or merges.
+  `/review`; outside an `/auto <id>` run (`.claude/skills/auto/SKILL.md`) it
+  never runs it unprompted, and it never records a gate or merges.
 - **A launched implementer is not a session in `npm run sessions`.** Hooks
   run per session and file events under `CLAUDE_PROJECT_DIR`, so the
   implementer files none under the worktree (its row shows `no events`) and

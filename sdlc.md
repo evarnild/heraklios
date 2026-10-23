@@ -112,9 +112,12 @@ to 5 without a prompt between them, and ends at step 6's door:
   "Needs rework:" (mechanical) goes back to the implementer; one marked
   "Needs decision:" stops the run. At most three review rounds, counting
   rounds after a failed live check.
-- **It stops** for your questions, a decision, a live check owed, a
-  CRITICAL finding, a red it cannot trace, a mismatch in the re-check, an
-  agent error, or a fourth open session. Each stop writes `auto_round` and
+- **It stops** for your questions, a decision, an `escalate` verdict (you
+  read the diff; your next `/auto <id>` goes on to the live check or the
+  ship, with no new round), a spec or plan amendment, running out of rounds,
+  a live check owed, a CRITICAL finding, a red it cannot trace, a mismatch
+  in the re-check, an agent error, a worktree held by another session, or a
+  fourth open session. Each stop writes `auto_round` and
   `auto_stopped` into `metadata.yml`, shows in `npm run sessions` and
   `npm run queue` as `auto · r<n> · <reason>`, and sends a push notification
   when the session has the tool.

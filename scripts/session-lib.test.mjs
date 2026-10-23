@@ -9,6 +9,7 @@ import {
   formatStatusTable,
   gateSummary,
   latestEventByWorktree,
+  metadataColumns,
   notificationState,
   parseEvents,
   parseWorktreeList,
@@ -325,6 +326,16 @@ describe('autoSummary (spec §50 B12)', () => {
     const lines = formatStatusTable([row], Date.now()).split('\n');
     expect(lines[0]).toMatch(/gates\s+auto\s+±main/);
     expect(lines[2]).toMatch(/I·S·P\s+auto · r2 · live check\s+\+1\/-0/);
+  });
+});
+
+describe('metadataColumns (a sessions row)', () => {
+  it('MS2: carries status, gates and the auto summary from the metadata', () => {
+    const m = { type: 'fix', status: 'in-review', intent_accepted: '2026-10-24', plan_approved: '2026-10-24', auto_authorized: '2026-10-24', auto_round: '2', auto_stopped: 'live check owed' };
+    expect(metadataColumns(m)).toEqual({ status: 'in-review', gates: 'I·P', auto: 'auto · r2 · live check owed' });
+  });
+  it('is empty for a worktree without an intent', () => {
+    expect(metadataColumns(null)).toEqual({ status: null, gates: '', auto: '' });
   });
 });
 

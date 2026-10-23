@@ -12,7 +12,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { GATE_FIELDS, parseMetadata } from './intent-check-lib.mjs';
-import { artefactOrigins, gateShares, metadataProblems, qualityByRun, qualityByTier, sampleDue } from './scan-lib.mjs';
+import { artefactOrigins, gateShares, metadataProblems, qualityByRun, parseReviewFields, qualityByTier, sampleDueCommand } from './scan-lib.mjs';
 
 const args = process.argv.slice(2);
 const flag = (name) => {
@@ -54,8 +54,7 @@ if (existsSync('intents')) {
     let review = null;
     if (files.includes('review.md')) {
       const text = readFileSync(join(path, 'review.md'), 'utf8');
-      const field = (k) => new RegExp(`^${k}:\\s*(\\S+)`, 'm').exec(text)?.[1] ?? null;
-      review = { verdict: field('verdict'), tier: field('tier'), round: field('round'), sampled: field('sampled'), run: field('run') };
+      review = parseReviewFields(text);
     }
     const followsUp = typeof meta.follows_up === 'string' ? meta.follows_up : null;
     const merged = typeof meta.merged === 'string' ? meta.merged : null;
@@ -64,16 +63,11 @@ if (existsSync('intents')) {
   }
 }
 // --- `--sample-due`: the sampling rule, nothing else -----------------------
-const sampleRun = flag('--sample-due');
-if (sampleRun !== undefined) {
-  if (!['auto', 'manual'].includes(sampleRun)) {
-    console.error('--sample-due takes auto or manual');
-    process.exit(2);
-  }
-  const reviews = intents.filter((i) => i.review).map((i) => ({ id: i.id, ...i.review }));
-  const s = sampleDue({ reviews, run: sampleRun, excludeId: flag('--exclude') ?? null });
-  console.log(`sample-due ${sampleRun}: nth attested ${sampleRun} change = ${s.nth}, every ${s.every}, sampled: ${s.due ? 'yes' : 'no'}`);
-  process.exit(0);
+const sampleDueOut = sampleDueCommand(args, intents);
+if (sampleDueOut) {
+  if (sampleDueOut.stderr) console.error(sampleDueOut.stderr);
+  if (sampleDueOut.stdout) console.log(sampleDueOut.stdout);
+  process.exit(sampleDueOut.exit);
 }
 const countBy = (xs, key) => xs.reduce((acc, x) => ((acc[x[key] ?? 'unset'] = (acc[x[key] ?? 'unset'] ?? 0) + 1), acc), {});
 const stamped = intents.filter((i) => Object.values(i.stamps).some(Boolean)).length;
