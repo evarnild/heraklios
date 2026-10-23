@@ -36,6 +36,19 @@ test('the « and » buttons clear and fill a unit type, and dim when they would 
   expect(b.total).toBe(50);
   expect(b.dimmed[first.id]).toEqual({ clear: false, fill: true });
 
+  // A second row, while archers hold 10: » and « change only their own type.
+  const other = UNIT_TYPES[3]!; // fantassins-lourds, 10 pt, max 8
+  expect(other.id).toBe('fantassins-lourds');
+  const only = (held: Record<string, number>) => ({ ...Object.fromEntries(UNIT_TYPES.map((u) => [u.id, 0])), ...held });
+  await clickButton(page, '»', 3);
+  b = await builder(page);
+  expect(b.counts).toEqual(only({ [first.id]: 10, [other.id]: 8 }));
+  expect(b.total).toBe(130);
+  await clickButton(page, '«', 3);
+  b = await builder(page);
+  expect(b.counts).toEqual(only({ [first.id]: 10 }));
+  expect(b.total).toBe(50);
+
   // « on archers clears them and dims « again.
   await clickButton(page, '«', 0);
   b = await builder(page);
