@@ -2,7 +2,7 @@
 id: 52
 slug: orchestrator-ui
 type: feature
-status: accepted
+status: in-review
 title: Orchestrator UI to manage intents and their Claude sessions
 review_tier: reviewed
 intent_accepted: 2026-10-23 by-agent    # owner: "accept intent 52"

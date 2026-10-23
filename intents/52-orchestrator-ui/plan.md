@@ -277,3 +277,56 @@ Re-read on `main` at `89354f0`.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-10-24 — all six subtasks
+
+Commits: `e19a350` (1, `sessions --json`), `10a9bc5` (2, pure logic),
+`1ef6125` (3, server), `5e01015` (4, session manager + SDK dependency),
+`a2cbb1e` (5, page), `e8a2f3f` (6, CLI, npm script, eslint exemption, docs).
+`npm run verify` green after each: 60 test files, 1087 tests (was 57 / 995
+before the change; +3 files in `tools/orchestrator/`, +1 case group in
+`session-lib.test.mjs`); lint 21 warnings, unchanged cap, no warning added or
+removed; the build output has nothing from `tools/`. `npm ci --dry-run` is
+clean with the SDK in the lockfile.
+
+Shipped: `npm run sessions -- --json` (`sessionsData`); `tools/orchestrator/`
+with `orchestrator-lib.mjs` (nextStep, gateAllowed, gateWrite, foreignHost,
+foreignOrigin, roleLaunch, waitingOnOwner, parseCliArgs), `state.mjs`,
+`server.mjs` + `actions.mjs` + `session-routes.mjs`, `sdk-sessions.mjs`,
+`node-io.mjs`, `orchestrator.mjs`, `public/{index.html,app.js,style.css}`;
+`npm run orchestrator`; `tools/**/*.test.mjs` in vitest's include;
+`no-console` off for `orchestrator.mjs` only; CLAUDE.md, `intents/README.md`
+and README.md as the subtask says.
+
+Dependency why line: `@anthropic-ai/claude-agent-sdk` 0.3.309 (exact),
+devDependency: headless sessions with a `canUseTool` permission callback for
+B5/B6, which the `claude` CLI cannot give (no programmatic answer path). The
+API read from the installed `sdk.d.ts` matches the plan (query, interrupt,
+canUseTool, abortController, settingSources omitted, AskUserQuestion answered
+through `updatedInput.answers`, question text -> answer).
+
+Checked by starting a server (read-only, then stopped): a scratch script (not
+in the repo) mounted the real handler and `node-io` on port 5298 with this
+worktree as root and no session manager; `GET /` 200, `GET /api/state` 200
+with the intents and worktrees, a foreign `Host` 403, a POST with a foreign
+`Origin` 403. `orchestrator.mjs` itself refuses a bad `--port` and a run from
+a worktree. No spawn, gate, ship or SDK session was started.
+
+Divergences from the plan:
+- `nextStep` also takes `files: { spec, plan }` (it must know whether
+  spec.md/plan.md exist), and returns `owner: 'none'` for finished intents.
+- `gateAllowed` returns `{ ok, reason }`, not a boolean.
+- A POST without any `Origin` is refused (403), stricter than
+  `server/saveApi.ts`; spec B2 says a request that changes something carries
+  one. `foreignHost` also checks the server's own port when given.
+- The server was split into `server.mjs`, `actions.mjs` and
+  `session-routes.mjs` (and `state.mjs`) to stay under the function-length
+  guardrail; session routes live in the same commit as the server (subtask 3)
+  and are tested there with a fake manager.
+- Locks are per intent (plus `main` for ship and a gate on `main`), and "ship
+  refuses without a prior dry-run" is a per-process memory of a successful
+  dry-run for that id, consumed by the real ship.
+- A live-check reviewer prompt for the implementer role adds the worktree's
+  `CLAUDE.local.md` brief when it exists.
+- Not done, as the spec says: no interactive terminal (B7). The live check
+  (AC4) is the owner's.
