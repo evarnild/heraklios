@@ -103,6 +103,19 @@ type needs were recorded.
   `heraklios-reviewer`, any `Agent`-tool worker) never records a gate: your
   request is not in its conversation. A spawned session is a conversation
   with you, so the rule applies there.
+- **`/auto <id>`** (§50, spec B1 and B3). Your `/auto <id>` message in the
+  coordinator conversation, for an intent whose `intent_accepted` is
+  recorded, is a request to record that intent's `plan_approved`, and no
+  other gate. The coordinator records it as `<date> by-agent` once the plan
+  is drafted, and only if the plan finds the spec complete (`/build-plan`
+  step 3), with a comment naming the authorisation, for example
+  `# auto: owner "/auto 50" (auto_authorized 2026-10-24)`. It covers that one
+  intent and that run: a second `/auto <id>` is a new request for the same
+  gate and nothing wider. It is not a standing instruction. `intent_accepted`,
+  `spec_accepted` (a feature's run stops once for it) and `live_checked`
+  stay yours, and so does `/ship` (`REVIEW-POLICY.md` → "Merging"). A
+  subagent still never records a gate; the coordinator writes this one, in
+  the conversation that holds your message.
 - **The decision stays yours.** For `live_checked:` you run the check; an
   agent records it only after you say you ran it. An agent's own browser run
   or a passing `npm run e2e` is never the check.
@@ -114,6 +127,12 @@ type needs were recorded.
   `sdlc:scan` lists bad values under "Metadata problems" and counts owner
   and agent gates. `merged:` is bookkeeping, not a gate; `REVIEW-POLICY.md`
   → "Merging" governs it.
+- **The auto fields** (spec B1 and B12). `auto_authorized: <date>` records the
+  `/auto <id>` message above, with a bare date or `<date> by-agent` like a
+  gate; `auto_round: <1-3>` and `auto_stopped: <reason>` record where a
+  stopped run stands. None of them is a gate: nothing waits on them, and
+  `check:intent` only rejects a malformed value. Write the reason without
+  ` #`, which starts a comment.
 - **The implementer agent** may only append to the `## Progress` section at
   the end of its item's `plan.md` and set `status: in-review` when done.
 - **A spawned session** (`npm run spawn`, `CLAUDE.md` → "Parallel

@@ -1,0 +1,251 @@
+---
+name: auto
+description: Carry one accepted heraklios intent from acceptance to a merge-ready branch without a prompt between the steps, stopping only for the owner's questions and decisions, the feature's spec acceptance, the live check and the ship. Use only when the owner types /auto <id> in the coordinator session. Invoke as /auto <id>.
+metadata:
+  owner: evarnild
+  version: 0.1.0
+  scope: repository
+  status: experimental
+  review-tier: reviewed
+---
+
+# /auto — one intent, from acceptance to "ready: /ship"
+
+You are the **coordinator** (the main checkout, on `main`). This skill runs
+the existing steps in order: `/spec`, the plan, `/spawn`, the implementer,
+`/review` and rework. The design is `intents/50-sdlc-auto-mode/spec.md`; the
+B-numbers below are its behaviours. Read `intents/README.md` → "Who edits
+what" and `REVIEW-POLICY.md` before you start, every time: they change.
+
+## What the owner's message authorises
+
+`/auto <id>` is the owner's request, in this conversation and for intent
+§id only, to record **that intent's `plan_approved`** (spec B1, B3). That is
+the whole authorisation. It is not a standing instruction, it does not carry
+to another id, and it covers none of these, which stay the owner's:
+
+- `intent_accepted` (the run starts from an accepted intent);
+- `spec_accepted` (a feature stops once for it, step 2);
+- `live_checked` (the owner runs the check, step 7);
+- `/ship` and every merge, push, branch deletion and worktree removal.
+
+You never run `/ship` or `npm run ship` except `npm run ship -- <id>
+--dry-run` at step 8. A subagent never records a gate: you write the one gate
+this skill allows, in this conversation.
+
+## 0. Check the preconditions, and stop with the reason if one fails
+
+- You are the coordinator: `git rev-parse --show-toplevel` is the first
+  entry of `git worktree list`, and `git branch --show-current` is `main`.
+- The owner gave an id. With no id, stop and say so; do not guess one from
+  `npm run queue`.
+- `intents/<id>-*/metadata.yml` exists (on `main`, or on the intent's
+  branch in its worktree once spawned: read the worktree's copy then) and
+  `intent_accepted` is recorded, as a bare date or `<date> by-agent`. If
+  not, stop: a run starts from an accepted intent (`/intent` drafts one).
+- `npm run sessions` shows fewer than three other open intent sessions or
+  runs (`CLAUDE.md`, "about three"). If a fourth would open, stop (B11).
+- The worktree, once it exists, is not held by a session you didn't start
+  (`npm run sessions`: its row is not `working`, `idle` or `needs you`). If it
+  is, stop (B11).
+
+## 1. Start or resume (B1, B13)
+
+1. Read `metadata.yml`: `auto_authorized`, `auto_round`, `auto_stopped`.
+2. Write `auto_authorized: <today> by-agent`, with the owner's words in a
+   comment, the way a gate is recorded:
+   `auto_authorized: 2026-10-24 by-agent    # owner: "/auto 50"`.
+   This is written on every `/auto <id>`, including a second one that
+   resumes a stopped run; the owner's new message is the new request.
+3. Clear `auto_stopped` (leave it empty). Keep `auto_round`: a resumed run
+   continues from the recorded round and does not get a fresh budget (B9).
+4. Commit it (on `main` before the branch exists, on the branch after), with
+   a subject `§<id>: auto run started` or `§<id>: auto run resumed`.
+
+Where the metadata lives: write only while no implementer is running in the
+worktree. All of this skill's writes happen at a stop, a start or a round
+boundary, never while the implementer works.
+
+Then pick up at the first step whose work is not done: spec (feature), plan,
+worktree, build, review loop. Never redo a recorded gate or a finished step.
+
+## 2. The spec stop — features only (B2)
+
+A fix or refactor has no spec, and an adjustment or experiment has no plan:
+skip to step 3 (fix, refactor) or step 4 (adjustment, experiment).
+
+- If `spec.md` is missing, draft it as `/spec` does, including its single
+  question round. If it asks the owner questions, **stop** with
+  `auto_stopped: spec questions` and wait.
+- With the spec drafted and `spec_accepted` not recorded, **stop once**:
+  `auto_stopped: spec drafted, waiting for spec_accepted`. Report the
+  spec's weak points as `/spec` does.
+- `spec_accepted` is the owner's, recorded as today: their own date, or
+  `<date> by-agent` on their yes **to this stop's message**. The `/auto`
+  authorisation does not cover it. On the yes, record it, then continue by
+  yourself to step 3.
+
+## 3. The plan (B3)
+
+Skip when `plan_approved` is already recorded, or for an adjustment or
+experiment.
+
+1. Draft the plan as `/build-plan` does. If `/build-plan` step 3 finds the
+   spec (or, for a fix or refactor, the intent) incomplete, **stop** with
+   `auto_stopped: plan found the spec incomplete`. Never decide a design
+   point.
+2. Otherwise record, in `metadata.yml`, only when step 1 recorded
+   `auto_authorized` for this id in this run (and, for a feature,
+   `spec_accepted` is recorded):
+   `plan_approved: <today> by-agent    # auto: owner "/auto <id>" (auto_authorized <date>)`.
+   The `by-agent` form is the one `check:intent` accepts; do not invent any
+   other value.
+3. Commit the plan and the metadata on `main`: `§<id>: plan drafted (by
+   /build-plan)` and `§<id>: plan approved (auto: owner "/auto <id>")`.
+
+## 4. Build (B4)
+
+Run `/spawn <id>` (its steps 1 to 5): check the load, `npm run spawn --
+<id>`, then launch `heraklios-implementer` with `run_in_background: true` in
+the worktree. The brief carries what `/spawn` step 5 lists and the safety
+rules (step 9). Wait for it; you are notified when it ends. Do not poll.
+
+## 5. The review loop, at most three rounds (B5, B9)
+
+A round is one `/review`. The rounds are counted across the whole run,
+including a rework after a live-check defect (step 7), and across resumed
+sessions (`auto_round`).
+
+For each round `n` (the recorded `auto_round`, plus one):
+
+1. **The cap.** If `n` would be 4, **stop** with
+   `auto_stopped: out of rounds, open findings below` and list the open
+   findings. The intent continues by hand.
+2. Write `auto_round: <n>` into the branch's `metadata.yml` and commit it
+   (the implementer has finished; the worktree is yours).
+3. Delegate `/review` to `heraklios-reviewer`, telling it `run: auto` and
+   that every finding needing rework must say "Needs rework:" or "Needs
+   decision:" (`REVIEW-POLICY.md` → "The report").
+4. **Re-check (step 6) before writing `review.md`.** Then write it with
+   `run: auto` and commit it on the branch.
+5. Act on the verdict:
+   - **`escalate`**: always stop, `auto_stopped: escalate, owner reads the
+     diff`. The Reviewed tier needs the owner's diff read.
+   - **`rework`**: every finding needing rework must be "Needs rework:"
+     (step 7 defines mechanical). Resume the implementer with the findings
+     (same agent if it can be resumed, else a new `heraklios-implementer`
+     with the findings and the same brief), wait for it, then start round
+     `n+1` at item 1. A single "Needs decision:" finding stops the run.
+   - **`attest`**: `live-check: owed` goes to the live-check stop (step 7);
+     `live-check: not-needed` goes to the ship stop (step 8).
+
+## 6. The coordinator's re-check (B6)
+
+Before writing each round's `review.md`, re-run in the worktree, yourself:
+
+- `npm run verify` and `npm run check:intent`;
+- `npm run e2e` when the changed paths call for it (`src/scenes/**`,
+  `src/ui/**`, `src/main.ts`, `e2e/**`);
+- **every mutant the review lists as surviving**;
+- **every mutant the round's resolutions say a rework now kills**, from the
+  implementer's report and the previous round's findings.
+
+For a mutant: back up the target file by copy, apply the one-line change, run
+the full suite, restore by copy (never `git checkout --`), and end with `git
+status --short` clean.
+
+Compare what you got with what the reviewer and the implementer quoted:
+files, tests, lint warnings, e2e passes, and each mutant's result (killed or
+survived, and by which test). **Any mismatch stops the run**, with
+`auto_stopped: re-check mismatch` and every mismatch listed in the stop
+report. Do not write a green `review.md` over a mismatch.
+
+Put the results in the report's "Verified myself" section, each line marked
+**Coordinator, re-run**, as `/review` does for the commands it re-runs.
+
+## 7. The stop rules (B7, B8, B11)
+
+**Needs rework or needs decision (B7).** "Needs rework:" is mechanical: the
+spec, the plan or a test determines the fix. "Needs decision:" is the
+choice between behaviours, or a change to what the spec or plan says. Stop
+on any "Needs decision:" finding, with `auto_stopped: decision needed`. Also
+stop when a mechanical fix would edit `spec.md` or `plan.md` above its
+Progress marker: any amendment is the owner's (`auto_stopped: spec or plan
+amendment needed`). If you doubt a finding's kind, treat it as a decision.
+
+**The live check (B8).** On `live-check: owed`, stop with `auto_stopped: live
+check owed`, and give the owner the report's `## Live check` steps. The
+owner runs them.
+- Pass: the owner says so, and `live_checked` is recorded as today, on the
+  owner's request (`ship` also takes it with `--live-checked`). Then
+  continue to step 8.
+- Defect: the owner describes it and says to rework. Resume the implementer
+  with that description and continue the loop at step 5 (it is the next
+  round, against the same cap).
+
+**Other stops (B11).** Stop on: a CRITICAL finding (`critical finding`); a
+red `verify` or `check:intent` you cannot trace to a finding the implementer
+is fixing (`red verify` or `red check:intent`); an agent error or a stopped
+agent (`agent error`); a worktree held by a session you didn't start
+(`worktree held by another session`); a fourth open intent session or run
+(`too many sessions`).
+
+## 8. The ship stop (B10)
+
+The run ends at a merge-ready branch: the verdict is `attest`, the live
+check is recorded or `not-needed`, and `npm run ship -- <id> --dry-run`
+(run from the main checkout) shows nothing in the way. It changes nothing
+and does not even fetch. Report:
+
+> ready: `/ship <id>`
+
+with the verdict, tier, round count, the dry-run's report, and the
+sampling line (`sampled: yes` means a post-merge full read is due). If the
+dry-run shows something in the way, stop with `auto_stopped: ship dry-run
+blocked` and relay it. Set `auto_stopped: ready for /ship` and commit it, so
+`npm run sessions` shows the end state.
+
+Never run `/ship`, `npm run ship` without `--dry-run`, or any merge, push,
+branch deletion or worktree removal, even if the owner seems to imply it:
+only a `/ship <id>` message does.
+
+## 9. Every stop is visible (B12)
+
+On each stop, before you report:
+
+1. Write `auto_round: <n>` and `auto_stopped: <reason>` into the branch's
+   `metadata.yml` (on `main` before the branch exists) and commit it,
+   subject `§<id>: auto stopped: <reason>`. **No `#` in the reason**: a `#`
+   starts a comment in `metadata.yml` and would cut the reason short. Keep it
+   short; the stop report carries the detail.
+2. If your session has a push-notification tool, send one naming the intent
+   and the reason. If not, `npm run sessions` is enough.
+3. Report to the owner: the reason, what is open, and exactly what to say or
+   do next (for example "answer the question, then `/auto <id>`").
+
+`npm run sessions` and `npm run queue` then show `auto · r<n> · <reason>`.
+The run lives in this coordinator session (B13): closing it pauses the run,
+and a later `/auto <id>` resumes from the recorded `auto_round` and
+`auto_stopped`.
+
+## 10. The safety rules in every brief (and kept by you)
+
+Put these in the brief of each agent you launch, and keep them yourself:
+
+- never run `npm run ship` (the coordinator alone runs `--dry-run` at step
+  8), never merge, push, rebase or delete a branch or worktree;
+- never record a gate: only this skill's coordinator writes `plan_approved`
+  (step 3), `auto_authorized`, `auto_round` and `auto_stopped`;
+- never touch a real `saves/` folder;
+- never raise the lint warning cap in `package.json`;
+- restore mutants by copy, never `git checkout --`, and finish with `git
+  status --short` clean;
+- never kill a process the run didn't start;
+- the implementer sets `status: in-review` and appends to `## Progress` only.
+
+## 11. Counting (B14)
+
+Every `review.md` of a run says `run: auto`. `sampled:` comes from
+`npm run sdlc:scan -- --sample-due auto --exclude <id>`: every third
+attested auto-run change gets a post-merge full read. `npm run sdlc:scan`
+splits follow-up fixes and reverts by tier and run kind.

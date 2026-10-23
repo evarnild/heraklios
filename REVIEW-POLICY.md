@@ -49,13 +49,18 @@ show that it runs, so moving them to Reviewed would not close the gap.
 
 ### Against rubber-stamping
 
-- **Sampling.** Every fifth attested change (1 in 5 — volume here is low, so
-  1 in 20 would never fire) gets a full diff read after merge. Mark it
+- **Sampling.** Every fifth attested manual change, and every third attested
+  auto-run change (a review whose header says `run: auto`; the two kinds are
+  counted separately, and a review with no `run:` line counts as manual),
+  gets a full diff read after merge (1 in 5 — volume here is low, so
+  1 in 20 would never fire; 1 in 3 for auto, which has no owner prompt
+  between its steps). `npm run sdlc:scan -- --sample-due <auto|manual>
+  --exclude <id>` says whether the change under review is the one. Mark it
   `sampled: yes` in its `review.md`. Anything you find that the checker
   missed is a defect in the checker: add a pass or a rule here, or move the
   path to Reviewed.
 - **Quality per tier.** `npm run sdlc:scan` (and so `/grid`) counts, per
-  tier, follow-up fixes — fix intents whose `follows_up:` names the
+  tier and per run kind (`auto` | `manual`), follow-up fixes — fix intents whose `follows_up:` names the
   intent whose change caused the defect, which `/intent` sets when the cause
   is known — and
   reverts whose subject names the reverted `§`. If attested changes need
@@ -204,6 +209,7 @@ tier: automated | attested | reviewed
 reviewed-commit: <hash>
 round: <n>
 sampled: no
+run: auto | manual
 live-check: owed | not-needed
 
 ## Passes
@@ -217,6 +223,7 @@ live-check: owed | not-needed
 
 ## Findings
 - **HIGH** `src/engine/foo.ts:42` — <what is wrong>. Needs rework: <minimal fix>.
+- **MEDIUM** `scripts/foo.mjs:9` — <…>. Needs decision: <the choice>.
 - **LOW** `README.md:12` — <…>. Worth a look.
 
 ## Not checked
@@ -232,6 +239,16 @@ live-check: owed | not-needed
 ## Verified myself vs. taken on trust
 - <which commands actually ran, with results>
 ```
+
+`run:` says how the change was driven: `auto` when `/auto` called the
+review, otherwise `manual`.
+
+A finding that needs rework says which kind (spec §50 B7). **"Needs rework:"**
+is mechanical: the spec, the plan or a test determines the fix. **"Needs
+decision:"** names the choice: the fix picks between behaviours, or changes
+what the spec or plan says. Both give the verdict `rework`; an auto run
+resumes the implementer on the first kind only and stops for the owner on the
+second.
 
 `verdict: attest` means "no findings needing rework — approve if you agree".
 `rework` lists what must change; the implementer fixes it and `/review` runs

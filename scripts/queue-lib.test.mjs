@@ -101,7 +101,7 @@ describe('queueLine and formatQueue', () => {
     const auto = entry(6, 'in-progress', { auto_authorized: '2026-10-24 by-agent', auto_round: '1', auto_stopped: 'spec' });
     expect(queueLine(auto)).toContain('auto · r1 · spec');
     expect(queueLine(entry(7, 'in-progress'))).not.toContain('auto');
-    expect(queueLine(entry(7, 'in-progress'))).not.toMatch(/\s$/); // no empty column left behind
+    expect(queueLine(entry(7, 'in-progress'))).not.toMatch(/ {3,}/); // no empty column left behind
     expect(queueLine(entry(8, 'in-progress', { auto_round: '1', auto_stopped: 'spec' }))).not.toContain('auto');
   });
 

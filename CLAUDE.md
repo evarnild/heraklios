@@ -72,6 +72,15 @@ and in `intents/README.md` / `REVIEW-POLICY.md` win if they disagree.
   `review.md`, `/grid` refreshes `docs/sdlc-grid.md`, `/spawn` and
   `/sessions` run parallel work (below), and `/ship <id>` merges a reviewed
   intent when the owner asks (`REVIEW-POLICY.md` → "Merging").
+- `/auto <id>` (coordinator only) carries one accepted intent through the
+  steps above: spec (a feature stops once, for the owner's `spec_accepted`),
+  plan, spawn, implement, review, and rework, for at most three review
+  rounds. The owner's `/auto <id>` is a request to record that intent's
+  `plan_approved` and nothing else (`intents/README.md` → "Who edits what").
+  It stops for the owner's questions, a "Needs decision:" finding, the live
+  check, a CRITICAL finding or any red it cannot trace, and ends at "ready:
+  `/ship <id>`"; it never ships, and never records `spec_accepted` or
+  `live_checked`. A stop shows in `npm run sessions` as `auto · r<n> · <reason>`.
 - An agent records a gate (`metadata.yml`) only on the owner's request in
   the current conversation, with `by-agent` after the date; a subagent never
   does (`intents/README.md` → "Who edits what").
@@ -119,8 +128,8 @@ npm run sessions -- --log 30    # the raw event tail
   shows as `needs you`; Claude Code's idle "waiting for your input"
   reminder shows as `idle`, but never hides a prompt still waiting on you —
   only your next prompt, the turn ending or the session ending clears it.
-- **Only the coordinator** runs `/spawn`, `/sessions` and
-  `/review`, and sends "main moved, rebase" notices. The owner merges (or
+- **Only the coordinator** runs `/spawn`, `/sessions`, `/review` and
+  `/auto`, and sends "main moved, rebase" notices. The owner merges (or
   asks the coordinator to, per "Merging"), one branch at a time, running
   `npm run verify` on `main` after each merge.
 - **A spawned session** works only on its branch and its intent. Its
