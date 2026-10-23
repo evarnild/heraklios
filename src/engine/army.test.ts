@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validateArmy, emptySelection, defaultArmySelection, ARMY_BUDGET } from './army';
+import { validateArmy, emptySelection, defaultArmySelection, filledCount, ARMY_BUDGET } from './army';
 
 describe('validateArmy', () => {
   it('accepts an army that spends exactly the budget and stays within quantity caps', () => {
@@ -59,5 +59,57 @@ describe('defaultArmySelection', () => {
     expect(result.valid).toBe(true);
     expect(result.totalCost).toBe(ARMY_BUDGET);
     expect(result.remaining).toBe(0);
+  });
+});
+
+describe('filledCount', () => {
+  it('fills archers from an empty selection up to their cap of 10', () => {
+    expect(filledCount(emptySelection(), 'archers')).toBe(10);
+  });
+
+  it('adds what the remaining points allow: 390 spent gives archers +2, quintiremes +0', () => {
+    const selection = emptySelection();
+    selection['elephants'] = 10; // 100
+    selection['triremes'] = 3; // 90
+    selection['biremes'] = 5; // 100
+    selection['phalanges'] = 5; // 75
+    selection['galeres'] = 2; // 20
+    selection['fantassins'] = 1; // 5
+    expect(validateArmy(selection).totalCost).toBe(390);
+    expect(filledCount(selection, 'archers')).toBe(2);
+    expect(filledCount(selection, 'quintiremes')).toBe(0);
+  });
+
+  it('keeps the count when exactly 400 is spent', () => {
+    const selection = defaultArmySelection();
+    expect(validateArmy(selection).remaining).toBe(0);
+    expect(filledCount(selection, 'archers')).toBe(10);
+    expect(filledCount(selection, 'phalanges')).toBe(3);
+  });
+
+  it('never lowers a count when over 400', () => {
+    const selection = emptySelection();
+    selection['elephants'] = 10; // 100
+    selection['triremes'] = 3; // 90
+    selection['biremes'] = 5; // 100
+    selection['phalanges'] = 5; // 75
+    selection['galeres'] = 6; // 60
+    selection['quintiremes'] = 1; // 50 -> 475
+    expect(filledCount(selection, 'galeres')).toBe(6);
+    expect(filledCount(selection, 'archers')).toBe(0);
+  });
+
+  it('keeps a type at its maximum', () => {
+    const selection = emptySelection();
+    selection['quintiremes'] = 1;
+    expect(filledCount(selection, 'quintiremes')).toBe(1);
+  });
+
+  it('does not mutate the selection', () => {
+    const selection = emptySelection();
+    selection['elephants'] = 4;
+    const copy = { ...selection };
+    filledCount(selection, 'archers');
+    expect(selection).toEqual(copy);
   });
 });
