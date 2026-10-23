@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { artefactOrigins, gateShares, metadataProblems } from './scan-lib.mjs';
+import { artefactOrigins, gateShares, metadataProblems, qualityByTier } from './scan-lib.mjs';
 
 const intent = (over = {}) => ({ id: '1', merged: null, gates: {}, ...over });
 
@@ -69,5 +69,37 @@ describe('artefactOrigins', () => {
     const o = artefactOrigins([stamps(undefined, 'heraklios/build-plan@0.1.0')]);
     expect(o['spec.md']).toEqual({ skill: 0, hand: 0, unstamped: 0 });
     expect(o['plan.md']).toEqual({ skill: 1, hand: 0, unstamped: 0 });
+  });
+});
+
+describe('qualityByTier', () => {
+  const rv = (tier, extra = {}) => ({ tier, verdict: 'attest', ...extra });
+  const intents = [
+    { id: 1, type: 'feature', followsUp: null, review: rv('attested') },
+    { id: 2, type: 'refactor', followsUp: null, review: rv('reviewed') },
+    { id: 3, type: 'fix', followsUp: null, review: rv('attested') }, // merged before the window
+    { id: 4, type: 'adjustment', followsUp: null, review: rv('attested') },
+    { id: 5, type: 'feature', followsUp: null, review: null }, // never reviewed
+    { id: 10, type: 'fix', followsUp: '2', review: rv('attested') },
+    { id: 11, type: 'fix', followsUp: '1', review: rv('attested') },
+    { id: 12, type: 'fix', followsUp: '3', review: null },
+    { id: 13, type: 'fix', followsUp: '99', review: null },
+    { id: 14, type: 'feature', followsUp: '1', review: null },
+  ];
+  const outsideWindow = new Set([3]);
+  const mergedInWindow = (i) => !outsideWindow.has(i.id);
+  const reverts = [
+    { subject: 'Revert "§4: tweak"' },
+    { subject: 'Revert §2 merge' },
+    { subject: 'Revert something' },
+    { subject: 'Revert §3' },
+    { subject: 'Revert § 1' },
+  ];
+
+  it('T7: counts changes, follow-ups and reverts per tier (numbers pinned against the pre-move inline code in sdlc-scan.mjs)', () => {
+    expect(qualityByTier({ intents, reverts, mergedInWindow })).toEqual({
+      attested: { changes: 4, followUps: 1, reverts: 2 },
+      reviewed: { changes: 1, followUps: 1, reverts: 1 },
+    });
   });
 });

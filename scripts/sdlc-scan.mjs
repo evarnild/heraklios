@@ -10,7 +10,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { GATE_FIELDS, parseMetadata } from './intent-check-lib.mjs';
-import { artefactOrigins, gateShares, metadataProblems } from './scan-lib.mjs';
+import { artefactOrigins, gateShares, metadataProblems, qualityByTier } from './scan-lib.mjs';
 
 const args = process.argv.slice(2);
 const flag = (name) => {
@@ -100,20 +100,7 @@ const mergedInWindow = (i) => {
   if (!i.merged || !isCommit(i.merged)) return false;
   return git('show', '-s', '--format=%as', i.merged) >= since;
 };
-const tierOf = new Map(intents.filter((i) => i.review?.tier && mergedInWindow(i)).map((i) => [String(i.id), i.review.tier]));
-const perTier = {};
-const bump = (tier, key) => {
-  perTier[tier] ??= { changes: 0, followUps: 0, reverts: 0 };
-  perTier[tier][key] += 1;
-};
-for (const tier of tierOf.values()) bump(tier, 'changes');
-for (const i of intents.filter((x) => x.type === 'fix' && x.followsUp)) {
-  if (tierOf.has(i.followsUp)) bump(tierOf.get(i.followsUp), 'followUps');
-}
-for (const c of reverts) {
-  const id = /§\s?(\d+)/.exec(c.subject)?.[1];
-  if (id && tierOf.has(id)) bump(tierOf.get(id), 'reverts');
-}
+const perTier = qualityByTier({ intents, reverts, mergedInWindow });
 
 const byMonth = {};
 for (const c of changes) {

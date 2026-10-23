@@ -70,3 +70,32 @@ export function artefactOrigins(intents) {
   }
   return out;
 }
+
+/**
+ * Quality per review tier (REVIEW-POLICY.md "Against rubber-stamping").
+ * Only merged changes inside the window count. A follow-up is a fix intent
+ * whose `follows_up:` names the intent whose change caused the defect; it
+ * counts against the tier that change was reviewed at. A revert counts
+ * against the tier of the § its subject names.
+ *
+ * @param {{intents: {id:unknown, type:unknown, followsUp:string|null, review:{tier:string|null}|null}[],
+ *          reverts: {subject:string}[], mergedInWindow: (intent:object) => boolean}} input
+ * @returns {Record<string, {changes:number, followUps:number, reverts:number}>}
+ */
+export function qualityByTier({ intents, reverts, mergedInWindow }) {
+  const tierOf = new Map(intents.filter((i) => i.review?.tier && mergedInWindow(i)).map((i) => [String(i.id), i.review.tier]));
+  const perTier = {};
+  const bump = (tier, key) => {
+    perTier[tier] ??= { changes: 0, followUps: 0, reverts: 0 };
+    perTier[tier][key] += 1;
+  };
+  for (const tier of tierOf.values()) bump(tier, 'changes');
+  for (const i of intents.filter((x) => x.type === 'fix' && x.followsUp)) {
+    if (tierOf.has(i.followsUp)) bump(tierOf.get(i.followsUp), 'followUps');
+  }
+  for (const c of reverts) {
+    const id = /§\s?(\d+)/.exec(c.subject)?.[1];
+    if (id && tierOf.has(id)) bump(tierOf.get(id), 'reverts');
+  }
+  return perTier;
+}
