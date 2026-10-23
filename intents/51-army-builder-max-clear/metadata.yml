@@ -2,7 +2,7 @@
 id: 51
 slug: army-builder-max-clear
 type: feature
-status: accepted
+status: in-review
 title: The army builder fills a unit type up to what the budget allows, or clears it, in one click
 review_tier:
 intent_accepted: 2026-10-23 by-agent    # owner: "yes /auto 51"
