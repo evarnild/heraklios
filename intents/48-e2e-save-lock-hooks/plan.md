@@ -199,3 +199,74 @@ copy.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-10-22 — all six subtasks
+
+Commits: `65095af` (1, createDirLock, vitest includes `e2e/*.test.ts`, Playwright
+`testMatch` `**/*.spec.ts`, T3-T5), `e4756d9` (2, T1/T2/T6 as `it.fails`),
+`7af0112` (3, `withSaveLockHeld`, owner token, `STALE_MS` 35 s, T7),
+`fb79424` (4, hooks). This entry is the sixth.
+
+Tests: 54 files, 909 tests (902 on main, 7 new in `e2e/savesDir.test.ts`;
+53 files on main). Lint 21 warnings, cap unchanged. `npx playwright test --list`
+shows 10 tests in 8 files, all `*.spec.ts`.
+
+Subtask 2, red before the fix (stub `withHeld` = cleanup then release; no
+owner): T1 `expected true to be false` (lock folder left after a throwing
+cleanup), T2 `expected "spy" to not be called at all, but actually been called
+1 times`, T6 `expected false to be true` (the new holder's lock removed by the
+old holder's release). T3-T5 passed. Green after subtask 3.
+
+P1 (subtask 4; `save-import.spec.ts --repeat-each=4 --workers=2`, local edit
+of `ACQUIRE_TIMEOUT_MS`, restored by copy, `savesDir.ts` identical to the
+commit). The scenario holds the lock only about 3-4 s and the holder's slot
+file exists for about 1 s, so the timeout had to land in that window; a sweep
+over 1 s, 1.5, 2, 2.2, 2.5, 2.7, 2.9, 3.0, 3.2, 3.4 and 3.7 s found it at
+3.4 s. Old hooks at 3.4 s: 2 failed, 2 passed: one lock timeout and one
+`the file slot now holds the save ... Expected: true Received: false`
+(save-import.spec.ts:66, the holder's slot-5.json deleted by the worker that
+timed out). Other timeouts gave only lock-timeout failures, so the red is
+timing-dependent (1 sweep point of 11). New hooks at 3.4 s, three runs: each
+1 failed (lock timeout only), 3 passed. Outputs kept in the scratchpad
+(`p1-red.txt`, `p1-green-1..3.txt`).
+
+Subtask 5, stress, `save-import` + `save-load` `--repeat-each=10 --workers=2`,
+five runs in a row: 20 passed (1.1m), 20 passed, 20 passed, 20 passed,
+20 passed (1.2m). Then `npm run e2e`: 10 passed (31.1s). The
+`save-load.spec.ts:57` failure did not recur in 50 runs of it here (100
+scenario runs across the five); not reproduced, which is not the same as
+fixed. No cause in `src/` or `server/` was found.
+
+Mutants, each against the full `npx vitest run`, `savesDir.ts` restored by
+copy after each: all 11 killed. Release outside `finally` (T1); drop the
+`!held` guard (T2); `held` before `mkdir` (T2); no timeout check (T2, T3, T5);
+takeover removed (T4, T6); comparison flipped (T2-T6); `staleMs` ignored
+(T4, T6); release ignoring owner (T6); acquire not writing the owner (T1, T6);
+`STALE_MS` 60 s and 25 s (T7). `git status` clean of mutants afterwards.
+
+Divergences: T7 pins the 30 s test timeout as a constant with a comment, not
+imported from `playwright.config.ts` (not tried). Subtask 1's `withHeld` was a
+deliberate unguarded stub so T1/T2 could be run red. `releaseSaveLock` is no
+longer exported (nothing used it). The owner is a file `owner` inside the lock
+folder; a release finding no owner file does nothing.
+
+### 2026-10-23 - review round 1 rework
+
+Changes in `e2e/savesDir.test.ts` only (`e2e/savesDir.ts` unchanged):
+T8 (the MEDIUM: A acquires and releases through `withHeld`, B acquires, A's
+`acquire(100)` rejects, A's `withHeld(spy)` leaves the spy uncalled and B's
+folder in place), T9 (fake timers: `acquire()` with no argument rejects after
+`ACQUIRE_TIMEOUT_MS`, kills the 60 s default), T10 (release with the owner
+file missing leaves the folder; done, the optional item), and T7 now reads
+the test timeout from `playwright.config.ts` (`config.timeout`), which loads
+cleanly in vitest. Tests: 54 files, 912 tests; lint 21.
+
+Mutants re-run against the full `npx vitest run`, `savesDir.ts` restored by
+copy, `git status` clean of mutants: M7 (delete `held = false;` in release)
+killed by T8; default timeout 60 s killed by T9; missing owner removes the
+folder killed by T10; release ignoring owner T6; release outside `finally`
+T1; withHeld guard dropped T2, T8; held before mkdir T2, T8; no timeout check
+T2, T3, T5, T8, T9; takeover removed T4, T6; comparison flipped T2-T6, T8, T9;
+acquire not writing owner T1, T6, T8; `STALE_MS` 60 s and 25 s T7. Survivor:
+`if (!held) return` dropped from `release`, equivalent (the owner check
+already stops a non-holder), as the review noted. `npm run e2e`: 10 passed.

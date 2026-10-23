@@ -21,7 +21,7 @@ import {
   waitLoadOnRowOf,
   waitSavePanelLoaded,
 } from './helpers';
-import { SAVES_DIR, acquireSaveLock, releaseSaveLock } from './savesDir';
+import { SAVES_DIR, acquireSaveLock, withSaveLockHeld } from './savesDir';
 
 const DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]] as const;
 const SAVE_LOAD = '💾 Save / Load';
@@ -33,7 +33,7 @@ test.beforeEach(async () => {
   await acquireSaveLock(); // one save scenario at a time across the workers
   rmSync(SLOT_1_FILE, { force: true });
 });
-test.afterEach(() => releaseSaveLock());
+test.afterEach(() => withSaveLockHeld(() => {})); // release only if held, always
 
 /**
  * The state minus the game clock: `elapsedMs` ticks every frame while the

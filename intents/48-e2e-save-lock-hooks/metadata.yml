@@ -2,7 +2,7 @@
 id: 48
 slug: e2e-save-lock-hooks
 type: fix
-status: accepted
+status: in-review
 title: e2e save-lock hooks touch nothing unless they hold the lock, and always release it
 review_tier:
 intent_accepted: 2026-10-22 by-agent    # owner: "Accept 48"
