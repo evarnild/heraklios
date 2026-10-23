@@ -8,7 +8,7 @@ review_tier:
 intent_accepted: 2026-10-23 by-agent    # owner: "accept 49"
 spec_accepted: 2026-10-23 by-agent    # owner: "49 spec accepted, build-plan"
 plan_approved: 2026-10-23 by-agent    # owner: "yes and spawn 49" (plan 402d4be)
-live_checked:
+live_checked: 2026-10-23 by-agent    # owner: "49 live check ok"
 merged:
 follows_up:
 links:
