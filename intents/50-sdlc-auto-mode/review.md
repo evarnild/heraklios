@@ -3,243 +3,252 @@
 
 verdict: rework
 tier: reviewed
-reviewed-commit: 69ee2ca
-round: 1
+reviewed-commit: 6dcd2c1
+round: 2
 sampled: no
 run: manual
 live-check: owed
 
-**Tier:** set by input 1, the paths: `REVIEW-POLICY.md`,
-`.claude/skills/**` and `.claude/agents/**` are Reviewed. So the best
-verdict is `escalate`, and the owner reads the diff.
+**Tier:** set by input 1, the paths (`REVIEW-POLICY.md`, `.claude/skills/**`,
+`.claude/agents/**`), so the best verdict is `escalate`.
 
-**Sampled: no.** Only attested changes are sampled.
+**Verdict:** `rework`, for two MEDIUM findings, both mechanical, in the
+`/auto` skill's resume rules and ship stop. There is no "Needs decision:"
+finding.
+- **Fixed:** all six round-1 findings and the plan-exists LOW.
+- **Gate safety holds:** nothing is authorised beyond "/auto <id> records
+  that intent's `plan_approved`", and "Merging" is unchanged.
+- **Pass 4 ran only in part:** the reviewer's mutant batch was stopped by
+  Claude Code for low system memory after 2 of 19 mutants. See Not checked.
 
-**`run: manual`** is the branch's new header line: the change was driven by
-hand. Main's policy has no such line, and the branch's scan reads a missing
-one as manual.
-
-Passes run by the `heraklios-reviewer` agent against `main`'s policy, with
-the branch's policy read as part of the diff. The coordinator re-ran the
-results marked under "Verified myself".
-
-**No sentence widens a gate.** The authorisation is limited to "that intent's
-`plan_approved`, and no other gate", "not a standing instruction"
-(`intents/README.md:106-118`). "What does not count" and "Merging" are
-unchanged. The rework below is about consistency, resume behaviour, one open
-decision and untested glue.
+Round 2 covers `810ad37` (the owner-decided spec amendments: B5, B12, B13)
+and `6dcd2c1` (the rework). Passes run by the `heraklios-reviewer` agent;
+the coordinator re-read the lines behind each finding.
 
 ## Passes
 | # | Pass | Result |
 | --- | --- | --- |
-| 1 | Intent and plan match | findings (3): F1 contradiction with `CLAUDE.md`/`/spawn`, F2 resume, F3 open decision after `escalate` |
-| 2 | Type check | pass |
+| 1 | Intent and plan match | findings (2 MEDIUM, 3 LOW): R2-1, R2-2, R2-3, R2-4, R2-6 |
+| 2 | Type check | FAIL on the owed live check only: the owner's gate, not rework |
 | 3 | Rulebook fidelity | not run: SDLC tooling, no game rule |
-| 4 | Tests prove the rule, not only pass | findings (1): F4. All 32 lib mutants are killed; 3 script-glue mutants survive. |
-| 5 | Boundary and conventions | pass. No `src/`, `e2e/` or `package.json` change. `GATE_RE` and `GATE_FIELDS` are unchanged, and `auto_authorized` reuses `parseGate`. |
-| 6 | Numbers in prose | pass. 57 files, 977 tests and lint 21 reproduce; the tier-counting move is byte-identical in scan output and JSON. |
-| 7 | Documentation | findings (1): F6, stop lists in `CLAUDE.md`/`sdlc.md` incomplete |
-| 8 | Guardrails and hygiene | pass. Lint 21 with the cap 21; no new dependency. |
+| 4 | Tests prove the rule, not only pass | partly run: 2 of 19 mutants, both killed; the rest checked by reading the tests (Not checked), 1 LOW |
+| 5 | Boundary and conventions | pass. The F4 logic is in `scan-lib.mjs` and `session-lib.mjs`; the CLIs keep one-line calls. |
+| 6 | Numbers in prose | pass. 57 files, 988 tests, lint 21, `--sample-due manual --exclude 50` n = 13 reproduce. |
+| 7 | Documentation | findings (1 LOW): R2-5 |
+| 8 | Guardrails and hygiene | pass. Lint 21 with the cap 21, none in `scripts/`; no new dependency. |
 | 9 | Repository-specific footguns | pass, none apply |
 
 ## Type check
 ```
-type-check: PASS (intent 50, feature)
-  note:  16 file(s), 754 line(s) changed outside intents/.
+type-check: FAIL (intent 50, feature)
+  error: A live check is owed and not recorded. Do the steps in intents/50-sdlc-auto-mode/review.md → ## Live check, then set live_checked: <date> in intents/50-sdlc-auto-mode/metadata.yml.
+  note:  17 file(s), 905 line(s) changed outside intents/.
 ```
 
 ## Findings
-- **MEDIUM (F1)** `CLAUDE.md:143-144`, `.claude/skills/spawn/SKILL.md:49-51`:
-  both still say the coordinator offers `/review` and "never runs it
-  unprompted". `/auto` runs `/review` and rework unprompted (spec B5). A
-  coordinator mid-run that reads `CLAUDE.md` gets two rules that
-  contradict. Needs rework: qualify both sentences with "outside an
-  `/auto <id>` run (`.claude/skills/auto/SKILL.md`)", and keep "records a
-  gate or merges" as it is.
-- **MEDIUM (F2)** `.claude/skills/auto/SKILL.md:69-70`: a resume picks up "at
-  the first step whose work is not done". After a `decision needed`, a
-  re-check mismatch or an agent error, that step is the review loop. So the
-  resumed run reviews the unchanged branch, without first handing the
-  implementer the owner's answer, and burns a round. B13 asks for a resume
-  from the recorded state. Needs rework: a short table keyed on
-  `auto_stopped`. For example:
-  - decision or amendment → resume the implementer with the owner's answer,
-    then round n+1;
-  - re-check mismatch → redo the re-check for round n without counting a
-    round;
-  - live check owed → the live-check step;
-  - ready for `/ship` → re-run the dry-run and report.
-- **MEDIUM (F3)** `.claude/skills/auto/SKILL.md:130-133`, spec B5: `escalate`
-  "always stops", but nothing says what follows once the owner has read the
-  diff. Every Reviewed-tier intent ends at `escalate`. Under the current
-  resume rule, such an intent would never reach the live-check or ship
-  stop: `/auto <id>` would just review again. **Needs decision:** after an
-  `escalate` stop, does `/auto <id>` mean "diff read, go on to the
-  live-check or ship stop" (no new round), or does the intent continue by
-  hand? Either answer needs a spec amendment (B5, B13).
-- **MEDIUM (F4)** `scripts/sdlc-scan.mjs:58`, `:66-77`, `scripts/sessions.mjs:53`:
-  new inline glue with no test. That is the risk the plan named for
-  `sdlc-scan.mjs`. Three mutants survive the full suite:
-  - **MS1:** `run: field('run')` dropped, so every auto review counts as
-    manual and auto sampling falls to 1 in 5. Re-run by the coordinator:
-    977 passed.
-  - **MS3:** `--exclude` ignored, so an intent's earlier round counts as
-    another change.
-  - **MS2:** the `auto` field dropped from a sessions row. Lower risk: the
-    same pattern as `gates`.
+- **MEDIUM (R2-1)** `.claude/skills/auto/SKILL.md:60`, `:69-73`: the resume
+  rules leave gaps when the coordinator session closes, the case B13
+  exists for. The empty-`auto_stopped` rule covers only "no `review.md` for
+  round `auto_round`". It leaves out:
+  - **(a) a close before round 1** (during the plan or build), when
+    `auto_round` is empty, or **during a rework**, when round n's
+    `review.md` exists and the implementer was mid-fix;
+  - **(b) a close right after a resume:** step 1.3 clears `auto_stopped`
+    and commits before the resumed step runs, so the reason is lost (for
+    example after an escalate stop and `/auto`, before the live-check
+    stop);
+  - **(c) a re-check mismatch in a new session:** the mismatch row says
+    "redo the re-check", but step 6 forbids writing `review.md` over a
+    mismatch, so the reviewer's report is gone.
 
-  Needs rework: move the review-header read and the `--sample-due` /
-  `--exclude` argument handling into `scan-lib.mjs`, with tests that kill MS1
-  and MS3.
-- **MEDIUM (F5)** `scripts/ship.mjs:134` throws "main has no remote named
-  origin to push to" before the dry-run path. The sandbox has no remote, so
-  the live check can't reach AC5's "ready: `/ship <id>`": it would stop at
-  "ship dry-run blocked". The plan's "no remote … `/auto` never pushes
-  anyway" (Validation) missed it. Re-read by the coordinator at
-  `ship.mjs:128-140`. Worth a look: the live check's step 0 below adds a
-  local bare `origin` to the sandbox. No code change is needed.
-- **LOW (F6)** `CLAUDE.md:79-82`, `sdlc.md:115-118`: the stop lists omit
-  `escalate`, the most common stop for policy and SDLC intents.
-  `CLAUDE.md` also omits out-of-rounds, an amendment, a held worktree and
-  a re-check mismatch. Needs rework: add them.
-- **LOW** `scripts/sdlc-scan.mjs:58`: the `run:` read takes `(\S+)`, so a
-  review that copies the template literally (`run: auto | manual`) counts as
-  auto. `--sample-due` with no value falls through to the full report with
-  exit 0 (`:67`). Worth a look, and cheap once F4 moves this into
-  `scan-lib.mjs`.
-- **LOW** `.claude/skills/auto/SKILL.md:90-104`: a `plan.md` that already
-  exists unapproved (drafted earlier or edited by hand) could be approved
-  without this run having drafted it. The intent covers "the artefacts that
-  intent's own skills draft". Worth a look: record only a plan this run
-  drafted, or stop and ask.
-- **LOW** Historical sampling doesn't match the count the new script makes
-  authoritative:
-  - of the 12 attested manual reviews, §36 (the 4th) says `sampled: yes`,
-    while §37 (the 5th) and §43 (the 10th) say `no`;
-  - `--sample-due manual --exclude 50` now gives n = 13, not due.
+  Needs rework:
+  - add a fallback for an empty `auto_stopped`: the first step whose work
+    isn't done. A new round only if the implementer has committed since
+    round `auto_round`'s `review.md`; otherwise redo that round's review as
+    the same round;
+  - in the mismatch row: if the reviewer's report isn't in this
+    conversation, redo the review as the same round;
+  - optionally, clear `auto_stopped` only once the resumed step has moved
+    on.
 
-  This is older than §50, and the post-merge reads that were owed for §37
-  and §43 may never have happened. Worth a look.
-- **LOW** Plan Progress divergence: `auto_round` is written at the start of
-  each round (`auto/SKILL.md:124-125`), not only at a stop as B12 says. It is
-  sensible, since a closed session must resume at the right round, but it
-  isn't the spec. Worth a look: accept it, and say so in the spec when F3
-  amends it.
+  All of this stays within amended B13.
+- **MEDIUM (R2-2)** `.claude/skills/auto/SKILL.md:222`: step 8 requires "the
+  verdict is `attest`". The escalate row (`:81`), step 5 and step 7's pass
+  path all send an escalated run there, so step 8 contradicts amended B5.
+  `ship-lib.mjs` accepts `escalate`, so the dry-run itself would pass.
+  - Needs rework: "the verdict is `attest`, or `escalate` after the owner's
+    diff read".
+  - Spec B10 has the same `attest` wording. The B5 amendment overrides it in
+    effect, but tidying B10 is the owner's call.
+- **LOW (R2-3)** `.claude/skills/auto/SKILL.md:145-147` with `:242`: at the
+  cap, `n` is 4. Step 9 then writes `auto_round: <n>`, which `check:intent`
+  rejects (`AUTO_MAX_ROUND = 3`, `intent-check-lib.mjs:118`, `:232`).
+  Needs rework: at the out-of-rounds stop, `auto_round` stays at 3.
+- **LOW (R2-4)** `CLAUDE.md:85-86`: "never records `spec_accepted` or
+  `live_checked`" contradicts the skill, which records both `by-agent` on
+  the owner's yes, as the normal rules allow. Needs rework: "never records
+  `spec_accepted` or `live_checked` without the owner's yes; the `/auto`
+  authorisation covers neither".
+- **LOW (R2-5)** `CLAUDE.md:80-85`, `sdlc.md:115-120`: the stop lists still
+  miss some reasons:
+  - "plan exists unapproved" (new this round) and "ship dry-run blocked",
+    in both;
+  - a fourth open session, in `CLAUDE.md`.
+
+  Worth a look.
+- **LOW (R2-6)** `.claude/skills/auto/SKILL.md:85`: a CRITICAL finding
+  shares the reds' row ("redo the step that stopped"), so it would
+  re-review an unchanged branch. That is the F2 pattern, though it costs no
+  round. Worth a look: send it to the implementer, like the decision row,
+  then a new round.
+- **LOW** `scripts/scan-lib.mjs:177`: the `excludeId.startsWith('--')` branch
+  has no test (`--exclude --json`); it most likely survives. Worth a look:
+  add that case to the usage test.
+- **LOW (carried, left for the owner)**: historical sampling. §36 (the 4th
+  attested) is marked `sampled: yes`; §37 (the 5th) and §43 (the 10th) say
+  `no`.
 
 ## Not checked
-- **The skill in a real run:** whether its text produces the behaviour.
-  Only the live check shows that.
-- **Push notifications:** whether the tool is available in the owner's
-  session.
-- **The real `origin` and the real `.git/heraklios-sessions.jsonl`:** the
-  sandbox has neither by design; its events go to its own `.git`.
-- **`ship.mjs` was not run anywhere;** F5 comes from reading the code.
+- **17 of 19 planned mutants were not run.** Claude Code stopped the
+  background batch for low memory while mutant 2 was applied. The reviewer
+  restored `scripts/scan-lib.mjs` by copy. The coordinator confirmed the
+  worktree is clean, with no diff against `6dcd2c1`. Read from the tests:
+  - **likely killed** by exact assertions: MS3, MS2, the usage-check
+    removals, the dropped review fields and the null-without-flag case;
+  - **likely to survive:** the `startsWith('--')` branch (LOW above), an
+    equivalent `filter`, and the two one-line CLI call sites.
+
+  Round 3 should finish this batch; the harness is in
+  `…/scratchpad/mut50/`.
+- **The implementer's 21 mutants** were not replayed one for one.
+- **The skill in a real run** (AC5): only the live check shows that.
+- **Push notifications, the real `origin`, the real sessions log.**
 - **e2e:** not required; no `src/`, `e2e/` or `main.ts` change.
-- **The implementer's 16 mutants** were not replayed one for one. The
-  reviewer ran its own 35, which overlap them.
-- **`parseReviewHeader` with a `run:` line:** not exercised. This branch has
-  no `review.md` until this one.
 
 ## Live check
-- **Owed** by rule 3 (AC5): the skill's behaviour only shows in a real run.
-  Run it in the sandbox clone
-  `C:/Users/eric/AppData/Local/Temp/claude/C--Users-eric-src-heraklios/d4d8f463-fc75-4c39-80e6-361cdb7ead3e/scratchpad/auto-sandbox`.
-  - Its `main` is §50's `69ee2ca` plus one commit adding the sandbox intent
-    §91 (`clip('abc', 0)` returns `'ab…'`).
-  - A spawned §91 worktree lands in `…/scratchpad/heraklios-wt/`, not the
-    real one.
-  - Do it after the rework: the sandbox's `main` must then be reset to the
-    reworked §50 commit, which the implementer can redo.
-  - The scratchpad is session-specific, so don't leave the check for a much
-    later session.
-- **Steps and what you should see:**
-  0. **Setup** (F5), in Git Bash: `git init --bare
-     ".../scratchpad/auto-origin.git"`, then in the sandbox `git remote add
-     origin ".../scratchpad/auto-origin.git"` and `git push -u origin main`.
-     That pushes to a local folder only; `git remote -v` must show only
-     `auto-origin.git`.
-  1. `cd ".../auto-sandbox" && claude`, then type `/auto 91`.
-  2. `auto_authorized: <today> by-agent    # owner: "/auto 91"` is committed
+- **Owed** by rule 3 (AC5). Run it after this rework, once the sandbox's
+  `main` is moved to the new §50 commit, with the §91 intent commit on top
+  and pushed to the local bare origin (the implementer does this).
+- **Sandbox:** `C:/Users/eric/AppData/Local/Temp/claude/C--Users-eric-src-heraklios/d4d8f463-fc75-4c39-80e6-361cdb7ead3e/scratchpad/auto-sandbox`;
+  origin `…/scratchpad/auto-origin.git`. The scratchpad is session-specific,
+  so don't leave the check for a much later session.
+- **Steps and what you should see** (the setup is done):
+  1. `cd ".../auto-sandbox" && git remote -v`: only `auto-origin.git`.
+  2. Run `claude`, then type `/auto 91`.
+  3. `auto_authorized: <today> by-agent    # owner: "/auto 91"` is committed
      on `main`. §91 is a fix, so there is no spec stop.
-  3. The plan is drafted and approved: `plan_approved: <today> by-agent    #
-     auto: owner "/auto 91" (auto_authorized <today>)`. Nothing else may be
-     recorded.
-  4. With no prompt, `npm run spawn -- 91` creates
-     `…/scratchpad/heraklios-wt/91-clip-nonpositive-max`. Check that
+  4. The plan is drafted, then `plan_approved: <today> by-agent    # auto:
+     owner "/auto 91" (auto_authorized <today>)`. Nothing else is recorded.
+  5. With no prompt, `npm run spawn -- 91` creates
+     `…/scratchpad/heraklios-wt/91-clip-nonpositive-max` (port 5291), and
      `C:/Users/eric/src/heraklios-wt` gains nothing. The implementer runs in
      the background.
-  5. Round 1: `auto_round: 1` on `fix/91-…`. The review runs unprompted. Its
-     `review.md` has `run: auto` and a "Coordinator, re-run" block, and is
-     committed on the branch.
-  6. At the first stop, `npm run sessions` and `npm run queue` in the
-     sandbox show `auto · r1 · <reason>` for §91, plus a push notification
-     if your session has the tool.
-  7. Close the session, open a new one in the sandbox, and type `/auto 91`.
-     It resumes at the same round and doesn't re-plan or re-spawn. If it
-     re-reviews an unchanged branch, F2 isn't fixed.
-  8. If it owes a live check, it gives steps. Say you ran them, and
-     `live_checked` is recorded on your words.
-  9. It ends with "ready: `/ship 91`" after a `--dry-run` report, then an
-     "auto stopped: ready for /ship" commit. **Don't ship.**
-  10. Clean up:
-      - inside the sandbox, `git worktree remove` the §91 worktree, after
-        checking its `node_modules` isn't a junction;
-      - delete `auto-sandbox` and `auto-origin.git`.
+  6. Round 1: `auto_round: 1` is committed before the review, the review
+     runs unprompted, and its `review.md` has `run: auto` and a
+     "Coordinator, re-run" block.
+  7. At the first stop, `npm run sessions` and `npm run queue` in the
+     sandbox show `auto · r1 · <reason>`, plus a push notification if the
+     tool exists.
+  8. **Resume:** close the session at that stop, open a new one, and type
+     `/auto 91`. It must not re-plan or re-spawn.
+     - After a live-check stop, it goes to the live-check step.
+     - After "ready for /ship", it re-runs only the dry-run.
+     - If you can, provoke an escalate (`review_tier: reviewed` in §91's
+       metadata on the branch): `/auto 91` then goes on with no new round.
+     - Also close the session once mid-round (R2-1).
+  9. If it owes a live check, say you ran its steps; `live_checked` is
+     recorded on your words.
+  10. It ends at "ready: `/ship 91`" after a `--dry-run` report, then an
+      "auto stopped: ready for /ship" commit. **Don't ship.**
+  11. Clean up: `git worktree remove` the §91 worktree from inside the
+      sandbox (check its `node_modules` isn't a junction), then delete
+      `auto-sandbox` and `auto-origin.git`.
 
   Then record `live_checked` on the real §50 branch.
 
 ## Verified myself vs. taken on trust
-**Coordinator, re-run** (worktree at `69ee2ca`, clean):
-- **MS1** (`sdlc-scan.mjs:58`, `run: field('run')` dropped), full `npx
-  vitest run`: 57 files, **977 passed**, so it survives (F4). Restored by
-  copy, checked with `cmp`; `git status --short` empty.
-- **Read, confirming F1, F2, F3 and F5:**
-  - `CLAUDE.md:141-144` and `.claude/skills/spawn/SKILL.md:48-51`
-    ("never runs it unprompted" / "Don't run it unprompted");
-  - `.claude/skills/auto/SKILL.md:64-71` ("pick up at the first step whose
-    work is not done") and `:130-133` (`escalate` always stops, with
-    nothing after);
-  - `scripts/ship.mjs:126-142`: `checkStart` throws on a missing `origin`
-    before any dry-run branch.
+**Coordinator, re-read** (worktree at `6dcd2c1`):
+- `git status --short` is empty and `git diff --quiet` passes after the
+  reviewer's interrupted mutant run.
+- `.claude/skills/auto/SKILL.md`:
+  - `:58-88`: the resume table, and the empty-`auto_stopped` rule covering
+    only "no `review.md` for round `auto_round`" (R2-1);
+  - `:142-150`: the cap at `n` = 4 (R2-3);
+  - `:218-226`: step 8, "the verdict is `attest`" (R2-2);
+  - `:238-246`: step 9 writes `auto_round: <n>` (R2-3).
+- `CLAUDE.md:84-87`: "never records `spec_accepted` or `live_checked`"
+  (R2-4).
+- `scripts/intent-check-lib.mjs:118`, `:232`: `AUTO_MAX_ROUND = 3`, and
+  `check:intent` rejects a larger round (R2-3).
+- No mutants re-run by the coordinator this round: the machine had just run
+  out of memory.
 
 **Reviewer agent** (same worktree and HEAD):
-- `npm run verify`: exit 0, 57 files, 977 tests, lint 21 of 21, with none
-  in `scripts/`. `npm run check:intent`: PASS.
-- **The full diff of all 20 files,** read against spec B1–B14,
-  Interpretations and Out of scope, with every added policy sentence
-  checked for wording wider than B1/B3. It found none.
-- **The tier-counting move:** `npm run sdlc:scan` at `fe31788^`, `fe31788`
-  and HEAD, from `git archive` copies outside the repo. The output (text and
-  JSON) is identical across the move. HEAD adds only `, run manual` and the
-  per-run block.
-- **`--sample-due`:**
-  - on the real repo: manual n = 13, auto n = 1, a bogus value exits 2;
-  - on a fake 3-review repo: auto n = 4, and n = 3 is due with `--exclude`.
-- **35 mutants, full suite each:**
-  - 32 on the lib lines, all killed, covering `intent-check-lib`,
-    `session-lib`, `queue-lib` and `scan-lib`;
-  - MS1, MS2 and MS3 on the glue survive (F4).
-- **The sandbox, read-only:** no remote; `main` is `69ee2ca` plus §91's
-  intent and metadata; `node_modules` is not a link; the worktree path rule
-  puts §91 under `…/scratchpad/heraklios-wt/`.
-- Nothing touched `main` or was pushed. `git status --short` empty at the
-  end.
+- `npm run verify`: exit 0, 57 files, 988 tests, lint 21 of 21, with
+  `eslint scripts` clean.
+- `npm run check:intent`: FAIL, only on the owed live check.
+- `git diff 69ee2ca 6dcd2c1` read in full against B1–B14 and the
+  amendments. `810ad37` touches only `spec.md`. The policy files, the review
+  skill and the reviewer agent did not change in the rework.
+- **Mutants, full suite each:**
+  - MS1 (`run` read dropped): killed, 2 failed;
+  - the strict rule loosened: killed, 1 failed.
+  - The batch was then stopped for low memory, as recorded above.
+- **The `sdlc-scan` CLI:**
+  - usage errors exit 2;
+  - `--sample-due manual --exclude 50` gives n = 13, not due;
+  - `auto` gives n = 1;
+  - §50's real `review.md` reads as `run manual`.
+- **The sandbox:**
+  - only `auto-origin.git` as a remote;
+  - `main` is `0de8185`, i.e. `6dcd2c1` plus §91's intent;
+  - origin `main` matches;
+  - `npm run ship -- 91 --dry-run` stops at "the branch for §91 does not
+    exist…": expected before a run, and the origin blocker is gone.
+- The real `main` is unchanged; nothing was pushed.
 
-**Taken on trust:** that T7's expected numbers were first computed on the
-pre-move code. That is moot, since the move was diffed verbatim and its
-output compared byte for byte.
+**Taken on trust:** the implementer's 21 mutants (only MS1 and the strict
+rule were re-run), and the skill's behaviour in a real session.
 
 **For the owner's diff read, in order:**
-1. `intents/README.md:106-118` and `:130-135`: the authorisation and the
-   auto fields;
-2. `.claude/skills/auto/SKILL.md`: `:20-34` (what it authorises), `:88-104`
-   (the plan gate), `:113-164` (the loop, cap and re-check), `:166-210`
-   (stops), `:52-70` (start and resume);
-3. `CLAUDE.md:75-83` with `:139-144` and `spawn/SKILL.md:49-51` (F1);
-4. `REVIEW-POLICY.md:52-63` (sampling) and `:209-251` (`run:`, "Needs
-   decision:"), with "Merging" `:114-144` unchanged;
-5. `.claude/skills/review/SKILL.md:74-79`, `:100-107`, and
-   `heraklios-reviewer.md:130-137`;
-6. `sdlc.md:98-125`;
-7. the scripts: `intent-check-lib.mjs:108-136`, `scan-lib.mjs:74-141` and
-   `sdlc-scan.mjs:58-77`.
+1. `.claude/skills/auto/SKILL.md`: `:69-88` (resume), `:106-127` (the plan
+   gate), `:136-167` (loop, cap, escalate), `:220-237` (ship stop), `:20-34`
+   (what it authorises);
+2. `spec.md`: the B5, B12 and B13 amendments, and B10's `attest`;
+3. `intents/README.md:106-135` (unchanged since round 1);
+4. `CLAUDE.md:75-86`, `:144-148`, and `spawn/SKILL.md:49-52`;
+5. `REVIEW-POLICY.md:52-63`, `:209-251`, with "Merging" unchanged;
+6. `sdlc.md:98-128`;
+7. `scan-lib.mjs:143-182`, `session-lib.mjs:196-199`, and their new tests.
+
+# Round 1 (history)
+- verdict: rework
+- tier: reviewed
+- reviewed-commit: 69ee2ca
+- round: 1
+- sampled: no
+- run: manual
+- live-check: owed
+
+Resolutions (round 2, in `810ad37` and `6dcd2c1`):
+- **MEDIUM F1, `CLAUDE.md` and `/spawn` said "never runs `/review`
+  unprompted": fixed.** Both say "outside an `/auto <id>` run"; "never
+  records a gate or merges" is kept.
+- **MEDIUM F2, resume by "first step not done": fixed**, with gaps left when
+  a session closes (round 2's R2-1). The table is keyed on `auto_stopped`,
+  per amended B13.
+- **MEDIUM F3, nothing after an `escalate` stop: decided and fixed.** The
+  owner chose "diff read, go on to the live-check or ship stop" (B5
+  amended). Step 8's `attest` wording is round 2's R2-2.
+- **MEDIUM F4, untested glue in `sdlc-scan.mjs` and `sessions.mjs`: fixed.**
+  `parseReviewFields`, `sampleDueCommand` and `metadataColumns` are in the
+  libs, with tests; MS1 is killed.
+- **MEDIUM F5, the sandbox had no `origin`: fixed.** It now has a local bare
+  origin, and the dry-run gets past the origin check.
+- **LOW F6, incomplete stop lists: fixed as asked.** The remaining gaps are
+  round 2's R2-5.
+- **LOW, `run:` template line and `--sample-due` without a value: fixed.**
+  The read is strict; usage errors exit 2.
+- **LOW, an existing unapproved plan: fixed.** Step 3.0 stops.
+- **LOW, `auto_round` at round start: accepted by the owner** (B12 amended).
+- **LOW, historical sampling: open, left for the owner.**
