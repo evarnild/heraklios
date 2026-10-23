@@ -4,15 +4,15 @@ slug: orchestrator-ui
 type: feature
 status: accepted
 title: Orchestrator UI to manage intents and their Claude sessions
-review_tier:
+review_tier: reviewed
 intent_accepted: 2026-10-23 by-agent    # owner: "accept intent 52"
-spec_accepted:
+spec_accepted: 2026-10-23 by-agent    # owner: "yes to 52 spec but split out the terminal" (B7 split out in the commit before)
 plan_approved:
 live_checked:
 merged:
 auto_authorized: 2026-10-23 by-agent    # owner: "/auto 52"
 auto_round:
-auto_stopped: spec drafted, waiting for spec_accepted
+auto_stopped:
 follows_up:
 links:
   - intents/26-ai-sdlc-kit
