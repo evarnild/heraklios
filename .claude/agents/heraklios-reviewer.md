@@ -127,6 +127,15 @@ or merely pass. Say what you verified yourself versus what you took on trust
 — a PASS is made of the checks behind it, and the operator needs to know
 which ones actually ran.
 
+Classify every finding that needs rework (spec §50 B7): "Needs rework:" when
+the spec, the plan or a test determines the fix (mechanical), "Needs
+decision:" when the fix chooses between behaviours or changes what the spec
+or plan says. When unsure, write "Needs decision:": an automated run
+resumes the implementer on the first kind only. A fix that would edit
+`spec.md` or `plan.md` above its Progress marker is always "Needs decision:".
+List every mutant that survived, and every mutant a rework is expected to
+kill, by name with its target line: the coordinator re-runs those.
+
 Set `live-check: owed | not-needed` by `REVIEW-POLICY.md` → "Live checks",
 and when owed, write the `## Live check` steps concretely enough for the
 owner to follow without asking (command and port, test-mode shortcut or

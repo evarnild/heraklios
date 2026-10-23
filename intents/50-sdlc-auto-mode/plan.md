@@ -247,3 +247,94 @@ Mutants restored by copy, never `git checkout --`.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+### 2026-10-23 — subtasks 1 to 7 (implementer)
+
+Commits (all `npm run verify` green at each; lint 21 warnings, cap 21, unchanged):
+
+- `adcb2f8` subtask 1: `parseAuto`, `AUTO_FIELDS`, `AUTO_MAX_ROUND`, `checkAuto` in `intent-check-lib.mjs`; template keys. T1 to T4.
+- `4edaa4e` subtask 2: `autoSummary`, the `auto` column, `queueLine`/`queueData`. T5, T6.
+- `fe31788` subtask 3, first half, **the move as its own commit**: `qualityByTier` into `scan-lib.mjs`, inline code verbatim. T7 expected numbers were first produced by running a verbatim copy of the pre-move inline code on the fixture (a scratch script, `{attested: 4/1/2, reviewed: 1/1/1}`), and `npm run sdlc:scan` output on this repo is byte-identical before and after (diffed against `git show HEAD:scripts/sdlc-scan.mjs`).
+- `f936661` subtask 3, second half: `runOf`, `qualityByRun`, `sampleDue`, `--sample-due <auto|manual> [--exclude <id>]`, the `run` header read, the report's per-run block. T8, T9.
+- `ddc8c4c` subtasks 4 to 6: `.claude/skills/auto/SKILL.md`; `intents/README.md`, `REVIEW-POLICY.md`, `CLAUDE.md`, `sdlc.md`; `/review` skill 0.1.5 and the reviewer agent; a tightened T6 assertion.
+- the commit that holds this entry: Progress and `status: in-review` (subtask 7).
+
+Tests: 57 files, 977 tests (`npm run verify`). `npm run check:intent`: PASS (intent 50, feature). No `src/**` or `e2e/**` change, so no e2e run.
+
+Mutants (full vitest per mutant, backup and restore by copy, `git status --short` clean after each), 16, all killed:
+
+| Mutant | Killed by |
+| --- | --- |
+| `auto.round > AUTO_MAX_ROUND` to `> 4` | T2 `auto_round "4" is an error` |
+| `GATE_RE` widened to `by-[a-z]+` | T1 `by-auto` malformed, T3, the existing `by-claude` and malformed-gate tests |
+| `by:` always `owner` | T1, `parseGate` by-agent test, `gateShares` test |
+| `authorized` read by a looser rule | T1 (several) |
+| comment stripping removed | `parseMetadata` tests (T4 included in the file) |
+| round omitted from `autoSummary` | T5, T6 |
+| `autoSummary` shown without `auto_authorized` | T5, T6 |
+| `queueLine` always appends the summary | **survived at first** (an empty string in the middle is not a trailing space); T6 now asserts no run of 3 spaces, and the mutant is killed by it |
+| follow-up counted against the fix's own tier | T7, T8 |
+| missing `run:` counted as `auto` | T8 (two tests), T9 |
+| follow-ups not split by run | T8 (two tests) |
+| reverts not split by run | T8 (two tests) |
+| `sampleDue` one shared counter | T9 `the two kinds count separately` |
+| rate 5 for auto | T9 (three tests) |
+| non-attested counted | T9 `escalate, rework and unreadable verdicts do not count` |
+| `excludeId` ignored | T9 `the intent under review is left out` |
+
+Divergences from the plan:
+
+- **`qualityByRun` is a separate function.** The plan has `qualityByTier` return the per-tier object "plus `byRun`". Adding a `byRun` key would put a non-tier key among the tier names the report iterates, so `qualityByTier` keeps its T7-pinned shape (with an optional run-kind filter argument) and `qualityByRun` returns `{ auto, manual }` of that shape. The scan's JSON gains `perRun`.
+- **`auto_round` is written at the start of each review round, as well as at a stop** (skill step 5.2 and 9). B12 says on each stop; B13 needs the round to survive a closed session that never stopped cleanly, and `npm run sessions` shows `auto · r<n>` while running only if it is written then.
+- **`--exclude <id>`** on `--sample-due`: not in the plan. `/review` runs before the intent's own `review.md` exists in round 1, but in later rounds an earlier round's `review.md` is there and would count as another change.
+- **`README.md` (the game's) is untouched**: it has no SDLC section and no "Known simplification" for this item.
+- The `/review` skill is bumped 0.1.4 to 0.1.5 (stamp and metadata).
+
+Live-check sandbox (plan, Validation): a clone with no `origin`, at `C:/Users/eric/AppData/Local/Temp/claude/C--Users-eric-src-heraklios/d4d8f463-fc75-4c39-80e6-361cdb7ead3e/scratchpad/auto-sandbox`, its `main` set to the final §50 commit, `npm ci` done, and one accepted fix intent committed on its `main`: **§91 `clip-nonpositive-max`** (`clip('abc', 0)` returns `'ab…'`; fix it in `scripts/session-lib.mjs` with a test in `scripts/session-lib.test.mjs`). Its `intent_accepted` is set by the setup (comment says so), not by the owner. Port for a spawned §91 worktree is 5291. Delete the clone after the check; never ship from it.
+### 2026-10-23 — review round 1 rework (implementer)
+
+Read `review.md` (`da3ce47`) and the amended spec (`810ad37`: B5 escalate continuation, B12 `auto_round` at each round start, B13 resume by stop reason). One commit (the one that holds this entry); `verify` green, lint 21 of 21, `check:intent` PASS.
+
+- **F1:** `CLAUDE.md` and `.claude/skills/spawn/SKILL.md` now say "outside an `/auto <id>` run (`.claude/skills/auto/SKILL.md`)" before "unprompted"; "records a gate or merges" kept (as "never records a gate or merges").
+- **F2/F3:** the `/auto` skill's "first step not done" resume is replaced by the amended B13 table keyed on `auto_stopped`: decision or amendment gives the implementer the owner's answer and then round n+1; a re-check mismatch redoes the re-check for round n with no new round; `escalate` goes on to the live-check or ship stop with no new round; live check owed, out of rounds, ready for /ship and the red/agent-error/held-worktree stops each have a row. Step 5 says a new round is `auto_round` + 1 and passes the cap, the "no new round" resumes do not, and that `auto_round` is written at each round start (B12 as amended). The escalate stop line in step 5 points at the continuation.
+- **F4 and the LOWs:** the review-header read and the `--sample-due`/`--exclude` handling moved from `sdlc-scan.mjs` into `scan-lib.mjs` (`parseReviewFields`, `sampleDueCommand`); the sessions row's metadata columns into `session-lib.mjs` (`metadataColumns`). `run` is read from the header only and only when exactly `auto` or `manual`, else null (counts as manual), so the template line `run: auto | manual` no longer counts as auto. `--sample-due` with no value, `--json` as the value, an unknown value or a bare `--exclude` prints a usage line to stderr and exits 2 (checked by running the CLI).
+- **F6:** the stop lists in `CLAUDE.md` and `sdlc.md` now include escalate, a spec or plan amendment, out of rounds, a re-check mismatch, a held worktree and an agent error.
+- **LOW, existing plan.md:** step 3 of the skill stops with `plan exists unapproved, owner decides` when a `plan.md` exists and `plan_approved` is not recorded, and records `plan_approved` only for a plan the run drafted. The resume table has a row for it.
+- Left alone: the historical-sampling LOW (older than §50).
+
+Mutants, full vitest each, restored by copy, `git status --short` clean after: all 16 earlier ones re-run and killed (same killers; the `queueLine` one by T6), plus 5 new, all killed: MS1 `run` read dropped (parseReviewFields tests), the strict `auto`/`manual` rule loosened (the template-line test), MS3 `--exclude` ignored (sampleDueCommand MS3 test and the usage test), the value check removed (usage test), MS2 `auto` dropped from the sessions columns (metadataColumns MS2 test).
+
+Sandbox (the clone only): `main` reset to this branch's final commit with the §91 intent commit re-applied on top; a local bare `origin` at `scratchpad/auto-origin.git` with `main` pushed; `git remote -v` shows only that folder. `ship.mjs` was not run. Paths: sandbox `C:/Users/eric/AppData/Local/Temp/claude/C--Users-eric-src-heraklios/d4d8f463-fc75-4c39-80e6-361cdb7ead3e/scratchpad/auto-sandbox`; bare repo `.../scratchpad/auto-origin.git`.
+### 2026-10-23 — review round 2 rework (implementer)
+
+Read `review.md` (`3c3d80a`). Commits: the "review round 2 rework" commit, plus the commit holding this entry. `verify` green (57 files, 988 tests, lint 21 of 21); `check:intent` FAIL only for the owed live check, as the review said.
+
+- **R2-1:** the `/auto` resume gains the empty-`auto_stopped` fallback ("the first step whose work is not done"; in the review loop a new round only if the implementer committed since round `auto_round`'s `review.md`, else the same round's review is redone; an empty `auto_round` is round 0, build then round 1). The re-check mismatch row redoes the review as the same round when the reviewer's report is not in the conversation. Step 1 item 3 no longer clears `auto_stopped` at the resume: it is cleared in the first commit the resumed step makes (the round-start write of step 5, a recorded live check, the ship stop).
+- **R2-2:** step 8's precondition is "`attest`, or `escalate` after the owner's diff read". Spec B10 untouched.
+- **R2-3:** at the out-of-rounds stop `auto_round` stays at 3; step 9 says never above 3.
+- **R2-4:** `CLAUDE.md`: "never records `spec_accepted` or `live_checked` without the owner's yes; the `/auto` authorisation covers neither".
+- **R2-5:** "plan exists unapproved" and "ship dry-run blocked" added to both stop lists, the fourth open session to `CLAUDE.md`.
+- **R2-6:** a CRITICAL finding has its own resume row, like a decision: the implementer first, then a new round.
+- **LOW:** `--exclude --json` added to the usage test; the `startsWith('--')` mutant is killed.
+
+Mutants from the reviewer's batch (`scratchpad/mut50`, #2 to #18, one at a time, full vitest each, restored by copy, `git status --short` clean after; #0 and #1 were run by the reviewer): 14 killed (#2 to #10, #12 to #16, by the `parseReviewFields`, `sampleDueCommand` and `metadataColumns` tests named in the log), 3 survived:
+- #11 `reviews` not filtered for intents with a review: **equivalent**. An intent without a review becomes `{id}` with no `verdict`, which `sampleDue` never counts (it needs `verdict === 'attest'`).
+- #17 `sdlc-scan.mjs` drops `run` after `parseReviewFields`, and #18 `sessions.mjs` drops the metadata columns: both are the one-line glue in the two CLI scripts, which have no test harness; the lib functions they call are covered (MS1 and MS2 in the lib). Known and left as is.
+
+Sandbox (the clone only): `main` set to this branch's final commit with the §91 intent commit re-applied, force-pushed to the local bare `auto-origin.git`; `git remote -v` shows only that.
+
+### 2026-10-23 — review round 3 rework (implementer)
+
+Read `review.md` (round 3, `f623ccb`). Commits: the "review round 3 rework" commit, plus the commit holding this entry. Text-only: `.claude/skills/auto/SKILL.md` changed, nothing under `src/` or the scripts. The owner said "rework all", so the two worth-a-look findings are fixed with the LOW.
+
+- **R3-1:** step 5, item 4 now tells the coordinator to read `.claude/skills/review/SKILL.md` and write `review.md` as its step 4 does: the stamp line copied from that skill (no version hard-coded in `/auto`), the `REVIEW-POLICY.md` "The report" format, `## Type check` with the pasted `check:intent` output, the `## Verified myself vs. taken on trust` heading, `run: auto`.
+- **R3-2:** the leftover "(or right after a resume)" is dropped from the empty-`auto_stopped` fallback.
+- **R3-3:** decided by the owner as the review proposed. After a close mid-rework, while the implementer's Progress entry for that rework is missing, the implementer is relaunched with round n's findings (a new `heraklios-implementer` if it cannot be resumed) and waited for; round n+1 starts only once that Progress entry exists. With no implementer commits since round n's `review.md` and no rework owed, the review is redone as the same round. The resume table has no row for the case, `CLAUDE.md` and `sdlc.md` do not describe it, so only the paragraph above the table changed.
+- The owner decided the live check recorded at 73cf348 (against f623ccb) still counts after this text-only rework.
+- The sandbox was not updated (not asked for).
+
+### 2026-10-23 — review round 4 rework (implementer)
+
+Read `review.md` (round 4, `8375305`). Commits: the "review round 4 rework" commit, plus the commit holding this entry. Text-only: `.claude/skills/auto/SKILL.md` changed, nothing under `src/` or the scripts.
+
+- **R4-1:** the mid-rework resume rule now rests on the Progress entry alone, with or without implementer commits. While round `auto_round`'s `review.md` says `rework` and the implementer's Progress entry for that rework is missing, the implementer is relaunched with that round's findings (a new `heraklios-implementer` if it cannot be resumed) and waited for; a new round starts only once that entry exists. If the verdict is not `rework`, or no `review.md` exists for the round, the round's review is redone as the same round. This covers a close before the implementer's first commit, which the commit-based rule missed. It matches step 5's rework branch.
+- The sandbox was not updated.

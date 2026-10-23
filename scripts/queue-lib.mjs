@@ -2,7 +2,7 @@
 // each intent's metadata.yml instead of hand-kept in a file. Kept free
 // of git/fs calls so it can be unit-tested; see queue-lib.test.mjs. The git
 // half is queue.mjs.
-import { gateSummary } from './session-lib.mjs';
+import { autoSummary, gateSummary } from './session-lib.mjs';
 
 /** Status → the group it is listed under. Anything else lands in `other`. */
 export const GROUP_OF_STATUS = {
@@ -65,6 +65,8 @@ export function queueLine(entry) {
   const parts = [`§${entry.id}`, m.title || m.slug || '', `[${m.type ?? '?'}] ${m.status ?? '?'}`];
   const gates = gateSummary(m);
   if (gates) parts.push(gates);
+  const auto = autoSummary(m);
+  if (auto) parts.push(auto);
   parts.push(entry.source);
   if (m.status === 'done' && m.merged) parts.push(m.merged);
   return parts.join('  ');
@@ -92,6 +94,7 @@ export function queueData(entries) {
     type: e.metadata.type ?? null,
     status: e.metadata.status ?? null,
     gates: gateSummary(e.metadata),
+    auto: autoSummary(e.metadata),
     source: e.source,
     merged: e.metadata.status === 'done' ? e.metadata.merged || null : null,
   });

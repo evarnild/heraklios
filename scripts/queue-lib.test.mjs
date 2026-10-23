@@ -97,6 +97,14 @@ describe('queueLine and formatQueue', () => {
     expect(queueLine(done)).toContain('-·-·P');
   });
 
+  it('T6: shows the auto summary only for an auto-run intent', () => {
+    const auto = entry(6, 'in-progress', { auto_authorized: '2026-10-24 by-agent', auto_round: '1', auto_stopped: 'spec' });
+    expect(queueLine(auto)).toContain('auto · r1 · spec');
+    expect(queueLine(entry(7, 'in-progress'))).not.toContain('auto');
+    expect(queueLine(entry(7, 'in-progress'))).not.toMatch(/ {3,}/); // no empty column left behind
+    expect(queueLine(entry(8, 'in-progress', { auto_round: '1', auto_stopped: 'spec' }))).not.toContain('auto');
+  });
+
   it('prints the Stopped group and every heading', () => {
     const text = formatQueue([entry(6, 'abandoned'), entry(1, 'accepted')]);
     expect(text).toMatch(/In flight \(1\)[\s\S]*Queued \(0\)[\s\S]*Shipped \(0\)[\s\S]*Stopped \(1\)\n {2}§6/);
@@ -107,5 +115,10 @@ describe('queueLine and formatQueue', () => {
     const data = queueData([entry(3, 'done', { merged: 'abc1234' }, 0), entry(4, 'deferred')]);
     expect(data.shipped[0]).toMatchObject({ id: 3, status: 'done', merged: 'abc1234', source: 'main' });
     expect(data.stopped[0]).toMatchObject({ id: 4, merged: null });
+  });
+
+  it('T6: carries auto in the data, empty for a manual intent', () => {
+    const data = queueData([entry(6, 'in-progress', { auto_authorized: '2026-10-24', auto_round: '2' }), entry(7, 'in-progress')]);
+    expect(data.inFlight.map((e) => e.auto)).toEqual(['auto · r2', '']);
   });
 });

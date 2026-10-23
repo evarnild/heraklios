@@ -95,6 +95,39 @@ metadata changed after the reviewed commit, that `check:intent` passes,
 and that any owed live check is recorded, and refuses if not
 (`REVIEW-POLICY.md` → "Merging").
 
+## Running the steps on their own: `/auto`
+
+`/auto <id>` in the coordinator carries one accepted intent through steps 2
+to 5 without a prompt between them, and ends at step 6's door:
+
+- **Your message is a request to record one gate.** `/auto <id>` is your
+  request to record that intent's `plan_approved` (as `by-agent`, with a
+  comment naming it). `spec_accepted`, `live_checked` and `/ship` stay yours.
+- **A feature stops once, at the spec**, for your `spec_accepted`; a yes
+  continues the run. A fix or refactor has no spec; an adjustment or
+  experiment has no plan.
+- **It builds and reviews.** It spawns the worktree, launches the
+  implementer, runs `/review`, and re-runs the reviewer's commands and
+  surviving mutants itself before it writes `review.md`. A finding marked
+  "Needs rework:" (mechanical) goes back to the implementer; one marked
+  "Needs decision:" stops the run. At most three review rounds, counting
+  rounds after a failed live check.
+- **It stops** for your questions, a decision, an `escalate` verdict (you
+  read the diff; your next `/auto <id>` goes on to the live check or the
+  ship, with no new round), a spec or plan amendment, running out of rounds,
+  a live check owed, a CRITICAL finding, a red it cannot trace, a mismatch
+  in the re-check, a plan that exists unapproved, a blocked ship dry-run, an
+  agent error, a worktree held by another session, or a
+  fourth open session. Each stop writes `auto_round` and
+  `auto_stopped` into `metadata.yml`, shows in `npm run sessions` and
+  `npm run queue` as `auto · r<n> · <reason>`, and sends a push notification
+  when the session has the tool.
+- **It ends at "ready: `/ship <id>`"**, after `npm run ship -- <id>
+  --dry-run` shows nothing in the way, and never ships. Closing the session
+  pauses it; `/auto <id>` in a new one resumes from the recorded round.
+- Reviews of auto runs say `run: auto`, and every third attested one is
+  sampled (every fifth manual one).
+
 ## What each type requires
 
 | Type | Use for | You record |
@@ -116,7 +149,8 @@ rule goes through every gate and ends at the Reviewed tier.
 - `/grid` refreshes `docs/sdlc-grid.md`; run it every few weeks.
 - A bug you hit while playing becomes a new **fix** intent — triaging it is
   one of your gates too.
-- Every fifth attested change gets a full diff read after merge
-  (`sampled: yes` in its `review.md`).
+- Every fifth attested manual change, and every third attested auto-run
+  change, gets a full diff read after merge (`sampled: yes` in its
+  `review.md`).
 
 To start: `/intent` plus what you want changed.

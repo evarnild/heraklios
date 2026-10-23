@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 // `npm run sdlc:scan [-- --since 2025-10-01] [--json]`
+// `npm run sdlc:scan -- --sample-due <auto|manual> [--exclude <id>]` prints whether the next
+// attested change of that run kind is the one REVIEW-POLICY.md says to sample.
 //
 // Reads what each SDLC level leaves behind — context file, one-command
 // verification, intents/ contents, skill stamps, review verdicts — plus the
@@ -10,7 +12,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { GATE_FIELDS, parseMetadata } from './intent-check-lib.mjs';
-import { artefactOrigins, gateShares, metadataProblems } from './scan-lib.mjs';
+import { artefactOrigins, gateShares, metadataProblems, qualityByRun, parseReviewFields, qualityByTier, sampleDueCommand } from './scan-lib.mjs';
 
 const args = process.argv.slice(2);
 const flag = (name) => {
@@ -52,14 +54,20 @@ if (existsSync('intents')) {
     let review = null;
     if (files.includes('review.md')) {
       const text = readFileSync(join(path, 'review.md'), 'utf8');
-      const field = (k) => new RegExp(`^${k}:\\s*(\\S+)`, 'm').exec(text)?.[1] ?? null;
-      review = { verdict: field('verdict'), tier: field('tier'), round: field('round'), sampled: field('sampled') };
+      review = parseReviewFields(text);
     }
     const followsUp = typeof meta.follows_up === 'string' ? meta.follows_up : null;
     const merged = typeof meta.merged === 'string' ? meta.merged : null;
     const gates = Object.fromEntries(GATE_FIELDS.map((k) => [k, meta[k]]));
     intents.push({ dir, id: meta.id, type: meta.type, status: meta.status, files, stamps, review, followsUp, merged, gates });
   }
+}
+// --- `--sample-due`: the sampling rule, nothing else -----------------------
+const sampleDueOut = sampleDueCommand(args, intents);
+if (sampleDueOut) {
+  if (sampleDueOut.stderr) console.error(sampleDueOut.stderr);
+  if (sampleDueOut.stdout) console.log(sampleDueOut.stdout);
+  process.exit(sampleDueOut.exit);
 }
 const countBy = (xs, key) => xs.reduce((acc, x) => ((acc[x[key] ?? 'unset'] = (acc[x[key] ?? 'unset'] ?? 0) + 1), acc), {});
 const stamped = intents.filter((i) => Object.values(i.stamps).some(Boolean)).length;
@@ -100,20 +108,8 @@ const mergedInWindow = (i) => {
   if (!i.merged || !isCommit(i.merged)) return false;
   return git('show', '-s', '--format=%as', i.merged) >= since;
 };
-const tierOf = new Map(intents.filter((i) => i.review?.tier && mergedInWindow(i)).map((i) => [String(i.id), i.review.tier]));
-const perTier = {};
-const bump = (tier, key) => {
-  perTier[tier] ??= { changes: 0, followUps: 0, reverts: 0 };
-  perTier[tier][key] += 1;
-};
-for (const tier of tierOf.values()) bump(tier, 'changes');
-for (const i of intents.filter((x) => x.type === 'fix' && x.followsUp)) {
-  if (tierOf.has(i.followsUp)) bump(tierOf.get(i.followsUp), 'followUps');
-}
-for (const c of reverts) {
-  const id = /§\s?(\d+)/.exec(c.subject)?.[1];
-  if (id && tierOf.has(id)) bump(tierOf.get(id), 'reverts');
-}
+const perTier = qualityByTier({ intents, reverts, mergedInWindow });
+const perRun = qualityByRun({ intents, reverts, mergedInWindow });
 
 const byMonth = {};
 for (const c of changes) {
@@ -145,6 +141,7 @@ const report = {
     byMonth,
   },
   perTier,
+  perRun,
   problems,
   gateShares: gateShares(intents),
 };
@@ -165,7 +162,7 @@ if (asJson) {
   for (const [file, o] of Object.entries(r.intents.artefactOrigins)) {
     console.log(`${file}: ${o.skill} by /${file === 'spec.md' ? 'spec' : 'build-plan'} · ${o.hand} hand (old stamp) · ${o.unstamped} unstamped`);
   }
-  for (const rv of r.intents.reviews) console.log(`  review §${rv.id}: verdict ${rv.verdict}, tier ${rv.tier}, round ${rv.round}, sampled ${rv.sampled}`);
+  for (const rv of r.intents.reviews) console.log(`  review §${rv.id}: verdict ${rv.verdict}, tier ${rv.tier}, round ${rv.round}, sampled ${rv.sampled}, run ${rv.run ?? 'manual'}`);
   console.log('\n## Gates recorded (owner / agent)');
   for (const [field, n] of Object.entries(r.gateShares)) console.log(`${field}: ${n.owner} owner · ${n.agent} agent`);
   console.log('\n## Outcome (first-parent commits on main, plan-only commits excluded)');
@@ -175,4 +172,10 @@ if (asJson) {
   const tiers = Object.entries(r.perTier);
   if (!tiers.length) console.log('no merged, reviewed intents yet');
   for (const [tier, q] of tiers) console.log(`${tier}: ${q.changes} change(s) · ${q.followUps} follow-up fix(es) · ${q.reverts} revert(s)`);
+  console.log('\n## Quality per review tier and run kind (a review with no run: line counts as manual)');
+  for (const [run, perTierOfRun] of Object.entries(r.perRun)) {
+    const rows = Object.entries(perTierOfRun);
+    if (!rows.length) console.log(`${run}: none`);
+    for (const [tier, q] of rows) console.log(`${run} · ${tier}: ${q.changes} change(s) · ${q.followUps} follow-up fix(es) · ${q.reverts} revert(s)`);
+  }
 }

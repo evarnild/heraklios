@@ -3,7 +3,7 @@ name: review
 description: Run heraklios's review policy against a branch and write the review report (intents/<id>-<slug>/review.md) with passes, findings, a Not-checked section and an attest/escalate/rework verdict. Use before merging any heraklios branch into main, or to re-review after rework. Invoke as /review [branch].
 metadata:
   owner: evarnild
-  version: 0.1.4
+  version: 0.1.5
   scope: repository
   status: experimental
   review-tier: reviewed
@@ -15,7 +15,7 @@ metadata:
 policy first, every time — it changes, and the version you remember may not
 be current.
 
-Stamp: `<!-- generated-by: heraklios/review@0.1.4 -->` as the first line of
+Stamp: `<!-- generated-by: heraklios/review@0.1.5 -->` as the first line of
 `review.md`.
 
 ## 0. Orient
@@ -72,7 +72,11 @@ yourself (never `git checkout --`), end with `git status --short` clean.
 Exactly the format in `REVIEW-POLICY.md` → "The report". Rules:
 
 - **Findings** carry severity, `file:line`, what is wrong, and either
-  "needs rework: <minimal fix>" or "worth a look".
+  "Needs rework: <minimal fix>" (mechanical: the spec, the plan or a test
+  determines the fix), "Needs decision: <the choice>" (the fix picks between
+  behaviours, or changes what the spec or plan says) or "Worth a look". When
+  unsure, write "Needs decision:": a wrong "Needs rework:" lets an auto run
+  decide for the owner (spec B7).
 - **Not checked** is honest and specific — untested paths, a rule passage
   you couldn't resolve, manual browser behaviour you couldn't see, mutants
   you didn't run and why. An empty Not-checked section is almost always wrong.
@@ -93,9 +97,14 @@ Exactly the format in `REVIEW-POLICY.md` → "The report". Rules:
   the changed behaviour, the change is neither new nor visual, and your own
   `npm run e2e` passed, set `not-needed` and name the scenario and the run.
   A failing scenario is a finding.
-- `sampled:` — count attested reviews in `intents/*/review.md`; if this is
-  the 5th, 10th, … attested change, set `sampled: yes` and tell the user a
-  post-merge full read is due.
+- `run:` — `auto` when `/auto` called this review (its brief says so),
+  otherwise `manual` (spec B14).
+- `sampled:` — run `npm run sdlc:scan -- --sample-due <run> --exclude <id>`
+  (this review's run kind and intent id). It counts the attested reviews of
+  that run kind in `intents/*/review.md`, leaving this intent out: every 5th
+  attested manual change and every 3rd attested auto-run change is due. When
+  it prints `sampled: yes` (and only if the verdict is `attest`), set
+  `sampled: yes` and tell the user a post-merge full read is due.
 
 Write nothing but `review.md`. The implementer sets `status: in-review`; if
 it is still something else, say so in the report rather than fixing it.

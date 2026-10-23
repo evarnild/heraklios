@@ -47,7 +47,8 @@ You are the **coordinator** (the main checkout). This skill wraps
      which gate is missing, and give the hand-over: `cd "<path>" && claude`,
      or open the folder in the Claude Code desktop app.
 6. **On completion.** Report the implementer's result (branch, commits,
-   verify output, assumptions) and offer `/review`. Don't run it unprompted,
+   verify output, assumptions) and offer `/review`. Outside an `/auto <id>`
+   run (`.claude/skills/auto/SKILL.md`), don't run it unprompted; never
    record a gate or merge; those stay with the owner.
 
 ## Removing (`--remove`)

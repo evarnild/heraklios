@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   age,
+  autoSummary,
   branchFor,
   clip,
   eventRecordFrom,
@@ -8,6 +9,7 @@ import {
   formatStatusTable,
   gateSummary,
   latestEventByWorktree,
+  metadataColumns,
   notificationState,
   parseEvents,
   parseWorktreeList,
@@ -293,11 +295,47 @@ describe('status table', () => {
       now,
     );
     const lines = text.split('\n');
-    expect(lines[0]).toMatch(/^§\s+branch\s+status\s+gates\s+±main\s+dirty\s+session\s+port$/);
+    expect(lines[0]).toMatch(/^§\s+branch\s+status\s+gates\s+auto\s+±main\s+dirty\s+session\s+port$/);
     expect(lines[2]).toMatch(/^§28\s+feat\/28-y\s+in-progress\s+I·P\s+\+2\/-0\s+3\s+needs you \(2m\)\s+5227$/);
     expect(lines[3]).toMatch(/^§27\s+refactor\/27-x .* working \(4m\)\s+5227$/);
     expect(lines[4]).toMatch(/^—\s+main\s+no events$/);
     expect(text).toContain('Waiting on you:\n  §28: Claude needs your permission to use Bash');
+  });
+});
+
+describe('autoSummary (spec §50 B12)', () => {
+  const d = '2026-10-24';
+  it('T5: shows the round and the reason once stopped', () => {
+    expect(autoSummary({ auto_authorized: d, auto_round: '2', auto_stopped: 'live check' })).toBe('auto · r2 · live check');
+  });
+  it('T5: shows only the round while running', () => {
+    expect(autoSummary({ auto_authorized: d, auto_round: '2', auto_stopped: [] })).toBe('auto · r2');
+    expect(autoSummary({ auto_authorized: d + ' by-agent' })).toBe('auto');
+  });
+  it('T5: shows nothing without auto_authorized, even with a round and a reason', () => {
+    expect(autoSummary({ auto_round: '2', auto_stopped: 'live check' })).toBe('');
+    expect(autoSummary({ auto_authorized: [], auto_round: '1' })).toBe('');
+    expect(autoSummary({ auto_authorized: 'yes', auto_round: '1' })).toBe('');
+    expect(autoSummary(null)).toBe('');
+  });
+  it('T5: the sessions table has an auto column after gates with that text', () => {
+    const row = {
+      id: '50', branch: 'feat/50-x', status: 'in-review', gates: 'I·S·P', auto: 'auto · r2 · live check', ahead: 1, behind: 0, dirty: 0, port: 5250,
+      session: { state: 'working', since: null, detail: '' },
+    };
+    const lines = formatStatusTable([row], Date.now()).split('\n');
+    expect(lines[0]).toMatch(/gates\s+auto\s+±main/);
+    expect(lines[2]).toMatch(/I·S·P\s+auto · r2 · live check\s+\+1\/-0/);
+  });
+});
+
+describe('metadataColumns (a sessions row)', () => {
+  it('MS2: carries status, gates and the auto summary from the metadata', () => {
+    const m = { type: 'fix', status: 'in-review', intent_accepted: '2026-10-24', plan_approved: '2026-10-24', auto_authorized: '2026-10-24', auto_round: '2', auto_stopped: 'live check owed' };
+    expect(metadataColumns(m)).toEqual({ status: 'in-review', gates: 'I·P', auto: 'auto · r2 · live check owed' });
+  });
+  it('is empty for a worktree without an intent', () => {
+    expect(metadataColumns(null)).toEqual({ status: null, gates: '', auto: '' });
   });
 });
 

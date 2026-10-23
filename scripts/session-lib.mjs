@@ -2,7 +2,7 @@
 // sessions` and the session-event hook. Kept free of git/fs calls so it can
 // be unit-tested; see session-lib.test.mjs. The workflow it serves is written
 // down for humans in CLAUDE.md → "Parallel sessions".
-import { parseGate, PREFIX_TO_TYPE, TYPE_RULES } from './intent-check-lib.mjs';
+import { parseAuto, parseGate, PREFIX_TO_TYPE, TYPE_RULES } from './intent-check-lib.mjs';
 
 /** Name of the shared event log, inside the git common dir (never committed). */
 export const EVENT_LOG = 'heraklios-sessions.jsonl';
@@ -179,6 +179,25 @@ export function gateSummary(metadata) {
   return gates.map((key) => (isRecorded(metadata[key]) ? GATE_LETTERS[key] : '-')).join('·');
 }
 
+/**
+ * What `npm run sessions` and `npm run queue` show for an auto run (spec §50
+ * B12): `auto · r2 · live check` once stopped, `auto · r2` while running, and
+ * nothing for an intent without `auto_authorized`.
+ */
+export function autoSummary(metadata) {
+  const auto = parseAuto(metadata);
+  if (auto.authorized.state !== 'recorded') return '';
+  const parts = ['auto'];
+  if (auto.round !== null) parts.push(`r${auto.round}`);
+  if (auto.stopped !== null) parts.push(auto.stopped);
+  return parts.join(' · ');
+}
+
+/** The metadata-derived columns of a sessions row (status, gates, auto); empty for no metadata. */
+export function metadataColumns(metadata) {
+  return { status: metadata?.status ?? null, gates: gateSummary(metadata), auto: autoSummary(metadata) };
+}
+
 /** Same rule as check-intent: both forms of a dated gate count (parseGate). */
 function isRecorded(v) {
   return parseGate(v).state === 'recorded';
@@ -197,15 +216,16 @@ export function sortRows(rows) {
 
 /**
  * Renders the coordinator's table. Each row:
- * `{id, branch, path, status, gates, ahead, behind, dirty, session:{state,since,detail}, port}`.
+ * `{id, branch, path, status, gates, auto, ahead, behind, dirty, session:{state,since,detail}, port}`.
  */
 export function formatStatusTable(rows, now) {
-  const header = ['§', 'branch', 'status', 'gates', '±main', 'dirty', 'session', 'port'];
+  const header = ['§', 'branch', 'status', 'gates', 'auto', '±main', 'dirty', 'session', 'port'];
   const body = sortRows(rows).map((r) => [
     r.id ? `§${r.id}` : '—',
     r.branch ?? '(detached)',
     r.status ?? '',
     r.gates ?? '',
+    r.auto ?? '',
     r.ahead == null ? '' : `+${r.ahead}/-${r.behind}`,
     r.dirty ? String(r.dirty) : '',
     describeSession(r.session, now),
