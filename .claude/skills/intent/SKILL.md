@@ -32,8 +32,8 @@ Look, in this order:
 
 - the user's message and anything pasted or linked (GitHub issue via `gh`, a
   `review.md` finding, a `plan-history.md` follow-up such as §19.5);
-- `OVERVIEW.md` ("Carried over") and `npm run queue` (draft intents are
-  listed under Queued) for an existing entry describing this work;
+- `OVERVIEW.md` ("Carried over") and `npm run queue` (once an intent is
+  committed it is listed under Queued) for an existing entry describing this work;
 - `plan-history.md` for prior attempts or related decisions (grep the topic);
 - `README.md` "Known simplifications" — features often remove one;
 - `docs/research/` for the rule that binds it (start at `docs/research/README.md`);
@@ -61,8 +61,9 @@ If the user says "just draft it", fill gaps with your best reading.
 
 1. **Id:** the next `§` number, from `npm run queue -- --next-id` (one more
    than the highest `§N` in `plan-history.md`, `OVERVIEW.md` and the
-   `intents/` folders on `main` and on every local branch, so an id taken on
-   an unmerged branch is not taken twice). Slug: short kebab-case.
+   `intents/` folders on `main`, on every local branch and on disk here, so an
+   id taken on an unmerged branch or in an uncommitted draft is not taken
+   twice). Slug: short kebab-case.
 2. Create `intents/<id>-<slug>/intent.md` from the template, keeping only
    this type's question block.
 3. Create `metadata.yml` from `intents/_templates/metadata.yml`: id, slug,
@@ -75,7 +76,7 @@ If the user says "just draft it", fill gaps with your best reading.
    how the scan counts follow-ups per review tier, so only set it for a real
    cause. **Leave every gate empty.**
 4. There is no queue row to add: `npm run queue` is generated from the
-   `metadata.yml` you just wrote, and lists the intent under Queued.
+   `metadata.yml` you just wrote, and lists the intent under Queued once it is committed.
 5. If the material came from a GitHub issue, offer to post the sharpened
    problem statement back to it — don't post without a yes.
 

@@ -24,14 +24,21 @@ export const GROUPS = [
   ['other', 'Unrecognised status'],
 ];
 
+/** Statuses that end an intent's life: once `main` says one of them, no branch can reopen it. */
+export const TERMINAL_STATUSES = ['done', 'abandoned', 'deferred'];
+
 /**
  * Which metadata.yml speaks for an intent (B2). An implementer sets
  * `in-review` on the intent's branch, not on `main`, so while that branch
  * exists and is not merged, the branch wins; a merged branch not yet deleted
- * must not, or a shipped intent would read as in-review.
+ * must not, or a shipped intent would read as in-review. Owner's amendment
+ * (2026-10-23, "main wins"): when `main` holds a terminal status the branch
+ * is ignored, so a branch kept unmerged on purpose (§30's probe) does not
+ * show a finished intent as in flight.
  * Returns `{ metadata, source }`, or null when neither side has one.
  */
 export function pickSource(mainMeta, branchMeta, branchMerged) {
+  if (mainMeta && TERMINAL_STATUSES.includes(mainMeta.status)) return { metadata: mainMeta, source: 'main' };
   if (branchMeta && !branchMerged) return { metadata: branchMeta, source: 'branch' };
   if (mainMeta) return { metadata: mainMeta, source: 'main' };
   return null;

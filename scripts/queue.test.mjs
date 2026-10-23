@@ -87,4 +87,74 @@ describe('npm run queue', { timeout: 60_000 }, () => {
     expect(data.inFlight.map((e) => [e.id, e.source])).toEqual([[1, 'main']]);
     expect(data.shipped.map((e) => [e.id, e.status])).toEqual([[2, 'done']]);
   });
+
+  it('lists Shipped by merge order, newest first, not by id', () => {
+    git('checkout', '-q', '-b', 'fix/1-first');
+    write('intents/1-first/metadata.yml', meta(1, 'first', 'in-review'));
+    commit('§1 in review');
+    git('checkout', '-q', 'main');
+    git('merge', '-q', '--no-ff', '-m', 'Merge §1', 'fix/1-first');
+    const sha = git('rev-parse', '--short=7', 'HEAD');
+    write('intents/1-first/metadata.yml', meta(1, 'first', 'done', `merged: ${sha}\n`));
+    commit('§1 done');
+    // §1 merged after §2, so it is the newer merge although its id is lower
+    expect(queue().stdout).toMatch(/Shipped \(2\)\n {2}§1 .*\n {2}§2 /);
+  });
+
+  it('lets main win when it says done, although the branch is unmerged and says in-review', () => {
+    write('intents/4-fourth/metadata.yml', meta(4, 'fourth', 'done', 'merged: abc1234\n'));
+    commit('§4 done');
+    git('checkout', '-q', '-b', 'fix/4-fourth');
+    write('intents/4-fourth/metadata.yml', meta(4, 'fourth', 'in-review'));
+    commit('§4 in review on a kept branch');
+    git('checkout', '-q', 'main');
+    const out = queue().stdout;
+    expect(out).toMatch(/Shipped \(3\)[\s\S]*§4 .*\[fix\] done .* main {2}abc1234/);
+    expect(out).toMatch(/In flight \(0\)/);
+    const data = JSON.parse(queue('--json').stdout);
+    expect(data.shipped.find((e) => e.id === 4)).toMatchObject({ status: 'done', source: 'main' });
+  });
+
+  it('--json says branch for an entry read from its unmerged branch', () => {
+    write('intents/3-third/metadata.yml', meta(3, 'third', 'accepted'));
+    commit('§3 accepted');
+    git('checkout', '-q', '-b', 'fix/3-third');
+    write('intents/3-third/metadata.yml', meta(3, 'third', 'in-review'));
+    commit('§3 in review');
+    git('checkout', '-q', 'main');
+    const data = JSON.parse(queue('--json').stdout);
+    expect(data.inFlight.find((e) => e.id === 3)).toMatchObject({ status: 'in-review', source: 'branch' });
+    expect(data.inFlight.find((e) => e.id === 1)).toBeUndefined();
+  });
+
+  it('--next-id counts an intent folder that is not committed yet, and the listing does not show it', () => {
+    write('intents/70-draft/metadata.yml', meta(70, 'draft', 'draft'));
+    try {
+      expect(queue('--next-id').stdout.trim()).toBe('71');
+      expect(queue().stdout).not.toContain('§70');
+    } finally {
+      rmSync(join(repo, 'intents', '70-draft'), { recursive: true, force: true });
+    }
+    expect(queue('--next-id').stdout.trim()).toBe('61');
+  });
+
+  it('--next-id reads a higher §N from a working-copy OVERVIEW.md, then from main alone', () => {
+    write('OVERVIEW.md', 'a note on §90\n');
+    expect(queue('--next-id').stdout.trim()).toBe('91'); // only in the working copy
+    write('OVERVIEW.md', 'a note on §95\n');
+    commit('OVERVIEW on main');
+    write('OVERVIEW.md', 'no section numbers here\n'); // uncommitted edit: §95 is now only on main
+    expect(queue('--next-id').stdout.trim()).toBe('96');
+    git('checkout', '--', 'OVERVIEW.md');
+  });
+
+  it('shows a branch conflict instead of crashing when two branches carry one id', () => {
+    write('intents/5-fifth/metadata.yml', meta(5, 'fifth', 'accepted'));
+    commit('§5 accepted');
+    git('branch', 'fix/5-aaa');
+    git('branch', 'fix/5-bbb');
+    const r = queue();
+    expect(r.status).toBe(0);
+    expect(r.stdout).toMatch(/§5 .*\[fix\] accepted .* branch conflict/);
+  });
 });

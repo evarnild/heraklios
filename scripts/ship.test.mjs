@@ -45,7 +45,7 @@ const branchExists = (b) => {
   }
 };
 
-const metadataText = (id, eol, live = '') =>
+const metadataText = (id, eol, live = '', noMerged = false) =>
   [
     '# generated-by: test',
     `id: ${id}`,
@@ -57,7 +57,7 @@ const metadataText = (id, eol, live = '') =>
     'spec_accepted: 2026-10-01',
     'plan_approved: 2026-10-01',
     `live_checked:${live ? ` ${live}` : ''}`,
-    'merged:',
+    ...(noMerged ? [] : ['merged:']),
     '',
   ].join(eol);
 
@@ -67,13 +67,13 @@ const metadataText = (id, eol, live = '') =>
  * extra file in the work commit and the review text.
  */
 function makeIntent(id, extra = {}) {
-  const { verdict = 'escalate', liveCheck = 'not-needed', file = `docs/t${id}.md`, body = '', eol = '\n', live = '', afterReview, reviewedCommit } = extra;
+  const { verdict = 'escalate', liveCheck = 'not-needed', file = `docs/t${id}.md`, body = '', eol = '\n', live = '', afterReview, reviewedCommit, noMerged = false } = extra;
   const branch = `feat/${id}-t${id}`;
   const path = wt(`${id}-t${id}`);
   git(repo, 'worktree', 'add', '-q', '-b', branch, path, 'main');
   const dir = join(path, 'intents', `${id}-t${id}`);
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, 'metadata.yml'), metadataText(id, eol, live));
+  writeFileSync(join(dir, 'metadata.yml'), metadataText(id, eol, live, noMerged));
   for (const f of ['intent.md', 'spec.md', 'plan.md']) writeFileSync(join(dir, f), `# §${id} ${f}\n`);
   mkdirSync(dirname(join(path, file)), { recursive: true });
   writeFileSync(join(path, file), `work ${id}\n`);
@@ -92,7 +92,6 @@ function makeIntent(id, extra = {}) {
   if (afterReview) afterReview(path);
   return { branch, path, dir: `intents/${id}-t${id}` };
 }
-
 
 beforeAll(() => {
   sandbox = mkdtempSync(join(tmpdir(), 'h46-ship-'));
@@ -512,6 +511,17 @@ describe('npm run ship: preconditions, wiring and refusals', { timeout: 90_000 }
 describe('npm run ship: failures after the merge', { timeout: 90_000 }, () => {
   const hook = () => join(repo, '.git', 'hooks', 'pre-commit');
   const marker = () => join(repo, '.git', 'reject-commit');
+
+  it('stops before writing anything when metadata.yml has no merged: line', () => {
+    const w = makeIntent(50, { noMerged: true });
+    const r = ship(['50']);
+    expect(r.status, out(r)).toBe(1);
+    expect(r.stdout).toMatch(/STOPPED\s+bookkeeping[\s\S]*could not prepare the bookkeeping \(nothing was written\)/);
+    expect(git(repo, 'status', '--porcelain')).toBe('');
+    expect(git(repo, 'log', '-1', '--merges', '--format=%s', 'main')).toBe('Merge §50: Thing 50');
+    expect(read('intents', '50-t50', 'metadata.yml')).toContain('status: in-review');
+    expect(branchExists(w.branch)).toBe(true);
+  });
 
   it('puts the file back and unstages it when the bookkeeping commit is rejected, then resumes', () => {
     makeIntent(41);

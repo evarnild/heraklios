@@ -13,6 +13,25 @@ are unchanged.
 | **Implement** | One agent, with `isolation: 'worktree'` — its own checkout of the repo. The agent creates a branch, implements the rule, adds engine tests, and runs `npm run build` + `npm test` until green, then commits. |
 | **Verify** | A second, independent agent re-reads the diff with fresh eyes, re-runs the checks, and reports whether the rule matches the rulebook text and whether the tests actually prove it. It does *not* trust the implementer's own summary. |
 
+**Workflow defaults:**
+
+| Decision | Value |
+| --- | --- |
+| Implementer model | **Sonnet** for Claude Code; Codex implementers inherit the parent Codex model unless explicitly overridden. |
+| Reviewer model | **Opus** for Claude Code; Codex reviewers use the project `heraklios_reviewer` agent or a read-only review pass. |
+| Verification style | **Adversarial** — reviewer hunts for defects, does not trust the implementer's self-report. |
+| Integration | Agent commits to its own `feat/*` branch. No auto-merge. Review and merge by hand. |
+
+Habits carried over from the old plan rules:
+
+- **Preserve useful postmortems.** Review failures, wrong assumptions, and
+  rulebook interpretations belong in `plan-history.md` because they prevent
+  repeat mistakes. Write them while the work is still live (in the intent's
+  review or Progress), and only archive once it is done with (shipped, or
+  abandoned). Don't archive something still being argued about.
+- **Treat line references as unstable.** If a task brief relies on line
+  numbers, re-verify them against current `main` before launching work.
+
 ### Agents
 
 Two project-scoped agent definitions live in `.claude/agents/` and carry
@@ -211,7 +230,7 @@ via `npx`), but prefer the local binary for both.
 This project routinely has **four checkouts** live (`heraklios`,
 `heraklios-stable`, `heraklios-codex`, plus any agent worktree under
 `.claude/worktrees/`), and a `npm run dev` in each grabs the next free Vite
-port. During [§13](plan-history.md#13-hex-coordinate-tooltip) three servers were running
+port. During [§13](../plan-history.md#13-hex-coordinate-tooltip) three servers were running
 with **two bound to 5173**, so `http://localhost:5173` non-deterministically
 served a tree that did not contain the feature under test — two rounds of
 manual verification reported "no tooltip" against code that never had one.

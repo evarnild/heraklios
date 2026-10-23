@@ -10,7 +10,7 @@ plan file that carried a hand-kept queue (§47); nothing here tracks status.
   prints the id a new intent takes. Nobody edits a queue by hand.
 - **Work items since §26** live in `intents/<id>-<slug>/`, see
   [`intents/README.md`](intents/README.md). A new idea is a draft intent
-  (`/intent`), which the queue lists under Queued. Sections §1–§25 keep their
+  (`/intent`), which the queue lists under Queued once it is committed. Sections §1–§25 keep their
   old form in `plan-history.md`; nothing is migrated retroactively.
 - **The runbook** (agent workflow, launch hazards, the `node_modules` and
   `npx tsc` warnings) is [`docs/runbook.md`](docs/runbook.md), sections 1 and 4.
@@ -29,7 +29,6 @@ fix stale facts before moving it, never after. Then add or update a line in
 the History Map below.
 
 ## Current Snapshot
-
 
 **Shipped:** Feature A (cavalry charges + phalanx), AI Stage 1 (headless
 action layer), AI Stage 2a (fuzz harness), start-a-new-game-anytime, move

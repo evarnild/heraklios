@@ -15,7 +15,8 @@ You are the **coordinator** (the main checkout, on `main`). This skill wraps
 `npm run ship`, which does the steps as tested code. The rules it applies are
 `REVIEW-POLICY.md` → "Merging" (preconditions, `--no-ff`, `verify`,
 bookkeeping); read that section rather than relying on this file. The design
-is `intents/46-ship-skill/spec.md`.
+is `intents/46-ship-skill/spec.md` (its `plan.md` bookkeeping was removed by
+§47: the queue is generated, so the bookkeeping commit holds `metadata.yml` only).
 
 ## The request
 

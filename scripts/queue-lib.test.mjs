@@ -50,6 +50,15 @@ describe('pickSource', () => {
   it('reads main when the branch is already merged', () => {
     expect(pickSource({ status: 'done' }, branch, true)).toEqual({ metadata: { status: 'done' }, source: 'main' });
   });
+  it.each(['done', 'abandoned', 'deferred'])('reads main when main says %s, whatever the unmerged branch says', (status) => {
+    const m = { status };
+    expect(pickSource(m, branch, false)).toEqual({ metadata: m, source: 'main' });
+  });
+  it('still reads an unmerged branch over a non-terminal main status', () => {
+    for (const status of ['draft', 'accepted', 'in-progress', 'in-review']) {
+      expect(pickSource({ status }, branch, false).source).toBe('branch');
+    }
+  });
   it('reads main when there is no branch', () => {
     expect(pickSource(main, null, false)).toEqual({ metadata: main, source: 'main' });
   });

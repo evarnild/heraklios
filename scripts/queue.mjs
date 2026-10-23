@@ -7,9 +7,10 @@
 // from the intent's branch while that branch exists and is not merged (an
 // implementer sets `in-review` there), else from main. `--next-id` prints the
 // id `/intent` should take next: one more than the highest §N in
-// plan-history.md, OVERVIEW.md and the intents/ of main and of every local
-// branch. The pure half is queue-lib.mjs.
-import { existsSync, readFileSync } from 'node:fs';
+// plan-history.md, OVERVIEW.md, the intents/ of main and of every local
+// branch, and the intents/ folders on disk here (a draft /intent has not
+// committed yet). The listing shows committed intents only (those on main). The pure half is queue-lib.mjs.
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseMetadata } from './intent-check-lib.mjs';
 import { formatQueue, nextId, pickSource, queueData } from './queue-lib.mjs';
@@ -58,10 +59,17 @@ function collectEntries() {
     const id = dir.slice(0, dir.indexOf('-'));
     const text = tryGit('show', `${MAIN}:intents/${dir}/metadata.yml`);
     const mainMeta = text === null ? null : parseMetadata(text);
-    const found = readIntentMetadataFromBranch(root, id);
+    let found = null;
+    let conflict = false;
+    try {
+      found = readIntentMetadataFromBranch(root, id);
+    } catch {
+      conflict = true; // two local branches carry this id: say so, and show what main holds
+    }
     const merged = found ? tryGit('merge-base', '--is-ancestor', found.branch, MAIN) !== null : false;
     const picked = pickSource(mainMeta, found?.metadata ?? null, merged);
     if (!picked) continue;
+    if (conflict) picked.source = 'branch conflict';
     entries.push({ id, ...picked, mergeRank: picked.metadata.status === 'done' ? rankOf(picked.metadata.merged) : null });
   }
   return entries;
@@ -72,6 +80,10 @@ function allIntentIds() {
   const ids = new Set();
   for (const ref of new Set([MAIN, ...refs])) {
     for (const dir of intentDirs(ref)) ids.add(dir.slice(0, dir.indexOf('-')));
+  }
+  const onDisk = join(root, 'intents');
+  if (existsSync(onDisk)) {
+    for (const dir of readdirSync(onDisk)) if (/^[0-9]+-/.test(dir)) ids.add(dir.slice(0, dir.indexOf('-')));
   }
   return [...ids];
 }
