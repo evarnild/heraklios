@@ -12,6 +12,7 @@ import Phaser from 'phaser';
 import { createSeededRng } from '../engine/rng';
 import { reachableHexes } from '../engine/movement';
 import { pickButton, matchingButtons, type ButtonCandidate } from './devHookMatch';
+import { validateArmy } from '../engine/army';
 import { session } from './session';
 
 type Hex = { q: number; r: number };
@@ -55,6 +56,15 @@ export interface DevHook {
    * Read-only; a scenario clicks one, as a player would (§40).
    */
   placement(): { current: string | null; legalHexes: Hex[] };
+  /**
+   * While the ArmyBuilder scene is up: the active seat's counts per unit type,
+   * the total cost, and which `«` / `»` buttons are dimmed. Read-only (§51).
+   */
+  armyBuilder(): {
+    counts: Record<string, number>;
+    total: number;
+    dimmed: Record<string, { clear: boolean; fill: boolean }>;
+  };
   /** The Board's message history, headings included (§49). */
   logEntries(): { kind: 'heading' | 'entry'; text: string }[];
   /** The Board's log panel: its bounds, scroll state (in lines) and the scrollbar thumb's centre, if shown (§49). */
@@ -92,6 +102,15 @@ const PLACEMENT_MEMBERS = ['queue', 'currentLegalHexes'] as const;
 interface PlacementInternals {
   queue: { typeId: string; remaining: number }[];
   currentLegalHexes(): Hex[];
+}
+
+/** `ArmyBuilderScene` members `armyBuilder()` reads, by name; guarded like `PLACEMENT_MEMBERS`. */
+const ARMY_BUILDER_MEMBERS = ['playerIndex', 'clearBtns', 'fillBtns'] as const;
+
+interface ArmyBuilderInternals {
+  playerIndex: number;
+  clearBtns: Record<string, { alpha: number }>;
+  fillBtns: Record<string, { alpha: number }>;
 }
 
 /** The shape of `BoardScene.retreatChoice` this hook reads. */
@@ -172,11 +191,26 @@ export function installDevHook(game: Phaser.Game): void {
       }
       return { current: p.queue.find((q) => q.remaining > 0)?.typeId ?? null, legalHexes: p.currentLegalHexes() };
     },
+    armyBuilder: () => armyBuilderSnapshot(game),
     logEntries: () => logInternals(board()).logHistory.entries().map((e) => ({ kind: e.kind, text: e.text })),
     logPanel: () => logPanelSnapshot(logInternals(board()).logPanel),
     cameraZoom: () => board().cameras.main.zoom,
   };
   (window as unknown as { __heraklios: DevHook }).__heraklios = hook;
+}
+
+function armyBuilderSnapshot(game: Phaser.Game): ReturnType<DevHook['armyBuilder']> {
+  if (!game.scene.isActive('ArmyBuilder')) throw new Error('ArmyBuilder scene is not active');
+  const a = game.scene.getScene('ArmyBuilder') as unknown as ArmyBuilderInternals;
+  for (const m of ARMY_BUILDER_MEMBERS) {
+    if (!(m in a)) throw new Error(`devHook: ArmyBuilderScene has no "${m}" any more — update ARMY_BUILDER_MEMBERS`);
+  }
+  const counts = { ...session.armySelections[a.playerIndex]! };
+  const dimmed: Record<string, { clear: boolean; fill: boolean }> = {};
+  for (const id of Object.keys(counts)) {
+    dimmed[id] = { clear: a.clearBtns[id]!.alpha < 1, fill: a.fillBtns[id]!.alpha < 1 };
+  }
+  return { counts, total: validateArmy(counts).totalCost, dimmed };
 }
 
 function logInternals(scene: Phaser.Scene): LogInternals {
