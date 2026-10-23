@@ -2,14 +2,14 @@
 id: 48
 slug: e2e-save-lock-hooks
 type: fix
-status: in-review
+status: done
 title: e2e save-lock hooks touch nothing unless they hold the lock, and always release it
 review_tier:
 intent_accepted: 2026-10-22 by-agent    # owner: "Accept 48"
 spec_accepted:
 plan_approved: 2026-10-22 by-agent    # owner: "yes" (plan 0a29c48, owner token kept)
 live_checked:
-merged:
+merged: f0f28fc    # 2026-10-23, merged by Claude on the owner's explicit request in chat
 follows_up: 45
 links:
   - intents/45-save-api/review.md    round 4 LOW (hooks) and nit (STALE_MS)
