@@ -33,7 +33,7 @@ npm test    # run the engine's unit tests (Vitest)
 npm run build   # production build
 npm run lint    # ESLint
 npm run verify  # build + lint + test — run before considering a change done
-npm run e2e     # browser smoke suite: four test-mode scenarios and the language switch in Chromium
+npm run e2e     # browser smoke suite in Chromium: test-mode scenarios, the army builder, the language switch
 ```
 
 `npm run e2e` needs a one-off `npx playwright install chromium` (about
@@ -84,7 +84,9 @@ To make a change — intent, plan, build, review, merge — see
    unspent or overspent, and the reason (over a unit's maximum, over or
    under budget) is written under the total — and a "Use default army" button offers a
    ready-made 400-point army as a starting point that can still be
-   hand-adjusted afterward.
+   hand-adjusted afterward. Each row also has `»`, which adds as many of a
+   type as the budget and its maximum allow, and `«`, which removes them all;
+   each is dimmed while a click would change nothing.
 3. **Placement** — each player deploys their purchased units within their
    randomly assigned edge's 3-hex-deep band (green highlight; see
    "Deployment zone position" below). Ships also let the placing player pick
