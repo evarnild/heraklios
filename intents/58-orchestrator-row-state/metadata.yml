@@ -1,0 +1,18 @@
+# generated-by: heraklios/intent@0.1.5
+id: 58
+slug: orchestrator-row-state
+type: fix
+status: draft
+title: The orchestrator's intent row shows a running session, and accepting an intent sets its status
+review_tier:
+intent_accepted:
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+auto_authorized:
+auto_round:
+auto_stopped:
+follows_up: 52
+links:
+  - intents/52-orchestrator-ui
