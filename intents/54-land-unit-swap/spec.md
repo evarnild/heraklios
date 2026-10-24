@@ -16,15 +16,15 @@ Written against `main` at `dd714ca`.
 | `src/engine/state.ts:164-174` (`randomizedTurnOrder`), `src/scenes/MenuScene.ts:83-100` | the precedent for an off-by-default house rule chosen on the Menu and kept in `GameState` |
 | `src/engine/saveGame.ts:24-30` | why `randomizedTurnOrder` needed no `SAVE_VERSION` bump: an absent field is falsy and means the old behaviour |
 | README "Moving through your own units", "Same army means the same player" | friendly = the same `owner` |
-| owner's answers, 2026-10-24 | a game option, off by default; an adjacent swap where each unit pays its one-hex move; with a unit selected, swappable neighbours are highlighted and a click swaps |
+| owner's answers, 2026-10-24 | a game option, **on by default, and on for old saves** (owner at the spec stop: "swap is on by default, including on old saves loading"; the intent said off); an adjacent swap where each unit pays its one-hex move; with a unit selected, swappable neighbours are highlighted and a click swaps |
 
 ## Behaviour
 
 **B1 — The option.** The Menu gets a toggle under the turn-order one:
-"Unit swaps: off / on" (French in `fr.ts`), off by default. It is stored as
-`GameState.allowSwaps: boolean` and in the session like
-`randomizedTurnOrder`. With it off, nothing in movement, the AI or the board
-changes.
+"Unit swaps: on / off" (French in `fr.ts`), **on by default** (owner, at the
+spec stop). It is stored as `GameState.allowSwaps: boolean` and in the
+session like `randomizedTurnOrder`. With it off, nothing in movement, the AI
+or the board changes: the print rules as written.
 
 **B2 — What a swap is.** In the Movement phase, with the option on, the
 active player may swap two of their own living **land** units A and B on
@@ -67,15 +67,19 @@ action; `HeuristicAgent` never chooses one (it skips the kind) and must not
 throw on it. The AI's swap is logged as `<seat>: <A> and <B> swap places.`
 
 **B8 — Saves.** `allowSwaps` is saved with the game. A save without it
-(every save today) loads with swaps off. Following `saveGame.ts:24-30`,
-`SAVE_VERSION` stays 3: an older build opening a newer save loses only the
-option, and every position a swap produced is a legal position, so nothing
-half-reads into a wrong game. The validator accepts `allowSwaps` absent or a
-boolean, and refuses any other value.
+(every save today) loads with swaps **on**, like a new game (owner, at the
+spec stop): the loader reads an absent field as `true`, so the engine must
+test `allowSwaps !== false`, or the loader must fill it in, never a bare
+`if (state.allowSwaps)`. `SAVE_VERSION` stays 3: an older build opening a
+newer save simply has no swaps (it never knew them), and every position a
+swap produced is a legal position, so nothing half-reads into a wrong game.
+The validator accepts `allowSwaps` absent or a boolean, and refuses any other
+value.
 
 **B9 — README.** A section next to "Moving through your own units" says the
 swap is a digital-only house rule, quotes the print rule it departs from,
-and says it is off by default.
+and says it is on by default (old saves included) and how to turn it off for
+the print rules as written.
 
 ## Interpretations
 
@@ -92,8 +96,13 @@ and says it is off by default.
   movement (`evaluateCharge`); a one-hex swap is not one, so it never
   charges, and a unit that has swapped has spent movement, which a later
   charge already accounts for.
-- **No `SAVE_VERSION` bump** (B8): the same reasoning the file records for
-  `randomizedTurnOrder`.
+- **No `SAVE_VERSION` bump** (B8): close to the reasoning the file records
+  for `randomizedTurnOrder`, except that here an absent field means **on**,
+  not off. A pre-§54 save played under the print rules therefore gains swaps
+  when it is loaded; that is the owner's choice.
+- **On by default** departs from the intent's Outcome ("off by default");
+  the owner changed it at the spec stop. The intent stays as accepted; this
+  spec and the README carry the decision.
 
 ## Acceptance criteria
 
@@ -114,18 +123,20 @@ and says it is off by default.
   movement never negative) and does play at least one swap over the seeds
   tested; `HeuristicAgent` never returns a `landSwap`.
 - **AC4 — saves** (`src/engine/saveGame.test.ts`): `allowSwaps: true`
-  round-trips; a save without it loads as off; a non-boolean value is
-  refused.
+  round-trips; `allowSwaps: false` round-trips and stays off; a save without
+  it loads as **on**; a non-boolean value is refused. A new game's state has
+  `allowSwaps: true`.
 - **AC5 — e2e** (a new `e2e/swap.spec.ts`, through the dev hook): from a test
-  mode with the option on, select a unit, see an adjacent friend
+  mode (swaps on by default), select a unit, see an adjacent friend
   highlighted for a swap, click it: positions are exchanged and the log says
   so; undo restores both; with the option off, the same click selects the
   other unit.
-- **AC6 — live check** (owed: `src/scenes/`, `src/ui/`, new behaviour): turn
-  the option on in the Menu, swap two infantry, swap a front-line unit out of
+- **AC6 — live check** (owed: `src/scenes/`, `src/ui/`, new behaviour): see
+  the Menu toggle on by default, swap two infantry, swap a front-line unit out of
   an enemy ZOC, try a pair across a river with too little movement (no
-  highlight), undo a swap, save and reload with the option on, and play a
-  game with it off to see nothing offered.
+  highlight), undo a swap, save and reload with the option on and with it
+  off, load a save made before §54 and see swaps offered, and play a game
+  with it off to see nothing offered.
 - **AC7** — `npm run verify` green, lint ≤ 21, `npm run check:intent` PASS
   apart from the owed live check.
 
@@ -162,3 +173,5 @@ and says it is off by default.
   odds aren't doubled and replays stay deterministic.
 - The heuristic agent skipping swaps keeps today's AI behaviour unchanged
   with the option on, apart from the random agent.
+- The fuzz harness's default game state gets `allowSwaps: true` like a new
+  game, and some seeds run with it off, so both paths stay exercised.
