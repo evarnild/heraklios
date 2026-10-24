@@ -1,0 +1,18 @@
+# generated-by: heraklios/intent@0.1.5
+id: 55
+slug: rule-tables-panel
+type: feature
+status: draft
+title: A Tables panel on the board shows the terrain table and the three combat tables
+review_tier:
+intent_accepted:
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+auto_authorized:
+auto_round:
+auto_stopped:
+follows_up:
+links:
+  - intents/53-log-autosave-and-attack-selection
