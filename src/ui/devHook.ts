@@ -10,7 +10,7 @@
  */
 import Phaser from 'phaser';
 import { createSeededRng } from '../engine/rng';
-import { reachableHexes } from '../engine/movement';
+import { reachableHexes, swapStep } from '../engine/movement';
 import { pickButton, matchingButtons, type ButtonCandidate } from './devHookMatch';
 import { validateArmy } from '../engine/army';
 import { session } from './session';
@@ -35,6 +35,8 @@ export interface DevHook {
   testScenario(): string | null;
   seed(n: number): void;
   reachable(unitId: string): string[];
+  /** The ids of the units `unitId` can swap places with (§54), read from the engine's `swapStep`. */
+  swappable(unitId: string): string[];
   centerOn(hex: Hex): void;
   hexToCanvas(hex: Hex): Point | null;
   /** The main camera's midpoint in canvas coordinates (read-only; §43). */
@@ -150,6 +152,12 @@ export function installDevHook(game: Phaser.Game): void {
       const unit = st?.units.find((u) => u.id === unitId);
       if (!st || !unit) throw new Error(`No unit ${unitId}`);
       return [...reachableHexes(st, unit).keys()];
+    },
+    swappable: (unitId) => {
+      const st = session.gameState;
+      const unit = st?.units.find((u) => u.id === unitId);
+      if (!st || !unit) throw new Error(`No unit ${unitId}`);
+      return st.units.filter((o) => swapStep(st, unit, o) !== null).map((o) => o.id);
     },
     centerOn: (hex) => {
       const b = mapScene();

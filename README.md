@@ -61,7 +61,8 @@ To make a change — intent, plan, build, review, merge — see
 1. **Menu** — pick 2, 3, or 4 players, the land-combat rule variant
    (see "Combining attacks" below; defaults to several-vs-several),
    whether turn order should be re-randomized each turn (see "Turn order"
-   below; defaults to off), an optional whole-game clock and/or round limit
+   below; defaults to off), whether adjacent units may swap places (see
+   "Swapping places with a neighbour"; defaults to on), an optional whole-game clock and/or round limit
    (see "Ending the game" below; both off by default), and which seats the
    computer should play (see "Computer opponent" below; defaults to all
    human).
@@ -308,6 +309,33 @@ This also means a cavalry charge may run its straight line **through** a
 friendly unit standing in the way, provided the destination itself is empty
 and the line still costs exactly the charger's full movement allowance (see
 [Cavalry charges and phalanxes](#cavalry-charges-and-phalanxes)).
+
+### Swapping places with a neighbour
+
+A digital-only **house rule**, not in the print rules. The rulebook lets a unit
+pass through a friendly one but never end on an occupied hex (see above); with
+*Unit swaps* on, two of your own land units on **adjacent** hexes may also
+**swap places** during the Movement phase, in one action.
+
+- **On by default**, and on for every save made before the option existed.
+  Turn it off on the Menu ("Unit swaps: off", beside the turn-order toggle)
+  to play the print rules as written; it is saved with the game.
+- **Each unit makes a normal one-hex move** into the other's hex, as if that
+  hex were empty: the terrain must allow it (a chariot cannot swap onto a
+  marsh), each pays the terrain cost plus the river extra if a river runs
+  between the hexes, and each needs that much movement left. Units that
+  can't both afford their step can't swap.
+- **Zones of control still apply.** Leaving an enemy ZOC by a swap is fine,
+  and a unit whose new hex is in one is simply there (as after any move). A
+  unit starting in an enemy ZOC may not swap into another hex of the same
+  enemy's ZOC, exactly as it may not step there.
+- **Never a charge**: a swap clears each unit's charge flag.
+- **On the board**: select a land unit; each friend it can swap with is
+  ringed in green. Click one to swap (one undo step, "Swap A and B"). To select
+  a ringed friend instead, click the selected unit again to deselect first.
+  Ships never swap.
+- **The computer** may swap too when it picks moves at random; the heuristic
+  AI never plans one.
 
 ### Combining attacks
 

@@ -69,6 +69,8 @@ export class MapView {
   private viewportHeight: number;
   private hexPolys = new Map<string, Phaser.GameObjects.Polygon>();
   private overlayGraphics: Phaser.GameObjects.Graphics;
+  /** Hex outlines drawn ABOVE the unit markers (depth 11), which hide the fill overlay beneath them. */
+  private ringGraphics: Phaser.GameObjects.Graphics;
   private riverGraphics!: Phaser.GameObjects.Graphics;
   private facingGraphics: Phaser.GameObjects.Graphics;
   /** The elephant drift-direction arrow (plan.md §21) — see its assignment
@@ -149,6 +151,7 @@ export class MapView {
 
     this.overlayGraphics = scene.add.graphics().setDepth(5);
     this.facingGraphics = scene.add.graphics().setDepth(11);
+    this.ringGraphics = scene.add.graphics().setDepth(11);
     // Depth 12 — one above the ship facing indicators, so an elephant's
     // drift arrow (plan.md §21) is never hidden behind them on the rare hex
     // where both happen to be drawn at once. A separate `Graphics` object
@@ -286,6 +289,7 @@ export class MapView {
     uiCam.ignore([
       ...this.hexPolys.values(),
       this.overlayGraphics,
+      this.ringGraphics,
       this.riverGraphics,
       this.facingGraphics,
       ...this.unitLabels.values(),
@@ -316,6 +320,7 @@ export class MapView {
    * another's highlight. */
   highlightHexGroups(groups: { hexes: HexCoord[]; color: number; alpha?: number }[]): void {
     this.overlayGraphics.clear();
+    this.ringGraphics.clear();
     for (const { hexes, color, alpha = 0.45 } of groups) {
       this.overlayGraphics.fillStyle(color, alpha);
       for (const hex of hexes) {
@@ -326,8 +331,19 @@ export class MapView {
     }
   }
 
+  /** Outlines `hexes` in `color`, above the unit markers (so a highlighted
+   * occupied hex still shows). Cleared with the fill highlights. */
+  highlightRings(hexes: HexCoord[], color: number): void {
+    this.ringGraphics.lineStyle(4, color, 1);
+    for (const hex of hexes) {
+      const points = hexPolygonPointsAt(this.toScreen(hex));
+      this.ringGraphics.strokePoints(toVec(points), true);
+    }
+  }
+
   clearHighlights(): void {
     this.overlayGraphics.clear();
+    this.ringGraphics.clear();
   }
 
   /** Renders a unit as its physical-counter marker image (see

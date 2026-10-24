@@ -1573,6 +1573,8 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       // §54: friends this unit can swap with, in their own colour.
       { hexes: this.swapPartners(unit).map((u) => u.position), color: 0x4ae08a, alpha: 0.55 },
     ]);
+    // The fill is hidden under a unit marker, so ring the partners too.
+    this.mapView.highlightRings(this.swapPartners(unit).map((u) => u.position), 0x4ae08a);
   }
 
   /**
