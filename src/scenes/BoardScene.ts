@@ -3,7 +3,7 @@ import { landUnitsCentre } from '../ui/viewCentre';
 import { MapView, drawFacingArrowhead } from '../ui/MapView';
 import { PLAYER_COLORS_HEX } from '../ui/hexRender';
 import { messages } from '../ui/i18n';
-import { dieModifierParts, formatDriftEvent } from '../ui/i18n/format';
+import { dieModifierParts, formatAttackLine, formatDriftEvent } from '../ui/i18n/format';
 import type { BoardingReport, CombatReport, RamReport } from '../ui/i18n/reports';
 import { session, resetToMenu, seatControlFor } from '../ui/session';
 import { showConfirmDialog } from '../ui/confirmDialog';
@@ -53,6 +53,7 @@ import {
   defenderCanJoin,
   cavalryMayAttack,
   eligibleAdvanceCandidates,
+  previewLandAttack,
   pruneIllegalSelections,
   unitAt,
   type LandAttackDetail,
@@ -988,7 +989,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   private autosave(): void {
     if (this.retreatChoice || this.driftState || this.decisionPending) return;
     void writeSave('autosave', this.captureSave()).then((ok) => {
-      if (!ok) this.log(messages().saves.autosaveFailed);
+      this.log(ok ? messages().saves.autosaved : messages().saves.autosaveFailed);
     });
   }
 
@@ -1891,6 +1892,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       this.attackGroup.splice(idx, 1);
       this.pruneIllegalCombatSelections();
       this.refreshCombatHighlights();
+      this.logAttackLine();
       return;
     }
 
@@ -1906,6 +1908,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       this.attackGroup = [unit];
       this.defenderGroup = [];
       this.refreshCombatHighlights();
+      this.logAttackLine();
       return;
     }
 
@@ -1925,6 +1928,21 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.recordAction(messages().actions.select(nameOf(unit)));
     this.attackGroup.push(unit);
     this.refreshCombatHighlights();
+    this.logAttackLine();
+  }
+
+  /**
+   * One log line describing the whole attack being built (§53): called at the
+   * end of each click that changes it, after the prune's own line — never on a
+   * refusal, an undo/redo or a resolution. The totals are `previewLandAttack`,
+   * the same code the roll uses; a naval selection or no target yet shows the
+   * attackers alone.
+   */
+  private logAttackLine(): void {
+    const naval = this.attackGroup.length > 0 && unitType(this.attackGroup[0]!).domain === 'naval';
+    const preview =
+      !naval && this.defenderGroup.length > 0 ? previewLandAttack(this.attackGroup, this.defenderGroup) : null;
+    this.log(formatAttackLine(this.attackGroup.map(nameOf), this.defenderGroup.map(nameOf), preview));
   }
 
   /**
@@ -1964,6 +1982,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       this.defenderGroup.splice(idx, 1);
       this.pruneIllegalCombatSelections();
       this.refreshCombatHighlights();
+      this.logAttackLine();
       return;
     }
 
@@ -1998,6 +2017,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.recordAction(messages().actions.target(nameOf(unit)));
     this.defenderGroup.push(unit);
     this.refreshCombatHighlights();
+    this.logAttackLine();
   }
 
   private refreshCombatHighlights(): void {
