@@ -280,6 +280,7 @@ describe('autoLaunch: what an Auto click can resume (F13)', () => {
       expect(r.allowed).toBe(true);
       expect(r.confirmText).toContain('/auto 52');
       expect(r.confirmText).toContain('plan_approved');
+      expect(r.confirmText).toContain('It starts a run'); // blank text is no stop, not a cause to clear
     }
   });
   it('an escalate stop: the click also means "I have read the diff"', () => {
