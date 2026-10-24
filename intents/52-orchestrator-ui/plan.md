@@ -283,7 +283,8 @@ this line is the implementer's to edit. -->
 Commits: `e19a350` (1, `sessions --json`), `10a9bc5` (2, pure logic),
 `1ef6125` (3, server), `5e01015` (4, session manager + SDK dependency),
 `a2cbb1e` (5, page), `e8a2f3f` (6, CLI, npm script, eslint exemption, docs).
-`npm run verify` green after each: 60 test files, 1087 tests (was 57 / 995
+`npm run verify` green after each: 60 test files, 1087 tests (was 57 / 994 [corrected in the
+round-1 rework, F9; this line said 995]
 before the change; +3 files in `tools/orchestrator/`, +1 case group in
 `session-lib.test.mjs`); lint 21 warnings, unchanged cap, no warning added or
 removed; the build output has nothing from `tools/`. `npm ci --dry-run` is
@@ -330,3 +331,61 @@ Divergences from the plan:
   `CLAUDE.local.md` brief when it exists.
 - Not done, as the spec says: no interactive terminal (B7). The live check
   (AC4) is the owner's.
+
+### 2026-10-24 — review round 1 rework (F1-F6, F9, F11, F12)
+
+Commits: `823dbce` and `b0d7a58` (F1, F3), `e722f6e` (F2), `85f754d` (F5),
+`d34cb06` (F4, F6, F12 docs), plus the commit with this entry (F11 test, F9,
+Progress). `npm run verify` green after each: 61 test files, 1094 tests
+(1087 at the reviewed commit); lint 21 warnings, cap unchanged at 21.
+
+- **F1 (race), fixed.** `running(id)` is re-checked inside the `exclusive`
+  callbacks of session launch, the gate write and both ship paths; the early
+  checks stay. `tools/orchestrator/concurrency.test.mjs`: two concurrent
+  launches (the second's state load delayed so it reaches the lock after the
+  first launch finished) give one 200, one 409 and one `query()`; a manager
+  that starts reporting a running session after the early check makes a gate,
+  a dry-run and a real ship return 409 and run nothing.
+- **F2, fixed.** `loadState` overlays `needs you` from the session manager
+  (`deps.sessions.list()`) on the intent's `session` and `worktree.session`;
+  it wins over the hook log, so `nextStep` and "waiting on you" see it. Server
+  test with a fake manager (an intent with no worktree, and one with a
+  worktree whose hook state is `working`).
+- **F3, fixed.** Tests in `concurrency.test.mjs`: while a real ship of 52 is
+  held open, a ship and a dry-run of 53 get 409 and a gate on §29 (main)
+  gets 409.
+- **F4, owner's decision: terminal parity kept** (no `permissionMode`). README
+  Orchestrator section corrected: tools your settings allow, or auto mode
+  approves, run without a prompt; only what would prompt reaches the page.
+  Nothing in CLAUDE.md or `intents/README.md` claimed "nothing runs without a
+  click". The plan's Risks wording is above the marker and left as is.
+- **F5, owner's decision: resolved.** `roleLaunch('implementer')` returns
+  `agent: 'heraklios-implementer'`, which the session manager passes as the
+  SDK's `options.agent` (sdk.d.ts 0.3.309, "equivalent to the `--agent` CLI
+  flag": system prompt, tools and model of the agent definition apply to the
+  main thread); the brief stays the prompt. Reviewer and auto launch without
+  the option. Tests: lib, server route and sdk-sessions (the option reaches
+  `query()`, absent for the others).
+- **F6, owner's decision: yes.** The Auto button's confirm says this click is
+  your `/auto <id>` and authorises `plan_approved` (and `auto_authorized`)
+  for that one intent. `intents/README.md` and CLAUDE.md say the Auto click
+  counts as the owner's `/auto <id>` message and how a stopped `/auto` is
+  resumed from the page (record the gate with its button or answer, then click
+  Auto again, a new `/auto <id>`). No other agent permission widened.
+- **F8:** no code change; the owner chose the disposable-clone live check.
+- **F9, fixed.** The base was 57 files / 994 tests (main's count per the §51
+  review), not 995; corrected in the entry above.
+- **F11:** a `/api/sessions/sx/stop` -> 400 test kills M9. M23 is equivalent
+  and left. **F12:** `tools/orchestrator/` is listed in CLAUDE.md
+  "Architecture"; README says a transcript keeps its last 2000 items. F7 and
+  F10 left, as decided.
+
+Mutants, one at a time, full `vitest run`, backed up and restored by copy,
+`git status --short` clean after each (M51, M52 and the F2 run were the
+reviewer's expected kills): M51 (real-ship lock `[id]`) killed; M52 (gate-on-main
+lock `[id] : [id]`) killed; in-lock launch check removed killed (after the
+test was made deterministic: its first form survived, because the lock alone
+serialised the two requests); in-lock gate check removed killed (the first
+form survived, as the fixture lacked spec.md and a different 409 hid it);
+in-lock dry-run check removed killed; in-lock real-ship check removed killed;
+F2 overlay removed killed; M9 (`/^s/`) killed.

@@ -455,6 +455,7 @@ describe('session routes (spec B5, B6)', () => {
     expect((await handle(post('/api/sessions/s2/stop'))).status).toBe(404);
     expect((await handle(post('/api/sessions/../stop'))).status).toBe(404);
     expect((await handle(post('/api/sessions/x1/stop'))).status).toBe(400);
+    expect((await handle(post('/api/sessions/sx/stop'))).status).toBe(400); // an id must be s<digits>, not just start with s
   });
   it('streams events over SSE only for a known session', async () => {
     const { handle } = setup({ sessions: fakeSessions() });
