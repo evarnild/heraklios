@@ -8,6 +8,7 @@ import {
   reachableNavalHexes,
   findRammingContacts,
   evaluateCharge,
+  swapStep,
 } from './movement';
 import {
   describeLandAttack,
@@ -65,11 +66,19 @@ import { unitType, currentAttack, currentDefense, type GameState, type Unit } fr
 export type Action =
   | { kind: 'endPhase' }
   | { kind: 'landMove'; unitId: string; to: HexCoord }
+  | { kind: 'landSwap'; unitId: string; otherId: string }
   | { kind: 'navalMove'; unitId: string; to: HexCoord; facing?: number }
   | { kind: 'navalRotate'; unitId: string; direction: 1 | -1 }
   | { kind: 'ram'; unitId: string }
   | { kind: 'landAttack'; attackerIds: string[]; defenderIds: string[] }
   | { kind: 'board'; attackerId: string; defenderId: string };
+
+/** §54: two adjacent friendly land units traded places (see `swapStep`). */
+export interface LandSwapResult {
+  kind: 'landSwap';
+  unit: Unit;
+  other: Unit;
+}
 
 export interface LandMoveResult {
   kind: 'landMove';
@@ -143,6 +152,7 @@ export interface EndPhaseResult {
 
 export type ActionResult =
   | LandMoveResult
+  | LandSwapResult
   | NavalMoveResult
   | NavalRotateResult
   | RamResult
@@ -195,6 +205,11 @@ export function applyAction(
 ): LandMoveResult;
 export function applyAction(
   state: GameState,
+  action: { kind: 'landSwap'; unitId: string; otherId: string },
+  rng?: () => number,
+): LandSwapResult;
+export function applyAction(
+  state: GameState,
   action: { kind: 'navalMove'; unitId: string; to: HexCoord; facing?: number },
   rng?: () => number,
 ): NavalMoveResult;
@@ -232,6 +247,24 @@ export function applyAction(
         resetMovementForActivePlayer(state);
       }
       return { kind: 'endPhase' };
+    }
+
+    case 'landSwap': {
+      const unit = requireLivingUnit(state, action.unitId);
+      const other = requireLivingUnit(state, action.otherId);
+      const step = swapStep(state, unit, other);
+      if (step === null) {
+        throw new Error(`applyAction: units "${unit.id}" and "${other.id}" can't swap places`);
+      }
+      const unitHex = unit.position;
+      unit.position = other.position;
+      other.position = unitHex;
+      unit.movementLeft -= step.costA;
+      other.movementLeft -= step.costB;
+      // A swap is never a charge (a charge is a straight full-allowance run).
+      unit.charged = false;
+      other.charged = false;
+      return { kind: 'landSwap', unit, other };
     }
 
     case 'landMove': {
@@ -419,6 +452,14 @@ export function legalActions(state: GameState, context: ActionContext): Action[]
       } else {
         for (const key of reachableHexes(state, unit).keys()) {
           actions.push({ kind: 'landMove', unitId: unit.id, to: parseHexKey(key) });
+        }
+        // §54: each swappable pair once, the lower id as `unitId`, after this
+        // unit's moves (only listed when the other unit has the higher id).
+        for (const other of ownUnits) {
+          if (other.id <= unit.id || unitType(other).domain === 'naval') continue;
+          if (swapStep(state, unit, other) !== null) {
+            actions.push({ kind: 'landSwap', unitId: unit.id, otherId: other.id });
+          }
         }
       }
     }

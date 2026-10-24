@@ -620,6 +620,9 @@ function assertNoActionTargetsADeadUnit(state: GameState, legal: Action[]): void
       case 'board':
         ids.push(action.attackerId, action.defenderId);
         break;
+      case 'landSwap':
+        ids.push(action.unitId, action.otherId);
+        break;
     }
     for (const id of ids) {
       const unit = state.units.find((u) => u.id === id);
@@ -926,6 +929,8 @@ function formatAction(action: Action): string {
   switch (action.kind) {
     case 'endPhase':
       return 'endPhase';
+    case 'landSwap':
+      return `landSwap:${action.unitId}<->${action.otherId}`;
     case 'landMove':
       return `landMove:${action.unitId}->(${action.to.q},${action.to.r})`;
     case 'navalMove':
@@ -1243,6 +1248,7 @@ async function applyOneAction(
     }
 
     case 'landMove':
+    case 'landSwap':
     case 'navalMove':
     case 'navalRotate': {
       applyAction(state, action, rng);
