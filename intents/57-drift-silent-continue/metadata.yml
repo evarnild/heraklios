@@ -2,7 +2,7 @@
 id: 57
 slug: drift-silent-continue
 type: fix
-status: draft
+status: in-review
 title: Every continue in an elephant drift shows something
 review_tier:
 intent_accepted: 2026-10-24

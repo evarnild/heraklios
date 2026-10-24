@@ -143,7 +143,9 @@ export interface DriftHooks extends RetreatHooks {
   /**
    * Optional per-step pause point (plan.md §21 — "pause between steps and
    * show the drift direction on the map"). Awaited, if present, once after
-   * EVERY event in the switch below (i.e. once per narrated beat: drift
+   * every event that shows something (§57: not after the input requests
+   * `directionRollNeeded`/`combatRollNeeded`/`retreatResolutionNeeded` or
+   * a refused `directionForbidden`) -- i.e. once per visible beat (drift
    * started, direction rolled, a hex entered, a trample resolved, the drift
    * stopping or an elephant/occupant being destroyed) — never inside
    * `driftStep` itself, which stays a pure, uninterrupted state machine.
@@ -171,6 +173,13 @@ export interface DriftHooks extends RetreatHooks {
    */
   onStep?(): void | Promise<void>;
 }
+
+const SILENT_PAUSE_KINDS: ReadonlySet<DriftEvent['kind']> = new Set<DriftEvent['kind']>([
+  'directionRollNeeded',
+  'combatRollNeeded',
+  'retreatResolutionNeeded',
+  'directionForbidden',
+]);
 
 export interface DriftStats {
   driftsResolved: number;
@@ -617,8 +626,11 @@ export async function resolveElephantDrift(
       }
 
       // See `DriftHooks.onStep`'s doc comment: only paces a presentation
-      // layer that opts in, never `driftStep` itself.
-      if (hooks.onStep) {
+      // layer that opts in, never `driftStep` itself. §57: events that only
+      // ask this driver for input (or refuse a rolled direction) show
+      // nothing, so pausing on them gave a "continue" that did nothing;
+      // `directionForbidden` is silent rather than narrated (no new text).
+      if (hooks.onStep && !SILENT_PAUSE_KINDS.has(event.kind)) {
         await hooks.onStep();
       }
     }
@@ -631,7 +643,7 @@ export async function resolveElephantDrift(
       // pause with `done: false` and no direction/combat/retreat request at
       // all — that's the new single-hex "moved" (or an elimination) step
       // returning on its own, needing nothing from this driver but to be
-      // resumed. The per-event `onStep` await above already gave a
+      // resumed. The `onStep` await above already gave a
       // presentation layer its pacing pause for every event in
       // `result.events`, including this one, so there's nothing left to do
       // here except call `driftStep` again with no input.

@@ -22,7 +22,6 @@ const EXPECTED_MOVE_AND_STOP: string[] = [
   'onDriftStart',
   'onNarrate:driftStarted',
   'onStep',
-  'onStep',
   'onNarrate:directionRolled',
   'onDirectionRolled',
   'onStep',
@@ -41,10 +40,8 @@ const EXPECTED_DESTROYED: string[] = [
   'onDriftStart',
   'onNarrate:driftStarted',
   'onStep',
-  'onStep',
   'onNarrate:directionRolled',
   'onDirectionRolled',
-  'onStep',
   'onStep',
   'onCombat',
   'onStep',
@@ -56,15 +53,12 @@ const EXPECTED_REPELLED: string[] = [
   'onDriftStart',
   'onNarrate:driftStarted',
   'onStep',
-  'onStep',
   'onNarrate:directionRolled',
   'onDirectionRolled',
-  'onStep',
   'onStep',
   'onCombat',
   'onStep',
   'onNarrate:repelled',
-  'onStep',
   'onStep',
   'onNarrate:directionRolled',
   'onDirectionRolled',
@@ -263,6 +257,37 @@ describe('elephant drift engine', () => {
     await resolveElephantDrift(state, elephant, 4, new ScriptedAgent(), () => dice.shift()!, recordHooks(calls));
 
     expect(calls).toEqual(EXPECTED_REPELLED);
+  });
+
+  // Every "continue" pause must follow something the player can see (a log
+  // line, a redraw, the arrow or a combat report) -- §57.
+  it('never pauses on onStep without a visible hook since the previous pause', async () => {
+    const visible = (c: string) =>
+      c.startsWith('onNarrate:') || c === 'onRender' || c === 'onDirectionRolled' || c === 'onCombat';
+    const scenarios: Array<[string, Unit[], number, number[]]> = [
+      ['move-and-stop', [makeUnit('elephant', 0, 'elephants', CENTER)], 2, [1]],
+      ['destroyed', [], 4, []],
+      ['repelled', [], 4, []],
+    ];
+    const el = makeUnit('elephant', 0, 'elephants', CENTER);
+    const dDestroy = makeUnit('defender', 1, 'fantassins', { q: 11, r: 5 });
+    const dRepel = makeUnit('defender', 1, 'phalanges', { q: 11, r: 5 });
+    scenarios[1] = ['destroyed', [el, dDestroy], 4, [1, dieForResult(el, dDestroy, 'EX')]];
+    scenarios[2] = ['repelled', [el, dRepel], 4, [1, dieForResult(el, dRepel, 'AR'), 2, 2]];
+    for (const [name, units, steps, diceList] of scenarios) {
+      const elephant = units[0]!;
+      const state = makeState(units);
+      const calls: string[] = [];
+      const dice = [...diceList];
+      await resolveElephantDrift(state, elephant, steps, new ScriptedAgent(), () => dice.shift() ?? 1, recordHooks(calls));
+      let sawVisible = false;
+      calls.forEach((c, i) => {
+        if (c === 'onStep') {
+          expect(sawVisible, `${name}: pause #${i} follows nothing visible`).toBe(true);
+          sawVisible = false;
+        } else if (visible(c)) sawVisible = true;
+      });
+    }
   });
 
   it('re-rolls a forbidden reverse direction without consuming movement', () => {
