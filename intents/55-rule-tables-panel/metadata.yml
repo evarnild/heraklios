@@ -2,7 +2,7 @@
 id: 55
 slug: rule-tables-panel
 type: feature
-status: draft
+status: accepted
 title: A Tables panel on the board shows the terrain table and the three combat tables
 review_tier:
 intent_accepted: 2026-10-24
