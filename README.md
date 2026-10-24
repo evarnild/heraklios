@@ -695,9 +695,17 @@ only then, after a confirm dialog, runs the real ship. A gate button writes
 today's date as a bare date (you did it, not an agent) and commits it under
 your git identity, only when the gate's preconditions hold. It can also launch
 a headless Claude Code session per intent through the Agent SDK (implementer
-in the worktree, reviewer or `/auto` in the main checkout), stream its
-messages and answer its permission prompts and questions with Allow/Deny
-clicks; nothing is allowed by itself, and Stop denies whatever is pending.
+in the worktree as the `heraklios-implementer` agent, reviewer or `/auto` in
+the main checkout), stream its messages and answer its permission prompts and
+questions with Allow/Deny clicks. Parity with a terminal session: tools your
+settings already allow, or auto mode approves, run without a prompt; only what
+would prompt reaches the page, where your click is the answer, nothing waiting
+is ever allowed by default, and Stop denies whatever is pending. A session's
+transcript keeps its last 2000 items, in memory. The Auto button's click is
+your `/auto <id>` message: its confirm says it authorises recording
+`plan_approved` (and `auto_authorized`) for that one intent. When an `/auto`
+stops (the spec to accept, a question), record the gate with its button or
+answer the question, then click Auto again, which is a new `/auto <id>`.
 
 It listens on 127.0.0.1 only, checks `Host` on every request and `Origin` on
 every POST (like the save API), runs commands as argument arrays with no

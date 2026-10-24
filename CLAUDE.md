@@ -142,7 +142,14 @@ npm run sessions -- --log 30    # the raw event tail
   the owner writing the gate directly: a bare date, a commit under the
   owner's git identity (`intents/README.md` → "Who edits what"). It stores
   nothing of its own, listens on 127.0.0.1 only and checks Host and Origin
-  like the save API. Its interactive terminal is a later intent.
+  like the save API. Its sessions have terminal parity: what your settings
+  allow, or auto mode approves, runs without a prompt, and only what would
+  prompt reaches the page. Its Auto button's click **counts as the owner's
+  `/auto <id>` message** (its confirm says so): it authorises
+  `plan_approved` and `auto_authorized` for that one intent and nothing wider.
+  A stopped `/auto` is resumed from the page by recording the gate with its
+  button or answering the question, then clicking Auto again, a new
+  `/auto <id>`. Its interactive terminal is a later intent.
 - **Only the coordinator** runs `/spawn`, `/sessions`, `/review` and
   `/auto`, and sends "main moved, rebase" notices. The owner merges (or
   asks the coordinator to, per "Merging"), one branch at a time, running
@@ -242,6 +249,10 @@ and rendering.
   hit-testing), `render.ts`, `input.ts`, `serialize.ts` (generates the
   `map.ts` source + JSON save/load), `main.ts` (DOM wiring). Built as a
   second Vite entry point (see `vite.config.ts`).
+- `tools/orchestrator/` — the orchestrator (§52): a plain `.mjs` local server and
+  page wrapping the scripts and headless SDK sessions; its logic modules are
+  tested with an injected runner, file system and fake `query`, and
+  `node-io.mjs`/`orchestrator.mjs` are the untested glue.
 - `tools/map-extract/` — one-off Python scripts that derived the shipped
   `src/data/map.ts` from the scanned board image (grid calibration, color
   classification, river-hexside detection). Not run at build time; not

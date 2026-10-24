@@ -107,6 +107,11 @@ type needs were recorded.
   click on a gate button, after its confirm dialog, is you writing the gate
   directly: the page writes a bare date (no `by-agent`) and commits it under
   your git identity. No agent is involved, and an agent never presses it.
+  Its **Auto** button is different: the click, after a confirm that says so,
+  counts as your `/auto <id>` message below. A headless `/auto` session cannot
+  take a "yes" in the conversation, so a stop is resumed from the page:
+  record the gate with its button, or answer the question, then click Auto
+  again, which is a new `/auto <id>`.
 - **`/auto <id>`** (§50, spec B1 and B3). Your `/auto <id>` message in the
   coordinator conversation, for an intent whose `intent_accepted` is
   recorded, is a request to record that intent's `plan_approved`, and no

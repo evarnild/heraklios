@@ -95,6 +95,10 @@ function spawnButtons(intent) {
   return out;
 }
 
+// The Auto click is the owner's `/auto <id>` message (intents/README.md), so the confirm says what it authorises.
+const autoConfirm = (id) =>
+  `This click is your /auto ${id}. It authorises the session to record plan_approved (and auto_authorized) for §${id}, only for §${id} and only for this run. It runs Claude Code and may use your quota. Launch it?`;
+
 function launchButtons(intent) {
   if (['done', 'abandoned', 'deferred'].includes(intent.status)) return [];
   const roles = [];
@@ -102,7 +106,7 @@ function launchButtons(intent) {
   roles.push(['reviewer', 'Review'], ['auto', 'Auto']);
   return roles.map(([role, label]) =>
     button(label, async () => {
-      const ok = confirm(`Launch a ${role} session on §${intent.id}? It runs Claude Code and may use your quota.`);
+      const ok = confirm(role === 'auto' ? autoConfirm(intent.id) : `Launch a ${role} session on §${intent.id}? It runs Claude Code and may use your quota.`);
       if (!ok) return;
       const result = await act(`Launch ${role} on §${intent.id}`, 'POST', '/api/sessions', { role, id: String(intent.id) });
       if (result.data.session) openSession(result.data.session);
