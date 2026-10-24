@@ -34,8 +34,9 @@ export function createActions({ deps, sessions, today, json, refuse, output, par
     return json(200, { ok: out.code === 0, code: out.code, output: output(out) });
   }
 
+  // A remove would pull the worktree out from under a running session, so it waits for Stop.
   const spawnRoute = (id, flag) =>
-    exclusive([id], () => script('spawn-intent.mjs', flag ? [id, flag] : [id]));
+    exclusive([id], () => (flag && running(id) ? stopFirst(id) : script('spawn-intent.mjs', flag ? [id, flag] : [id])));
 
   async function shipRoute(id, dry, request) {
     if (running(id)) return stopFirst(id);

@@ -117,7 +117,8 @@ type needs were recorded.
   `decision needed`, `spec or plan amendment needed`, `critical finding`,
   `plan exists unapproved`) is answered in a coordinator terminal with
   `/auto <id>` plus the answer; the page disables Auto for it and the server
-  refuses it.
+  refuses it. An agent never presses the Auto button or POSTs to
+  `/api/sessions`.
 - **`/auto <id>`** (§50, spec B1 and B3). Your `/auto <id>` message in the
   coordinator conversation, for an intent whose `intent_accepted` is
   recorded, is a request to record that intent's `plan_approved`, and no

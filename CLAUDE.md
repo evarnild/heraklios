@@ -155,8 +155,9 @@ npm run sessions -- --log 30    # the raw event tail
   plan amendment needed`, `critical finding`, `plan exists unapproved`) is
   answered in a coordinator terminal with `/auto <id>` plus the answer; the
   page disables Auto for it and the server refuses it
-  (`orchestrator-lib.mjs`'s `autoLaunch`). Its interactive terminal is a
-  later intent.
+  (`orchestrator-lib.mjs`'s `autoLaunch`). An agent never presses the Auto
+  button or POSTs to `/api/sessions`. Its interactive terminal is a later
+  intent.
 - **Only the coordinator** runs `/spawn`, `/sessions`, `/review` and
   `/auto`, and sends "main moved, rebase" notices. The owner merges (or
   asks the coordinator to, per "Merging"), one branch at a time, running
@@ -259,7 +260,8 @@ and rendering.
 - `tools/orchestrator/` — the orchestrator (§52): a plain `.mjs` local server and
   page wrapping the scripts and headless SDK sessions; its logic modules are
   tested with an injected runner, file system and fake `query`, and
-  `node-io.mjs`/`orchestrator.mjs` are the untested glue.
+  `node-io.mjs`/`orchestrator.mjs` and the page (`public/app.js`) are the
+  untested glue.
 - `tools/map-extract/` — one-off Python scripts that derived the shipped
   `src/data/map.ts` from the scanned board image (grid calibration, color
   classification, river-hexside detection). Not run at build time; not

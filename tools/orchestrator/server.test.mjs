@@ -174,6 +174,12 @@ describe('spawn and remove (spec B4)', () => {
     await handle(post('/api/remove/52'));
     expect(runner.calls).toEqual([{ cmd: script('spawn-intent.mjs', '52', '--remove'), cwd: ROOT }]);
   });
+  it('remove is refused while a session runs on the intent, spawn is not', async () => {
+    const { runner, handle } = setup({ sessions: { runningFor: (id) => id === '52' } });
+    expect((await handle(post('/api/remove/52'))).status).toBe(409);
+    expect(runner.calls).toEqual([]);
+    expect((await handle(post('/api/spawn/52'))).status).toBe(200);
+  });
   it('reports a script failure with its output instead of hiding it', async () => {
     const { handle } = setup({ answer: () => ({ code: 1, stdout: '', stderr: 'refused: unmerged' }) });
     expect(payload(await handle(post('/api/remove/52')))).toEqual({ ok: false, code: 1, output: 'refused: unmerged' });
