@@ -56,6 +56,7 @@ export function applySavedGame(save: SavedGame): {
   session.combatMode = save.combatMode;
   setSeatControls(save.seatControls);
   session.randomizedTurnOrder = save.gameState.randomizedTurnOrder;
+  session.allowSwaps = save.gameState.allowSwaps;
   // Both live on `GameState` (not `SavedGame` directly), same as
   // `randomizedTurnOrder` above — see `SessionState.clockLimitMs`'s doc
   // comment for why the Menu still needs its own copy synced here.

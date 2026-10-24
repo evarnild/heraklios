@@ -65,6 +65,7 @@ export function startTestGame(): void {
     session.randomizedTurnOrder,
     session.clockLimitMs,
     session.roundLimit,
+    session.allowSwaps,
   );
 
   players.forEach((player) => {
@@ -138,6 +139,7 @@ export function startCloseCombatTestGame(): void {
     session.randomizedTurnOrder,
     session.clockLimitMs,
     session.roundLimit,
+    session.allowSwaps,
   );
 
   const landTypeIds = UNIT_TYPES.filter((t) => t.domain === 'land').map((t) => t.id);

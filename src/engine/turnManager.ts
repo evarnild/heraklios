@@ -9,7 +9,7 @@ export function createInitialState(
   clockLimitMs: number | null = null,
   /** Mode B: `null` (the default) means no round limit. */
   roundLimit: number | null = null,
-  /** ง54: adjacent friendly land units may swap places. On by default. */
+  /** ยง54: adjacent friendly land units may swap places. On by default. */
   allowSwaps = true,
 ): GameState {
   return {

@@ -146,13 +146,13 @@ export function reachableHexes(state: GameState, unit: Unit): Map<string, number
 }
 
 /**
- * ง54 — can two adjacent friendly land units swap places, and at what cost?
+ * ยง54 โ€” can two adjacent friendly land units swap places, and at what cost?
  * Returns each unit's step cost, or null when the swap is not allowed.
  *
  * DIGITAL-ONLY HOUSE RULE. The print rule (`docs/research/05-rules-french-
  * original.md:124-126`) says a unit may never end on an occupied hex but may
  * pass through a friendly one; it has no swap. Interpretation (owner, spec
- * ง54): each unit makes a normal one-hex move into the other's hex, judged
+ * ยง54): each unit makes a normal one-hex move into the other's hex, judged
  * as if that hex were empty (each really does end there), with the same
  * rules `reachableHexes` applies to a one-hex step: terrain category, the
  * destination's terrain cost plus the river extra, the unit's own

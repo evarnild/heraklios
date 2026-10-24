@@ -172,7 +172,7 @@ export interface GameState {
    */
   randomizedTurnOrder: boolean;
   /**
-   * House rule (digital-only, ง54): when true, two adjacent friendly land
+   * House rule (digital-only, ยง54): when true, two adjacent friendly land
    * units may swap places in the Movement phase (`swapStep` in
    * `movement.ts`, the `landSwap` action). ON by default, and on for a save
    * that predates the field (`migrateSavedGame` fills it in), so the engine
