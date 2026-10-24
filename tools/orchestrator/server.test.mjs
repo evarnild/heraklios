@@ -211,6 +211,23 @@ describe('GET /api/state (spec B3)', () => {
     ]);
     expect(body.intents.find((i) => i.id === 52).worktree).toEqual({ exists: true, path: WT, branch: 'feat/52-orch', session: 'working' });
   });
+  it('shows an intent as needs you when the session manager holds a pending request, first in the list', async () => {
+    const live = [
+      { sid: 's1', intent: '29', state: 'needs you' }, // a reviewer or auto session: no hook event reaches its row
+      { sid: 's2', intent: '52', state: 'running' },
+    ];
+    const { handle } = setup({ sessions: { runningFor: () => false, list: () => live } });
+    const body = payload(await handle(get('/api/state')));
+    expect(body.intents.map((i) => [i.id, i.session, i.next.step])).toEqual([
+      [29, 'needs you', 'Answer the waiting session'],
+      [52, 'working', 'Accept the spec'],
+      [51, null, 'Nothing: done'],
+    ]);
+    live[1].state = 'needs you'; // wins over the hook log's "working" for an intent with a worktree
+    const again = payload(await handle(get('/api/state')));
+    const row = again.intents.find((i) => i.id === 52);
+    expect([row.session, row.worktree.session, row.next.step]).toEqual(['needs you', 'needs you', 'Answer the waiting session']);
+  });
   it('reports a failing script as 500 with its message', async () => {
     const { handle } = setup({ answer: () => ({ code: 1, stdout: '', stderr: 'boom' }) });
     const res = await handle(get('/api/state'));

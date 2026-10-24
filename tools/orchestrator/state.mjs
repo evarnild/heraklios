@@ -25,6 +25,12 @@ async function runJson(runner, call, what) {
   }
 }
 
+/** `'needs you'` when the in-memory session manager holds a request waiting on the owner for this intent, else null. */
+function waitingSession(sessions, id) {
+  const live = sessions?.list?.() ?? [];
+  return live.some((s) => String(s.intent) === String(id) && s.state === 'needs you') ? 'needs you' : null;
+}
+
 /** `{ kind, base }`: where an intent's files are read and written. */
 function sourceOf(intent, worktree, root) {
   if (worktree) return { kind: 'worktree', base: worktree.path };
@@ -72,7 +78,8 @@ export async function loadState(deps) {
     rows.map(async (intent) => {
       const wt = byId.get(String(intent.id)) ?? null;
       const location = sourceOf(intent, wt, root);
-      const session = wt?.session?.state ?? null;
+      // The hook log never sees reviewer or auto sessions (they run in the main checkout), so the manager's word wins for `needs you` (spec B6).
+      const session = waitingSession(deps.sessions, intent.id) ?? wt?.session?.state ?? null;
       const worktree = { exists: wt !== null, path: wt?.path ?? null, branch: wt?.branch ?? null, session };
       const read = TERMINAL.has(intent.status)
         ? { metadata: { status: intent.status }, reviewHeader: null, files: {} }
