@@ -224,10 +224,12 @@ describe('roleLaunch (spec B5)', () => {
   it('reviewer and auto run in the main checkout with the skill command', () => {
     expect(roleLaunch('reviewer', args)).toEqual({ cwd: 'C:/repo', prompt: '/review 52' });
     expect(roleLaunch('auto', args)).toEqual({ cwd: 'C:/repo', prompt: '/auto 52' });
+    expect('agent' in roleLaunch('reviewer', args) || 'agent' in roleLaunch('auto', args)).toBe(false);
   });
   it('implementer runs in the worktree with the brief', () => {
     const out = roleLaunch('implementer', { ...args, brief: 'BRIEF TEXT' });
     expect(out.cwd).toBe('C:/wt/52-orchestrator-ui');
+    expect(out.agent).toBe('heraklios-implementer'); // the real agent, as /spawn runs it (F5)
     expect(out.prompt).toContain('intent §52 (orchestrator-ui)');
     expect(out.prompt).toContain('on branch feat/52-orchestrator-ui');
     expect(out.prompt).toContain('Its dev port is 5252.');

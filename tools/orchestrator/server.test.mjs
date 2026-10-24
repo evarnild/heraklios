@@ -410,12 +410,14 @@ describe('session routes (spec B5, B6)', () => {
     const res = await handle(post('/api/sessions', { role: 'reviewer', id: '52' }));
     expect(res.status).toBe(200);
     expect(sessions.calls).toEqual([['launch', { role: 'reviewer', id: '52', cwd: ROOT, prompt: '/review 52' }]]);
+    expect('agent' in sessions.calls[0][1]).toBe(false);
   });
   it('launches an implementer in the worktree', async () => {
     const sessions = fakeSessions();
     const { handle } = setup({ sessions });
     await handle(post('/api/sessions', { role: 'implementer', id: '52' }));
     expect(sessions.calls[0][1].cwd).toBe(WT);
+    expect(sessions.calls[0][1].agent).toBe('heraklios-implementer');
     expect(sessions.calls[0][1].prompt).toContain('intent §52 (orch)');
   });
   it('refuses an implementer without a worktree, an unknown role, a bad id and a second session', async () => {

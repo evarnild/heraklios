@@ -9,6 +9,8 @@ import { setKeys } from '../../scripts/ship-lib.mjs';
 
 /** The roles a session can be launched in (spec B5). Anything else is refused. */
 export const ROLES = ['implementer', 'reviewer', 'auto'];
+/** The agent definition in `.claude/agents/` the implementer role runs as (SDK `options.agent`, the `--agent` flag). */
+export const IMPLEMENTER_AGENT = 'heraklios-implementer';
 
 const TERMINAL = new Set(['done', 'abandoned', 'deferred']);
 const ID_RE = /^[0-9]+$/;
@@ -147,9 +149,11 @@ export function waitingOnOwner(entries) {
 // --- Launching a session (spec B5) -----------------------------------------
 
 /**
- * `{ cwd, prompt }` for a role. The implementer works in the intent's
- * worktree on the brief `/spawn` step 5 gives; reviewer and auto run as the
- * coordinator in the main checkout (spec B10). Throws on any other role and
+ * `{ cwd, prompt }` for a role, plus `agent` for the implementer. The
+ * implementer works in the intent's worktree on the brief `/spawn` step 5
+ * gives, as the `heraklios-implementer` agent (the SDK's `options.agent`, the
+ * `--agent` flag: its system prompt, tools and model, as `/spawn` launches it);
+ * reviewer and auto run as the coordinator in the main checkout (spec B10). Throws on any other role and
  * on an id that is not digits.
  */
 export function roleLaunch(role, { id, slug, worktreePath, mainPath, brief, branch, port }) {
@@ -167,7 +171,7 @@ export function roleLaunch(role, { id, slug, worktreePath, mainPath, brief, bran
     'Never push, merge, rebase or record a gate. When `npm run verify` is green and the work is done, set `status: in-review` in metadata.yml and commit.',
     brief ? `\n${brief}` : null,
   ];
-  return { cwd: worktreePath, prompt: lines.filter((l) => l !== null).join('\n') };
+  return { cwd: worktreePath, prompt: lines.filter((l) => l !== null).join('\n'), agent: IMPLEMENTER_AGENT };
 }
 
 // --- The command line (spec B1) ----------------------------------------------

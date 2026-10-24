@@ -39,7 +39,7 @@ export function sessionRoutes({ deps, sessions, running, exclusive, parseBody, r
     const worktreePath = intent.worktree.path ?? undefined;
     if (role === 'implementer' && !worktreePath) return refuse(409, `§${id} has no worktree: spawn it first`);
     const brief = worktreePath ? await deps.fs.readFile(join(worktreePath, 'CLAUDE.local.md')) : null;
-    const { cwd, prompt } = roleLaunch(role, {
+    const { cwd, prompt, agent } = roleLaunch(role, {
       id,
       slug: intent.slug,
       worktreePath,
@@ -52,7 +52,7 @@ export function sessionRoutes({ deps, sessions, running, exclusive, parseBody, r
     // Re-checked inside the lock: another launch may have registered while the state loaded.
     return exclusive([id], async () => {
       if (running(id)) return refuse(409, `A session is already running on §${id}`);
-      return ok({ ok: true, session: sessions.launch({ role, id, cwd, prompt }) });
+      return ok({ ok: true, session: sessions.launch({ role, id, cwd, prompt, ...(agent ? { agent } : {}) }) });
     });
   }
 

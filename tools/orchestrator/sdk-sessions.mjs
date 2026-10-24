@@ -141,8 +141,8 @@ export function createSessionManager({ query, now = () => new Date().toISOString
   let nextSession = 1;
 
   return {
-    /** Starts a session; `cwd` and `prompt` come from `roleLaunch`. Returns its summary. */
-    launch({ role, id, cwd, prompt }) {
+    /** Starts a session; `cwd`, `prompt` and `agent` (the SDK's `options.agent`, absent for reviewer and auto) come from `roleLaunch`. Returns its summary. */
+    launch({ role, id, cwd, prompt, agent }) {
       const abort = new AbortController();
       const s = {
         sid: `s${nextSession++}`,
@@ -163,7 +163,7 @@ export function createSessionManager({ query, now = () => new Date().toISOString
       emit(s, { kind: 'state', state: 'running' });
       emit(s, { kind: 'prompt', text: prompt });
       const canUseTool = (tool, input, options) => park(s, tool, input, options?.signal);
-      s.query = query({ prompt, options: { cwd, canUseTool, abortController: abort } });
+      s.query = query({ prompt, options: { cwd, canUseTool, abortController: abort, ...(agent ? { agent } : {}) } });
       void pump(s);
       return summary(s);
     },

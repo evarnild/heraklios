@@ -68,6 +68,14 @@ describe('launch (spec B5)', () => {
     expect(options.abortController).toBeInstanceOf(AbortController);
     expect(summary).toMatchObject({ sid: 's1', role: 'implementer', intent: '52', cwd: 'C:/wt/52', state: 'running', pending: [] });
   });
+  it('passes the agent to query() as options.agent, and only when there is one', () => {
+    const fake = fakeQuery();
+    const manager = createSessionManager({ query: fake.query });
+    manager.launch({ ...launchArgs, agent: 'heraklios-implementer' });
+    manager.launch({ ...launchArgs, id: '53' });
+    expect(fake.calls[0].options.agent).toBe('heraklios-implementer');
+    expect('agent' in fake.calls[1].options).toBe(false);
+  });
   it('streams messages into the transcript and finishes done', async () => {
     const { manager, q } = start();
     const seen = [];
