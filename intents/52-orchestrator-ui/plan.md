@@ -277,3 +277,165 @@ Re-read on `main` at `89354f0`.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-10-24 — all six subtasks
+
+Commits: `e19a350` (1, `sessions --json`), `10a9bc5` (2, pure logic),
+`1ef6125` (3, server), `5e01015` (4, session manager + SDK dependency),
+`a2cbb1e` (5, page), `e8a2f3f` (6, CLI, npm script, eslint exemption, docs).
+`npm run verify` green after each: 60 test files, 1087 tests (was 57 / 994 [corrected in the
+round-1 rework, F9; this line said 995]
+before the change; +3 files in `tools/orchestrator/`, +1 case group in
+`session-lib.test.mjs`); lint 21 warnings, unchanged cap, no warning added or
+removed; the build output has nothing from `tools/`. `npm ci --dry-run` is
+clean with the SDK in the lockfile.
+
+Shipped: `npm run sessions -- --json` (`sessionsData`); `tools/orchestrator/`
+with `orchestrator-lib.mjs` (nextStep, gateAllowed, gateWrite, foreignHost,
+foreignOrigin, roleLaunch, waitingOnOwner, parseCliArgs), `state.mjs`,
+`server.mjs` + `actions.mjs` + `session-routes.mjs`, `sdk-sessions.mjs`,
+`node-io.mjs`, `orchestrator.mjs`, `public/{index.html,app.js,style.css}`;
+`npm run orchestrator`; `tools/**/*.test.mjs` in vitest's include;
+`no-console` off for `orchestrator.mjs` only; CLAUDE.md, `intents/README.md`
+and README.md as the subtask says.
+
+Dependency why line: `@anthropic-ai/claude-agent-sdk` 0.3.309 (exact),
+devDependency: headless sessions with a `canUseTool` permission callback for
+B5/B6, which the `claude` CLI cannot give (no programmatic answer path). The
+API read from the installed `sdk.d.ts` matches the plan (query, interrupt,
+canUseTool, abortController, settingSources omitted, AskUserQuestion answered
+through `updatedInput.answers`, question text -> answer).
+
+Checked by starting a server (read-only, then stopped): a scratch script (not
+in the repo) mounted the real handler and `node-io` on port 5298 with this
+worktree as root and no session manager; `GET /` 200, `GET /api/state` 200
+with the intents and worktrees, a foreign `Host` 403, a POST with a foreign
+`Origin` 403. `orchestrator.mjs` itself refuses a bad `--port` and a run from
+a worktree. No spawn, gate, ship or SDK session was started.
+
+Divergences from the plan:
+- `nextStep` also takes `files: { spec, plan }` (it must know whether
+  spec.md/plan.md exist), and returns `owner: 'none'` for finished intents.
+- `gateAllowed` returns `{ ok, reason }`, not a boolean.
+- A POST without any `Origin` is refused (403), stricter than
+  `server/saveApi.ts`; spec B2 says a request that changes something carries
+  one. `foreignHost` also checks the server's own port when given.
+- The server was split into `server.mjs`, `actions.mjs` and
+  `session-routes.mjs` (and `state.mjs`) to stay under the function-length
+  guardrail; session routes live in the same commit as the server (subtask 3)
+  and are tested there with a fake manager.
+- Locks are per intent (plus `main` for ship and a gate on `main`), and "ship
+  refuses without a prior dry-run" is a per-process memory of a successful
+  dry-run for that id, consumed by the real ship.
+- The implementer role's prompt adds the worktree's
+  `CLAUDE.local.md` brief when it exists.
+- Not done, as the spec says: no interactive terminal (B7). The live check
+  (AC4) is the owner's.
+
+### 2026-10-24 — review round 1 rework (F1-F6, F9, F11, F12)
+
+Commits: `823dbce` and `b0d7a58` (F1, F3), `e722f6e` (F2), `85f754d` (F5),
+`d34cb06` (F4, F6, F12 docs), plus the commit with this entry (F11 test, F9,
+Progress). `npm run verify` green after each: 61 test files, 1094 tests
+(1087 at the reviewed commit); lint 21 warnings, cap unchanged at 21.
+
+- **F1 (race), fixed.** `running(id)` is re-checked inside the `exclusive`
+  callbacks of session launch, the gate write and both ship paths; the early
+  checks stay. `tools/orchestrator/concurrency.test.mjs`: two concurrent
+  launches (the second's state load delayed so it reaches the lock after the
+  first launch finished) give one 200, one 409 and one `query()`; a manager
+  that starts reporting a running session after the early check makes a gate,
+  a dry-run and a real ship return 409 and run nothing.
+- **F2, fixed.** `loadState` overlays `needs you` from the session manager
+  (`deps.sessions.list()`) on the intent's `session` and `worktree.session`;
+  it wins over the hook log, so `nextStep` and "waiting on you" see it. Server
+  test with a fake manager (an intent with no worktree, and one with a
+  worktree whose hook state is `working`).
+- **F3, fixed.** Tests in `concurrency.test.mjs`: while a real ship of 52 is
+  held open, a ship and a dry-run of 53 get 409 and a gate on §29 (main)
+  gets 409.
+- **F4, owner's decision: terminal parity kept** (no `permissionMode`). README
+  Orchestrator section corrected: tools your settings allow, or auto mode
+  approves, run without a prompt; only what would prompt reaches the page.
+  Nothing in CLAUDE.md or `intents/README.md` claimed "nothing runs without a
+  click". The plan's Risks wording is above the marker and left as is.
+- **F5, owner's decision: resolved.** `roleLaunch('implementer')` returns
+  `agent: 'heraklios-implementer'`, which the session manager passes as the
+  SDK's `options.agent` (sdk.d.ts 0.3.309, "equivalent to the `--agent` CLI
+  flag": system prompt, tools and model of the agent definition apply to the
+  main thread); the brief stays the prompt. Reviewer and auto launch without
+  the option. Tests: lib, server route and sdk-sessions (the option reaches
+  `query()`, absent for the others).
+- **F6, owner's decision: yes.** The Auto button's confirm says this click is
+  your `/auto <id>` and authorises `plan_approved` (and `auto_authorized`)
+  for that one intent. `intents/README.md` and CLAUDE.md say the Auto click
+  counts as the owner's `/auto <id>` message and how a stopped `/auto` is
+  resumed from the page (record the gate with its button or answer, then click
+  Auto again, a new `/auto <id>`). No other agent permission widened.
+- **F8:** no code change; the owner chose the disposable-clone live check.
+- **F9, fixed.** The base was 57 files / 994 tests (main's count per the §51
+  review), not 995; corrected in the entry above.
+- **F11:** a `/api/sessions/sx/stop` -> 400 test kills M9. M23 is equivalent
+  and left. **F12:** `tools/orchestrator/` is listed in CLAUDE.md
+  "Architecture"; README says a transcript keeps its last 2000 items. F7 and
+  F10 left, as decided.
+
+Mutants, one at a time, full `vitest run`, backed up and restored by copy,
+`git status --short` clean after each (M51, M52 and the F2 run were the
+reviewer's expected kills): M51 (real-ship lock `[id]`) killed; M52 (gate-on-main
+lock `[id] : [id]`) killed; in-lock launch check removed killed (after the
+test was made deterministic: its first form survived, because the lock alone
+serialised the two requests); in-lock gate check removed killed (the first
+form survived, as the fixture lacked spec.md and a different 409 hid it);
+in-lock dry-run check removed killed; in-lock real-ship check removed killed;
+F2 overlay removed killed; M9 (`/^s/`) killed.
+
+### 2026-10-24 - review round 2 rework
+
+Commits: d1b649a (F13), 566fe4c (F14), 2c5186f (F15 and nits). `npm run
+verify` green on each: 61 test files, 1108 tests at the last (1104 after F13,
+1107 after F14, 1108 after the remove test; round 1 left 1094), lint 21 of 21
+(cap unchanged).
+
+- **F13, owner's decision (a).** `autoLaunch(auto_stopped, id)` in
+  `orchestrator-lib.mjs` decides from the skill's exact stop strings (prefix
+  match): allowed with a tailored confirm for no stop / a closed session,
+  `spec drafted` and `live check owed` (record the gate with its button
+  first), `escalate` (the confirm says the click also means "I have read the
+  diff"), `ready for /ship` (re-runs the dry-run), and any other recorded
+  cause (a cleared red verify and the like; the confirm names it). Refused
+  with the coordinator-terminal instruction: `spec questions`, `decision
+  needed`, `spec or plan amendment needed`, `critical finding`, `plan exists
+  unapproved`, plus `plan found the spec incomplete` (the skill's resume
+  needs the owner's settlement) and `out of rounds` (continues by hand): the
+  last two are my reading of the skill table, beyond the owner's list.
+  `/api/state` now carries `autoStopped` and `autoLaunch` per intent; the page
+  disables Auto with the reason as its title and uses `confirmText`; the
+  launch route refuses role `auto` with 409 when not allowed, so a POST cannot
+  bypass it. README, CLAUDE.md and intents/README.md say which stops an Auto
+  click resumes and which are answered in a terminal.
+- **F14, fixed.** The abort listener sets the session back to `running` when
+  nothing else is pending. Tests: sdk-sessions (running after the abort, still
+  `needs you` with another request pending) and a handler test that the intent
+  is `needs you` while parked and not after the abort.
+- **F15, fixed.** The Auto sentence in CLAUDE.md and intents/README.md adds
+  that an agent never presses the Auto button or POSTs to `/api/sessions`.
+- **Nits.** CLAUDE.md Architecture names `public/app.js` as untested;
+  `/api/remove/<id>` refuses (409) while a session runs on the intent, with a
+  test. No change to plan.md or spec.md above this section.
+
+Mutants, one at a time, full `vitest run`, backed up and restored by copy,
+`git status --short` clean after each, all killed: F14 line removed (2 tests:
+sdk-sessions and the handler overlay test); F14 `!s.pending.size &&` removed
+(the pending-stays test); route refusal for role auto removed (server test);
+`critical finding` dropped from the refused list (autoLaunch test); escalate
+confirm without "I have read the diff" (autoLaunch test); remove guard
+`flag && running(id)` replaced by `false` (server test, run twice). The page's
+disabled button is untested (not a pure function), left to the live check.
+
+### 2026-10-24 - review round 3 rework (commits ac88e16, a241be2, aa5a5a8)
+
+- **F16, fixed (ac88e16).** sdk-sessions test: launch, stop(), a late canUseTool request with an AbortSignal parks in the stopped session, abort it; the state stays `stopped` and `runningFor` is false. Mutant M23 (the `&& s.state === 'needs you'` removed from the abort listener) is killed by it.
+- **F17, fixed (a241be2).** CLAUDE.md and intents/README.md list `plan found the spec incomplete` among the stops answered in a coordinator terminal, and say `out of rounds` is refused too (continues by hand).
+- **LOW M15 (aa5a5a8).** The blank-stop autoLaunch test now asserts the `It starts a run` tail for '  ', so removing the `.trim()` is killed (kept the trim). The SKILL.md-extraction test was skipped: the stop strings wrap across lines, so extraction is fragile.
+- Counts: 61 files, 1109 tests (1108 + 1 sdk-sessions); lint 21 of 21, cap unchanged. check:intent: only the owed live check. Mutants M23 and M15, one at a time, full vitest, restored by copy, tree clean: both killed. No divergence from the plan.

@@ -28,7 +28,8 @@ npm run sdlc:scan  # the evidence behind docs/sdlc-grid.md
 npm run spawn -- <id>  # parallel session for an intent (see "Parallel sessions")
 npm run ship -- <id>  # merge a reviewed intent, bookkeep, push, remove worktree and branch (the /ship skill)
 npm run queue      # the intent queue, generated from metadata.yml (--next-id, --json); nobody edits it
-npm run sessions   # what every worktree/session is doing
+npm run sessions   # what every worktree/session is doing (--json for data, --log for the event tail)
+npm run orchestrator  # local page (127.0.0.1:5299, --port): intents, worktrees, headless Claude sessions, gate and ship buttons (§52)
 npm run e2e        # browser smoke suite (Playwright, port 5232) — not part of verify;
                    # once per machine: npx playwright install chromium
 ```
@@ -132,6 +133,32 @@ npm run sessions -- --log 30    # the raw event tail
   shows as `needs you`; Claude Code's idle "waiting for your input"
   reminder shows as `idle`, but never hides a prompt still waiting on you —
   only your next prompt, the turn ending or the session ending clears it.
+- **The orchestrator** (`npm run orchestrator`, §52; `tools/orchestrator/`)
+  is a local web page that wraps these same scripts (`queue --json`,
+  `sessions --json`, `spawn`, `ship`) and launches headless Claude Code
+  sessions through the Agent SDK. A reviewer or `/auto` session it launches
+  in the main checkout **is** the coordinator for that run, so "only the
+  coordinator" below holds unchanged. A click on one of its gate buttons is
+  the owner writing the gate directly: a bare date, a commit under the
+  owner's git identity (`intents/README.md` → "Who edits what"). It stores
+  nothing of its own, listens on 127.0.0.1 only and checks Host and Origin
+  like the save API. Its sessions have terminal parity: what your settings
+  allow, or auto mode approves, runs without a prompt, and only what would
+  prompt reaches the page. Its Auto button's click **counts as the owner's
+  `/auto <id>` message** (its confirm says so): it authorises
+  `plan_approved` and `auto_authorized` for that one intent and nothing wider.
+  An Auto click is a bare `/auto <id>`, so it resumes only stops that need no
+  answer: no run yet or a closed session; `spec drafted` and `live check owed`
+  (record the gate with its button first); `escalate` (the click also means
+  "I have read the diff"); `ready for /ship`; a cause you have cleared. A
+  stop that needs your answer (`spec questions`, `decision needed`, `spec or
+  plan amendment needed`, `critical finding`, `plan exists unapproved`, `plan found the spec incomplete`) is
+  answered in a coordinator terminal with `/auto <id>` plus the answer; the
+  page disables Auto for it and the server refuses it
+  (`orchestrator-lib.mjs`'s `autoLaunch`). `out of rounds` is refused too: the
+  intent continues by hand. An agent never presses the Auto
+  button or POSTs to `/api/sessions`. Its interactive terminal is a later
+  intent.
 - **Only the coordinator** runs `/spawn`, `/sessions`, `/review` and
   `/auto`, and sends "main moved, rebase" notices. The owner merges (or
   asks the coordinator to, per "Merging"), one branch at a time, running
@@ -231,6 +258,11 @@ and rendering.
   hit-testing), `render.ts`, `input.ts`, `serialize.ts` (generates the
   `map.ts` source + JSON save/load), `main.ts` (DOM wiring). Built as a
   second Vite entry point (see `vite.config.ts`).
+- `tools/orchestrator/` — the orchestrator (§52): a plain `.mjs` local server and
+  page wrapping the scripts and headless SDK sessions; its logic modules are
+  tested with an injected runner, file system and fake `query`, and
+  `node-io.mjs`/`orchestrator.mjs` and the page (`public/app.js`) are the
+  untested glue.
 - `tools/map-extract/` — one-off Python scripts that derived the shipped
   `src/data/map.ts` from the scanned board image (grid calibration, color
   classification, river-hexside detection). Not run at build time; not

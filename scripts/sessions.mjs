@@ -5,7 +5,8 @@
 // intent status and gates (read live from that worktree's metadata.yml),
 // commits ahead/behind main, uncommitted files, and what its Claude Code
 // session last did (from the hook-written event log). Sessions waiting on
-// the owner sort first. `--log` tails the event log instead.
+// the owner sort first. `--log` tails the event log instead; `--json` prints
+// the rows as data (the orchestrator's input, §52).
 import { existsSync, readFileSync } from 'node:fs';
 import { eventLogPath, git, mainCheckout, readIntentMetadata } from './session-io.mjs';
 import {
@@ -18,6 +19,7 @@ import {
   pathKey,
   portFor,
   sessionState,
+  sessionsData,
 } from './session-lib.mjs';
 import { parseBranch } from './intent-check-lib.mjs';
 
@@ -55,18 +57,28 @@ function rowFor(wt, latest) {
   };
 }
 
+function printTable(rows) {
+  console.log(formatStatusTable(rows, Date.now()));
+  const behind = rows.filter((r) => r.id && r.behind > 0 && r.session.state !== 'closed');
+  if (behind.length) {
+    console.log(`
+Behind main (rebase before review): ${behind.map((r) => `§${r.id} (-${r.behind})`).join(', ')}`);
+  }
+  const ready = rows.filter((r) => r.status === 'in-review');
+  if (ready.length) console.log(`Ready for /review: ${ready.map((r) => `§${r.id} ${r.branch}`).join(', ')}`);
+  console.log(`
+Event log: ${logFile}`);
+}
+
 if (args.includes('--log')) {
   const n = Number(args[args.indexOf('--log') + 1]) || 20;
   console.log(events.slice(-n).map(formatEvent).join('\n') || '(no events yet)');
 } else {
   const latest = latestEventByWorktree(events);
   const rows = parseWorktreeList(git(root, 'worktree', 'list', '--porcelain')).map((wt) => rowFor(wt, latest));
-  console.log(formatStatusTable(rows, Date.now()));
-  const behind = rows.filter((r) => r.id && r.behind > 0 && r.session.state !== 'closed');
-  if (behind.length) {
-    console.log(`\nBehind main (rebase before review): ${behind.map((r) => `§${r.id} (-${r.behind})`).join(', ')}`);
+  if (args.includes('--json')) {
+    console.log(JSON.stringify(sessionsData(rows, Date.now()), null, 2));
+  } else {
+    printTable(rows);
   }
-  const ready = rows.filter((r) => r.status === 'in-review');
-  if (ready.length) console.log(`Ready for /review: ${ready.map((r) => `§${r.id} ${r.branch}`).join(', ')}`);
-  console.log(`\nEvent log: ${logFile}`);
 }

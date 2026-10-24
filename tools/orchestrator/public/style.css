@@ -1,0 +1,20 @@
+:root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+body { margin: 0; padding: 0 1rem 3rem; }
+header { display: flex; align-items: baseline; gap: 1rem; }
+h1 { font-size: 1.3rem; }
+h2 { font-size: 1.05rem; margin-top: 1.5rem; border-bottom: 1px solid #8884; }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+th, td { text-align: left; padding: 0.25rem 0.5rem; border-bottom: 1px solid #8883; vertical-align: top; }
+button { margin: 0 0.25rem 0.25rem 0; cursor: pointer; }
+button.danger { border-color: #c33; }
+.owner-owner { font-weight: bold; }
+.owner-none { opacity: 0.6; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #8881; padding: 0.5rem; max-height: 20rem; overflow: auto; }
+.session { border: 1px solid #8886; padding: 0.5rem; margin-bottom: 1rem; }
+.session .log { max-height: 20rem; overflow: auto; font-family: ui-monospace, monospace; font-size: 0.8rem; }
+.line { white-space: pre-wrap; overflow-wrap: anywhere; }
+.line.tool_use { color: #36a; }
+.line.result { font-weight: bold; }
+.line.error { color: #c33; }
+.pending { border: 1px solid #c80; padding: 0.5rem; margin: 0.5rem 0; }
+.state { font-weight: normal; font-size: 0.85rem; padding: 0 0.4rem; border: 1px solid #8886; }
