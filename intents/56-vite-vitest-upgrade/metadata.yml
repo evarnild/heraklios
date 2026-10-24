@@ -1,0 +1,18 @@
+# generated-by: heraklios/intent@0.1.5
+id: 56
+slug: vite-vitest-upgrade
+type: refactor
+status: draft
+title: Move to current vite and vitest majors and clear npm audit
+review_tier:
+intent_accepted:
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+auto_authorized:
+auto_round:
+auto_stopped:
+follows_up:
+links:
+  - intents/45-save-api
