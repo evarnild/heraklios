@@ -12,7 +12,7 @@ live_checked:
 merged:
 auto_authorized: 2026-10-24 by-agent    # owner: "resume auto 52"
 auto_round: 3
-auto_stopped:
+auto_stopped: out of rounds, open findings below
 follows_up:
 links:
   - intents/26-ai-sdlc-kit
