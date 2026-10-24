@@ -174,6 +174,57 @@ export function roleLaunch(role, { id, slug, worktreePath, mainPath, brief, bran
   return { cwd: worktreePath, prompt: lines.filter((l) => l !== null).join('\n'), agent: IMPLEMENTER_AGENT };
 }
 
+// --- What an Auto click can resume (spec B5, review F13) -------------------
+
+const IN_TERMINAL = 'answered in a coordinator terminal with `/auto <id>` plus the answer';
+/**
+ * Stops whose resume needs the owner's *answer*, which an Auto click (it sends
+ * only `/auto <id>`, to a headless session) cannot carry. The strings are the
+ * ones .claude/skills/auto/SKILL.md writes, matched as prefixes (a stop may add detail).
+ */
+const NEEDS_ANSWER = [
+  'spec questions',
+  'decision needed',
+  'spec or plan amendment needed',
+  'critical finding',
+  'plan exists unapproved',
+  'plan found the spec incomplete',
+];
+/** Stops the skill does not resume at all: the intent continues by hand. */
+const BY_HAND = ['out of rounds'];
+
+const startsWithAny = (text, list) => list.some((p) => text.startsWith(p));
+
+const AUTO_BASE = (id) =>
+  `This click is your /auto ${id}. It authorises the session to record plan_approved (and auto_authorized) for §${id}, only for §${id} and only for this run. It runs Claude Code and may use your quota.`;
+
+/**
+ * What an Auto click may do for an intent whose `auto_stopped` is given
+ * (null/empty: no run yet, or a session closed mid-run). Returns
+ * `{ allowed, reason, confirmText }`: when `allowed` is false, `reason` says
+ * why and where the stop is answered; when true, `confirmText` is what the
+ * page's confirm shows, naming what the click means for that stop. Used by the
+ * page (via /api/state) and enforced by the launch route, so a POST cannot skip it.
+ */
+export function autoLaunch(autoStopped, id = '<id>') {
+  const stop = typeof autoStopped === 'string' ? autoStopped.trim() : '';
+  const base = AUTO_BASE(id);
+  if (startsWithAny(stop, NEEDS_ANSWER)) {
+    return { allowed: false, reason: `Stopped: ${stop}. This needs your answer, which a click cannot carry: it is ${IN_TERMINAL.replace('<id>', id)}.` };
+  }
+  if (startsWithAny(stop, BY_HAND)) {
+    return { allowed: false, reason: `Stopped: ${stop}. The skill does not resume this stop: the intent continues by hand.` };
+  }
+  let tail = '';
+  if (stop === '') tail = 'It starts a run, or resumes one a closed session left.';
+  else if (stop.startsWith('spec drafted')) tail = 'Record spec_accepted with its button first: this resumes the run from the accepted spec.';
+  else if (stop.startsWith('live check owed')) tail = 'Record live_checked with its button first, once you have run the live check and it passed.';
+  else if (stop.startsWith('escalate')) tail = 'It ALSO means "I have read the diff": the run goes on to the live-check or ship stop with no further review. Click only if you have read it.';
+  else if (stop.startsWith('ready for /ship')) tail = 'It re-runs the ship dry-run and reports; it never ships.';
+  else tail = `The run stopped at "${stop}". Click only if you have cleared that cause: the run redoes the step that stopped.`;
+  return { allowed: true, confirmText: `${base} ${tail} Launch it?` };
+}
+
 // --- The command line (spec B1) ----------------------------------------------
 
 /** Default port: the top of the per-intent range (spec Assumptions); `--port` overrides. */

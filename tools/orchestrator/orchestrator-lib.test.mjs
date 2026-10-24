@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  autoLaunch,
   foreignHost,
   foreignOrigin,
   gateAllowed,
@@ -269,5 +270,60 @@ describe('parseCliArgs (spec B1)', () => {
     for (const argv of [['--port'], ['--port', 'x'], ['--port', '0'], ['--port', '70000'], ['--port=1e3'], ['--host', '0.0.0.0'], ['5299']]) {
       expect(() => parseCliArgs(argv), argv.join(' ')).toThrow();
     }
+  });
+});
+
+describe('autoLaunch: what an Auto click can resume (F13)', () => {
+  it('starts, or resumes a closed session, with no stop recorded', () => {
+    for (const none of [null, undefined, '', '  ']) {
+      const r = autoLaunch(none, '52');
+      expect(r.allowed).toBe(true);
+      expect(r.confirmText).toContain('/auto 52');
+      expect(r.confirmText).toContain('plan_approved');
+    }
+  });
+  it('an escalate stop: the click also means "I have read the diff"', () => {
+    const r = autoLaunch('escalate, owner reads the diff', '52');
+    expect(r.allowed).toBe(true);
+    expect(r.confirmText).toContain('I have read the diff');
+  });
+  it('spec drafted and live check owed: tells the owner to record the gate first', () => {
+    const spec = autoLaunch('spec drafted, waiting for spec_accepted', '52');
+    expect(spec.allowed).toBe(true);
+    expect(spec.confirmText).toContain('spec_accepted');
+    const live = autoLaunch('live check owed', '52');
+    expect(live.allowed).toBe(true);
+    expect(live.confirmText).toContain('live_checked');
+  });
+  it('ready for /ship re-runs the dry-run and never ships', () => {
+    const r = autoLaunch('ready for /ship', '52');
+    expect(r.allowed).toBe(true);
+    expect(r.confirmText).toContain('dry-run');
+  });
+  it('a cleared cause (red verify and the like) is allowed, naming the cause', () => {
+    const r = autoLaunch('red verify', '52');
+    expect(r.allowed).toBe(true);
+    expect(r.confirmText).toContain('red verify');
+  });
+  it('a stop that needs the owner answer is refused with the terminal instruction', () => {
+    for (const stop of [
+      'spec questions',
+      'decision needed',
+      'spec or plan amendment needed',
+      'critical finding',
+      'plan exists unapproved, owner decides',
+      'plan found the spec incomplete',
+    ]) {
+      const r = autoLaunch(stop, '52');
+      expect(r.allowed, stop).toBe(false);
+      expect(r.reason, stop).toContain('coordinator terminal');
+      expect(r.reason, stop).toContain('/auto 52');
+      expect(r.confirmText, stop).toBeUndefined();
+    }
+  });
+  it('out of rounds is refused: the intent continues by hand', () => {
+    const r = autoLaunch('out of rounds, open findings below', '52');
+    expect(r.allowed).toBe(false);
+    expect(r.reason).toContain('by hand');
   });
 });

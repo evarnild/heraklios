@@ -147,9 +147,16 @@ npm run sessions -- --log 30    # the raw event tail
   prompt reaches the page. Its Auto button's click **counts as the owner's
   `/auto <id>` message** (its confirm says so): it authorises
   `plan_approved` and `auto_authorized` for that one intent and nothing wider.
-  A stopped `/auto` is resumed from the page by recording the gate with its
-  button or answering the question, then clicking Auto again, a new
-  `/auto <id>`. Its interactive terminal is a later intent.
+  An Auto click is a bare `/auto <id>`, so it resumes only stops that need no
+  answer: no run yet or a closed session; `spec drafted` and `live check owed`
+  (record the gate with its button first); `escalate` (the click also means
+  "I have read the diff"); `ready for /ship`; a cause you have cleared. A
+  stop that needs your answer (`spec questions`, `decision needed`, `spec or
+  plan amendment needed`, `critical finding`, `plan exists unapproved`) is
+  answered in a coordinator terminal with `/auto <id>` plus the answer; the
+  page disables Auto for it and the server refuses it
+  (`orchestrator-lib.mjs`'s `autoLaunch`). Its interactive terminal is a
+  later intent.
 - **Only the coordinator** runs `/spawn`, `/sessions`, `/review` and
   `/auto`, and sends "main moved, rebase" notices. The owner merges (or
   asks the coordinator to, per "Merging"), one branch at a time, running

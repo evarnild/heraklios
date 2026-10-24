@@ -420,6 +420,28 @@ describe('session routes (spec B5, B6)', () => {
     expect(sessions.calls[0][1].agent).toBe('heraklios-implementer');
     expect(sessions.calls[0][1].prompt).toContain('intent §52 (orch)');
   });
+  it('exposes auto_stopped and the Auto decision on each intent (F13)', async () => {
+    const { handle } = setup({ files: { [`${WT}/intents/52-orch/metadata.yml`]: metaText({ auto_stopped: 'decision needed' }) } });
+    const intent = payload(await handle(get('/api/state'))).intents.find((i) => i.id === 52);
+    expect(intent.autoStopped).toBe('decision needed');
+    expect(intent.autoLaunch.allowed).toBe(false);
+    expect(intent.autoLaunch.reason).toContain('coordinator terminal');
+  });
+  it('refuses an Auto launch on a stop that needs the owner answer, but not a reviewer launch (F13)', async () => {
+    const sessions = fakeSessions();
+    const { handle } = setup({ sessions, files: { [`${WT}/intents/52-orch/metadata.yml`]: metaText({ auto_stopped: 'decision needed' }) } });
+    const res = await handle(post('/api/sessions', { role: 'auto', id: '52' }));
+    expect(res.status).toBe(409);
+    expect(payload(res).error).toContain('coordinator terminal');
+    expect(sessions.calls).toEqual([]);
+    expect((await handle(post('/api/sessions', { role: 'reviewer', id: '52' }))).status).toBe(200);
+  });
+  it('launches an Auto session on an escalate stop (F13)', async () => {
+    const sessions = fakeSessions();
+    const { handle } = setup({ sessions, files: { [`${WT}/intents/52-orch/metadata.yml`]: metaText({ auto_stopped: 'escalate, owner reads the diff' }) } });
+    expect((await handle(post('/api/sessions', { role: 'auto', id: '52' }))).status).toBe(200);
+    expect(sessions.calls[0][1].prompt).toBe('/auto 52');
+  });
   it('refuses an implementer without a worktree, an unknown role, a bad id and a second session', async () => {
     const sessions = fakeSessions();
     const noWt = setup({ sessions, answer: scriptsAnswer(QUEUE, []) });

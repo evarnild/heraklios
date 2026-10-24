@@ -4,9 +4,9 @@
 // be derived. Nothing is cached or written: git and metadata.yml stay the
 // owners of the data (spec B12).
 import { join } from 'node:path';
-import { parseMetadata, parseReviewHeader } from '../../scripts/intent-check-lib.mjs';
+import { parseAuto, parseMetadata, parseReviewHeader } from '../../scripts/intent-check-lib.mjs';
 import { branchFor } from '../../scripts/session-lib.mjs';
-import { nextStep, waitingOnOwner } from './orchestrator-lib.mjs';
+import { autoLaunch, nextStep, waitingOnOwner } from './orchestrator-lib.mjs';
 
 const TERMINAL = new Set(['done', 'abandoned', 'deferred']);
 
@@ -85,7 +85,8 @@ export async function loadState(deps) {
         ? { metadata: { status: intent.status }, reviewHeader: null, files: {} }
         : await readOpenIntent(deps, intent, location, wt?.branch ?? branchFor(intent));
       const next = nextStep({ ...read, worktree });
-      return { ...intent, next, worktree, location, session, review: read.reviewHeader?.verdict ?? null };
+      const autoStopped = parseAuto(read.metadata).stopped;
+      return { ...intent, next, worktree, location, session, review: read.reviewHeader?.verdict ?? null, autoStopped, autoLaunch: autoLaunch(autoStopped, intent.id) };
     }),
   );
   return { root, intents: waitingOnOwner(intents), worktrees };

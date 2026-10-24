@@ -95,23 +95,27 @@ function spawnButtons(intent) {
   return out;
 }
 
-// The Auto click is the owner's `/auto <id>` message (intents/README.md), so the confirm says what it authorises.
-const autoConfirm = (id) =>
-  `This click is your /auto ${id}. It authorises the session to record plan_approved (and auto_authorized) for §${id}, only for §${id} and only for this run. It runs Claude Code and may use your quota. Launch it?`;
+// The Auto click is the owner's `/auto <id>` message (intents/README.md). The server decides, from auto_stopped, whether a click can resume the stop and what its confirm says (autoLaunch).
 
 function launchButtons(intent) {
   if (['done', 'abandoned', 'deferred'].includes(intent.status)) return [];
   const roles = [];
   if (intent.worktree.exists) roles.push(['implementer', 'Implementer']);
   roles.push(['reviewer', 'Review'], ['auto', 'Auto']);
-  return roles.map(([role, label]) =>
-    button(label, async () => {
-      const ok = confirm(role === 'auto' ? autoConfirm(intent.id) : `Launch a ${role} session on §${intent.id}? It runs Claude Code and may use your quota.`);
+  return roles.map(([role, label]) => {
+    const refusal = role === 'auto' && intent.autoLaunch && !intent.autoLaunch.allowed ? intent.autoLaunch.reason : null;
+    const b = button(label, async () => {
+      const ok = confirm(role === 'auto' ? intent.autoLaunch.confirmText : `Launch a ${role} session on §${intent.id}? It runs Claude Code and may use your quota.`);
       if (!ok) return;
       const result = await act(`Launch ${role} on §${intent.id}`, 'POST', '/api/sessions', { role, id: String(intent.id) });
       if (result.data.session) openSession(result.data.session);
-    }, 'launch'),
-  );
+    }, 'launch');
+    if (refusal) {
+      b.disabled = true;
+      b.title = refusal;
+    }
+    return b;
+  });
 }
 
 function intentActions(intent) {

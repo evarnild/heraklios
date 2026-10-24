@@ -109,9 +109,15 @@ type needs were recorded.
   your git identity. No agent is involved, and an agent never presses it.
   Its **Auto** button is different: the click, after a confirm that says so,
   counts as your `/auto <id>` message below. A headless `/auto` session cannot
-  take a "yes" in the conversation, so a stop is resumed from the page:
-  record the gate with its button, or answer the question, then click Auto
-  again, which is a new `/auto <id>`.
+  take a "yes" in the conversation, so the click resumes only stops that need
+  no answer: no run yet or a closed session; `spec drafted` and `live check
+  owed` (record the gate with its button first); `escalate` (the click also
+  means "I have read the diff"; the confirm says so); `ready for /ship`; a
+  cause you have cleared. A stop that needs your answer (`spec questions`,
+  `decision needed`, `spec or plan amendment needed`, `critical finding`,
+  `plan exists unapproved`) is answered in a coordinator terminal with
+  `/auto <id>` plus the answer; the page disables Auto for it and the server
+  refuses it.
 - **`/auto <id>`** (§50, spec B1 and B3). Your `/auto <id>` message in the
   coordinator conversation, for an intent whose `intent_accepted` is
   recorded, is a request to record that intent's `plan_approved`, and no

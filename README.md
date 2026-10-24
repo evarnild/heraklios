@@ -703,9 +703,18 @@ would prompt reaches the page, where your click is the answer, nothing waiting
 is ever allowed by default, and Stop denies whatever is pending. A session's
 transcript keeps its last 2000 items, in memory. The Auto button's click is
 your `/auto <id>` message: its confirm says it authorises recording
-`plan_approved` (and `auto_authorized`) for that one intent. When an `/auto`
-stops (the spec to accept, a question), record the gate with its button or
-answer the question, then click Auto again, which is a new `/auto <id>`.
+`plan_approved` (and `auto_authorized`) for that one intent. The click is a
+bare `/auto <id>` to a headless session, so it can resume only the stops that
+need no answer from you: no run yet, or a session closed mid-run; `spec
+drafted` and `live check owed` (record the gate with its button first, then
+click Auto); `escalate` (the click also means "I have read the diff", and the
+confirm says so); `ready for /ship` (re-runs the dry-run); and a stop whose
+cause you have cleared (a red verify and the like). A stop that needs your
+answer (`spec questions`, `decision needed`, `spec or plan amendment needed`,
+`critical finding`, `plan exists unapproved`, `plan found the spec
+incomplete`) is answered in a coordinator terminal with `/auto <id>` plus the
+answer: the page disables Auto for it, with the reason, and the server refuses
+the launch too. `out of rounds` is refused likewise: the intent continues by hand.
 
 It listens on 127.0.0.1 only, checks `Host` on every request and `Origin` on
 every POST (like the save API), runs commands as argument arrays with no

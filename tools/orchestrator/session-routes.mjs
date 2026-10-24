@@ -3,7 +3,7 @@
 // injected session manager (sdk-sessions.mjs); with no manager they are 404.
 import { join } from 'node:path';
 import { portFor } from '../../scripts/session-lib.mjs';
-import { roleLaunch, ROLES, validId } from './orchestrator-lib.mjs';
+import { autoLaunch, roleLaunch, ROLES, validId } from './orchestrator-lib.mjs';
 import { findIntent, loadState } from './state.mjs';
 
 const SID = /^s[0-9]+$/;
@@ -36,6 +36,11 @@ export function sessionRoutes({ deps, sessions, running, exclusive, parseBody, r
     if (running(id)) return refuse(409, `A session is already running on §${id}`);
     const intent = findIntent(await loadState(deps), id);
     if (!intent) return refuse(404, `No intent ${id}`);
+    // An Auto click cannot carry the owner's answer, so a stop that needs one is refused here too (F13).
+    if (role === 'auto') {
+      const gate = autoLaunch(intent.autoStopped, id);
+      if (!gate.allowed) return refuse(409, gate.reason);
+    }
     const worktreePath = intent.worktree.path ?? undefined;
     if (role === 'implementer' && !worktreePath) return refuse(409, `§${id} has no worktree: spawn it first`);
     const brief = worktreePath ? await deps.fs.readFile(join(worktreePath, 'CLAUDE.local.md')) : null;
