@@ -173,3 +173,27 @@ The scene lines are proved by the e2e only; `/review` runs `npm run e2e`.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-10-24 — all five subtasks
+
+Commits: `2224e50` (previewLandAttack + AC1 tests), `2aac5a4` (texts,
+`dieModifierParts`, `formatAttackLine`, AC2 tests), `e11d584` (scene: autosave
+line, `logAttackLine`), `cd04fca` (e2e `attack-log.spec.ts`), plus the README
+and this entry in the closing commit.
+
+Shipped: B1-B8 as specced. `previewLandAttack` is the single computation
+`computeLandAttackDetail` now calls. `formatCombatOutcome` uses the shared
+`dieModifierParts` (report text unchanged). Autosave logs `Autosaved.` on
+success, the existing failure line otherwise.
+
+Counts: verify green, 57 files / 1007 tests (was 1001: +6 across engine and
+format), lint 21 (cap 21, unchanged), `npm run e2e` 14 passed (port 5232 was
+free).
+
+Divergences: (1) `log.attackWithTargets` takes `parts` as one already-joined
+string, not a list, because `messages.test.ts` calls every message with
+string samples; `formatAttackLine` joins with " + ". (2) The new async
+`Autosaved.` line broke `e2e/message-log.spec.ts` (it counts exact entries);
+its `logEntries` helper now ignores `Autosaved.` entries. (3) The e2e uses a
+flat-terrain target, so it shows no die modifier; the modifier forms are
+pinned by the format unit tests and the live check.

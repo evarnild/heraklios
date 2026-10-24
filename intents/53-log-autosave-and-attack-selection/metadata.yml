@@ -2,7 +2,7 @@
 id: 53
 slug: log-autosave-and-attack-selection
 type: feature
-status: accepted
+status: in-review
 title: The log says when the game autosaves, and shows the attack being built
 review_tier:
 intent_accepted: 2026-10-24 by-agent    # owner: "yes /auto 53"
