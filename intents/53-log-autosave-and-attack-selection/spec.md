@@ -34,7 +34,9 @@ they are.
 changes the land attack being built, the log shows one line describing the
 whole current attack:
 - with at least one target: `Attack: <attackers> (<attack force>) → <targets>
-  (<defence force>)`, e.g. `Attack: Archers, Hoplites (12) → Peltasts (6)`;
+  (<defence force>)`, followed, when the die modifier is not zero, by `, die
+  +<n> (<parts>)`, e.g. `Attack: Archers, Hoplites (12) → Peltasts (6), die +3
+  (2 hills at (4, 7) + 1 river crossing)`;
 - with attackers but no target yet: `Attack: <attackers>, choose a target.`
   (no number: an attacker's force depends on its targets, B5);
 - when a click empties the attacker group: `Attack cleared.`
@@ -55,9 +57,19 @@ attack logs the combat report as today, with no attack line before it.
 `currentDefense` over the targets: exactly `attackForce` and `defenseForce`
 that the roll's `describeLandAttack` reports for the same attackers and
 targets. They come from a new pure function in `src/engine/combat.ts` that
-`computeLandAttackDetail` also uses, so the two cannot drift apart. The
-terrain and river modifier is not shown (it changes the die roll, not the
-forces; see Interpretations).
+`computeLandAttackDetail` also uses, so the two cannot drift apart.
+
+**B5a — The die modifier (owner, at the spec stop: "add terrain
+modifiers").** The same function returns the die-roll modifier the roll will
+add: the worst terrain modifier across the targets' hexes (with the
+"attacking from below" condition) plus the river-crossing bonus when any
+attacker crosses a river to any target, with its parts: exactly
+`terrainModifier`, `terrainOnlyModifier`, `terrainModifierSource`,
+`terrainModifierSourceHex` and `riverCrossingApplied` as
+`describeLandAttack` reports them. The line shows the total and its parts in
+the combat report's wording (`log.terrainModifier`, `log.riverModifier`,
+`en.ts:258-260`), and nothing when the modifier is zero. It is a die
+modifier, not part of either force (see Interpretations).
 
 **B6 — Naval.** Selecting a ship for a ram or a boarding logs `Attack:
 <ship>, choose a target.`; deselecting it logs `Attack cleared.` Picking the
@@ -76,8 +88,9 @@ force.
 - **"Totals (terrain and river modifiers included)"** (intent Outcome): the
   combat code applies terrain and the river to the **die roll**
   (`combat.ts:308-309`), not to either force, so "the totals the roll will
-  use" are the two forces alone (B5). Showing the modifier would add a third
-  number the owner didn't ask for; it is out of scope here.
+  use" are the two forces, and the terrain and river appear as the die
+  modifier beside them (B5a), as the combat report shows them after the
+  roll. The owner asked for it at the spec stop.
 - **"A message about the selected units and targeted units"**: one line per
   change, describing the whole attack, rather than one line per clicked unit,
   so the last line in the log is always the current attack (B3).
@@ -91,14 +104,20 @@ force.
   melee attacker on one defender; a ranged attacker at its range; a mixed
   group against two defenders in multi-defender mode; an attacker on a
   defender across a river and on a hill (forces unchanged by the terrain).
-  Exact numbers, not "positive".
+  Exact numbers, not "positive". For the same cases the function's die
+  modifier, its terrain part, source terrain and hex and river flag equal
+  `describeLandAttack`'s: zero on open ground, the hill bonus only when
+  attacking from below, the river bonus added, and the worst terrain across
+  two defenders.
 - **AC2 — the line text** (a pure formatter with tests, e.g. in
-  `src/ui/i18n/format.ts` and its test): the three forms of B3 and the naval
+  `src/ui/i18n/format.ts` and its test): the three forms of B3, with and
+  without the die modifier (terrain only, river only, both), and the naval
   form of B6, in English and French.
 - **AC3 — e2e** (`e2e/attacks.spec.ts` or a new scenario, read through the dev
   hook's `logEntries()`): in a test-mode board, the log gains `Autosaved.`
   when the board opens; selecting an attacker logs `Attack: <name>, choose a
-  target.`; adding a target logs the line with both totals; deselecting the
+  target.`; adding a target logs the line with both totals (and the die modifier when
+  the target stands on a modifying hex or across a river); deselecting the
   attacker logs `Attack cleared.`; a refused click adds no attack line.
 - **AC4 — live check** (owed: `src/scenes/`, `src/ui/`, new behaviour): play a
   hotseat combat phase in English and French, build a two-attacker,
@@ -119,8 +138,8 @@ force.
 
 ## Out of scope
 
-- Showing the die-roll modifier, the odds ratio or the expected result
-  before the roll.
+- Showing the odds ratio, the CRT column or the expected result before the
+  roll.
 - Changing the manual-save message.
 - Announcing the computer's attacks before its roll.
 - A setting to turn these lines off.
