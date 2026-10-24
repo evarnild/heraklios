@@ -26,6 +26,7 @@ export function createActions({ deps, sessions, today, json, refuse, output, par
   }
 
   const running = (id) => (sessions ? sessions.runningFor(id) : false);
+  const stopFirst = (id) => refuse(409, `A session is running on §${id}: stop it first`);
 
   async function script(name, args) {
     const call = scriptCall(root, name, args);
@@ -37,9 +38,10 @@ export function createActions({ deps, sessions, today, json, refuse, output, par
     exclusive([id], () => script('spawn-intent.mjs', flag ? [id, flag] : [id]));
 
   async function shipRoute(id, dry, request) {
-    if (running(id)) return refuse(409, `A session is running on §${id}: stop it first`);
+    if (running(id)) return stopFirst(id);
     if (dry) {
       return exclusive([id, 'main'], async () => {
+        if (running(id)) return stopFirst(id); // re-checked inside the lock: a session may have launched meanwhile
         const res = await script('ship.mjs', [id, '--dry-run']);
         if (JSON.parse(res.body).ok) dryRuns.add(id);
         else dryRuns.delete(id);
@@ -52,6 +54,7 @@ export function createActions({ deps, sessions, today, json, refuse, output, par
     if (words.length > MAX_WORDS) return refuse(400, 'Live check words are too long');
     if (!dryRuns.has(id)) return refuse(409, 'Run the dry-run first');
     return exclusive([id, 'main'], async () => {
+      if (running(id)) return stopFirst(id);
       dryRuns.delete(id);
       return script('ship.mjs', words ? [id, '--live-checked', words] : [id]);
     });
@@ -59,7 +62,7 @@ export function createActions({ deps, sessions, today, json, refuse, output, par
 
   async function gateRoute(id, gate) {
     if (!GATE_FIELDS.includes(gate)) return refuse(400, 'Not a gate');
-    if (running(id)) return refuse(409, `A session is running on §${id}: stop it first`);
+    if (running(id)) return stopFirst(id);
     const state = await loadState(deps);
     const intent = findIntent(state, id);
     if (!intent) return refuse(404, `No intent ${id}`);
@@ -67,7 +70,7 @@ export function createActions({ deps, sessions, today, json, refuse, output, par
     const base = intent.location.base;
     const rel = `intents/${intent.id}-${intent.slug}/metadata.yml`;
     const keys = intent.location.kind === 'main' ? [id, 'main'] : [id];
-    return exclusive(keys, () => writeGate({ id, gate, base, rel }));
+    return exclusive(keys, () => (running(id) ? stopFirst(id) : writeGate({ id, gate, base, rel })));
   }
 
   async function writeGate({ id, gate, base, rel }) {

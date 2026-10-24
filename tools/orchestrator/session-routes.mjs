@@ -49,7 +49,11 @@ export function sessionRoutes({ deps, sessions, running, exclusive, parseBody, r
       port: portFor(id),
     });
     // Held only while the session is registered: the manager then answers runningFor(id).
-    return exclusive([id], async () => ok({ ok: true, session: sessions.launch({ role, id, cwd, prompt }) }));
+    // Re-checked inside the lock: another launch may have registered while the state loaded.
+    return exclusive([id], async () => {
+      if (running(id)) return refuse(409, `A session is already running on §${id}`);
+      return ok({ ok: true, session: sessions.launch({ role, id, cwd, prompt }) });
+    });
   }
 
   async function answer(sid, request) {
