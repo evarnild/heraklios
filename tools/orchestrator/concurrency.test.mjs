@@ -93,6 +93,26 @@ describe('one session per intent, also under a race', () => {
   });
 });
 
+describe('the overlay after the SDK aborts a parked request (F14)', () => {
+  it('the intent is needs you while a request is parked and not after the abort', async () => {
+    let canUseTool;
+    const query = (params) => {
+      canUseTool = params.options.canUseTool;
+      return { [Symbol.asyncIterator]: () => ({ next: () => new Promise(() => {}) }), interrupt: async () => {} };
+    };
+    const sessions = createSessionManager({ query });
+    const { handle } = setup({ sessions });
+    const state = async () => JSON.parse((await handle({ method: 'GET', url: '/api/state', host: HOST })).body).intents.find((i) => i.id === 52);
+    expect((await handle(post('/api/sessions', { role: 'reviewer', id: '52' }))).status).toBe(200);
+    const ac = new AbortController();
+    const parked = canUseTool('Bash', {}, { signal: ac.signal });
+    expect((await state()).session).toBe('needs you');
+    ac.abort();
+    await parked;
+    expect((await state()).session).not.toBe('needs you');
+  });
+});
+
 describe('the main lock: one ship or main-checkout write at a time', () => {
   async function withShipInFlight(fn) {
     let release;

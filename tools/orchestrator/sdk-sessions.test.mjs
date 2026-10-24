@@ -185,6 +185,25 @@ describe('permission requests (spec B6)', () => {
     expect(await r).toEqual({ behavior: 'deny', message: 'Aborted' });
     expect(manager.list()[0].pending).toEqual([]);
   });
+  it('goes back to running when the abort leaves nothing pending (F14)', async () => {
+    const { manager, can } = start();
+    const ac = new AbortController();
+    const r = can('Bash', {}, { signal: ac.signal });
+    expect(manager.list()[0].state).toBe('needs you');
+    ac.abort();
+    await r;
+    expect(manager.list()[0].state).toBe('running');
+  });
+  it('stays needs you after an abort while another request is pending (F14)', async () => {
+    const { manager, can } = start();
+    const ac = new AbortController();
+    const first = can('Bash', {}, { signal: ac.signal });
+    void can('Edit', {}, {});
+    ac.abort();
+    await first;
+    expect(manager.list()[0].pending).toHaveLength(1);
+    expect(manager.list()[0].state).toBe('needs you');
+  });
   it('denies everything still pending when the stream ends', async () => {
     const { q, can } = start();
     const r = can('Bash', {}, {});

@@ -96,6 +96,8 @@ function park(s, tool, input, signal) {
       s.pending.delete(rid);
       p.resolve({ behavior: 'deny', message: 'Aborted' });
       emit(s, { kind: 'answered', requestId: rid, behavior: 'deny' });
+      // Nothing left to answer: the session is working again, as after answer() (review F14).
+      if (!s.pending.size && s.state === 'needs you') setState(s, 'running');
     });
   });
 }
