@@ -1,0 +1,19 @@
+# generated-by: heraklios/intent@0.1.5
+id: 53
+slug: log-autosave-and-attack-selection
+type: feature
+status: draft
+title: The log says when the game autosaves, and shows the attack being built
+review_tier:
+intent_accepted:
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+auto_authorized:
+auto_round:
+auto_stopped:
+follows_up:
+links:
+  - intents/45-save-api
+  - intents/49-message-log-history
