@@ -152,10 +152,11 @@ npm run sessions -- --log 30    # the raw event tail
   (record the gate with its button first); `escalate` (the click also means
   "I have read the diff"); `ready for /ship`; a cause you have cleared. A
   stop that needs your answer (`spec questions`, `decision needed`, `spec or
-  plan amendment needed`, `critical finding`, `plan exists unapproved`) is
+  plan amendment needed`, `critical finding`, `plan exists unapproved`, `plan found the spec incomplete`) is
   answered in a coordinator terminal with `/auto <id>` plus the answer; the
   page disables Auto for it and the server refuses it
-  (`orchestrator-lib.mjs`'s `autoLaunch`). An agent never presses the Auto
+  (`orchestrator-lib.mjs`'s `autoLaunch`). `out of rounds` is refused too: the
+  intent continues by hand. An agent never presses the Auto
   button or POSTs to `/api/sessions`. Its interactive terminal is a later
   intent.
 - **Only the coordinator** runs `/spawn`, `/sessions`, `/review` and
