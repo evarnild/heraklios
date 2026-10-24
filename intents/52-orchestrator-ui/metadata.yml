@@ -8,7 +8,7 @@ review_tier: reviewed
 intent_accepted: 2026-10-23 by-agent    # owner: "accept intent 52"
 spec_accepted: 2026-10-23 by-agent    # owner: "yes to 52 spec but split out the terminal" (B7 split out in the commit before)
 plan_approved: 2026-10-23 by-agent    # auto: owner "/auto 52" (auto_authorized 2026-10-23)
-live_checked:
+live_checked: 2026-10-24 by-agent    # owner: "live checked /ship 52"
 merged:
 auto_authorized: 2026-10-24 by-agent    # owner: "resume auto 52"
 auto_round: 3
