@@ -619,10 +619,11 @@ Board's prompts and the Save / Load panel's results are.
 
 Each confirmed autosave adds an "Autosaved." line (a failed one keeps its
 failure line). In the combat phase every click that changes the attack being
-built adds one line describing all of it: "Attack: Archers, Hoplites (12) →
-Peltasts (6)", with the attack and defence forces the roll will use and, when
-it is not zero, the die modifier from terrain and river (", die +3 (2 hills at
-(4, 7) + 1 river crossing)"). With attackers but no target it says "choose a
+built adds one line describing all of it: "Attack: Heavy chariots (8) → Heavy
+chariots, Light chariots (8), die +3 (2 Wide river at (20, 3) + 1 river
+crossing)", with the attack and defence forces the roll will use and, when the
+die modifier from terrain and river is not zero, that modifier and its parts.
+With attackers but no target it says "choose a
 target"; emptying the group says "Attack cleared.". A refused click adds no
 attack line, and the computer's attacks are not announced beforehand (their
 combat report names every unit and force).

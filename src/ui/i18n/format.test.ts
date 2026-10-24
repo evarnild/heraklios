@@ -223,6 +223,11 @@ describe('formatAttackLine (§53)', () => {
     );
   });
 
+  it('joins several targets in order, with the summed defence', () => {
+    expect(formatAttackLine(A, ['Peltasts', 'Archers'], base, en)).toBe('Attack: Archers, Hoplites (12) → Peltasts, Archers (6)');
+    expect(formatAttackLine(A, ['Peltasts', 'Archers'], base, fr)).toBe('Attaque : Archers, Hoplites (12) → Peltasts, Archers (6)');
+  });
+
   it('attackers alone ask for a target, with no number', () => {
     expect(formatAttackLine(A, [], null, en)).toBe('Attack: Archers, Hoplites, choose a target.');
     expect(formatAttackLine(['Trireme'], [], null, fr)).toBe('Attaque : Trireme, choisissez une cible.');

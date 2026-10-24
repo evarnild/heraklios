@@ -197,3 +197,20 @@ string samples; `formatAttackLine` joins with " + ". (2) The new async
 its `logEntries` helper now ignores `Autosaved.` entries. (3) The e2e uses a
 flat-terrain target, so it shows no die modifier; the modifier forms are
 pinned by the format unit tests and the live check.
+
+### 2026-10-24 — review round 1 rework
+
+Resolutions: (1) the attack-log e2e now counts the attackers-alone lines and
+waits for a new one after the untarget click; (2) a two-target format case
+(English and French); (3) a two-attacker from-below engine case, in both
+orders; (4) correction to the entry above: the base was 994 tests and §53
+added 13 (7 engine, 6 format), not "1001 +6"; this round adds 2 more (1
+format, 1 engine); (5) the README example is a line the game writes; (6) the
+e2e also selects and deselects a galley in the combat phase (B6, kills S4)
+and the doubled blank line is gone. Not done: the S12 refusal check
+(toggleAttacker refusal after cantReachTargets), optional.
+
+Mutants, one at a time, restored by copy: S6 (untarget `logAttackLine`
+removed) killed by `attack-log.spec.ts`; S4 (naval select `logAttackLine`
+removed) killed by it; F4 (`join(' & ')`) killed by `format.test.ts`; E4
+(`some` to `every`) killed by `combat.test.ts`.

@@ -68,15 +68,26 @@ test('the log shows the autosave and the attack being built', async ({ page }) =
   lines = attackLines(await entries(page));
   expect(lines.at(-1)).toBe(expected);
 
-  // Remove the target (still attackers), then the attacker.
+  // Remove the target (still attackers): a NEW attackers-alone line, after the
+  // one the first select logged.
+  const chooseLine = `Attack: ${archerName}, choose a target.`;
+  const chooseCount = async () => (await entries(page)).filter((t) => t === chooseLine).length;
+  const chooseBefore = await chooseCount();
   await clickHex(page, target.position);
   await page.waitForFunction(
-    (t) => window.__heraklios.logEntries().filter((e) => e.text === t).length >= 1,
-    `Attack: ${archerName}, choose a target.`,
+    ([t, n]) => window.__heraklios.logEntries().filter((e) => e.text === t).length > (n as number),
+    [chooseLine, chooseBefore] as const,
   );
   await clickHex(page, archers.position);
   await page.waitForFunction(() => window.__heraklios.logEntries().at(-1)?.text === 'Attack cleared.');
 
+  // A ship selected in the combat phase waits for a target too (B6).
+  const ship = await activeUnitOfType(page, 'galeres');
+  const shipName = en.units.galeres;
+  await clickHex(page, ship.position);
+  await page.waitForFunction((t) => window.__heraklios.logEntries().at(-1)?.text === t, `Attack: ${shipName}, choose a target.`);
+  await clickHex(page, ship.position);
+  await page.waitForFunction(() => window.__heraklios.logEntries().at(-1)?.text === 'Attack cleared.');
 
   expect(errors).toEqual([]);
 });

@@ -1413,6 +1413,17 @@ describe('previewLandAttack — the pre-roll summary the roll itself uses (§53)
     expect(same.terrainModifierSource).toBeNull();
   });
 
+  it('one attacker below is enough for the conditional bonus when another is level', () => {
+    const d = makeUnit({ id: 'd', typeId: 'fantassins', position: { q: 4, r: 9 }, owner: 1 });
+    const level = makeUnit({ id: 'l', typeId: 'fantassins', position: { q: 4, r: 9 } });
+    const below = makeUnit({ id: 'b', typeId: 'fantassins', position: { q: 0, r: 0 } });
+    for (const group of [[level, below], [below, level]]) {
+      const p = expectSameAsRoll(group, [d]);
+      expect(p.terrainOnlyModifier).toBe(2);
+      expect(p.terrainModifierSource).toBe('plateau');
+    }
+  });
+
   it('adds the river bonus on top of terrain; river alone is 1', () => {
     const [ra, rb] = sampleRiverEdge();
     const a = makeUnit({ id: 'a', typeId: 'fantassins', position: ra });
