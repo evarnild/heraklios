@@ -264,22 +264,42 @@ describe('elephant drift engine', () => {
   it('never pauses on onStep without a visible hook since the previous pause', async () => {
     const visible = (c: string) =>
       c.startsWith('onNarrate:') || c === 'onRender' || c === 'onDirectionRolled' || c === 'onCombat';
-    const scenarios: Array<[string, Unit[], number, number[]]> = [
-      ['move-and-stop', [makeUnit('elephant', 0, 'elephants', CENTER)], 2, [1]],
-      ['destroyed', [], 4, []],
-      ['repelled', [], 4, []],
+    const withDefender = (typeId: string, result: 'EX' | 'AR' | 'DR', extra: number[]) => () => {
+      const el = makeUnit('elephant', 0, 'elephants', CENTER);
+      const d = makeUnit('defender', 1, typeId, { q: 11, r: 5 });
+      return { units: [el, d], dice: [1, dieForResult(el, d, result), ...extra] };
+    };
+    const scenarios: Array<{
+      name: string;
+      build: () => { units: Unit[]; dice: number[] };
+      steps: number;
+      forbidden?: HexCoord;
+    }> = [
+      {
+        name: 'move-and-stop',
+        build: () => ({ units: [makeUnit('elephant', 0, 'elephants', CENTER)], dice: [1] }),
+        steps: 2,
+      },
+      { name: 'destroyed', build: withDefender('fantassins', 'EX', []), steps: 4 },
+      { name: 'repelled', build: withDefender('phalanges', 'AR', [2, 2]), steps: 4 },
+      // retreatResolutionNeeded must not pause either
+      { name: 'trample-DR', build: withDefender('phalanges', 'DR', []), steps: 4 },
+      // a refused first roll emits directionForbidden, then a new roll request
+      {
+        name: 'forbidden-direction',
+        build: () => ({ units: [makeUnit('elephant', 0, 'elephants', CENTER)], dice: [1, 2] }),
+        steps: 1,
+        forbidden: DIRECTIONS[0],
+      },
     ];
-    const el = makeUnit('elephant', 0, 'elephants', CENTER);
-    const dDestroy = makeUnit('defender', 1, 'fantassins', { q: 11, r: 5 });
-    const dRepel = makeUnit('defender', 1, 'phalanges', { q: 11, r: 5 });
-    scenarios[1] = ['destroyed', [el, dDestroy], 4, [1, dieForResult(el, dDestroy, 'EX')]];
-    scenarios[2] = ['repelled', [el, dRepel], 4, [1, dieForResult(el, dRepel, 'AR'), 2, 2]];
-    for (const [name, units, steps, diceList] of scenarios) {
+    for (const { name, build, steps, forbidden } of scenarios) {
+      const { units, dice } = build();
       const elephant = units[0]!;
       const state = makeState(units);
       const calls: string[] = [];
-      const dice = [...diceList];
-      await resolveElephantDrift(state, elephant, steps, new ScriptedAgent(), () => dice.shift() ?? 1, recordHooks(calls));
+      await resolveElephantDrift(
+        state, elephant, steps, new ScriptedAgent(), () => dice.shift() ?? 1, recordHooks(calls), forbidden,
+      );
       let sawVisible = false;
       calls.forEach((c, i) => {
         if (c === 'onStep') {
