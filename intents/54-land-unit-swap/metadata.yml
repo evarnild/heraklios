@@ -12,7 +12,7 @@ live_checked:
 merged:
 auto_authorized: 2026-10-24 by-agent    # owner: "54 yes and /auto 54"
 auto_round: 1
-auto_stopped:
+auto_stopped: decision needed
 follows_up:
 links:
   - plan-history.md#8-bug-units-cannot-move-through-friendly-units
