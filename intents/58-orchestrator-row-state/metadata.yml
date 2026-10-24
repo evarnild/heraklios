@@ -12,7 +12,7 @@ live_checked:
 merged:
 auto_authorized:
 auto_round:
-auto_stopped:
+auto_stopped: too many sessions
 follows_up: 52
 links:
   - intents/52-orchestrator-ui
