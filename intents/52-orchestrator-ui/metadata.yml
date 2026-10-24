@@ -12,7 +12,7 @@ live_checked:
 merged:
 auto_authorized: 2026-10-24 by-agent    # owner: "F4 same as terminal, correct readme. f5 start implementer. f6 yes to auto button. f8 yes /auto 52"
 auto_round: 2
-auto_stopped:
+auto_stopped: decision needed
 follows_up:
 links:
   - intents/26-ai-sdlc-kit
