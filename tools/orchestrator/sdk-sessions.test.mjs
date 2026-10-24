@@ -227,6 +227,17 @@ describe('stop (spec B5)', () => {
     await tick();
     expect(manager.list()[0].state).toBe('stopped'); // the stream ending does not turn it into done
   });
+  it('a late request after stop() stays stopped when its signal aborts (F16)', async () => {
+    const { manager, can } = start();
+    manager.stop('s1');
+    const ac = new AbortController();
+    const r = can('Bash', {}, { signal: ac.signal });
+    expect(manager.list()[0].pending).toHaveLength(1);
+    ac.abort();
+    await r;
+    expect(manager.list()[0].state).toBe('stopped');
+    expect(manager.runningFor('52')).toBe(false);
+  });
   it('is true and harmless on a finished session, false on an unknown one', async () => {
     const { manager, q } = start();
     q.end();
