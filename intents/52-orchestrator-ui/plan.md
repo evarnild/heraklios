@@ -389,3 +389,46 @@ serialised the two requests); in-lock gate check removed killed (the first
 form survived, as the fixture lacked spec.md and a different 409 hid it);
 in-lock dry-run check removed killed; in-lock real-ship check removed killed;
 F2 overlay removed killed; M9 (`/^s/`) killed.
+
+### 2026-10-24 - review round 2 rework
+
+Commits: d1b649a (F13), 566fe4c (F14), 2c5186f (F15 and nits). `npm run
+verify` green on each: 61 test files, 1108 tests at the last (1104 after F13,
+1107 after F14, 1108 after the remove test; round 1 left 1094), lint 21 of 21
+(cap unchanged).
+
+- **F13, owner's decision (a).** `autoLaunch(auto_stopped, id)` in
+  `orchestrator-lib.mjs` decides from the skill's exact stop strings (prefix
+  match): allowed with a tailored confirm for no stop / a closed session,
+  `spec drafted` and `live check owed` (record the gate with its button
+  first), `escalate` (the confirm says the click also means "I have read the
+  diff"), `ready for /ship` (re-runs the dry-run), and any other recorded
+  cause (a cleared red verify and the like; the confirm names it). Refused
+  with the coordinator-terminal instruction: `spec questions`, `decision
+  needed`, `spec or plan amendment needed`, `critical finding`, `plan exists
+  unapproved`, plus `plan found the spec incomplete` (the skill's resume
+  needs the owner's settlement) and `out of rounds` (continues by hand): the
+  last two are my reading of the skill table, beyond the owner's list.
+  `/api/state` now carries `autoStopped` and `autoLaunch` per intent; the page
+  disables Auto with the reason as its title and uses `confirmText`; the
+  launch route refuses role `auto` with 409 when not allowed, so a POST cannot
+  bypass it. README, CLAUDE.md and intents/README.md say which stops an Auto
+  click resumes and which are answered in a terminal.
+- **F14, fixed.** The abort listener sets the session back to `running` when
+  nothing else is pending. Tests: sdk-sessions (running after the abort, still
+  `needs you` with another request pending) and a handler test that the intent
+  is `needs you` while parked and not after the abort.
+- **F15, fixed.** The Auto sentence in CLAUDE.md and intents/README.md adds
+  that an agent never presses the Auto button or POSTs to `/api/sessions`.
+- **Nits.** CLAUDE.md Architecture names `public/app.js` as untested;
+  `/api/remove/<id>` refuses (409) while a session runs on the intent, with a
+  test. No change to plan.md or spec.md above this section.
+
+Mutants, one at a time, full `vitest run`, backed up and restored by copy,
+`git status --short` clean after each, all killed: F14 line removed (2 tests:
+sdk-sessions and the handler overlay test); F14 `!s.pending.size &&` removed
+(the pending-stays test); route refusal for role auto removed (server test);
+`critical finding` dropped from the refused list (autoLaunch test); escalate
+confirm without "I have read the diff" (autoLaunch test); remove guard
+`flag && running(id)` replaced by `false` (server test, run twice). The page's
+disabled button is untested (not a pure function), left to the live check.
