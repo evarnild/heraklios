@@ -7,7 +7,7 @@ title: Every continue in an elephant drift shows something
 review_tier:
 intent_accepted: 2026-10-24
 spec_accepted:
-plan_approved:
+plan_approved: 2026-10-24 by-agent    # auto: owner "/auto 57" (auto_authorized 2026-10-24)
 live_checked:
 merged:
 auto_authorized: 2026-10-24 by-agent    # owner: "/auto 57"
