@@ -19,6 +19,7 @@ import {
   exchangeSacrificeForce,
   exchangeSacrificeMeetsThreshold,
   legalRetreatHexes,
+  previewLandAttack,
   pruneIllegalSelections,
   pushCandidates,
   resolveLandAttack,
@@ -1341,5 +1342,97 @@ describe('validTargets (naval)', () => {
     const ship = makeUnit({ typeId: 'galeres', position: { q: 0, r: 0 }, facing: 0 });
     const enemy = makeUnit({ typeId: 'galeres', owner: 1, position: { q: 1, r: 0 }, facing: 1 });
     expect(validTargets(makeState([ship, enemy]), ship)).toEqual([]);
+  });
+});
+
+describe('previewLandAttack — the pre-roll summary the roll itself uses (§53)', () => {
+  function expectSameAsRoll(attackers: Unit[], defenders: Unit[]) {
+    const p = previewLandAttack(attackers, defenders);
+    const d = describeLandAttack(attackers, defenders, 3);
+    expect(p.attackForce).toBe(d.attackForce);
+    expect(p.defenseForce).toBe(d.defenseForce);
+    expect([...p.attackerForces]).toEqual([...d.attackerForces]);
+    expect(p.terrainModifier).toBe(d.terrainModifier);
+    expect(p.terrainOnlyModifier).toBe(d.terrainOnlyModifier);
+    expect(p.terrainModifierSource).toBe(d.terrainModifierSource);
+    expect(p.terrainModifierSourceHex).toEqual(d.terrainModifierSourceHex);
+    expect(p.riverCrossingApplied).toBe(d.riverCrossingApplied);
+    return p;
+  }
+
+  it('one melee attacker on one defender, open ground: exact forces, modifier 0', () => {
+    const a = makeUnit({ id: 'a', typeId: 'fantassins', position: { q: 0, r: 0 } }); // attack 2
+    const d = makeUnit({ id: 'd', typeId: 'fantassins', position: { q: 1, r: 0 }, owner: 1 }); // defense 1
+    const p = expectSameAsRoll([a], [d]);
+    expect(p.attackForce).toBe(2);
+    expect(p.defenseForce).toBe(1);
+    expect(p.terrainModifier).toBe(0);
+    expect(p.terrainModifierSource).toBeNull();
+    expect(p.riverCrossingApplied).toBe(false);
+  });
+
+  it('a ranged attacker at its range counts its projectile value', () => {
+    const archer = makeUnit({ id: 'ar', typeId: 'archers', position: { q: 0, r: 0 } });
+    const d = makeUnit({ id: 'd', typeId: 'fantassins', position: { q: 2, r: 0 }, owner: 1 });
+    expect(hexDistance(archer.position, d.position)).toBe(2);
+    const p = expectSameAsRoll([archer], [d]);
+    expect(p.attackForce).toBe(2);
+    expect(p.attackerForces.get('ar')).toBe(2);
+  });
+
+  it('a mixed group against two defenders sums per attacker against both', () => {
+    const f = makeUnit({ id: 'f', typeId: 'fantassins', position: { q: 0, r: 0 } });
+    const archer = makeUnit({ id: 'ar', typeId: 'archers', position: { q: 0, r: 1 } });
+    const d1 = makeUnit({ id: 'd1', typeId: 'fantassins', position: { q: 1, r: 0 }, owner: 1 });
+    const d2 = makeUnit({ id: 'd2', typeId: 'fantassins', position: { q: 1, r: 2 }, owner: 1 });
+    const p = expectSameAsRoll([f, archer], [d1, d2]);
+    expect(p.attackForce).toBe(p.attackerForces.get('f')! + p.attackerForces.get('ar')!);
+    expect(p.defenseForce).toBe(2);
+  });
+
+  it('terrain and river do not change the forces; they are the die modifier', () => {
+    const open = makeUnit({ id: 'd', typeId: 'fantassins', position: { q: 1, r: 0 }, owner: 1 });
+    const hill = makeUnit({ id: 'd', typeId: 'fantassins', position: { q: 4, r: 9 }, owner: 1 });
+    const a = makeUnit({ id: 'a', typeId: 'fantassins', position: { q: 0, r: 0 } });
+    const onOpen = expectSameAsRoll([a], [open]);
+    const onPlateau = expectSameAsRoll([a], [hill]);
+    expect(onPlateau.attackForce).toBe(onOpen.attackForce);
+    expect(onPlateau.defenseForce).toBe(onOpen.defenseForce);
+    expect(onPlateau.terrainModifier).toBe(2);
+    expect(onPlateau.terrainModifierSource).toBe('plateau');
+    expect(onPlateau.terrainModifierSourceHex).toEqual({ q: 4, r: 9 });
+  });
+
+  it('the conditional bonus applies only when attacking from below', () => {
+    const d = makeUnit({ id: 'd', typeId: 'fantassins', position: { q: 4, r: 9 }, owner: 1 });
+    const below = makeUnit({ id: 'b', typeId: 'fantassins', position: { q: 0, r: 0 } });
+    const level = makeUnit({ id: 'l', typeId: 'fantassins', position: { q: 4, r: 9 } });
+    expect(expectSameAsRoll([below], [d]).terrainOnlyModifier).toBe(2);
+    const same = expectSameAsRoll([level], [d]);
+    expect(same.terrainOnlyModifier).toBe(0);
+    expect(same.terrainModifierSource).toBeNull();
+  });
+
+  it('adds the river bonus on top of terrain; river alone is 1', () => {
+    const [ra, rb] = sampleRiverEdge();
+    const a = makeUnit({ id: 'a', typeId: 'fantassins', position: ra });
+    const d = makeUnit({ id: 'd', typeId: 'fantassins', position: rb, owner: 1 });
+    const p = expectSameAsRoll([a], [d]);
+    expect(p.riverCrossingApplied).toBe(true);
+    expect(p.terrainOnlyModifier).toBe(0);
+    expect(p.terrainModifier).toBe(1);
+  });
+
+  it('takes the worst terrain across two defenders in either order', () => {
+    const a = makeUnit({ id: 'a', typeId: 'fantassins', position: { q: 0, r: 0 } });
+    const plateau = makeUnit({ id: 'p', typeId: 'fantassins', position: { q: 4, r: 9 }, owner: 1 });
+    const marsh = makeUnit({ id: 'm', typeId: 'fantassins', position: { q: 7, r: 15 }, owner: 1 });
+    for (const ds of [[plateau, marsh], [marsh, plateau]]) {
+      const p = expectSameAsRoll([a], ds);
+      expect(p.terrainOnlyModifier).toBe(2);
+      expect(p.terrainModifierSource).toBe('plateau');
+      expect(p.terrainModifierSourceHex).toEqual({ q: 4, r: 9 });
+      expect(p.defenseForce).toBe(2);
+    }
   });
 });
