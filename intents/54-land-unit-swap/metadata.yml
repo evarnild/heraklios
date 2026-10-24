@@ -2,7 +2,7 @@
 id: 54
 slug: land-unit-swap
 type: feature
-status: accepted
+status: in-review
 title: Two adjacent friendly land units can swap places, as a game option
 review_tier:
 intent_accepted: 2026-10-24 by-agent    # owner: "54 yes and /auto 54"

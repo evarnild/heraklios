@@ -194,3 +194,20 @@ Re-read on `main` at `2d1a752`.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-10-24 — all five subtasks
+
+Commits: 0e97207 (swapStep + `allowSwaps` field), 046220f (saves, session, UTF-8 byte fix), b6dacbe + 3465fe7 (landSwap action, AI, harness; lint refactor), 66f03e3 (Menu, board, i18n), 3a25cd9 (ring, e2e, README).
+
+Shipped: B1-B9 as specified. `swapStep` in `movement.ts` sharing `enemyZocProjectorsForHex`/`sharesAnyProjector`; `landSwap` action (`applyLandSwap`, `swapActionsFor` helpers); `allowSwaps` on `GameState`, session, Menu toggle (beside turn order), saved; `migrateSavedGame` fills an absent value with `true` at any supported version (so a v3 save without it gets swaps on), `isValidSavedGame` requires a boolean; `SAVE_VERSION` stays 3. The heuristic agent filters `landSwap` out of its legal list at every difficulty. Board: swap partners get a fill (`0x4ae08a`) and a ring; click swaps via `swapOrSelect`, one undo step.
+
+Tests: 57 files, 1017 tests (new: swapStep 9, saves 5, actions 5, heuristic 1, harness 2). Lint 21 warnings (cap unchanged). `npm run e2e`: 15 passed, including the new `e2e/swap.spec.ts` (2 scenarios).
+
+Seeded tests set to `allowSwaps: false`: none needed; every existing seeded test passed unchanged with swaps on by default. The harness test "plays no landSwap with the option off" builds its own state with the option off.
+
+Divergences from the plan:
+- The swap highlight alone is invisible: unit markers (depth 10) cover the fill overlay (depth 5). Added `MapView.highlightRings` (outline at depth 11) and ring the partners too; e2e checks a pixel region of the partner hex changes with swaps on and stays unchanged with them off.
+- Dev hook gained a read-only `swappable(unitId)` (via `swapStep`); `e2e/swap.spec.ts` starts from "Combat test mode" (adjacent own land units), no new `testMode.ts` shortcut was needed.
+- The Menu has no spare row, so the swaps toggle sits on the turn-order row (turn-order button moved 140 px left).
+- `applyAction`'s `landMove` body moved to `applyLandMove` to keep lint at 21 (no behaviour change).
+- Commit 0e97207 contains non-UTF-8 bytes (a Windows encoding slip in a script); 046220f repairs them, so only that one commit is affected.
