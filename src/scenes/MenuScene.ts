@@ -84,7 +84,7 @@ export class MenuScene extends Phaser.Scene {
     const turnOrderLabel = () =>
       session.randomizedTurnOrder ? t.menu.turnOrderRandom : t.menu.turnOrderFixed;
     const turnOrderBtn = this.add
-      .text(width / 2, 375, turnOrderLabel(), {
+      .text(width / 2 - 140, 375, turnOrderLabel(), {
         fontSize: '14px',
         color: '#ffffff',
         backgroundColor: '#4a3f2a',
@@ -98,6 +98,24 @@ export class MenuScene extends Phaser.Scene {
     });
     turnOrderBtn.on('pointerover', () => turnOrderBtn.setStyle({ backgroundColor: '#6a5a3a' }));
     turnOrderBtn.on('pointerout', () => turnOrderBtn.setStyle({ backgroundColor: '#4a3f2a' }));
+
+    // §54: the unit-swap house rule, beside the turn-order toggle. On by default.
+    const swapsLabel = () => t.menu.swaps(session.allowSwaps);
+    const swapsBtn = this.add
+      .text(width / 2 + 170, 375, swapsLabel(), {
+        fontSize: '14px',
+        color: '#ffffff',
+        backgroundColor: '#4a3f2a',
+        padding: { x: 14, y: 6 },
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+    swapsBtn.on('pointerdown', () => {
+      session.allowSwaps = !session.allowSwaps;
+      swapsBtn.setText(swapsLabel());
+    });
+    swapsBtn.on('pointerover', () => swapsBtn.setStyle({ backgroundColor: '#6a5a3a' }));
+    swapsBtn.on('pointerout', () => swapsBtn.setStyle({ backgroundColor: '#4a3f2a' }));
 
     // Endgame (plan.md §9.2.1): two independent, optional triggers, each its
     // own cycling button (no free text — see `gameEndSettings.ts`'s doc

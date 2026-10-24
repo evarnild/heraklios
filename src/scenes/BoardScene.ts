@@ -33,6 +33,7 @@ import { rollDie as engineRollDie } from '../engine/dice';
 import {
   reachableHexes,
   reachableNavalHexes,
+  swapStep,
   findRammingContacts,
   navalContactHexKeys,
   resolveNavalAutoPathClick,
@@ -1499,7 +1500,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         return;
       }
       if (occupant && occupant.owner === this.activePlayerId()) {
-        this.selectForMovement(occupant);
+        this.swapOrSelect(occupant);
         return;
       }
       if (occupant) return; // hexes may hold at most one unit
@@ -1532,6 +1533,32 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     }
   }
 
+  /** §54: a friendly unit this land unit can swap with (empty unless the option is on). */
+  private swapPartners(unit: Unit): Unit[] {
+    const state = this.state();
+    if (unitType(unit).domain === 'naval') return [];
+    return state.units.filter((other) => swapStep(state, unit, other) !== null);
+  }
+
+  /** A click on another friendly unit with `this.selected` chosen: swap places
+   * when `swapStep` allows it (that unit is highlighted), else select it as before. */
+  private swapOrSelect(other: Unit): void {
+    const selected = this.selected;
+    if (!selected || !this.swapPartners(selected).includes(other)) {
+      this.selectForMovement(other);
+      return;
+    }
+    const state = this.state();
+    const [nameA, nameB] = [nameOf(selected), nameOf(other)];
+    this.recordAction(messages().actions.swap(nameA, nameB));
+    const action: Action = { kind: 'landSwap', unitId: selected.id, otherId: other.id };
+    applyAction(state, action);
+    this.reportAction(action);
+    this.log(messages().log.swap(nameA, nameB));
+    this.renderAllUnits();
+    this.deselectMovement();
+  }
+
   private selectForMovement(unit: Unit): void {
     this.selected = unit;
     this.refreshMovementLabel();
@@ -1541,7 +1568,11 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     }
     this.clearNavalMovementControls();
     const reachable = reachableHexes(this.state(), unit);
-    this.mapView.highlightHexes(Array.from(reachable.keys()).map(parseKey), 0x4aa6ff, 0.35);
+    this.mapView.highlightHexGroups([
+      { hexes: Array.from(reachable.keys()).map(parseKey), color: 0x4aa6ff, alpha: 0.35 },
+      // §54: friends this unit can swap with, in their own colour.
+      { hexes: this.swapPartners(unit).map((u) => u.position), color: 0x4ae08a, alpha: 0.55 },
+    ]);
   }
 
   /**
@@ -3003,6 +3034,15 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         this.reportAction(action);
         this.renderAllUnits();
         if (unit) this.log(messages().log.computerMoves(seatName, nameOf(unit), action.to.q, action.to.r));
+        return;
+      }
+
+      case 'landSwap': {
+        const [a, b] = [findUnit(action.unitId), findUnit(action.otherId)];
+        applyAction(state, action, this.diceRng);
+        this.reportAction(action);
+        this.renderAllUnits();
+        if (a && b) this.log(messages().log.computerSwaps(seatName, nameOf(a), nameOf(b)));
         return;
       }
 
