@@ -1,0 +1,18 @@
+# generated-by: heraklios/intent@0.1.5
+id: 54
+slug: land-unit-swap
+type: feature
+status: draft
+title: Two adjacent friendly land units can swap places, as a game option
+review_tier:
+intent_accepted:
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+auto_authorized:
+auto_round:
+auto_stopped:
+follows_up:
+links:
+  - plan-history.md#8-bug-units-cannot-move-through-friendly-units
