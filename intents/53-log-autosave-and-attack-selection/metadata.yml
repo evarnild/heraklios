@@ -6,13 +6,13 @@ status: accepted
 title: The log says when the game autosaves, and shows the attack being built
 review_tier:
 intent_accepted: 2026-10-24 by-agent    # owner: "yes /auto 53"
-spec_accepted:
+spec_accepted: 2026-10-24 by-agent    # owner: "53: add terrain modifiers and then yes to the spec" (B5a added in the commit before)
 plan_approved:
 live_checked:
 merged:
 auto_authorized: 2026-10-24 by-agent    # owner: "yes /auto 53"
 auto_round:
-auto_stopped: spec drafted, waiting for spec_accepted
+auto_stopped:
 follows_up:
 links:
   - intents/45-save-api
