@@ -5,7 +5,7 @@ type: feature
 status: draft
 title: A Tables panel on the board shows the terrain table and the three combat tables
 review_tier:
-intent_accepted:
+intent_accepted: 2026-10-24
 spec_accepted:
 plan_approved:
 live_checked:
