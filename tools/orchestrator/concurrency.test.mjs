@@ -19,11 +19,13 @@ const QUEUE = {
 };
 const SESSIONS = [{ id: '52', branch: 'feat/52-orch', path: WT, status: 'accepted', session: { state: 'working' } }];
 
-function setup({ sessions, hold } = {}) {
+function setup({ sessions, hold, queueDelays = [] } = {}) {
   const calls = [];
+  let queues = 0;
   const files = new Map(
     Object.entries({
       [`${WT}/intents/52-orch/metadata.yml`]: meta('52', 'orch', 'accepted', '2026-10-23'),
+      [`${WT}/intents/52-orch/spec.md`]: 'spec',
       [`${ROOT}/intents/29-grid/metadata.yml`]: meta('29', 'grid', 'draft', ''),
     }),
   );
@@ -32,6 +34,7 @@ function setup({ sessions, hold } = {}) {
     async run(file, args) {
       calls.push([file, ...args]);
       const name = norm(args[0] ?? '');
+      if (name.endsWith('queue.mjs')) await new Promise((r) => setTimeout(r, queueDelays[queues++] ?? 0));
       if (name.endsWith('queue.mjs')) return { code: 0, stdout: JSON.stringify(QUEUE), stderr: '' };
       if (name.endsWith('sessions.mjs')) return { code: 0, stdout: JSON.stringify(SESSIONS), stderr: '' };
       if (hold && name.endsWith('ship.mjs') && args.length === 2 && args[1] === hold.id) await hold.promise;
@@ -41,7 +44,7 @@ function setup({ sessions, hold } = {}) {
   const fs = {
     readFile: async (p) => files.get(norm(p)) ?? null,
     exists: async (p) => files.has(norm(p)),
-    writeFile: async (p, t) => void writes.push(norm(p)),
+    writeFile: async (p) => void writes.push(norm(p)),
   };
   const handle = createHandler({ runner, fs, sessions, root: ROOT, port: PORT, publicDir: 'C:/pub', today: () => '2026-10-24' });
   return { calls, writes, handle };
@@ -64,7 +67,8 @@ describe('one session per intent, also under a race', () => {
       return { [Symbol.asyncIterator]: () => ({ next: () => new Promise(() => {}) }), interrupt: async () => {} };
     };
     const sessions = createSessionManager({ query });
-    const { handle } = setup({ sessions });
+    // The second request's state load ends after the first launch finished: only the in-lock check can refuse it.
+    const { handle } = setup({ sessions, queueDelays: [0, 30] });
     const launch = () => handle(post('/api/sessions', { role: 'reviewer', id: '52' }));
     const statuses = (await Promise.all([launch(), launch()])).map((r) => r.status).sort();
     expect(statuses).toEqual([200, 409]);
