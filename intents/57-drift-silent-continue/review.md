@@ -1,6 +1,72 @@
 <!-- generated-by: heraklios/review@0.1.5 -->
 # §57 review: Every continue in an elephant drift shows something
 
+verdict: attest
+tier: attested
+reviewed-commit: d082f65a598ea0e6032f96e12e6f1e27a6830f30
+round: 2
+sampled: no
+run: auto
+live-check: owed
+
+Tier: Attested, set by the path table (`src/engine/drift.ts`, its test, `README.md`, intent artefacts). No CRITICAL or HIGH finding.
+
+Summary: the round-1 finding is fixed; M4 and M5 are killed, M1-M3, M6, M7 stay killed. `npm run verify` is green. `check:intent` fails only because the live check is owed and unrecorded, which is the owner's to clear.
+
+## Passes
+| # | Pass | Result |
+| --- | --- | --- |
+| 1 | Intent and plan match | pass. Round 2 changes only `src/engine/drift.test.ts` plus intent artefacts. |
+| 2 | Type check | pass; the only error is the owed live check |
+| 3 | Rulebook fidelity | pass (n/a): `driftStep` untouched, determinism test green |
+| 4 | Tests prove the rule | pass. All 7 mutants killed. |
+| 5 | Engine/presentation boundary | pass |
+| 6 | Numbers in prose | pass (61 files, 1110 tests) |
+| 7 | Documentation | pass (README drift paragraph) |
+| 8 | Guardrails and hygiene | pass; lint 21/21, cap unchanged |
+| 9 | Repository footguns | pass; `needsInput` handling untouched |
+
+## Type check
+```
+> heraklios@0.1.0 check:intent
+type-check: FAIL (intent 57, fix)
+  error: A live check is owed and not recorded. Do the steps in intents/57-drift-silent-continue/review.md → ## Live check, then set live_checked: <date> in intents/57-drift-silent-continue/metadata.yml.
+  note:  3 file(s), 81 line(s) changed outside intents/.
+```
+The only error is the owed live check.
+
+## Findings
+- **LOW** `src/engine/drift.test.ts:262-311`: the new scenarios do not assert that `trample-DR` emits `retreatResolutionNeeded` or that `forbidden-direction` emits `directionForbidden`; if the setup drifted, coverage could vanish silently. Optional: one `expect(events.some(...))` per scenario. Does not need rework.
+
+Round-1 MEDIUM finding: resolved in 60c137d.
+
+Surviving mutants: none. Killed: M1 (drop the skip), M2 (delete `directionRollNeeded`), M3 (delete `combatRollNeeded`), M4 (delete `retreatResolutionNeeded`, "trample-DR: pause #8"), M5 (delete `directionForbidden`, "forbidden-direction: pause #3"), M6 (add `moved`), M7 (invert the condition).
+
+## Not checked
+- What the browser shows at each pause (e.g. `directionResumed` only calls `onDirectionRolled`).
+- `npm run e2e` not run: no scene/ui/e2e path changed, and no e2e scenario drives a drift.
+- A nested trampled-elephant re-drift is not traced against the invariant.
+- The branch is 5 intent-only commits behind `main`; not rebased or tested merged.
+
+## Live check
+- owed: rule 3 (runtime pacing, the owner's original report).
+- steps:
+  1. In `C:/Users/eric/src/heraklios-wt/57-drift-silent-continue` run `npm run dev -- --port 5257 --strictPort --host 127.0.0.1` and open http://127.0.0.1:5257/.
+  2. Menu: "Combat test mode", human seat on its turn.
+  3. Attack with or against elephants until one is forced to drift (AR/AE against an elephant attack, or a trample). Undo works in test mode.
+  4. Click "Continue" (or Space/Enter) once at each pause.
+- you should see: the first click shows the direction arrow and a "direction rolled" line, with no empty pause before it; each later click moves the elephant a hex, stops the drift, or shows a trample combat report; no click leaves board and log unchanged; a DR trample goes from the combat report straight to the retreat.
+
+## Verified myself vs. taken on trust
+Reviewer verified: `npm run verify` (61 files, 1110 tests, lint 21/21), `check:intent`, lint of `main`'s drift.ts for comparison, mutants M1-M7 against the full suite (restored by copy, tree clean), the round-2 diff scope, `sdlc:scan --sample-due` ("nth attested auto change = 2, every 3, sampled: no").
+
+**Coordinator, re-run** (worktree at d082f65): `npm run verify` exit 0, 61 files, 1110 tests, lint 21 warnings (cap 21); `npm run check:intent` FAIL with only the owed-live-check error; M4 KILLED by "trample-DR: pause #8 follows nothing visible"; M5 KILLED by "forbidden-direction: pause #3 follows nothing visible" (run on `drift.test.ts`, each restored by copy, `git status --short` clean). All match the reviewer and the implementer. `npm run e2e` not run (no scene/ui/e2e path changed).
+
+Taken on trust: that `BoardScene`'s hooks visibly redraw on each remaining `onStep` (live check).
+
+# Round 1 (history)
+## Report of round 1
+
 verdict: rework
 tier: attested
 reviewed-commit: 6ee271c7d06929fb0c462603e3cc5965848e48c4
