@@ -172,6 +172,59 @@ function parseHexKey(key: string): HexCoord {
   return { q: q!, r: r! };
 }
 
+/** The `landMove` mutation, kept out of `applyAction`'s switch (lint complexity). */
+function applyLandMove(state: GameState, action: { unitId: string; to: HexCoord }): LandMoveResult {
+  const unit = requireLivingUnit(state, action.unitId);
+  if (unitType(unit).domain === 'naval') {
+    throw new Error(`applyAction: unit "${unit.id}" is naval — use 'navalMove', not 'landMove'`);
+  }
+  const reachable = reachableHexes(state, unit);
+  const key = hexKey(action.to);
+  const reachableCost = reachable.get(key);
+  if (reachableCost === undefined) {
+    throw new Error(`applyAction: (${action.to.q},${action.to.r}) isn't reachable by unit "${unit.id}"`);
+  }
+  // Must be evaluated BEFORE mutating position/movementLeft — charge
+  // eligibility depends on the unit's pre-move state, and a charge's
+  // straight-line cost can differ from `reachable`'s cheapest-path cost
+  // to the same hex (see `evaluateCharge`'s doc comment in
+  // engine/movement.ts). Deduct the charge cost whenever this move
+  // qualifies, not the (possibly cheaper) `reachable` cost.
+  const chargeCost = evaluateCharge(state, unit, action.to);
+  const cost = chargeCost ?? reachableCost;
+  unit.movementLeft -= cost;
+  unit.position = action.to;
+  unit.charged = chargeCost !== null;
+  return { kind: 'landMove', unit, charged: unit.charged };
+}
+
+/** §54: the `landSwap` mutation, kept out of `applyAction`'s switch. */
+function applyLandSwap(state: GameState, unitId: string, otherId: string): LandSwapResult {
+  const unit = requireLivingUnit(state, unitId);
+  const other = requireLivingUnit(state, otherId);
+  const step = swapStep(state, unit, other);
+  if (step === null) {
+    throw new Error(`applyAction: units "${unit.id}" and "${other.id}" can't swap places`);
+  }
+  const unitHex = unit.position;
+  unit.position = other.position;
+  other.position = unitHex;
+  unit.movementLeft -= step.costA;
+  other.movementLeft -= step.costB;
+  // A swap is never a charge (a charge is a straight full-allowance run).
+  unit.charged = false;
+  other.charged = false;
+  return { kind: 'landSwap', unit, other };
+}
+
+/** §54: the swaps `unit` offers, each pair once (only with a higher-id partner,
+ * so the lower id is `unitId`). */
+function swapActionsFor(state: GameState, unit: Unit, ownUnits: Unit[]): Action[] {
+  return ownUnits
+    .filter((other) => other.id > unit.id && swapStep(state, unit, other) !== null)
+    .map((other): Action => ({ kind: 'landSwap', unitId: unit.id, otherId: other.id }));
+}
+
 /**
  * Applies one `Action` to `state` in place, exactly reproducing the mutation
  * sequences `BoardScene` used to perform inline (see `BoardScene.ts`'s
@@ -249,48 +302,11 @@ export function applyAction(
       return { kind: 'endPhase' };
     }
 
-    case 'landSwap': {
-      const unit = requireLivingUnit(state, action.unitId);
-      const other = requireLivingUnit(state, action.otherId);
-      const step = swapStep(state, unit, other);
-      if (step === null) {
-        throw new Error(`applyAction: units "${unit.id}" and "${other.id}" can't swap places`);
-      }
-      const unitHex = unit.position;
-      unit.position = other.position;
-      other.position = unitHex;
-      unit.movementLeft -= step.costA;
-      other.movementLeft -= step.costB;
-      // A swap is never a charge (a charge is a straight full-allowance run).
-      unit.charged = false;
-      other.charged = false;
-      return { kind: 'landSwap', unit, other };
-    }
+    case 'landSwap':
+      return applyLandSwap(state, action.unitId, action.otherId);
 
-    case 'landMove': {
-      const unit = requireLivingUnit(state, action.unitId);
-      if (unitType(unit).domain === 'naval') {
-        throw new Error(`applyAction: unit "${unit.id}" is naval — use 'navalMove', not 'landMove'`);
-      }
-      const reachable = reachableHexes(state, unit);
-      const key = hexKey(action.to);
-      const reachableCost = reachable.get(key);
-      if (reachableCost === undefined) {
-        throw new Error(`applyAction: (${action.to.q},${action.to.r}) isn't reachable by unit "${unit.id}"`);
-      }
-      // Must be evaluated BEFORE mutating position/movementLeft — charge
-      // eligibility depends on the unit's pre-move state, and a charge's
-      // straight-line cost can differ from `reachable`'s cheapest-path cost
-      // to the same hex (see `evaluateCharge`'s doc comment in
-      // engine/movement.ts). Deduct the charge cost whenever this move
-      // qualifies, not the (possibly cheaper) `reachable` cost.
-      const chargeCost = evaluateCharge(state, unit, action.to);
-      const cost = chargeCost ?? reachableCost;
-      unit.movementLeft -= cost;
-      unit.position = action.to;
-      unit.charged = chargeCost !== null;
-      return { kind: 'landMove', unit, charged: unit.charged };
-    }
+    case 'landMove':
+      return applyLandMove(state, action);
 
     case 'navalMove': {
       const unit = requireLivingUnit(state, action.unitId);
@@ -453,14 +469,8 @@ export function legalActions(state: GameState, context: ActionContext): Action[]
         for (const key of reachableHexes(state, unit).keys()) {
           actions.push({ kind: 'landMove', unitId: unit.id, to: parseHexKey(key) });
         }
-        // §54: each swappable pair once, the lower id as `unitId`, after this
-        // unit's moves (only listed when the other unit has the higher id).
-        for (const other of ownUnits) {
-          if (other.id <= unit.id || unitType(other).domain === 'naval') continue;
-          if (swapStep(state, unit, other) !== null) {
-            actions.push({ kind: 'landSwap', unitId: unit.id, otherId: other.id });
-          }
-        }
+        // §54: each swappable pair once, after this unit's moves.
+        actions.push(...swapActionsFor(state, unit, ownUnits));
       }
     }
   } else {
