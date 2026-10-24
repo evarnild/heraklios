@@ -3,40 +3,40 @@
 
 verdict: rework
 tier: reviewed
-reviewed-commit: 7702eca
-round: 1
+reviewed-commit: 076cd29
+round: 2
 sampled: no
 run: auto
 live-check: owed
 
-**Tier:** Reviewed, set by two inputs that agree. `metadata.yml` says
-`review_tier: reviewed` (the accepted spec proposed it). The path table lands
-there too: `eslint.config.js` turns `no-console` off for
-`tools/orchestrator/orchestrator.mjs`, and an `eslint.config.js` change that
-loosens a rule is Reviewed. The other paths are lower (`scripts/**` Attested,
-`intents/**` Automated).
+**Tier:** Reviewed, from `metadata.yml`'s `review_tier: reviewed`; the path
+table agrees through round 1's `eslint.config.js` `no-console` exemption,
+still in the branch's diff against `main`. The rework itself touches only
+`tools/**`, `intents/**`, `README.md`, `CLAUDE.md` and `intents/README.md`.
 
-**Verdict:** `rework`. Three findings need mechanical rework (F1, F2, F3) and
-five need the owner's decision (F4, F5, F6, F8; F9 is mechanical). Because a
-"Needs decision:" finding is open, this auto run stops for the owner instead
-of resuming the implementer.
+**Verdict:** `rework`. Every round-1 rework item is resolved and all 21
+mutants on the rework's lines are killed, but two new findings are open: F13
+needs the owner's decision (what an Auto click can resume, and what it means
+after an escalate stop), F14 is mechanical (a stale `needs you` after the SDK
+aborts a parked request). With a "Needs decision:" finding open, the auto
+run stops for the owner.
 
-Passes run by the `heraklios-reviewer` agent; the coordinator re-ran verify,
-check:intent and the four surviving mutants (below). Several of the
-reviewer's line numbers pointed past the end of their files; the coordinator
-corrected them in this report from the files at `7702eca`.
+Round 2 covers `823dbce`, `b0d7a58`, `e722f6e`, `85f754d`, `d34cb06` and
+`743f947`; `076cd29` only sets `auto_round: 2`. Passes run by the
+`heraklios-reviewer` agent; the coordinator re-ran verify, check:intent and
+nine of the ten listed mutants (below).
 
 ## Passes
 | # | Pass | Result |
 | --- | --- | --- |
-| 1 | Intent and plan match | findings (5): F1, F2, F5, F6, F8 |
-| 2 | Type check | pass |
-| 3 | Rulebook fidelity | not run: digital-only SDLC tooling, no rule (spec "Sources that apply") |
-| 4 | Tests prove the rule, not only pass | findings (2): F3, and the LOW survivors in F11 |
-| 5 | Boundary and conventions | pass: no `src/` file in the diff; no GameState, save or undo change |
-| 6 | Numbers in prose | findings (1): F9 |
-| 7 | Documentation | findings (2): F4 (README wording), F12 |
-| 8 | Guardrails and hygiene | pass. Lint 21 of 21, cap unchanged. The SDK is pinned exactly (0.3.309) with a why-line in plan subtask 4 and Progress. No `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `eval`, `new Function` or `document.write` in `public/`; the page is served with a CSP and `nosniff`. |
+| 1 | Intent and plan match | findings (1): F13. F1, F2, F3, F5, F6 and F8 checked against the owner's decisions (Resolutions) |
+| 2 | Type check | pass apart from the owed live check (the owner's gate) |
+| 3 | Rulebook fidelity | not run: digital-only SDLC tooling, no game rule |
+| 4 | Tests prove the rule, not only pass | findings (1): F14. 21 of 21 mutants on the rework's lines killed |
+| 5 | Boundary and conventions | pass: no `src/` file; no GameState, save or undo change |
+| 6 | Numbers in prose | pass. 61 files and 1094 tests reproduce; the 994 base reproduces by arithmetic (1087 − (39+35+18+1)); 57 test files on `main` from `git ls-tree` |
+| 7 | Documentation | findings (1): F13 (README, CLAUDE.md, intents/README). The F4 and F12 wording is now accurate |
+| 8 | Guardrails and hygiene | pass. Lint 21 of 21; `package.json` and `eslint.config.js` untouched by the rework; no new dependency; no HTML sink |
 | 9 | Repository-specific footguns | pass: no drift, AI or map change |
 
 ## Type check
@@ -44,371 +44,300 @@ corrected them in this report from the files at `7702eca`.
 > heraklios@0.1.0 check:intent
 > node scripts/check-intent.mjs
 
-type-check: PASS (intent 52, feature)
-  note:  23 file(s), 3886 line(s) changed outside intents/.
+type-check: FAIL (intent 52, feature)
+  error: A live check is owed and not recorded. Do the steps in intents/52-orchestrator-ui/review.md → ## Live check, then set live_checked: <date> in intents/52-orchestrator-ui/metadata.yml.
+  note:  24 file(s), 4087 line(s) changed outside intents/.
 ```
+The only error is the owed live check, which the owner clears; not rework.
 
-## Security and gate-safety reading (passes 1 and 8)
+## Security re-check (the rework against round 1's reading)
+No regression.
+- **No new route;** `guard()` still runs first on every request
+  (`server.mjs:85`).
+- **The new `agent` value is a constant,** `IMPLEMENTER_AGENT`
+  (`orchestrator-lib.mjs:13`), set only for the implementer (`:174`); no
+  request field reaches it.
+- **Gate writes unchanged:** `writeGate` (`actions.mjs:76-96`) writes a bare
+  date and commits with a `-- <rel>` pathspec, restoring and unstaging on a
+  git failure; it is now reached only through the in-lock `running()`
+  re-check (`actions.mjs:73`).
+- **The dry-run still comes first:** a real ship needs the token
+  (`actions.mjs:55`) and re-checks `running()` inside the `[id,'main']` lock
+  (`:57`) before consuming it.
+- **Deny-by-default parking unchanged** (`sdk-sessions.mjs:78-101`).
 
-All of these hold, by reading the code and, where marked, by probing.
+## Pass 4: mutations (21 mutants, one at a time, full `vitest run` each)
+Back up by copy outside the repo, apply by exact substring (CRLF-aware: a
+first attempt at K1, K3, K4, K5 matched no needle, applied nothing and was
+re-run), `git diff --quiet -- <file>` returning 1, full suite in the
+foreground, restore by copy, `git status --short` empty after each.
 
-- **The guard runs first on every route.** `guard()` (`server.mjs:45-50`)
-  is called before routing, static files and SSE (`server.mjs:85`). Host must
-  be `localhost`, `127.0.0.1` or `[::1]` with the server's own port (stricter
-  than the save API); a POST must carry an Origin (`:48`); a foreign Origin is
-  refused on any method (`:49`); other methods than GET, HEAD and POST get 405
-  (`:50`).
-- **Listens on 127.0.0.1 only** (`node-io.mjs:92`); the probe confirmed
-  `{"address":"127.0.0.1"}`.
-- **No shell.** `execFile(file, args[])` with no shell option
-  (`node-io.mjs:15`); scripts run as `process.execPath` plus
-  `scripts/<x>.mjs` (`state.mjs:15`); git gets an argument array. The
-  live-check words reach `ship.mjs` as one argv element (the test passes
-  `"...; rm -rf / && echo $HOME --trailer x"` as one element).
-- **Input validation.** Ids `^[0-9]+$` (`orchestrator-lib.mjs:14`), checked
-  before anything runs; roles from `ROLES` (`orchestrator-lib.mjs:11`);
-  session ids `^s[0-9]+$` (`session-routes.mjs:9`); answers whitelisted by
-  `validAnswer` (`session-routes.mjs:13-21`), and a page-supplied
-  `updatedInput` is ignored for an ordinary tool.
-- **Static files** come from a fixed map of three names (`server.mjs:19`),
-  so there is no path to traverse. `/../../package.json`,
-  `/%2e%2e/%2e%2e/package.json`, `/..%2f..%2fpackage.json` and
-  `/app.js/../../server.mjs` all gave 404 over HTTP.
-- **Bodies:** a 64 KB cap in `node-io` and the handler (`server.mjs:55`; a
-  70 KB POST got 413); malformed or non-object JSON gets 400 and runs nothing.
-- **Gate writes.** The page offers only `intent.next.gate`, after `confirm()`.
-  The server re-reads the file and re-checks `gateAllowed` inside the
-  per-intent lock (`actions.mjs:73-84`), writes one line as a bare date, runs
-  `git add -- <rel>` then `git commit -m … -- <rel>` (`:87-88`), restores the
-  file and unstages it if git fails (`:90-91`), and refuses a branch without
-  a worktree (`:66`).
-- **Ship.** The real ship needs a successful dry-run of the same id in this
-  server process (`actions.mjs:53`), consumed by the real ship (`:55`); it
-  runs `scripts/ship.mjs` only.
-- **Sessions.** `canUseTool` parks a request with no timeout (the SDK:
-  "permission prompts have no park deadline", `sdk.d.ts:226`); stop, stream
-  end and SDK abort all resolve to deny. Nothing in the orchestrator records a
-  gate or ships by itself.
-- **Docs.** The `CLAUDE.md` and `intents/README.md` wording ("an agent never
-  presses it") is accurate and widens no agent permission, with the caveats in
-  F7 and F10.
-
-## Pass 4: mutations (55 mutants, one at a time, full `vitest run` each)
-
-Back up by copy, apply by exact substring, confirm with `git diff --quiet`
-returning 1, full suite in the foreground, restore by copy, `git status
---short` clean after each. Two harness slips were caught and re-run: M12's
-first form was a syntax error (a false kill), re-run as `if (true)`; M30's
-first needle did not match.
-
-**51 killed, 4 survived.**
-
-| # | Mutant (target) | Result / failing test |
+| # | Mutant (target at HEAD) | Result / failing test |
 | --- | --- | --- |
-| M1 | foreignHost accepts any host (`orchestrator-lib.mjs:36`) | killed: lib foreignHost + server "403 … foreign Host on every route" |
-| M2 | foreignHost drops the port check (`:37`) | killed: same two |
-| M3 | foreignOrigin accepts any origin (`:47`) | killed: lib foreignOrigin + server "403 for a foreign Origin" |
-| M4 | foreignOrigin accepts garbage/"null" (`:49`) | killed: lib foreignOrigin |
-| M5 | POST without Origin allowed (`server.mjs:48`) | killed: "403 for a POST without any Origin" |
-| M6 | Origin skipped on POST (`server.mjs:49`) | killed: "403 for a foreign Origin…" |
-| M7 | guard on POST only (`server.mjs:85`) | killed: 3 Host/Origin tests |
-| M8 | id regex loosened to `/^[0-9]+/` (`orchestrator-lib.mjs:14`) | killed: validId, roleLaunch, server "400 for a non-digit id" |
-| **M9** | SID regex loosened to `/^s/` (`session-routes.mjs:9`) | **survived** (F11) |
-| M10 | real ship without the dry-run check (`actions.mjs:53`) | killed: 3 ship tests |
-| M11 | dry-run token not consumed (`actions.mjs:55`) | killed: "…and only once" |
-| M12 | failed dry-run unlocks the ship (`actions.mjs:44-45`) | killed: "a dry-run that fails does not unlock" |
-| M13 | gateWrite writes `by-agent` (`orchestrator-lib.mjs:88`) | killed: 3 gateWrite tests + server gate tests |
-| M14 | writeGate ignores gateAllowed (`actions.mjs:84`) | killed: 3 server gate tests |
-| M15 | an already-recorded gate overwritten (`orchestrator-lib.mjs:64`) | killed |
-| M16 | live_checked without `owed` (`:68`) | killed (lib + server) |
-| M17 | intent_accepted on a non-draft (`:72`) | killed |
-| M18 | intent_accepted-first check dropped (`:74`) | killed |
-| M19 | spec_accepted without spec.md (`:75`) | killed |
-| M20 | plan_approved without spec_accepted (`:76`) | killed (lib + server) |
-| M21 | plan_approved without plan.md (`:77`) | killed |
-| M22 | a gate on a terminal intent (`:63`) | killed |
-| **M23** | gateAllowed's non-gate check dropped (`orchestrator-lib.mjs:61`) | **survived**: equivalent, later checks still refuse and gateRoute pre-checks `GATE_FIELDS` (`actions.mjs:61`) (F11) |
-| M24 | denyAll resolves allow (`sdk-sessions.mjs:80`) | killed: stream-end and stop tests |
-| M25 | park auto-allows after a timeout (`:90`) | killed: "parks a request until answered…" |
-| M26 | SDK abort resolves allow (`:97`) | killed |
-| M27 | a deny answer becomes allow (`:53`) | killed |
-| M28 | stop does not deny pending (`:189`) | killed |
-| M29 | stop does not abort (`:191`) | killed |
-| M30 | stop does not interrupt (`:190`) | killed |
-| M31 | runningFor ignores `needs you` (`:17`) | killed |
-| M32 | an ordinary tool takes the page's updatedInput (`:56`) | killed |
-| M33 | sessionsData drops `dirty` (`scripts/session-lib.mjs`) | killed: sessionsData exact rows |
-| M34 | sessionsData age in minutes | killed |
-| M35 | sessionsData unsorted | killed |
-| M36 | a gate allowed while a session runs (`actions.mjs:62`) | killed |
-| M37 | a ship allowed while a session runs (`actions.mjs:39`) | killed |
-| M38 | commit without the `-- <rel>` pathspec (`actions.mjs:88`) | killed |
-| M39 | file not restored on a failed commit (`actions.mjs:90`) | killed |
-| M40 | branch-without-worktree refusal dropped (`actions.mjs:66`) | killed |
-| M41 | live-words length unchecked (`actions.mjs:52`) | killed |
-| M42 | `bodyTooLarge` ignored (`server.mjs:55`) | killed |
-| M43 | `'node'` instead of `process.execPath` (`state.mjs:15`) | killed: 5 tests |
-| M44 | a branch intent written on main (`state.mjs:31`) | killed |
-| M45 | role check dropped in the route (`session-routes.mjs:34`) | killed |
-| M46 | reviewer runs in the worktree (`orchestrator-lib.mjs:158`) | killed |
-| M47 | roleLaunch accepts an unknown role (`:156`) | killed |
-| M48 | validAnswer allows extra keys (`session-routes.mjs:15`) | killed |
-| M49 | nextStep ignores `needs you` (`orchestrator-lib.mjs:127`) | killed |
-| M50 | waitingOnOwner drops the owner rank (`:142`) | killed |
-| **M51** | real-ship lock `[id,'main']` → `[id]` (`actions.mjs:54`) | **survived** (F3) |
-| **M52** | gate-on-main lock `[id,'main']` → `[id]` (`actions.mjs:69`) | **survived** (F3) |
-| M53 | escalate shown as ship (`orchestrator-lib.mjs:100`) | killed |
-| M54 | an owed live check ignored in nextStep (`:101`) | killed |
-| M55 | method guard dropped (`server.mjs:50`) | killed |
+| K1 | in-lock `running()` re-check removed from launch (`session-routes.mjs:54`) | killed: concurrency "two concurrent launches … one 200, one 409 and one query()" |
+| K2 | in-lock re-check removed from the gate (`actions.mjs:73`) | killed: "a gate is refused when a session appears after the early check" |
+| K3 | in-lock re-check removed from the dry-run (`actions.mjs:44`) | killed: "a dry-run and a real ship are refused …" |
+| K4 | in-lock re-check removed from the real ship (`actions.mjs:57`) | killed: same test |
+| K5 | early gate `running()` removed (`actions.mjs:65`) | killed: concurrency gate test + server "refuses while a session runs on the intent" |
+| M51 | real-ship lock `[id,'main']` → `[id]` (`actions.mjs:56`) | killed: both main-lock tests |
+| M51b | dry-run lock `[id,'main']` → `[id]` (`actions.mjs:43`) | killed: "refuses a ship and a dry-run of another intent while a real ship runs" |
+| M52 | gate-on-main lock → `[id]` (`actions.mjs:72`) | killed: "refuses a gate on a main-located intent while a ship runs" |
+| F2a | overlay removed (`state.mjs:82`) | killed: server "shows an intent as needs you when the session manager holds a pending request…" |
+| F2b | precedence flipped, the hook log wins (`state.mjs:82`) | killed: same |
+| F2c | overlay ignores the intent id (`state.mjs:31`) | killed: same |
+| F2d | overlay ignores the state (`state.mjs:31`) | killed: same |
+| F2e | `worktree.session` from the hook log only (`state.mjs:83`) | killed: same |
+| F5a | implementer `agent` removed (`orchestrator-lib.mjs:174`) | killed: lib roleLaunch implementer + server "launches an implementer in the worktree" |
+| F5b | reviewer also gets the agent (`orchestrator-lib.mjs:162`) | killed: lib reviewer/auto + server reviewer launch |
+| F5c | agent name changed (`orchestrator-lib.mjs:13`) | killed: 2 tests |
+| F5d | route drops `agent` (`session-routes.mjs:55`) | killed: server implementer launch |
+| F5e | route always passes an `agent` key (`session-routes.mjs:55`) | killed: server reviewer launch |
+| F5f | manager drops `agent` from `query()` options (`sdk-sessions.mjs:166`) | killed: sdk-sessions "passes the agent to query() as options.agent…" |
+| F5g | manager always passes an `agent` key (`sdk-sessions.mjs:166`) | killed: sdk-sessions exact-keys test + agent test |
+| M9 | SID `/^s[0-9]+$/` → `/^s/` (`session-routes.mjs:9`) | killed: server "stops a session and 404s an unknown one" (`sx` → 400) |
 
-Not mutated: `node-io.mjs` and `orchestrator.mjs`, which the plan leaves
-untested by design; read, and the probe confirmed the 127.0.0.1 listen.
+Not mutated: `public/app.js` (`autoConfirm`, `:98-100`, `:109`), untested by
+design and read; M23 stays equivalent, as round 1 judged.
 
-**On the tests:** for the security and gate rules they prove the rule, not
-only pass: every Host/Origin, id, dry-run, gateAllowed, gateWrite,
-deny-by-default and stop mutant is killed by a test asserting exact command
-arrays or that nothing ran. They do not prove the `main` locks (M51, M52),
-the concurrency claim in plan Risks (F1), or B6's "intent shows needs you"
-(F2).
+**On the tests:** for the rework's behaviours they prove the rule. The race
+and lock tests are deterministic (the second launch's state load is delayed;
+a "flipping" manager reports a session that appears between the early check
+and the lock), each in-lock check and each `main` lock key has a test that
+fails without it, and the overlay test checks the exact next step and its
+order. Not covered: the overlay going stale after an SDK abort (F14), and
+that the real SDK applies `options.agent` (Not checked).
 
 ## Findings
+- **F13. MEDIUM** `README.md:704-708`, `CLAUDE.md:147-152`,
+  `intents/README.md:110-114`, `tools/orchestrator/public/app.js:98-100`:
+  the docs and the Auto confirm say an Auto click resumes any stopped
+  `/auto` ("record the gate with its button, or answer the question, then
+  click Auto again"). Two kinds of stop don't fit what the skill does on a
+  resume (`.claude/skills/auto/SKILL.md:91-99`):
+  - `decision needed`, `spec or plan amendment needed`, `critical finding`
+    and `spec questions` resume with "the owner's answer(s)" passed to the
+    implementer or the spec. An Auto click sends only `/auto <id>`
+    (`orchestrator-lib.mjs:163`), and a stopped headless session has ended,
+    so the page has no channel for the answer. "Answer the question" works
+    only for an `AskUserQuestion` that parks mid-run, which is not a stop.
+  - After an `escalate` stop, "the owner's `/auto <id>` means 'diff read'"
+    (`:95`). The confirm doesn't say so, so the click asserts a diff read the
+    owner wasn't told they were making. §52 is Reviewed, so its own next stop
+    is an escalate.
 
-- **F1. MEDIUM** `tools/orchestrator/session-routes.mjs:36` and `:52`
-  (also `actions.mjs:39`, `:62`, `:70`): the one-session-per-intent rule can
-  be beaten by a race. `running(id)` is checked before an `await
-  loadState(...)` and not again inside `exclusive([id], …)`. Reproduced with
-  a script outside the repo (real handler, real `createSessionManager`, fake
-  `query`): two concurrent `POST /api/sessions {role:'implementer',
-  id:'52'}` both returned 200, `query()` ran twice, 2 live sessions on §52.
-  The same window exists between gateRoute's and shipRoute's `running()`
-  check and their lock, so a gate commit or a ship can run beside a session
-  launched in between. This contradicts plan Risks ("refuses a gate write or
-  ship while it has a session running on that intent"); the route test
-  "refuses … a second session" covers only the sequential case.
-  Needs rework: re-check `running(id)` inside the `exclusive` callbacks of
-  launch, writeGate and both ship paths, and add a test that fires two
-  launches concurrently and expects one 200 and one 409.
-- **F2. MEDIUM** `tools/orchestrator/state.mjs:75`: spec B6 says "While one
-  waits, the intent shows 'needs you'", but the intent row reads only the
-  hook log. `loadState` takes `session` from `sessions --json` and never asks
-  the in-memory session manager. Reproduced: with the manager's session in
-  `needs you`, `/api/state` gave §52 `session: "working"`. Reviewer and auto
-  sessions run in the main checkout, so their hook events never land on the
-  intent's row; the only "needs you" is the status in the Sessions panel, and
-  "Waiting on you" and `nextStep` miss it.
-  Needs rework: in `loadState`, overlay the manager's per-intent state
-  (`needs you` wins) when `deps.sessions` is present, with a server test using
-  a fake manager that reports a pending request.
-- **F3. MEDIUM** `tools/orchestrator/actions.mjs:54`, `:69`: the `main` lock
-  is untested. Progress lists it ("Locks are per intent (plus `main` for ship
-  and a gate on `main`)") but M51 and M52 survive: with them, two ships of
-  different ids, or a ship and a gate commit on `main`, can run at once in the
-  main checkout.
-  Needs rework: tests that, while a real ship of 52 is in flight, a ship or
-  dry-run of 53 gets 409, and a gate on a main-located intent (§29 in the
-  fixture) gets 409. Expected kills: M51, M52.
-- **F4. MEDIUM** `tools/orchestrator/sdk-sessions.mjs:166`, `README.md`
-  (Orchestrator section, "nothing is allowed by itself"): on this machine
-  most tool calls will not wait for a click. `settingSources` is unset, so
-  user settings load, and `~/.claude/settings.json` has
-  `permissions.defaultMode: "auto"` plus an allow list. The SDK documents
-  auto mode as "A model classifier approves or denies each call, prompting
-  through `canUseTool` when it cannot decide" (`sdk.d.ts`, `permissionMode`).
-  The README sentence and the plan's B6 Risk overstate it, and AC4's "answer
-  one permission prompt" may never see a prompt.
-  Needs decision: pass `permissionMode: 'default'` for orchestrator sessions
-  (diverges from B5's "as in a terminal" and the plan Assumption), or keep
-  terminal parity and correct the README and plan wording ("tools your
-  settings already allow, or auto mode approves, run without a prompt; only
-  what would prompt reaches the page").
-- **F5. MEDIUM** `tools/orchestrator/orchestrator-lib.mjs:155-171`: the
-  implementer role does not run as the `heraklios-implementer` agent. B5 asks
-  for "the `heraklios-implementer` brief `/spawn` step 5 gives today";
-  `/spawn` launches that agent, with its system prompt (rules 1-8), tools and
-  `model: sonnet`. The orchestrator starts a plain top-level session with a
-  hand-written prompt that omits: don't edit `OVERVIEW.md` or
-  `plan-history.md`; append only to `## Progress`; stop if the plan is wrong;
-  don't raise the lint cap. It also runs on the user's default model. SDK
-  0.3.309 has `options.agent` ("equivalent to the `--agent` CLI flag",
-  `sdk.d.ts:1579-1596`); the plan's Assumption covered only the prompt.
-  Needs decision: launch with `agent: 'heraklios-implementer'`, or keep the
-  custom prompt, record the divergence and add the missing rules.
-- **F6. MEDIUM** `tools/orchestrator/public/app.js:105`, `intents/README.md`
-  "/auto <id>" bullet, `CLAUDE.md` orchestrator paragraph: the Auto button's
-  authority is not stated. By `intents/README.md`, "Your `/auto <id>` message
-  in the coordinator conversation" authorises `plan_approved` and
-  `auto_authorized`; the Auto click's confirm says only "Launch a auto session
-  … may use your quota", and no doc says the click is that message. A headless
-  `/auto` is a single-prompt session, so at its stops (spec acceptance,
-  questions) the owner cannot answer "yes" in that conversation: they must use
-  a gate button and relaunch, which is a second `/auto`.
-  Needs decision: should the confirm and the docs say "this click is your
-  `/auto <id>`: it authorises `plan_approved` for §id", and should the docs
-  say how an `/auto` stop is resumed from the page?
-- **F7. LOW** `tools/orchestrator/server.mjs:45-50`: Host and Origin don't
-  authenticate local processes. Any local process (including a launched
-  session with Bash, possibly classifier-approved under auto mode, F4) can
-  send `Origin: http://127.0.0.1:5299` and record a bare-date gate, or
-  dry-run then ship. That adds no new power (an agent could already write a
-  bare date or run `scripts/ship.mjs`), and "an agent never presses it"
-  stays a convention. Worth a look: a per-run token in the printed URL's
-  fragment, required on POSTs. Spec "Out of scope" excludes authentication
-  beyond B2, so not rework.
-- **F8. MEDIUM** `tools/orchestrator/orchestrator.mjs:42-44`, plan Validation
-  and AC4 ("from the main checkout"): the live check can't be run as planned
-  before the merge. The CLI refuses to run outside the main checkout or off
-  `main`, and before the merge the code exists only on the branch. Mounting
-  the handler from a scratch script with `root` = the worktree is unsafe: a
-  gate click on a main-located intent would commit onto
-  `feat/52-orchestrator-ui` after the reviewed commit, and `ship.mjs` and
-  spawn refuse from a worktree.
-  Needs decision: how AC4 is run. The Live check section proposes a
-  disposable clone whose `main` is this branch: no code change, but the
-  owner's call.
-- **F9. LOW** `intents/52-orchestrator-ui/plan.md:286-287`: "(was 57 / 995
-  before the change)" doesn't add up. HEAD has 60 files and 1087 tests,
-  `main` 57 files; the new tests are 39 + 35 + 18 (three new files) + 1
-  (`sessionsData`) = 93, so the base would be 994 (which §51's review also
-  measured on its branch). Needs rework: re-measure on `main` and correct.
-- **F10. LOW** `tools/orchestrator/actions.mjs:42-56`: the dry-run token
-  never expires, so a dry-run from hours ago unlocks a ship. `ship.mjs`
-  re-checks every precondition, which limits the harm. Worth a look (consume
-  it on any state change, or expire it after minutes).
-- **F11. LOW** surviving mutants M9 (`session-routes.mjs:9`) and M23
-  (`orchestrator-lib.mjs:61`). M9 is harmless (the sid is only a Map key);
-  M23 is equivalent in outcome. Worth a look: a `/api/sessions/sx/stop` → 400
-  test kills M9.
-- **F12. LOW** docs: `CLAUDE.md` "Architecture" lists `tools/map-extract/`
-  but not `tools/orchestrator/` (only the Parallel-sessions paragraph names
-  it); `sdk-sessions.mjs:16` caps a transcript at 2000 items, while B5 says
-  it "is kept until the server stops". Worth a look.
+  Needs decision: (a) the confirm and docs say which stops an Auto click can
+  resume (spec drafted and live check, after the gate button; escalate, with
+  the confirm saying the click also means "I read the diff"; ready for
+  /ship) and that a decision, question, amendment or critical stop is
+  answered in a coordinator terminal with `/auto <id>` and the answer; or (b)
+  a text field on the Auto launch carries the owner's answer into the prompt
+  (new scope). Either way the confirm text depends on the intent's
+  `auto_stopped`.
+- **F14. MEDIUM** `tools/orchestrator/sdk-sessions.mjs:93-99`, surfaced by
+  `tools/orchestrator/state.mjs:82`: after the SDK aborts a parked request
+  the session stays `needs you` with nothing pending, and F2's overlay puts
+  that on the intent row. The abort listener deletes the request and
+  resolves deny but never resets the state, which `answer()` does (`:179`).
+  Reproduced with a scratch script (real `createSessionManager` and
+  `createHandler`, fake `query`, blocking runner): parked, the intent is
+  `needs you` / "Answer the waiting session" with 1 pending; after
+  `ac.abort()`, still `needs you` with 0 pending; only Stop clears it. The
+  intent sorts first in "Waiting on you" with nothing to answer, against B6.
+  The cause predates the rework; F2 makes it visible.
+  Needs rework: in the abort listener, after deleting the request, `if
+  (!s.pending.size && s.state === 'needs you') setState(s, 'running');`, with
+  an sdk-sessions test asserting `state === 'running'` after an abort (and
+  optionally a server test that the intent is no longer `needs you`).
+  Expected kill: removing that line.
+- **F15. LOW** `intents/README.md:110-114`, `CLAUDE.md:147-149`: the docs give
+  the Auto click authority but, unlike the gate buttons, don't add "an agent
+  never presses it". With F7 (Host and Origin don't authenticate local
+  processes), a launched session could POST `/api/sessions {role:'auto', id}`
+  with the page's Origin and start an `/auto` that, by the new wording,
+  counts as the owner's message. By F7's own argument that adds no power an
+  agent lacked. Worth a look: "an agent never presses it or POSTs to
+  `/api/sessions`" beside the Auto sentence.
 
-Nits (not findings): the JSON responses of `session-routes.mjs` lack the
-`nosniff` and CSP headers the other routes carry; a multiSelect answer in
-`questionForm` appends duplicates on repeated clicks; an EventSource
-reconnect replays the transcript into the panel twice.
+Nits (not findings):
+- The six rework commits lack the `Co-Authored-By` / `Claude-Session`
+  trailers.
+- `plan.md:124` and `:227`, above the Progress marker, still say
+  `roleLaunch` returns `{ cwd, prompt }`; Progress records the `agent`
+  addition. The plan's Risks wording on permissions (F4) is also left; both
+  are amendments, the owner's.
+- The CLAUDE.md Architecture entry (`:252-255`) names `node-io.mjs` and
+  `orchestrator.mjs` as untested glue; `public/app.js` is untested too.
+- `/api/remove/<id>` takes the `[id]` lock but doesn't check `running(id)`
+  (predates the rework).
 
 ## Not checked
-- **Hooks in headless sessions (B11):** whether `.claude/settings.json`
-  hooks fire in an SDK session and file events under its cwd. Only a live run
-  shows it; it underlies F2's "hooks only" path.
-- **Real SDK behaviour:** that `canUseTool` is called under this machine's
-  `defaultMode: auto`; the real AskUserQuestion `updatedInput.answers` shape;
-  that `interrupt()` plus abort ends the CLI child process. Every test uses a
-  fake `query`.
-- **The page in a browser:** that `textContent` shows `<b>` in session
-  output literally; that the CSP blocks nothing the page needs; confirm
-  dialogs, polling, SSE panels and reconnects. No browser was driven.
-- **Real routes never run:** spawn, remove, gate commit, dry-run and real
-  ship, session launch, against real git or scripts. Only the read-only
-  `GET /` and `/api/state` ran for real, with a runner that blocked
-  everything else.
-- **The implementer's own checks:** a fresh `npm ci` with the SDK's platform
-  optional dependencies (Progress says `npm ci --dry-run` passed) and its
-  port-5298 probe. Taken on trust.
-- **CLI startup:** `orchestrator.mjs` refusing a bad `--port` or a worktree:
-  read, not executed.
-- **The base test count on `main`** (F9): not run there.
+- **`options.agent` against the real SDK and CLI:** the typings say the
+  agent "must be defined either in the `agents` option or in settings"
+  (`sdk.d.ts:1578-1596`, `:9361-9364`). Nothing proves that
+  `.claude/agents/heraklios-implementer.md` in the worktree is found with
+  `settingSources` unset (all sources, `sdk.d.ts:2306-2315`), that its
+  `model: sonnet` and tools apply, or that the prompt still arrives as the
+  first user turn. Every test uses a fake `query`.
+- **Unchanged from round 1:** hooks in headless sessions (B11), the real
+  `canUseTool` flow under `defaultMode: auto`, the real AskUserQuestion
+  answer shape, `interrupt()` plus abort ending the CLI child.
+- **How often the real SDK aborts a `canUseTool` signal** (F14's frequency);
+  only the code path is shown.
+- **What a headless `/auto` does on a `decision needed` resume with no
+  answer** (F13): the skill text was read, nothing run.
+- **The page in a browser:** the Auto confirm, the `needs you` row and its
+  order, dialogs, SSE panels, the CSP.
+- **Real routes against real git and scripts** (spawn, remove, gate commit,
+  dry-run, real ship, session launch). No HTTP probe this round; round 1's
+  read-only probe covered routes the rework didn't change.
+- **The 994 base on `main`:** by arithmetic, not by running vitest there.
+- **No e2e:** no `src/scenes`, `src/ui`, `src/main.ts` or `e2e/` change.
 
 ## Live check
-- **Owed** by rule 3: the Not-checked items above (hooks in headless
-  sessions, the real SDK permission flow, browser rendering, real spawn, gate
-  and dry-run) are runtime-only. Not owed by path rule 1 (no `src/`,
-  `index.html` or `vite.config.ts` change), so e2e can't stand in.
-- **Settle F8 first.** These steps assume the disposable-clone answer, which
-  touches neither the main checkout nor the branch. They will be restated
-  after the rework round.
+- **Owed** by rule 3: `options.agent` in a real session, hooks in headless
+  sessions, the real permission flow, the page in a browser, and real spawn,
+  gate and dry-run are runtime-only. Not owed by path rule 1, so e2e can't
+  stand in.
+- **Where (F8, the owner's decision):** a disposable clone whose `main` is
+  this branch, touching neither the main checkout nor the branch. Run it on
+  the commit that resolves F13 and F14.
 - **Steps:**
-  1. In Git Bash: `git clone C:/Users/eric/src/heraklios C:/tmp/h52`, `cd
+  1. In Git Bash: `git clone C:/Users/eric/src/heraklios C:/tmp/h52 && cd
      C:/tmp/h52`, `git checkout -B main origin/feat/52-orchestrator-ui`,
-     `npm ci`, then `npm run orchestrator` (add `-- --port 5288` if 5299 is
-     busy) and open `http://127.0.0.1:5299/`. The intent and worktree tables
-     match `npm run queue` and `npm run sessions` run in `C:/tmp/h52`, and
-     "Waiting on you" comes first.
-  2. In the clone, commit a throwaway accepted intent on its `main`
-     (`intents/99-throwaway/`, `status: accepted`, gates recorded), or use an
-     accepted intent without a worktree. Click Spawn and confirm: the spawn
-     output shows in "Last action" and the worktree under
-     `C:/tmp/heraklios-wt/` in the Worktrees table.
-  3. Click Implementer on it: messages stream in a session panel. Your user
-     settings use `defaultMode: auto` (F4), so a prompt may not come; to force
-     one, set `"defaultMode": "default"` in `~/.claude/settings.json` for the
-     run and put it back after. When a request appears, click Deny: the
-     transcript shows it denied. Watch whether the intent row shows `needs
-     you` (F2). Click Stop: the state goes to `stopped`. Any `<b>` in the
-     output shows as literal text.
-  4. On a throwaway draft intent, click "Record intent_accepted" and
-     confirm: `intent_accepted: <today>` (bare date) in its `metadata.yml`,
-     and `git log -1` in the clone shows `§99: intent_accepted recorded
-     (orchestrator)` under your name, touching only that file.
-  5. Click "Ship…" on an in-review intent in the clone: only the dry-run
-     report. Click Close, not "Ship for real": the clone's `origin` is your
-     real repo, so never ship from it.
-  6. `curl -s -o /dev/null -w "%{http_code}\n" -H "Host: evil.example"
-     http://127.0.0.1:5299/api/state` gives `403`, and so does `-X POST -H
-     "Origin: http://evil.example" .../api/ship/1`.
-  7. Ctrl+C the server; `npm run spawn -- 99 --remove` in the clone (or by
-     hand), then delete `C:/tmp/h52` and `C:/tmp/heraklios-wt` (real
-     `node_modules`, no junctions).
+     `git remote set-url --push origin DISABLED` (nothing in the clone can
+     push to your repo), `npm ci`, `npm run orchestrator` (add `-- --port
+     5288` if 5299 is busy), open `http://127.0.0.1:5299/`. The intent and
+     worktree tables match `npm run queue` and `npm run sessions` run in
+     `C:/tmp/h52`, with "Waiting on you" first.
+  2. In the clone, commit `intents/99-throwaway/` on `main` (`type:
+     adjustment`, `status: accepted`, `intent_accepted: <today>`, an
+     `intent.md` asking for one line in `docs/throwaway.md`). Click Spawn and
+     confirm: the output shows under "Last action" and
+     `C:/tmp/heraklios-wt/99-throwaway` appears in Worktrees.
+  3. **Implementer as the agent (F5).** To force a prompt, set
+     `"defaultMode": "default"` in `~/.claude/settings.json` for the run (put
+     it back after). Click Implementer on §99 and confirm: messages stream in
+     a panel. In `~/.claude/projects/`, the newest `.jsonl` under the folder
+     named after `C:/tmp/heraklios-wt/99-throwaway` has assistant entries
+     with a `claude-sonnet…` `"model"` (the agent's, not your default). It
+     commits on its branch, appends to `## Progress` only, and doesn't push.
+  4. **`needs you` (F2, F14).** When a permission request appears: the §99
+     row shows `needs you`, sits first in "Waiting on you", next step "Answer
+     the waiting session". Click Deny: the transcript shows it denied and the
+     row leaves `needs you`. Click Stop: `stopped`, no `needs you`. Any `<b>`
+     in the output shows as literal text.
+  5. **The Auto confirm (F6, F13 as decided).** Click Auto on §99 and read
+     the confirm: it says the click is your `/auto 99` and authorises
+     `plan_approved` (and `auto_authorized`) for §99 only, plus what F13's
+     decision adds. Click Cancel: no session panel, `git log -1` unchanged.
+  6. **Gate button.** On `intents/98-draft/` (`status: draft`), click
+     "Record intent_accepted" and confirm: `intent_accepted: <today>` (bare
+     date), and `git log -1 --stat` shows `§98: intent_accepted recorded
+     (orchestrator)` under your name, that file only.
+  7. **Ship dry-run only.** "Ship…" on an in-review intent in the clone shows
+     only the dry-run report. Click Close, never "Ship for real".
+  8. **Host and Origin.** `curl -s -o /dev/null -w "%{http_code}\n" -H "Host:
+     evil.example" http://127.0.0.1:5299/api/state` gives `403`, and so does
+     `curl -s -o /dev/null -w "%{http_code}\n" -X POST -H "Origin:
+     http://evil.example" http://127.0.0.1:5299/api/ship/1`.
+  9. Ctrl+C the server, restore `defaultMode`, delete `C:/tmp/h52` and
+     `C:/tmp/heraklios-wt` (real `node_modules`, no junctions).
 
 ## Verified myself vs. taken on trust
 
-**Coordinator, re-run** (worktree at `7702eca`, clean before and after):
+**Coordinator, re-run** (worktree at `076cd29`):
 - `npm run verify`: exit 0, built, `21 problems (0 errors, 21 warnings)`,
-  60 test files, 1087 tests passed (matches).
-- `npm run check:intent`: PASS, 23 files, 3886 lines (matches).
-- `npm run e2e`: not run, no `src/scenes`, `src/ui`, `src/main.ts` or `e2e/`
-  change.
-- The four survivors, one at a time with the full suite, backed up and
-  restored by copy, each checked as applied with `git diff --quiet`:
-  M9 (`session-routes.mjs:9`, `/^s/`), M23 (`orchestrator-lib.mjs:61`
-  removed), M51 (`actions.mjs:54`, `[id]`), M52 (`actions.mjs:69`,
-  `[id] : [id]`): **1087 passed each, survived** (matches). `git status
-  --short` empty after each.
-- Line citations: several of the reviewer's (session-routes 105 and 132-148,
-  server 238-279, node-io 287 and 364, state 197, 213 and 257, orchestrator
-  407-410, sdk-sessions 68) pointed past their files' ends; corrected above
-  from the files at `7702eca`. The claims at those lines were confirmed by
-  reading.
+  61 files, 1094 tests (matches).
+- `npm run check:intent`: FAIL only on the owed live check, 24 files, 4087
+  lines (matches, pasted above).
+- Mutants one at a time with the full suite, backed up and restored by copy,
+  each checked as applied: K1, K2, K3, K4, M51, M52, F2a, F5a, F5f all
+  **killed, by the same tests the reviewer names** (matches). Tree clean
+  after each.
+- **M9 not re-run by the coordinator:** Claude Code stopped the background
+  run for low system memory while M9's suite was running. The mutated
+  `session-routes.mjs` was restored from its backup copy, and `git status
+  --short` was empty afterwards. M9's kill rests on the reviewer and the
+  implementer.
+- F13 and F14 citations re-read at `076cd29` (`app.js:98-100`,
+  `sdk-sessions.mjs:93-99`).
 
-**Reviewer agent** (same worktree and HEAD):
-- `git rev-parse HEAD`, branch and `git worktree list`; tree clean at the
-  start and after every step.
-- `npm run verify`, `check:intent` as above; `dist/` holds no
-  "orchestrator" or "claude-agent-sdk" string.
-- Test counts: the tools tests plus `session-lib`, 4 files, 126 tests;
-  `main` 57 test files, HEAD 60.
-- Pass 4: 55 mutants as tabled.
-- Race probe (scratch script outside the repo, real handler and session
-  manager, fake `query`): two concurrent launches gave 200/200 and two
-  sessions (F1).
-- Needs-you probe, same setup: manager `needs you`, intent `working` (F2).
-- Read-only HTTP probe on 127.0.0.1:5287 (runner allowing only `queue` and
-  `sessions --json`, fs refusing writes, no session manager, self-exit after
-  60 s, port free afterwards): `GET /` and `/api/state` 200 (27 intents, 3
-  worktrees); foreign Host, wrong and missing port 403; foreign Origin on GET
-  403; traversal variants 404; POST with no, foreign or `null` Origin 403;
-  malformed or array JSON 400; 70 KB body 413; real ship without a dry-run
-  409; bad id 400; `/api/sessions` with no manager 404; DELETE 405; CSP,
-  `nosniff` and `no-store` present.
-- SDK citations in the plan (`sdk.d.ts` lines 216, 228, 1562, 1625, 1634,
-  2031, 2315, 2570, 2928, 3321) hold in the installed 0.3.309; read the
-  `agent`, `permissionMode` and `permissionPrompts` docs. The lockfile pins
-  0.3.309.
-- `~/.claude/settings.json` permission keys read (not changed):
-  `defaultMode: auto` plus an allow list.
+**Reviewer agent** (same worktree and HEAD; tree empty at the start, after
+every mutant and at the end):
+- `git diff 7702eca..076cd29` in full, and every changed file at HEAD plus
+  the unchanged code the fixes depend on.
+- `npm run verify` and `check:intent` as above; pass 4 as tabled.
+- F14 probe (scratch script, real modules, fake `query`, runner allowing only
+  `queue`/`sessions --json`, fs refusing writes, no server or port).
+- SDK 0.3.309 `sdk.d.ts`: `agent` (`:1578-1596`, "the agent's system prompt,
+  tool restrictions, and model will be applied to the main conversation …
+  equivalent to the `--agent` CLI flag"), the settings `agent`
+  (`:9361-9364`), `settingSources` (`:2306-2315`, "When omitted, all sources
+  are loaded").
+- `.claude/agents/heraklios-implementer.md`: `tools: Read, Write, Edit,
+  Bash, Grep, Glob`, `model: sonnet`. The implementer's cwd is still the
+  worktree and its prompt still matches `/spawn` step 5
+  (`.claude/skills/spawn/SKILL.md:39-44`).
+- `.claude/skills/auto/SKILL.md:20-34`, `:52-99` read for F6 and F13.
+- Counts: 39/35/18 tests in round 1's three new test files and +1 in
+  `session-lib.test.mjs`; 57 test files on `main` (`418ca72`), 61 at HEAD;
+  `concurrency.test.mjs` has 5 tests, 5 + 1 + 1 = the 7 new (1087 → 1094).
 - `npm run sdlc:scan -- --sample-due auto --exclude 52`: nth attested auto
   change = 2, every 3, `sampled: no`.
-- Nothing touched `main` or was pushed: no remote §52 branch, `main` at
-  `418ca72` and an ancestor of the branch.
+- Nothing touched `main` or was pushed: `main` at `418ca72`, an ancestor of
+  HEAD; no remote §52 branch.
 
-**Taken on trust:** the implementer's port-5298 probe; `npm ci --dry-run`
-clean; the SDK's publish date; the CLI's runtime refusals (read, not run);
-the "57 / 995" base count (contradicted, F9).
+**Taken on trust:** the implementer's statement that its first forms of the
+launch and gate race tests survived (only the current forms were run); the
+994 base, by arithmetic.
 
 Scratch files, outside the repo:
-`C:/Users/eric/AppData/Local/Temp/claude/C--Users-eric-src-heraklios/d4d8f463-fc75-4c39-80e6-361cdb7ead3e/scratchpad/mut/`
+`C:/Users/eric/AppData/Local/Temp/claude/C--Users-eric-src-heraklios/d4d8f463-fc75-4c39-80e6-361cdb7ead3e/scratchpad/mut2/`
 (reviewer) and `…/scratchpad/coord52/` (coordinator).
 
-Mutants a rework is expected to kill: M51, M52, the removal of the new
-in-lock `running()` re-check (F1), and M9 if F11 is taken up.
+Mutant a rework is expected to kill: removing the new state reset in
+`park`'s abort listener (F14).
+
+# Round 1 (history)
+- verdict: rework
+- tier: reviewed
+- reviewed-commit: 7702eca
+- round: 1
+- sampled: no
+- run: auto
+- live-check: owed
+
+The full round-1 report is in git at `77eb301`.
+
+Resolutions (round 2, checked at `076cd29`):
+- **F1, race: fixed.** `running(id)` is re-checked inside the locks: launch
+  (`session-routes.mjs:54`), gate (`actions.mjs:73`), dry-run (`:44`), real
+  ship (`:57`). `concurrency.test.mjs` has a deterministic concurrent-launch
+  test and gate, dry-run and ship tests with a manager that flips to running.
+  K1-K5 killed.
+- **F2, needs you: fixed, with a residual (F14).** `loadState` overlays the
+  manager's `needs you` on `session` and `worktree.session`
+  (`state.mjs:29-32`, `:82-83`), over the hook log, only for its own intent.
+  F2a-F2e killed.
+- **F3, main lock untested: fixed.** M51, M51b and M52 killed.
+- **F4, owner: terminal parity kept.** README (`:700-704`) and CLAUDE.md
+  (`:145-147`) now say what your settings allow, or auto mode approves, runs
+  without a prompt. The plan's Risks wording is left (an amendment).
+- **F5, owner: fixed.** The implementer runs with `agent:
+  'heraklios-implementer'` (`orchestrator-lib.mjs:13`, `:174`), through the
+  route (`session-routes.mjs:55`) to `query()` (`sdk-sessions.mjs:166`);
+  reviewer and auto have none. F5a-F5g killed. The real SDK's handling is in
+  the live check.
+- **F6, owner: partly resolved.** The confirm (`app.js:98-100`) and docs
+  say the click is your `/auto <id>`, for that intent only; no agent
+  permission widened. The resume wording is open as F13, the missing "an
+  agent never presses it" as F15.
+- **F7, owner: left.** See F15.
+- **F8, owner: the live check runs in a disposable clone.** No code change.
+- **F9: fixed.** `plan.md:286` says 57 / 994.
+- **F10, owner: left.**
+- **F11: fixed for M9** (`server.test.mjs:458`, `sx` → 400). M23 stays
+  equivalent.
+- **F12: fixed.** `tools/orchestrator/` in CLAUDE.md "Architecture"; the
+  README notes the 2000-item transcript cap (`MAX_ITEMS`,
+  `sdk-sessions.mjs:16`).
