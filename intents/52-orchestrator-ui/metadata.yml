@@ -10,7 +10,7 @@ spec_accepted: 2026-10-23 by-agent    # owner: "yes to 52 spec but split out the
 plan_approved: 2026-10-23 by-agent    # auto: owner "/auto 52" (auto_authorized 2026-10-23)
 live_checked:
 merged:
-auto_authorized: 2026-10-24 by-agent    # owner: "F4 same as terminal, correct readme. f5 start implementer. f6 yes to auto button. f8 yes /auto 52"
+auto_authorized: 2026-10-24 by-agent    # owner: "F13 a, add F14 and F15 /auto 52"
 auto_round: 2
 auto_stopped: decision needed
 follows_up:
