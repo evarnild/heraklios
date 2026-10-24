@@ -3,7 +3,7 @@ import { landUnitsCentre } from '../ui/viewCentre';
 import { MapView, drawFacingArrowhead } from '../ui/MapView';
 import { PLAYER_COLORS_HEX } from '../ui/hexRender';
 import { messages } from '../ui/i18n';
-import { formatDriftEvent } from '../ui/i18n/format';
+import { dieModifierParts, formatDriftEvent } from '../ui/i18n/format';
 import type { BoardingReport, CombatReport, RamReport } from '../ui/i18n/reports';
 import { session, resetToMenu, seatControlFor } from '../ui/session';
 import { showConfirmDialog } from '../ui/confirmDialog';
@@ -27,7 +27,7 @@ import { formatRemainingClock } from '../engine/gameEndSettings';
 import { applyAction, legalActions, type Action } from '../engine/actions';
 import type { PlayerAgent, ActionObserver, DrivingAgent } from '../engine/agent';
 import { createSeatAgent, isAiSeat } from '../engine/seatControl';
-import { colorName, edgeName, phaseName, seatControlName, terrainName, unitName } from '../ui/i18n/names';
+import { colorName, edgeName, phaseName, seatControlName, unitName } from '../ui/i18n/names';
 import { routeBySeat } from '../engine/seatRouter';
 import { rollDie as engineRollDie } from '../engine/dice';
 import {
@@ -73,7 +73,6 @@ import { createLogPanel, type LogPanel } from '../ui/logPanel';
 import { LogHistory, logPanelBounds, type LogContext } from '../ui/logHistory';
 import type { HexCoord } from '../data/map';
 import { RATIO_COLUMNS } from '../data/combatTable';
-import { RIVER_CROSSING } from '../data/terrain';
 import {
   rammingSuccessRange,
   fullRammingSuccessRange,
@@ -2544,16 +2543,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // Name every contributor to the combined modifier, so a surprising die
     // result can be traced back to the exact terrain (and defender hex) or
     // river crossing that produced it, rather than just a bare number.
-    const modifierParts: string[] = [];
-    if (detail.terrainOnlyModifier !== 0 && detail.terrainModifierSource) {
-      const hex = detail.terrainModifierSourceHex;
-      modifierParts.push(
-        m.log.terrainModifier(detail.terrainOnlyModifier, terrainName(detail.terrainModifierSource), hex?.q ?? null, hex?.r ?? null),
-      );
-    }
-    if (detail.riverCrossingApplied) {
-      modifierParts.push(m.log.riverModifier(RIVER_CROSSING.combatModifier));
-    }
+    const modifierParts = dieModifierParts(detail, m);
     const clampedDie = Math.min(6, Math.max(1, detail.modifiedDieRoll));
     const report: CombatReport = {
       // Per-unit force comes from `detail.attackerForces`, NOT `currentAttack`:

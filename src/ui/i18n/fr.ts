@@ -241,6 +241,10 @@ export const fr: Messages = {
     terrainModifier: (value, terrain, q, r) =>
       `${value} ${terrain}${q === null || r === null ? '' : ` en (${q}, ${r})`}`,
     riverModifier: (value) => `${value} traversée de rivière`,
+    attackWithTargets: (attackers, attack, targets, defense, modifier, parts) =>
+      `Attaque : ${attackers} (${attack}) → ${targets} (${defense})${modifier !== 0 ? `, dé +${modifier} (${parts})` : ''}`,
+    attackChooseTarget: (attackers) => `Attaque : ${attackers}, choisissez une cible.`,
+    attackCleared: 'Attaque annulée.',
     combatReport: (r) =>
       [
         `ATTAQUANTS (total ${r.attackTotal}) :`,
@@ -302,6 +306,7 @@ export const fr: Messages = {
     savingFailed: 'Le serveur du jeu ne répond pas — rien n’a été sauvegardé.',
     loadingFailed: 'Le serveur du jeu ne répond pas — rien n’a été chargé.',
     deletingFailed: 'Le serveur du jeu ne répond pas — rien n’a été effacé.',
+    autosaved: 'Sauvegarde automatique effectuée.',
     autosaveFailed: 'Échec de la sauvegarde auto : le serveur du jeu ne répond pas.',
     copyBrowserSaves: 'Copier les sauvegardes du navigateur',
     copyStopped: (copied) =>
