@@ -432,3 +432,10 @@ sdk-sessions and the handler overlay test); F14 `!s.pending.size &&` removed
 confirm without "I have read the diff" (autoLaunch test); remove guard
 `flag && running(id)` replaced by `false` (server test, run twice). The page's
 disabled button is untested (not a pure function), left to the live check.
+
+### 2026-10-24 - review round 3 rework (commits ac88e16, a241be2, aa5a5a8)
+
+- **F16, fixed (ac88e16).** sdk-sessions test: launch, stop(), a late canUseTool request with an AbortSignal parks in the stopped session, abort it; the state stays `stopped` and `runningFor` is false. Mutant M23 (the `&& s.state === 'needs you'` removed from the abort listener) is killed by it.
+- **F17, fixed (a241be2).** CLAUDE.md and intents/README.md list `plan found the spec incomplete` among the stops answered in a coordinator terminal, and say `out of rounds` is refused too (continues by hand).
+- **LOW M15 (aa5a5a8).** The blank-stop autoLaunch test now asserts the `It starts a run` tail for '  ', so removing the `.trim()` is killed (kept the trim). The SKILL.md-extraction test was skipped: the stop strings wrap across lines, so extraction is fragile.
+- Counts: 61 files, 1109 tests (1108 + 1 sdk-sessions); lint 21 of 21, cap unchanged. check:intent: only the owed live check. Mutants M23 and M15, one at a time, full vitest, restored by copy, tree clean: both killed. No divergence from the plan.
