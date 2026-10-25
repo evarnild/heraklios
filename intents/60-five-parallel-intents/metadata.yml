@@ -2,10 +2,10 @@
 id: 60
 slug: five-parallel-intents
 type: adjustment
-status: draft
+status: accepted
 title: Up to five intents in parallel, not three
 review_tier:
-intent_accepted:
+intent_accepted: 2026-10-25 by-agent    # owner: "accept 60 /auto 60"
 spec_accepted:
 plan_approved:
 live_checked:
