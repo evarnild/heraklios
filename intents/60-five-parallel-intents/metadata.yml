@@ -1,0 +1,19 @@
+# generated-by: heraklios/intent@0.1.5
+id: 60
+slug: five-parallel-intents
+type: adjustment
+status: draft
+title: Up to five intents in parallel, not three
+review_tier:
+intent_accepted:
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+auto_authorized:
+auto_round:
+auto_stopped:
+follows_up:
+links:
+  - intents/27-parallel-sessions
+  - intents/50-sdlc-auto-mode
