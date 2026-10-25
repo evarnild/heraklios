@@ -69,7 +69,7 @@ const SAME_IN_BOTH = new Set([
   'menu.hours',
   'board.seat',
   'board.seatWithControl',
-  'rules.button',
+  'board.tables',
   'rules.terrainHeaders.terrain',
   'rules.modifierFlat',
   'rules.nobody',

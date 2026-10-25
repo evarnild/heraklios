@@ -153,6 +153,7 @@ export const en = {
     endPhase: 'End phase',
     resolveAttack: 'Resolve attack',
     ram: 'Ram!',
+    tables: '📖 Tables',
     saveLoad: '💾 Save / Load',
     abandonGame: '✕ Abandon game',
     endGame: '⚑ End game',
@@ -186,7 +187,6 @@ export const en = {
 
   /** The board's Tables panel (§55): the print tables, the codes as printed. */
   rules: {
-    button: '📖 Tables',
     close: 'Close',
     tabs: { terrain: 'Terrain effects', land: 'Land combat', ramming: 'Ramming', boarding: 'Boarding' },
     terrainHeaders: { terrain: 'Terrain', moveCost: 'Move cost', modifier: 'Die modifier', forbidden: 'Closed to' },
@@ -194,7 +194,7 @@ export const en = {
     modifierFlat: (n: number) => (n === 0 ? '0' : `+${n}`),
     nobody: '—',
     categories: { chariot: 'chariots', cavalry: 'cavalry', elephant: 'elephants', land: 'land units', naval: 'ships' } as Record<string, string>,
-    riverCrossing: 'River crossing (a hexside, between two hexes)',
+    riverCrossing: 'River crossing (a hexside)',
     riverCrossingCost: (n: number) => `+${n} to cross`,
     terrainNote: "The die modifier is added to the attacker's roll, from the defender's hex.",
     ratioHeader: 'Attack : defense',

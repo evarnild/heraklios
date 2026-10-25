@@ -139,6 +139,7 @@ export const fr: Messages = {
     endPhase: 'Fin de phase',
     resolveAttack: 'Résoudre l’attaque',
     ram: 'Éperonner !',
+    tables: '📖 Tables',
     saveLoad: '💾 Sauver / Charger',
     abandonGame: '✕ Abandonner',
     endGame: '⚑ Finir la partie',
@@ -171,7 +172,6 @@ export const fr: Messages = {
 
   /** Le panneau Tables du plateau (§55) : les tables imprimées, codes comme imprimés. */
   rules: {
-    button: '📖 Tables',
     close: 'Fermer',
     tabs: { terrain: 'Effets du terrain', land: 'Combat terrestre', ramming: 'Éperonnage', boarding: 'Abordage' },
     terrainHeaders: { terrain: 'Terrain', moveCost: 'Coût de mouvement', modifier: 'Modificateur du dé', forbidden: 'Interdit à' },
@@ -179,7 +179,7 @@ export const fr: Messages = {
     modifierFlat: (n: number) => (n === 0 ? '0' : `+${n}`),
     nobody: '—',
     categories: { chariot: 'chars', cavalry: 'cavalerie', elephant: 'éléphants', land: 'unités terrestres', naval: 'navires' } as Record<string, string>,
-    riverCrossing: "Traversée de rivière (un côté d'hexagone, entre deux hexagones)",
+    riverCrossing: "Traversée de rivière (côté d'hexagone)",
     riverCrossingCost: (n: number) => `+${n} pour traverser`,
     terrainNote: "Le modificateur s'ajoute au dé de l'attaquant, d'après l'hexagone du défenseur.",
     ratioHeader: 'Attaque : défense',
