@@ -6,13 +6,13 @@ status: accepted
 title: A Tables panel on the board shows the terrain table and the three combat tables
 review_tier:
 intent_accepted: 2026-10-24
-spec_accepted:
+spec_accepted: 2026-10-25 by-agent    # owner: "yes to 55 spec"
 plan_approved:
 live_checked:
 merged:
 auto_authorized: 2026-10-25 by-agent    # owner: "/auto 55"
 auto_round:
-auto_stopped: spec drafted, waiting for spec_accepted
+auto_stopped:
 follows_up:
 links:
   - intents/53-log-autosave-and-attack-selection
