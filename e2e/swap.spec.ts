@@ -64,6 +64,14 @@ test('an adjacent friend is highlighted, a click swaps, Undo restores (swaps on 
   expect((await unit(page, b.id)).position).toEqual(a.position);
   expect((await unit(page, a.id)).movementLeft).toBe(a.movementLeft - 1);
 
+  // The selection cleared: a click on an empty hex `a` could reach moves nobody.
+  const reach = await page.evaluate((id) => window.__heraklios.reachable(id), a.id);
+  const [q, r] = reach[0]!.split(',').map(Number);
+  await clickHex(page, { q: q!, r: r! });
+  await waitIdle(page);
+  expect((await unit(page, a.id)).position).toEqual(b.position);
+  expect((await unit(page, b.id)).position).toEqual(a.position);
+
   const entries = await page.evaluate(() => window.__heraklios.logEntries());
   const line = entries.map((e) => e.text).find((t) => t.endsWith(' swap places.'));
   expect(line, 'the log says they swap').toBeTruthy();
@@ -90,5 +98,13 @@ test('with Unit swaps off, clicking the friend selects it instead', async ({ pag
   expect((await unit(page, a.id)).position).toEqual(a.position);
   expect((await unit(page, b.id)).position).toEqual(b.position);
   expect((await page.evaluate(() => window.__heraklios.logEntries())).some((e) => e.text.endsWith(' swap places.'))).toBe(false);
+
+  // The click on the friend selected it: a click on an empty hex it can reach moves IT (not `a`).
+  const reach = await page.evaluate((id) => window.__heraklios.reachable(id), b.id);
+  const [q, r] = reach[0]!.split(',').map(Number);
+  await clickHex(page, { q: q!, r: r! });
+  await waitIdle(page);
+  expect((await unit(page, b.id)).position).toEqual({ q, r });
+  expect((await unit(page, a.id)).position).toEqual(a.position);
   expect(errors).toEqual([]);
 });
