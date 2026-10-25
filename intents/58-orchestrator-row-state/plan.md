@@ -109,3 +109,36 @@ Re-read on `main` at `9b7c4d1`.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-10-25 — subtasks 1-3 (implementer)
+
+Commits: `95f8d60` (row overlay + status on accept, with tests), `a426b78`
+(docs: README.md, intents/README.md, CLAUDE.md). Divergence: subtasks 1 and 2
+went in one code commit, not two (their tests share two files); verify ran
+green on the combined tree before it.
+
+Failing-first, run on the unchanged code:
+- `server.test.mjs` "shows a running manager session over the hook log, and
+  only live states count": `expected [ 'not started', 'not started' ] to
+  deeply equal [ 'running', 'running' ]`.
+- `server.test.mjs` "writes on main ... for an intent without a branch"
+  (now expecting `status: accepted`): the written file still had `status: draft`.
+- `orchestrator-lib.test.mjs` "sets status: accepted with intent_accepted on
+  a draft, and only then": `expected false to be true`.
+
+Shipped: `state.mjs` `liveSession` (replaces `waitingSession`): `needs you`
+if a live session of that intent waits, else `running`, else the hook log;
+`stopped`/`done`/`error` and other intents' sessions never count.
+`gateWrite` also sets `status: accepted` for `intent_accepted` when the
+status line is `draft`; same `setKeys` call, so one file, one commit.
+
+Tests changed: `server.test.mjs` gate route (was `status: 'draft'`, asserted
+the old behaviour) now `'accepted'`; the §52 overlay test expected intent 52
+`working` while the manager listed it `running`, now `running` (new rule);
+its `needs you` assertions unchanged. Added: dead-state, precedence and
+other-intent cases, and four `gateWrite` cases (draft, other gate, in-review,
+already accepted).
+
+Counts: `npm run verify` green: 61 files, 1155 tests; lint 21 warnings (cap
+21, unchanged). No e2e (no src/ or e2e/ change). Live check still owed per
+the plan; §57's own `status: draft` not touched.
