@@ -30,6 +30,15 @@ export const MIN_SUPPORTED_SAVE_VERSION = 1;
 // with. No migration and no stricter validation is needed for a field whose
 // absence is indistinguishable, in behaviour, from its default.
 //
+// `GameState.allowSwaps` (§54, the adjacent-swap house rule) also did NOT bump
+// `SAVE_VERSION`, but its absence means ON, not off: the owner chose swaps on
+// by default and on for every save that predates the field. So
+// `migrateSavedGame` fills an absent value with `true` (the one place allowed
+// to invent a missing value) and the engine reads `state.allowSwaps` plainly;
+// `isValidSavedGame` then insists on a boolean. An older build opening a newer
+// save simply has no swaps (it never knew them), and every position a swap
+// produced is a legal position, so nothing half-reads into a wrong game.
+//
 // `Unit.charged` (added for cavalry charges) follows the same reasoning: it's
 // read only via `if (unit.charged)` (see `currentAttack`), so the ONLY save
 // files affected by its absence are ones written by a pre-feature build of
@@ -196,6 +205,7 @@ export function isValidSavedGame(data: unknown): data is SavedGame {
   if (state.roundLimit !== null && typeof state.roundLimit !== 'number') return false;
   if (typeof state.paused !== 'boolean') return false;
   if (typeof state.pendingGameEnd !== 'boolean') return false;
+  if (typeof state.allowSwaps !== 'boolean') return false;
 
   for (const unit of state.units) {
     if (typeof unit !== 'object' || unit === null) return false;
@@ -208,6 +218,12 @@ export function isValidSavedGame(data: unknown): data is SavedGame {
   }
 
   return true;
+}
+
+function fillAllowSwaps(gameState: unknown): void {
+  if (typeof gameState !== 'object' || gameState === null) return;
+  const state = gameState as Record<string, unknown>;
+  if (state.allowSwaps === undefined) state.allowSwaps = true;
 }
 
 /**
@@ -225,6 +241,8 @@ export function migrateSavedGame(data: unknown): { migrated: unknown } | { error
   const save = data as Partial<SavedGame> & Record<string, unknown>;
   const version = save.version;
   if (typeof version !== 'number') return { migrated: data };
+  // §54: an absent `allowSwaps` means ON, at any supported version.
+  fillAllowSwaps(save.gameState);
   if (version === SAVE_VERSION) return { migrated: data };
   if (version < MIN_SUPPORTED_SAVE_VERSION || version > SAVE_VERSION) {
     return { error: { kind: 'unsupportedVersion', version, expected: SAVE_VERSION } };

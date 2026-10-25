@@ -99,6 +99,7 @@ export class PlacementScene extends Phaser.Scene {
         session.randomizedTurnOrder,
         session.clockLimitMs,
         session.roundLimit,
+        session.allowSwaps,
       );
     }
     // An AI seat deploys itself (ui/aiSetup.ts) — same legal hexes, same

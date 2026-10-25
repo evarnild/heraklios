@@ -200,6 +200,9 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
 
   chooseNextAction(state: GameState, legal: Action[]): Action {
     if (legal.length === 0) throw new Error('HeuristicAgent: asked to choose from an empty action list');
+    // §54: this agent never plans a unit swap (a later intent may teach it),
+    // so it never sees one — including at the 'random' difficulty.
+    legal = legal.filter((a) => a.kind !== 'landSwap');
     if (this.difficulty === 'random') return this.random.chooseNextAction(state, legal);
     return state.phase === 'combat' ? this.chooseCombatAction(state, legal) : this.chooseMovementAction(state, legal);
   }

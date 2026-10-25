@@ -456,3 +456,76 @@ describe('applyAction — action identity is by id, not by object reference', ()
     expect(() => applyAction(state, action)).not.toThrow();
   });
 });
+
+// §54 — landSwap. (10,3)-(13,3) are plain; ids are chosen so the lower id is
+// not always the one placed first, to prove the "lower id as unitId" order.
+describe('landSwap', () => {
+  const inf = (id: string, q: number, r: number, over: Partial<Unit> = {}): Unit =>
+    makeUnit({ id, typeId: 'fantassins', position: { q, r }, movementLeft: 3, ...over });
+
+  it('lists each legal pair once, lower id as unitId, after the unit\'s landMoves', () => {
+    const a = inf('b', 10, 3);
+    const b = inf('a', 11, 3);
+    const state = makeState([a, b]);
+    const swaps = legalActions(state, {}).filter((x) => x.kind === 'landSwap');
+    expect(swaps).toEqual([{ kind: 'landSwap', unitId: 'a', otherId: 'b' }]);
+    const all = legalActions(state, {});
+    const swapIndex = all.findIndex((x) => x.kind === 'landSwap');
+    const lastMoveOfA = all.map((x) => x.kind === 'landMove' && x.unitId === 'a').lastIndexOf(true);
+    expect(swapIndex).toBeGreaterThan(lastMoveOfA);
+  });
+
+  it('lists none with the option off', () => {
+    const state = makeState([inf('a', 10, 3), inf('b', 11, 3)]);
+    state.allowSwaps = false;
+    expect(legalActions(state, {}).some((x) => x.kind === 'landSwap')).toBe(false);
+  });
+
+  it('lists no swap with a unit that is not adjacent, an enemy, or a ship', () => {
+    const state = makeState([
+      inf('a', 10, 3),
+      inf('far', 13, 3),
+      inf('foe', 11, 3, { owner: 1 }),
+      makeUnit({ id: 'ship', typeId: 'biremes', position: SEA_CENTER, movementLeft: 3 }),
+    ]);
+    expect(legalActions(state, {}).some((x) => x.kind === 'landSwap')).toBe(false);
+  });
+
+  it('applyAction swaps positions, deducts each unit\'s own cost, and clears charged', () => {
+    const a = inf('a', 0, 23, { charged: true });
+    const b = inf('b', 0, 24, { charged: true }); // steep-flank: cost 3 to enter
+    const state = makeState([a, b]);
+    const result = applyAction(state, { kind: 'landSwap', unitId: 'a', otherId: 'b' });
+    expect(result.kind).toBe('landSwap');
+    expect(a.position).toEqual({ q: 0, r: 24 });
+    expect(b.position).toEqual({ q: 0, r: 23 });
+    expect(a.movementLeft).toBe(0); // 3 - 3
+    expect(b.movementLeft).toBe(2); // 3 - 1
+    expect(a.charged).toBe(false);
+    expect(b.charged).toBe(false);
+  });
+
+  it('a swap into an enemy ZOC just moves the unit and spends its cost, like a move', () => {
+    const a = inf('a', 10, 3);
+    const b = inf('b', 11, 3);
+    const foe = inf('e', 12, 2, { owner: 1 }); // adjacent to (11,3) only
+    const state = makeState([a, b, foe]);
+    applyAction(state, { kind: 'landSwap', unitId: 'a', otherId: 'b' });
+    expect(a.position).toEqual({ q: 11, r: 3 });
+    expect(a.movementLeft).toBe(2);
+    expect(b.movementLeft).toBe(2);
+  });
+
+  it('throws on an illegal pair and changes nothing', () => {
+    const a = inf('a', 10, 3);
+    const far = inf('f', 13, 3);
+    const tired = inf('t', 11, 3, { movementLeft: 0 });
+    const state = makeState([a, far, tired]);
+    expect(() => applyAction(state, { kind: 'landSwap', unitId: 'a', otherId: 'f' })).toThrow();
+    expect(() => applyAction(state, { kind: 'landSwap', unitId: 'a', otherId: 't' })).toThrow();
+    expect(a.position).toEqual({ q: 10, r: 3 });
+    expect(a.movementLeft).toBe(3);
+    state.allowSwaps = false;
+    expect(() => applyAction(state, { kind: 'landSwap', unitId: 'a', otherId: 't' })).toThrow();
+  });
+});

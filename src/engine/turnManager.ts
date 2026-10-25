@@ -9,6 +9,8 @@ export function createInitialState(
   clockLimitMs: number | null = null,
   /** Mode B: `null` (the default) means no round limit. */
   roundLimit: number | null = null,
+  /** §54: adjacent friendly land units may swap places. On by default. */
+  allowSwaps = true,
 ): GameState {
   return {
     players,
@@ -19,6 +21,7 @@ export function createInitialState(
     phase: 'movement',
     combatMode,
     randomizedTurnOrder,
+    allowSwaps,
     gameOver: false,
     winnerIds: [],
     clockLimitMs,

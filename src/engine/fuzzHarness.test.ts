@@ -1021,3 +1021,26 @@ describe('fuzz harness: elephant-scenario soak (plan.md §6.7 Stage 2c)', () => 
     ).toBeGreaterThan(1);
   });
 });
+
+describe('fuzz harness: unit swaps (§54)', () => {
+  it('plays at least one landSwap over the default (swaps on) seeds, with every invariant holding', async () => {
+    let swaps = 0;
+    for (let seed = 0; seed < 20; seed++) {
+      const stats = await playRandomGame(seed);
+      swaps += stats.actionsByKind.landSwap ?? 0;
+    }
+    expect(swaps).toBeGreaterThan(0);
+  });
+
+  it('plays no landSwap with the option off', async () => {
+    const buildInitialState = (): GameState => {
+      const state = buildFuzzGameState();
+      state.allowSwaps = false;
+      return state;
+    };
+    for (let seed = 0; seed < 10; seed++) {
+      const stats = await playRandomGame(seed, { buildInitialState });
+      expect(stats.actionsByKind.landSwap ?? 0).toBe(0);
+    }
+  });
+});

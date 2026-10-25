@@ -27,6 +27,12 @@ export interface SessionState {
    */
   randomizedTurnOrder: boolean;
   /**
+   * §54 house rule, chosen on the Menu and carried into `createInitialState`:
+   * adjacent friendly land units may swap places. ON by default (and on for
+   * a loaded save that predates it).
+   */
+  allowSwaps: boolean;
+  /**
    * Mode A of plan.md §9.2.1's endgame options, chosen on the Menu screen
    * before starting a game and carried into `createInitialState`: the whole
    * game's wall-clock budget in milliseconds, or `null` for no clock limit.
@@ -77,6 +83,7 @@ export const session: SessionState = {
   armySelections: [],
   combatMode: 'multi-defender',
   randomizedTurnOrder: false,
+  allowSwaps: true,
   clockLimitMs: null,
   roundLimit: null,
   seatControls: Array.from({ length: MAX_PLAYERS }, (): SeatControl => 'human'),

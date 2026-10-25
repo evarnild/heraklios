@@ -87,6 +87,7 @@ export const en = {
     turnOrder: 'Turn order',
     turnOrderRandom: 'Re-randomized each turn',
     turnOrderFixed: 'Fixed (initial draw)',
+    swaps: (on: boolean) => `Unit swaps: ${on ? 'on' : 'off'}`,
     gameLengthLimit: 'Game length limit (optional)',
     clock: (value: string) => `Clock: ${value}`,
     rounds: (value: string) => `Rounds: ${value}`,
@@ -186,6 +187,7 @@ export const en = {
   /** Undo/redo labels: made in the language of the moment and kept in the history as text. */
   actions: {
     move: (unit: string) => `Move ${unit}`,
+    swap: (a: string, b: string) => `Swap ${a} and ${b}`,
     moveIntoContact: (unit: string) => `Move ${unit} into contact`,
     turn: (unit: string) => `Turn ${unit}`,
     ram: (unit: string) => `Ram ${unit}`,
@@ -223,6 +225,8 @@ export const en = {
     nothingToRedo: 'Nothing to redo.',
     redone: (label: string) => `Redone: ${label}`,
     charges: (unit: string) => `${unit} charges!`,
+    swap: (a: string, b: string) => `${a} and ${b} swap places.`,
+    computerSwaps: (seat: string, a: string, b: string) => `${seat}: ${a} and ${b} swap places.`,
     noMovementToRotate: 'No movement left to rotate.',
     alreadyAttacked: (unit: string) => `${unit} has already attacked this phase.`,
     alreadyRammed: (unit: string) => `${unit} already rammed this turn and can't also board.`,

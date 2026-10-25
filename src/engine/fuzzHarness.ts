@@ -1,7 +1,7 @@
 import type { HexCoord } from '../data/map';
 import { MAP_TERRAIN, hexKey as mapHexKey } from '../data/map';
 import { canEnterTerrain } from '../data/terrain';
-import { DIRECTIONS, hexAdd } from './hex';
+import { DIRECTIONS, hexAdd, hexEquals } from './hex';
 import { getUnitType } from '../data/units';
 import type { CombatResult } from '../data/combatTable';
 import { legalActions, applyAction, type Action } from './actions';
@@ -620,6 +620,9 @@ function assertNoActionTargetsADeadUnit(state: GameState, legal: Action[]): void
       case 'board':
         ids.push(action.attackerId, action.defenderId);
         break;
+      case 'landSwap':
+        ids.push(action.unitId, action.otherId);
+        break;
     }
     for (const id of ids) {
       const unit = state.units.find((u) => u.id === id);
@@ -926,6 +929,8 @@ function formatAction(action: Action): string {
   switch (action.kind) {
     case 'endPhase':
       return 'endPhase';
+    case 'landSwap':
+      return `landSwap:${action.unitId}<->${action.otherId}`;
     case 'landMove':
       return `landMove:${action.unitId}->(${action.to.q},${action.to.r})`;
     case 'navalMove':
@@ -1242,6 +1247,16 @@ async function applyOneAction(
       return;
     }
 
+    case 'landSwap': {
+      const before = [requireUnit(state, action.unitId).position, requireUnit(state, action.otherId).position];
+      applyAction(state, action, rng);
+      const after = [requireUnit(state, action.unitId).position, requireUnit(state, action.otherId).position];
+      if (!hexEquals(after[0]!, before[1]!) || !hexEquals(after[1]!, before[0]!)) {
+        throw new Error(`Invariant violated: landSwap ${action.unitId}<->${action.otherId} did not exchange the units' positions`);
+      }
+      return;
+    }
+
     case 'landMove':
     case 'navalMove':
     case 'navalRotate': {
@@ -1325,6 +1340,11 @@ async function applyOneAction(
         }
       }
       return;
+    }
+
+    default: {
+      const unhandled: never = action;
+      throw new Error(`applyOneAction: unhandled action kind ${(unhandled as Action).kind}`);
     }
   }
 }

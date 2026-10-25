@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { unitCategory, evaluateCharge, reachableHexes } from './movement';
+import { unitCategory, evaluateCharge, reachableHexes, swapStep } from './movement';
 import { createInitialState } from './turnManager';
 import { UNIT_TYPES } from '../data/units';
 import type { GameState, Unit } from './state';
@@ -291,5 +291,112 @@ describe('reachableHexes — moving through friendly units (plan.md §8)', () =>
     const controlFriendly = makeCavalry({ typeId: 'fantassins', owner: 0, position: { q: 12, r: 3 } });
     const control = reachableHexes(makeState([controlMover, controlFriendly]), controlMover);
     expect(control.get('13,3')).toBe(3);
+  });
+});
+
+// §54 — swapStep. Geometry confirmed against the shipped map: (10,3)-(11,3) are
+// adjacent plains; (1,20)|(2,20) are plains split by a river hexside; (0,23) is
+// plain and (0,24) is 'steep-flank' (cost 3, forbidden to cavalry/chariots);
+// (20,3)-(20,4) are adjacent 'river-wide' hexes (cost 3).
+describe('swapStep', () => {
+  const inf = (id: string, q: number, r: number, over: Partial<Unit> = {}): Unit =>
+    makeCavalry({ id, typeId: 'fantassins', position: { q, r }, movementLeft: 3, ...over });
+
+  it('costs 1 each for an open-ground pair, equal to the cost reachableHexes gives once the hex is empty', () => {
+    const a = inf('a', 10, 3);
+    const b = inf('b', 11, 3);
+    const state = makeState([a, b]);
+    expect(swapStep(state, a, b)).toEqual({ costA: 1, costB: 1 });
+    const alone = makeState([a]);
+    expect(reachableHexes(alone, a).get('11,3')).toBe(1);
+  });
+
+  it('adds the river extra for both units across a river hexside', () => {
+    const a = inf('a', 1, 20);
+    const b = inf('b', 2, 20);
+    const state = makeState([a, b]);
+    expect(swapStep(state, a, b)).toEqual({ costA: 2, costB: 2 });
+    expect(reachableHexes(makeState([a]), a).get('2,20')).toBe(2);
+  });
+
+  it('charges each unit its own destination terrain cost', () => {
+    const a = inf('a', 0, 23);
+    const b = inf('b', 0, 24);
+    expect(swapStep(makeState([a, b]), a, b)).toEqual({ costA: 3, costB: 1 });
+  });
+
+  it('is null when either unit may not enter the other hex', () => {
+    const cav = makeCavalry({ id: 'c', typeId: 'cavalerie-legere', position: { q: 0, r: 23 }, movementLeft: 6 });
+    const b = inf('b', 0, 24);
+    expect(swapStep(makeState([cav, b]), cav, b)).toBeNull();
+    expect(swapStep(makeState([cav, b]), b, cav)).toBeNull();
+  });
+
+  it('needs exactly enough movement for each step, no less', () => {
+    const a = inf('a', 0, 23, { movementLeft: 3 });
+    const b = inf('b', 0, 24);
+    expect(swapStep(makeState([a, b]), a, b)).toEqual({ costA: 3, costB: 1 });
+    a.movementLeft = 2;
+    expect(swapStep(makeState([a, b]), a, b)).toBeNull();
+    a.movementLeft = 3;
+    b.movementLeft = 0;
+    expect(swapStep(makeState([a, b]), a, b)).toBeNull();
+  });
+
+  it('is null when a unit starts in an enemy ZOC and the other hex is in the same enemy ZOC', () => {
+    const a = inf('a', 10, 3);
+    const b = inf('b', 11, 3);
+    const enemy = inf('e', 11, 2, { owner: 1 });
+    const state = makeState([a, b, enemy]);
+    expect(swapStep(state, a, b)).toBeNull();
+  });
+
+  it('allows a swap that steps out of an enemy ZOC', () => {
+    const a = inf('a', 10, 3);
+    const b = inf('b', 11, 3);
+    const enemy = inf('e', 9, 3, { owner: 1 }); // adjacent to (10,3) only
+    expect(swapStep(makeState([a, b, enemy]), a, b)).toEqual({ costA: 1, costB: 1 });
+  });
+
+  it('is null for non-adjacent, enemy, naval, destroyed or identical units', () => {
+    const a = inf('a', 10, 3);
+    const far = inf('f', 12, 3);
+    const foe = inf('x', 11, 3, { owner: 1 });
+    const ship = makeCavalry({ id: 's', typeId: 'galeres', position: { q: 11, r: 3 }, movementLeft: 6 });
+    const dead = inf('d', 11, 3, { destroyed: true });
+    const state = makeState([a, far, foe, ship, dead]);
+    expect(swapStep(state, a, far)).toBeNull();
+    expect(swapStep(state, a, foe)).toBeNull();
+    expect(swapStep(state, a, ship)).toBeNull();
+    expect(swapStep(state, a, dead)).toBeNull();
+    expect(swapStep(state, a, a)).toBeNull();
+  });
+
+  it('is null when a galley and a land unit stand on adjacent wide-river hexes both can enter (either one the galley)', () => {
+    const galley = makeCavalry({ id: 'g', typeId: 'galeres', position: { q: 20, r: 4 }, movementLeft: 6 });
+    const walker = inf('w', 20, 3);
+    const state = makeState([galley, walker]);
+    expect(swapStep(state, galley, walker)).toBeNull();
+    expect(swapStep(state, walker, galley)).toBeNull();
+  });
+
+  it('is null at distance 2 even with no enemy about (the distance check alone)', () => {
+    const a = inf('a', 10, 3);
+    const far = inf('f', 12, 3);
+    expect(swapStep(makeState([a, far]), a, far)).toBeNull();
+  });
+
+  it('is null when the FIRST unit is destroyed', () => {
+    const a = inf('a', 10, 3);
+    const dead = inf('d', 11, 3, { destroyed: true });
+    expect(swapStep(makeState([a, dead]), dead, a)).toBeNull();
+  });
+
+  it('is null with the option off', () => {
+    const a = inf('a', 10, 3);
+    const b = inf('b', 11, 3);
+    const state = makeState([a, b]);
+    state.allowSwaps = false;
+    expect(swapStep(state, a, b)).toBeNull();
   });
 });

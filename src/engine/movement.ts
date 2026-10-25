@@ -145,6 +145,59 @@ export function reachableHexes(state: GameState, unit: Unit): Map<string, number
   return costSoFar;
 }
 
+/**
+ * §54 — can two adjacent friendly land units swap places, and at what cost?
+ * Returns each unit's step cost, or null when the swap is not allowed.
+ *
+ * DIGITAL-ONLY HOUSE RULE. The print rule (`docs/research/05-rules-french-
+ * original.md:124-126`): "Une unité ne peut en aucun cas se placer sur une
+ * case déjà occupée par une quelconque autre unité. Par contre, au cours d'un
+ * mouvement, une unité peut traverser une case où se trouve une unité de la
+ * même armée." — it has no swap. Interpretation (owner, spec
+ * §54): each unit makes a normal one-hex move into the other's hex, judged
+ * as if that hex were empty (each really does end there), with the same
+ * rules `reachableHexes` applies to a one-hex step: terrain category, the
+ * destination's terrain cost plus the river extra, the unit's own
+ * `movementLeft`, and the start-in-ZOC rule (a unit starting in an enemy ZOC
+ * may not step into another hex of the same enemy unit's ZOC). Leaving a ZOC
+ * is fine; entering one is allowed and, as after any move, ends that unit's
+ * useful movement only through the usual rules. A swap is never a charge
+ * (not a straight full-movement run), so callers clear `charged`.
+ */
+export function swapStep(
+  state: GameState,
+  a: Unit,
+  b: Unit,
+): { costA: number; costB: number } | null {
+  if (!state.allowSwaps) return null;
+  if (a.id === b.id || a.destroyed || b.destroyed) return null;
+  if (a.owner !== b.owner) return null;
+  if (unitCategory(a.typeId) === 'naval' || unitCategory(b.typeId) === 'naval') return null;
+  if (hexDistance(a.position, b.position) !== 1) return null;
+  const costA = singleStepCost(state, a, b.position);
+  if (costA === null) return null;
+  const costB = singleStepCost(state, b, a.position);
+  if (costB === null) return null;
+  return { costA, costB };
+}
+
+/** Cost of `unit` stepping one hex to adjacent `to` as if empty, or null. */
+function singleStepCost(state: GameState, unit: Unit, to: HexCoord): number | null {
+  const terrain = MAP_TERRAIN.get(mapHexKey(to.q, to.r));
+  if (terrain === undefined) return null;
+  if (!canEnterTerrain(terrain, unitCategory(unit.typeId), unit.typeId === 'galeres')) return null;
+  const startProjectors = enemyZocProjectorsForHex(state, unit.owner, unit.position);
+  if (
+    startProjectors.size > 0 &&
+    sharesAnyProjector(startProjectors, enemyZocProjectorsForHex(state, unit.owner, to))
+  ) {
+    return null;
+  }
+  let cost = TERRAIN_EFFECTS[terrain].moveCost;
+  if (riverBetween(unit.position, to)) cost += RIVER_CROSSING.extraMoveCost;
+  return cost > unit.movementLeft ? null : cost;
+}
+
 export function terrainMoveCost(hex: HexCoord): number {
   return TERRAIN_EFFECTS[terrainAt(hex)].moveCost;
 }

@@ -400,3 +400,59 @@ describe('formatSavedAt', () => {
     expect(formatSavedAt('whenever')).toBe('whenever');
   });
 });
+
+describe('allowSwaps (§54)', () => {
+  it('a new game has swaps on', () => {
+    expect(sampleSave().gameState.allowSwaps).toBe(true);
+  });
+
+  it('round-trips true', () => {
+    const save = sampleSave();
+    save.gameState.allowSwaps = true;
+    const result = parseSavedGame(JSON.stringify(save));
+    if (!('save' in result)) throw new Error('expected a valid save');
+    expect(result.save.gameState.allowSwaps).toBe(true);
+  });
+
+  it('round-trips false and stays off', () => {
+    const save = sampleSave();
+    save.gameState.allowSwaps = false;
+    const result = parseSavedGame(JSON.stringify(save));
+    if (!('save' in result)) throw new Error('expected a valid save');
+    expect(result.save.gameState.allowSwaps).toBe(false);
+  });
+
+  it('loads a pre-§54 save (field absent) with swaps ON', () => {
+    const save = sampleSave() as unknown as Record<string, unknown>;
+    delete (save.gameState as Record<string, unknown>).allowSwaps;
+    const result = parseSavedGame(JSON.stringify(save));
+    if (!('save' in result)) throw new Error('expected a valid save');
+    expect(result.save.gameState.allowSwaps).toBe(true);
+  });
+
+  it('loads a version-2 save with no allowSwaps with swaps ON', () => {
+    const save = sampleSave() as unknown as Record<string, unknown>;
+    const gameState = save.gameState as Record<string, unknown>;
+    delete gameState.allowSwaps;
+    delete gameState.winnerIds;
+    gameState.winnerId = null;
+    delete gameState.clockLimitMs;
+    delete gameState.elapsedMs;
+    delete gameState.roundLimit;
+    delete gameState.paused;
+    delete gameState.pendingGameEnd;
+    save.version = 2;
+    const result = parseSavedGame(JSON.stringify(save));
+    if (!('save' in result)) throw new Error(`expected a valid save, got ${JSON.stringify(result)}`);
+    expect(result.save.gameState.allowSwaps).toBe(true);
+  });
+
+  it('refuses a non-boolean value', () => {
+    for (const bad of ['yes', 1, null]) {
+      const save = sampleSave() as unknown as Record<string, unknown>;
+      (save.gameState as Record<string, unknown>).allowSwaps = bad;
+      const result = parseSavedGame(JSON.stringify(save));
+      expect('error' in result).toBe(true);
+    }
+  });
+});

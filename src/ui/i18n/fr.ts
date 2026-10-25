@@ -73,6 +73,7 @@ export const fr: Messages = {
     turnOrder: 'Ordre de jeu',
     turnOrderRandom: 'Tiré au sort à chaque tour',
     turnOrderFixed: 'Fixe (tirage initial)',
+    swaps: (on) => `Échange d’unités : ${on ? 'oui' : 'non'}`,
     gameLengthLimit: 'Durée de la partie (facultatif)',
     clock: (value) => `Horloge : ${value}`,
     rounds: (value) => `Manches : ${value}`,
@@ -170,6 +171,7 @@ export const fr: Messages = {
 
   actions: {
     move: (unit) => `Déplacer ${unit}`,
+    swap: (a, b) => `Échanger ${a} et ${b}`,
     moveIntoContact: (unit) => `Déplacer ${unit} au contact`,
     turn: (unit) => `Pivoter ${unit}`,
     ram: (unit) => `Éperonner ${unit}`,
@@ -207,6 +209,8 @@ export const fr: Messages = {
     nothingToRedo: 'Rien à rétablir.',
     redone: (label) => `Rétabli : ${label}`,
     charges: (unit) => `L’unité ${unit} charge !`,
+    swap: (a, b) => `Les unités ${a} et ${b} échangent leurs places.`,
+    computerSwaps: (seat, a, b) => `${seat} : les unités ${a} et ${b} échangent leurs places.`,
     noMovementToRotate: 'Plus de mouvement pour pivoter.',
     alreadyAttacked: (unit) => `L’unité ${unit} a déjà attaqué pendant cette phase.`,
     alreadyRammed: (unit) => `L’unité ${unit} a déjà éperonné ce tour et ne peut pas aussi aborder.`,

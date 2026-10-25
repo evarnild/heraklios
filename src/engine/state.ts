@@ -171,6 +171,14 @@ export interface GameState {
    * `turnManager.ts` for where and why the reshuffle happens.
    */
   randomizedTurnOrder: boolean;
+  /**
+   * House rule (digital-only, §54): when true, two adjacent friendly land
+   * units may swap places in the Movement phase (`swapStep` in
+   * `movement.ts`, the `landSwap` action). ON by default, and on for a save
+   * that predates the field (`migrateSavedGame` fills it in), so the engine
+   * reads it plainly. Chosen on the Menu screen.
+   */
+  allowSwaps: boolean;
   gameOver: boolean;
   /**
    * Everyone still standing when the game ended, at the highest surviving
