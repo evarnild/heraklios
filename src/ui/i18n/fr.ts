@@ -169,6 +169,37 @@ export const fr: Messages = {
     confirmLosses: 'Valider les pertes',
   },
 
+  /** Le panneau Tables du plateau (§55) : les tables imprimées, codes comme imprimés. */
+  rules: {
+    button: '📖 Tables',
+    close: 'Fermer',
+    tabs: { terrain: 'Effets du terrain', land: 'Combat terrestre', ramming: 'Éperonnage', boarding: 'Abordage' },
+    terrainHeaders: { terrain: 'Terrain', moveCost: 'Coût de mouvement', modifier: 'Modificateur du dé', forbidden: 'Interdit à' },
+    modifierFromBelow: (n: number) => `+${n} si les attaquants viennent du bas, sinon 0`,
+    modifierFlat: (n: number) => (n === 0 ? '0' : `+${n}`),
+    nobody: '—',
+    categories: { chariot: 'chars', cavalry: 'cavalerie', elephant: 'éléphants', land: 'unités terrestres', naval: 'navires' } as Record<string, string>,
+    riverCrossing: "Traversée de rivière (un côté d'hexagone, entre deux hexagones)",
+    riverCrossingCost: (n: number) => `+${n} pour traverser`,
+    terrainNote: "Le modificateur s'ajoute au dé de l'attaquant, d'après l'hexagone du défenseur.",
+    ratioHeader: 'Attaque : défense',
+    dieHeader: 'Dé',
+    landLegend: [
+      "AE : attaquants éliminés. AR : attaquants reculent d'un hexagone. DE : défenseurs éliminés. DR : défenseurs reculent d'un hexagone.",
+      'EX : échange — les défenseurs sont retirés, et des attaquants dont le total est au moins égal à la force des défenseurs aussi.',
+      "Le rapport est arrondi en faveur du défenseur. Le modificateur de terrain s'ajoute au dé ; un jet modifié supérieur à 6 compte pour 6.",
+    ],
+    highlight: (attack: number, defense: number, column: string, modifier: number) =>
+      `Attaque ${attack} contre défense ${defense} : colonne ${column}, dé ${modifier >= 0 ? '+' : ''}${modifier}`,
+    rammingAttacker: 'Attaquant ↓  défenseur →',
+    rammingLegend: (maxBonus: number) =>
+      `Faces qui coulent le défenseur. Tout autre jet échoue. Le mouvement inutilisé donne une bonification jusqu'à ${maxBonus} à la face la plus haute.`,
+    boardingLegend: [
+      "D-n : le défenseur perd n points d'équipement. A-n : l'attaquant perd n. Case teintée : aucun résultat.",
+      "Chaque point d'équipement perdu retire 5 à l'attaque et 5 à la défense ; un navire à 0 est retiré.",
+    ],
+  },
+
   actions: {
     move: (unit) => `Déplacer ${unit}`,
     swap: (a, b) => `Échanger ${a} et ${b}`,

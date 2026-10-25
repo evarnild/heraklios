@@ -69,6 +69,10 @@ const SAME_IN_BOTH = new Set([
   'menu.hours',
   'board.seat',
   'board.seatWithControl',
+  'rules.button',
+  'rules.terrainHeaders.terrain',
+  'rules.modifierFlat',
+  'rules.nobody',
 ]);
 
 /** Every leaf message of a table, functions called with sample values. */
