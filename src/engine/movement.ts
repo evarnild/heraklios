@@ -150,8 +150,10 @@ export function reachableHexes(state: GameState, unit: Unit): Map<string, number
  * Returns each unit's step cost, or null when the swap is not allowed.
  *
  * DIGITAL-ONLY HOUSE RULE. The print rule (`docs/research/05-rules-french-
- * original.md:124-126`) says a unit may never end on an occupied hex but may
- * pass through a friendly one; it has no swap. Interpretation (owner, spec
+ * original.md:124-126`): "Une unité ne peut en aucun cas se placer sur une
+ * case déjà occupée par une quelconque autre unité. Par contre, au cours d'un
+ * mouvement, une unité peut traverser une case où se trouve une unité de la
+ * même armée." — it has no swap. Interpretation (owner, spec
  * §54): each unit makes a normal one-hex move into the other's hex, judged
  * as if that hex were empty (each really does end there), with the same
  * rules `reachableHexes` applies to a one-hex step: terrain category, the

@@ -3039,6 +3039,8 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         return;
       }
 
+      // Unreachable until §59: HeuristicAgent filters `landSwap` out at every
+      // difficulty, so no computer seat is ever offered one.
       case 'landSwap': {
         const [a, b] = [findUnit(action.unitId), findUnit(action.otherId)];
         applyAction(state, action, this.diceRng);

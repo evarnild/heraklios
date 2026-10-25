@@ -312,8 +312,11 @@ and the line still costs exactly the charger's full movement allowance (see
 
 ### Swapping places with a neighbour
 
-A digital-only **house rule**, not in the print rules. The rulebook lets a unit
-pass through a friendly one but never end on an occupied hex (see above); with
+A digital-only **house rule**, not in the print rules. The rulebook says
+*"Une unité ne peut en aucun cas se placer sur une case déjà occupée par une
+quelconque autre unité. Par contre, au cours d'un mouvement, une unité peut
+traverser une case où se trouve une unité de la même armée"*: a unit may pass
+through a friendly one but never end on an occupied hex (see above). With
 *Unit swaps* on, two of your own land units on **adjacent** hexes may also
 **swap places** during the Movement phase, in one action.
 
@@ -334,8 +337,9 @@ pass through a friendly one but never end on an occupied hex (see above); with
   ringed in green. Click one to swap (one undo step, "Swap A and B"). To select
   a ringed friend instead, click the selected unit again to deselect first.
   Ships never swap.
-- **The computer** may swap too when it picks moves at random; the heuristic
-  AI never plans one.
+- **The computer never swaps**, at any difficulty (Random included): the
+  heuristic agent drops swaps from the options it sees. A later intent (§59)
+  will teach it to.
 
 ### Combining attacks
 
@@ -795,7 +799,7 @@ below for why:
 
 | Level | How it plays |
 | --- | --- |
-| Random | Picks uniformly among the legal options. |
+| Random | Picks uniformly among the legal options (never a unit swap; see "Swapping places with a neighbour"). |
 | Greedy | Goes for the biggest expected damage to you, and ignores what the attempt might cost it. |
 | Expected value | Weighs damage against its own risk, declines attacks that aren't worth making, and concentrates several units into one attack when that pushes the force ratio into a better column. |
 | Cautious | Everything expected value does, plus a bounded look at your best reply: before committing to a move, it clones the board, plays the move out, and prices the strongest attack you could make against the specific unit that just moved — discounting a move for handing you a strong counter against that unit, not just for what the move buys outright. |
