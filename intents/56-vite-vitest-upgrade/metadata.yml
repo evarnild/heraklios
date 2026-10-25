@@ -7,7 +7,7 @@ title: Move to current vite and vitest majors and clear npm audit
 review_tier:
 intent_accepted: 2026-10-24 by-agent    # owner: "Accept 55 and 56"
 spec_accepted:
-plan_approved:
+plan_approved: 2026-10-25 by-agent    # auto: owner "/auto 56" (auto_authorized 2026-10-25)
 live_checked:
 merged:
 auto_authorized: 2026-10-25 by-agent    # owner: "/auto 56"
