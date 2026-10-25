@@ -201,7 +201,7 @@ Commits: 0e97207 (swapStep + `allowSwaps` field), 046220f (saves, session, UTF-8
 
 Shipped: B1-B9 as specified. `swapStep` in `movement.ts` sharing `enemyZocProjectorsForHex`/`sharesAnyProjector`; `landSwap` action (`applyLandSwap`, `swapActionsFor` helpers); `allowSwaps` on `GameState`, session, Menu toggle (beside turn order), saved; `migrateSavedGame` fills an absent value with `true` at any supported version (so a v3 save without it gets swaps on), `isValidSavedGame` requires a boolean; `SAVE_VERSION` stays 3. The heuristic agent filters `landSwap` out of its legal list at every difficulty. Board: swap partners get a fill (`0x4ae08a`) and a ring; click swaps via `swapOrSelect`, one undo step.
 
-Tests: 57 files, 1017 tests (new: swapStep 9, saves 5, actions 5, heuristic 1, harness 2). Lint 21 warnings (cap unchanged). `npm run e2e`: 15 passed, including the new `e2e/swap.spec.ts` (2 scenarios).
+Tests: 57 files, 1017 tests (new: swapStep 9, saves 5, actions 6, heuristic 1, harness 2). Lint 21 warnings (cap unchanged). `npm run e2e`: 15 passed, including the new `e2e/swap.spec.ts` (2 scenarios).
 
 Seeded tests set to `allowSwaps: false`: none needed; every existing seeded test passed unchanged with swaps on by default. The harness test "plays no landSwap with the option off" builds its own state with the option off.
 
@@ -211,3 +211,16 @@ Divergences from the plan:
 - The Menu has no spare row, so the swaps toggle sits on the turn-order row (turn-order button moved 140 px left).
 - `applyAction`'s `landMove` body moved to `applyLandMove` to keep lint at 21 (no behaviour change).
 - Commit 0e97207 contains non-UTF-8 bytes (a Windows encoding slip in a script); 046220f repairs them, so only that one commit is affected.
+
+### 2026-10-25 — review round 1 rework
+
+Commits (after 27f9ac6): the README/AI-claim commit, then one each for H1 (heuristic test), S6 (saves test), M2b/M4/M5b (movement tests), F2 (fuzz harness), B6/B9 (e2e); this entry last.
+
+Resolutions:
+- Needs decision, owner chose (a): README says the computer never swaps at any difficulty (Random included; §59 will add it), and the Random table row says so. The scene's `landSwap` case in `applyAiAction` and `log.computerSwaps` stay, with a comment that they are unreachable until §59 (removing the case would only add an unhandled-kind hazard).
+- H1: random-tier test with `[endPhase, landSwap x3]` over 20 seeds. S6: v2 save without `allowSwaps` loads with it `true`. M2b/M4a/M4b/M5b: galley next to infantry on (20,4)/(20,3) both ways, distance 2 with no enemy, destroyed first unit. F2: `applyOneAction` handles `landSwap` in its own case that asserts the two positions exchanged, plus an exhaustive `default:` that throws. B6/B9: e2e clicks an empty reachable hex after a swap (nobody moves) and, with swaps off, after clicking the friend (the friend moves).
+- LOW: the print rule is quoted verbatim in README and the `swapStep` comment; "actions 5" corrected to 6 above. The Menu-toggle placement and P1/U1 wiring stay with the live check.
+
+Mutants, each run alone and restored by copy, all killed: H1 (filter removed: heuristic test fails), S6 (fill only at `SAVE_VERSION`: saves test fails), M2b, M4a, M4b, M5b (movement tests fail), F2 (`landSwap` case dropped: harness tests fail, 4), B6 (drop `deselectMovement()`: e2e test 1 fails), B9 (`selectForMovement(other)` no-op: e2e test 2 fails).
+
+Counts: 57 files, 1022 tests; lint 21 of 21; `npm run e2e` result in the report.
