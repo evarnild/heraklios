@@ -124,7 +124,9 @@ To make a change — intent, plan, build, review, merge — see
    trampled unit is itself an elephant — pauses on an arrowhead drawn on the
    elephant's current hex pointing the way it just rolled (the same marker
    naval facing uses), with a **"▶ Continue"** button (also a bare map click,
-   Space, or Enter) to advance to the next step; a fully computer-played turn
+   Space, or Enter) to advance to the next step (it only pauses after a step
+   that shows something new: a log line, the arrow, a redraw or a combat
+   report, never while the game merely waits for a die roll); a fully computer-played turn
    never pauses this way, resolving the whole cascade at the same speed as
    everything else the computer does. When a
    **defender** retreats, or is eliminated outright (DE/EX), the attacking

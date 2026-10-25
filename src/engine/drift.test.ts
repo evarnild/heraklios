@@ -22,7 +22,6 @@ const EXPECTED_MOVE_AND_STOP: string[] = [
   'onDriftStart',
   'onNarrate:driftStarted',
   'onStep',
-  'onStep',
   'onNarrate:directionRolled',
   'onDirectionRolled',
   'onStep',
@@ -41,10 +40,8 @@ const EXPECTED_DESTROYED: string[] = [
   'onDriftStart',
   'onNarrate:driftStarted',
   'onStep',
-  'onStep',
   'onNarrate:directionRolled',
   'onDirectionRolled',
-  'onStep',
   'onStep',
   'onCombat',
   'onStep',
@@ -56,15 +53,12 @@ const EXPECTED_REPELLED: string[] = [
   'onDriftStart',
   'onNarrate:driftStarted',
   'onStep',
-  'onStep',
   'onNarrate:directionRolled',
   'onDirectionRolled',
-  'onStep',
   'onStep',
   'onCombat',
   'onStep',
   'onNarrate:repelled',
-  'onStep',
   'onStep',
   'onNarrate:directionRolled',
   'onDirectionRolled',
@@ -263,6 +257,57 @@ describe('elephant drift engine', () => {
     await resolveElephantDrift(state, elephant, 4, new ScriptedAgent(), () => dice.shift()!, recordHooks(calls));
 
     expect(calls).toEqual(EXPECTED_REPELLED);
+  });
+
+  // Every "continue" pause must follow something the player can see (a log
+  // line, a redraw, the arrow or a combat report) -- §57.
+  it('never pauses on onStep without a visible hook since the previous pause', async () => {
+    const visible = (c: string) =>
+      c.startsWith('onNarrate:') || c === 'onRender' || c === 'onDirectionRolled' || c === 'onCombat';
+    const withDefender = (typeId: string, result: 'EX' | 'AR' | 'DR', extra: number[]) => () => {
+      const el = makeUnit('elephant', 0, 'elephants', CENTER);
+      const d = makeUnit('defender', 1, typeId, { q: 11, r: 5 });
+      return { units: [el, d], dice: [1, dieForResult(el, d, result), ...extra] };
+    };
+    const scenarios: Array<{
+      name: string;
+      build: () => { units: Unit[]; dice: number[] };
+      steps: number;
+      forbidden?: HexCoord;
+    }> = [
+      {
+        name: 'move-and-stop',
+        build: () => ({ units: [makeUnit('elephant', 0, 'elephants', CENTER)], dice: [1] }),
+        steps: 2,
+      },
+      { name: 'destroyed', build: withDefender('fantassins', 'EX', []), steps: 4 },
+      { name: 'repelled', build: withDefender('phalanges', 'AR', [2, 2]), steps: 4 },
+      // retreatResolutionNeeded must not pause either
+      { name: 'trample-DR', build: withDefender('phalanges', 'DR', []), steps: 4 },
+      // a refused first roll emits directionForbidden, then a new roll request
+      {
+        name: 'forbidden-direction',
+        build: () => ({ units: [makeUnit('elephant', 0, 'elephants', CENTER)], dice: [1, 2] }),
+        steps: 1,
+        forbidden: DIRECTIONS[0],
+      },
+    ];
+    for (const { name, build, steps, forbidden } of scenarios) {
+      const { units, dice } = build();
+      const elephant = units[0]!;
+      const state = makeState(units);
+      const calls: string[] = [];
+      await resolveElephantDrift(
+        state, elephant, steps, new ScriptedAgent(), () => dice.shift() ?? 1, recordHooks(calls), forbidden,
+      );
+      let sawVisible = false;
+      calls.forEach((c, i) => {
+        if (c === 'onStep') {
+          expect(sawVisible, `${name}: pause #${i} follows nothing visible`).toBe(true);
+          sawVisible = false;
+        } else if (visible(c)) sawVisible = true;
+      });
+    }
   });
 
   it('re-rolls a forbidden reverse direction without consuming movement', () => {

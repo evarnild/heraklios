@@ -2,17 +2,17 @@
 id: 57
 slug: drift-silent-continue
 type: fix
-status: draft
+status: in-review
 title: Every continue in an elephant drift shows something
 review_tier:
 intent_accepted: 2026-10-24
 spec_accepted:
 plan_approved: 2026-10-24 by-agent    # auto: owner "/auto 57" (auto_authorized 2026-10-24)
-live_checked:
+live_checked: 2026-10-25 by-agent    # owner: "57 live checked /ship 57"
 merged:
 auto_authorized: 2026-10-24 by-agent    # owner: "/auto 57"
-auto_round:
-auto_stopped:
+auto_round: 2
+auto_stopped: live check owed
 follows_up:
 links:
   - plan-history.md#21-elephant-drift-pause-between-steps-and-show-the-drift-direction-on-the-map

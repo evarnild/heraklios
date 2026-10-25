@@ -66,3 +66,16 @@ Re-read on `main` at `4d11836`.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### Phase 1 (2026-10-24)
+
+- Commits: see `git log` on `fix/57-drift-silent-continue` (test+fix, then bookkeeping).
+- Shipped: failing-first invariant test (failed at pause #3 of move-and-stop before the fix), `SILENT_PAUSE_KINDS` skip in `resolveElephantDrift` (`directionRollNeeded`, `combatRollNeeded`, `retreatResolutionNeeded`, `directionForbidden`), `onStep` doc and README updated, `EXPECTED_*` traces lose exactly the doubled `onStep`.
+- Tests: 61 files, 1110 tests green (`npm run verify`).
+- Divergences: none. `npm run e2e` not run (no scene/ui change).
+
+### Rework round 1 (2026-10-24)
+
+- Shipped: invariant test now also covers the DR trample (`retreatResolutionNeeded`) and a forbidden first roll (`directionForbidden`, via the `forbiddenDirection` argument); scenarios rebuild their units per case instead of sharing them.
+- Mutants: M4 (drop `retreatResolutionNeeded`) now fails at "trample-DR: pause #8"; M5 (drop `directionForbidden`) fails at "forbidden-direction: pause #3"; drift.ts restored by copy.
+- Divergences: none.
