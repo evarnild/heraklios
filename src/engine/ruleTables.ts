@@ -11,6 +11,7 @@
  */
 import {
   RATIO_COLUMNS,
+  ratioToColumnIndex,
   resolveLandCombat,
   type CombatResult,
 } from '../data/combatTable';
@@ -108,3 +109,32 @@ export function boardingTable(): BoardingTable {
   };
 }
 
+
+export interface LandCombatHighlight {
+  attackForce: number;
+  defenseForce: number;
+  modifier: number;
+  /** The CRT column for the current force ratio. */
+  column: number;
+  /** For each die face 1-6, the CRT row (1-6) it lands on after the modifier. */
+  cells: { face: number; row: number }[];
+}
+
+/**
+ * Where an attack being built lands on the land CRT: the ratio column and,
+ * per die face, the row after the terrain/river modifier, clamped to 1-6 the
+ * way `resolveLandCombat` clamps the roll. `null` with no attack.
+ */
+export function landCombatHighlight(
+  preview: { attackForce: number; defenseForce: number; terrainModifier: number } | null,
+): LandCombatHighlight | null {
+  if (!preview) return null;
+  const { attackForce, defenseForce, terrainModifier } = preview;
+  return {
+    attackForce,
+    defenseForce,
+    modifier: terrainModifier,
+    column: ratioToColumnIndex(attackForce, defenseForce),
+    cells: DIE_FACES.map((face) => ({ face, row: Math.min(6, Math.max(1, face + terrainModifier)) })),
+  };
+}

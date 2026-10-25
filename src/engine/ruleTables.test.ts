@@ -6,6 +6,7 @@ import { RIVER_CROSSING, TERRAIN_EFFECTS, isSeaLike, type TerrainType } from '..
 import {
   boardingTable,
   columnForces,
+  landCombatHighlight,
   landCombatTable,
   rammingTable,
   terrainTable,
@@ -107,5 +108,32 @@ describe('boardingTable (ยง55)', () => {
     expect(table.rows[0]![0]).toEqual({ side: 'defender', equipmentLoss: 1 });
     expect(table.rows[5]![0]).toEqual({ side: 'attacker', equipmentLoss: 2 });
     expect(table.rows[0]![6]).toEqual({ side: 'defender', equipmentLoss: 4 });
+  });
+});
+
+describe('landCombatHighlight (ง55)', () => {
+  it('is null with no attack', () => {
+    expect(landCombatHighlight(null)).toBeNull();
+  });
+  it('with modifier 0 each face lands on its own row, in the ratio column', () => {
+    const h = landCombatHighlight({ attackForce: 6, defenseForce: 3, terrainModifier: 0 })!;
+    expect(h.column).toBe(ratioToColumnIndex(6, 3));
+    expect(h.column).toBe(5);
+    expect(h.cells).toEqual([1, 2, 3, 4, 5, 6].map((f) => ({ face: f, row: f })));
+  });
+  it('rounds the column in the defender favour', () => {
+    expect(landCombatHighlight({ attackForce: 5, defenseForce: 3, terrainModifier: 0 })!.column).toBe(4);
+  });
+  it('shifts by the modifier and clamps at 6 (+2: faces 5 and 6 both land on row 6)', () => {
+    const h = landCombatHighlight({ attackForce: 1, defenseForce: 1, terrainModifier: 2 })!;
+    expect(h.cells.map((c) => c.row)).toEqual([3, 4, 5, 6, 6, 6]);
+    expect(h.modifier).toBe(2);
+  });
+  it('agrees with resolveLandCombat for the cell it names', () => {
+    const h = landCombatHighlight({ attackForce: 4, defenseForce: 2, terrainModifier: 3 })!;
+    const table = landCombatTable();
+    for (const { face, row } of h.cells) {
+      expect(table.rows[row - 1]![h.column]).toBe(resolveLandCombat(4, 2, face + 3));
+    }
   });
 });
