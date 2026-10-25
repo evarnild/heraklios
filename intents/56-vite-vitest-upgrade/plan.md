@@ -153,3 +153,49 @@ build inputs), with the build or e2e as the test.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-10-25 - subtasks 1-5 (implementer)
+
+Commits: `pin vite 8.3.4 and vitest 5.0.3` (package.json, lockfile);
+`raise vitest testTimeout for the self-play soaks` (vitest.config.ts); this
+Progress entry and `status: in-review`.
+
+| | Baseline (before) | After |
+| --- | --- | --- |
+| verify | 61 files, 1153 tests (the plan's 1022/1109 were stale; 1153 measured), lint 21 | 61 files, 1153 tests, lint 21 |
+| e2e | 16 passed | 16 passed |
+| `npm ls` | vite 6.4.5 (esbuild 0.25.12); vitest 2.1.9 with its own vite 5.4.21, esbuild 0.21.5 | one vite 8.3.4 (rolldown 1.2.15), vitest 5.0.3, no esbuild |
+| `npm audit` | 6 (2 critical, 1 high, 3 moderate) | 0 |
+| dist/ | index.html 706 B, map-editor.html 3676 B, assets: main 1,644,631 B, hexRender 28,953 B, mapEditor 10,673 B, markers/ | same entries; main 1,351,968 B (-18%), hexRender 28,672 B, mapEditor 10,067 B, markers/ |
+
+Pins are the plan's: vite 8.3.4, vitest 5.0.3 (exact); audit is clean on
+them, so no newer patch was needed. Node 24.11.0 fits both engines.
+
+Dev-server probe (`vite --port 5256 --strictPort --host 127.0.0.1`,
+`HERAKLIOS_SAVES_DIR` a temp folder; stopped afterwards): `/` 200,
+`/map-editor.html` 200, `GET /api/saves` 200, foreign `Host` 403, PUT with a
+foreign `Origin` 403. `vite preview` on 5257 after a build: `/`, map editor,
+`/api/saves` 200, foreign Host 403. So the plugin's `configureServer` and
+`configurePreviewServer` work unchanged on vite 8.
+
+`npm ci` in a scratch folder (package.json + lockfile only, deleted
+afterwards): succeeded, 0 vulnerabilities, one vite 8.3.4, `@rolldown/binding-win32-x64-msvc` installed.
+
+Config and test changes: only one. `vitest.config.ts` gained
+`testTimeout: 60_000`. After the upgrade `fuzzHarness.test.ts` (100-game soak,
+10-16 s) and once `heuristicSoak.test.ts` timed out at the 5 s default. They
+did the same work before; vitest 2 never enforced the default on a test that
+never yields to the event loop, later majors do. Raising the default is the
+smallest change and no test file was touched (no test deleted or weakened).
+`vite.config.ts` (`rollupOptions.input` still honoured, build has both
+entries), `server/saveApiPlugin.ts` (`Connect`, `Plugin` types, both hooks) and
+the `vi.mock`/`vi.hoisted` tests needed no change.
+
+Divergences / notes: (1) the baseline count is 1153, not the plan's number;
+(2) vite 8 prints a warning that the config uses features unsupported by the
+future `configLoader: 'native'` (extensionless imports in `vite.config.ts`
+and what it imports) and that `rollupOptions` has a `rolldownOptions`
+successor; neither is an error and both were left alone as not forced;
+(3) the README, CLAUDE.md, AGENTS.md and docs/runbook.md name no vite or vitest
+version, so no doc edit. The live check (owed, vite.config.ts) is the
+owner's; this run is evidence only, not that gate.
