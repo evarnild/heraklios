@@ -2,14 +2,14 @@
 id: 53
 slug: log-autosave-and-attack-selection
 type: feature
-status: in-review
+status: done
 title: The log says when the game autosaves, and shows the attack being built
 review_tier:
 intent_accepted: 2026-10-24 by-agent    # owner: "yes /auto 53"
 spec_accepted: 2026-10-24 by-agent    # owner: "53: add terrain modifiers and then yes to the spec" (B5a added in the commit before)
 plan_approved: 2026-10-24 by-agent    # auto: owner "/auto 53" (auto_authorized 2026-10-24)
 live_checked: 2026-10-25 by-agent    # owner: "53 live checked /ship 53"
-merged:
+merged: c8054f8    # 2026-10-25, merged by Claude on the owner's explicit request in chat
 auto_authorized: 2026-10-24 by-agent    # owner: "yes /auto 53"
 auto_round: 2
 auto_stopped: live check owed
