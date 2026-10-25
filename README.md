@@ -763,7 +763,10 @@ worktree with its session state, and wraps the existing scripts: Spawn and
 Remove run `npm run spawn`, Ship shows `npm run ship -- <id> --dry-run` and
 only then, after a confirm dialog, runs the real ship. A gate button writes
 today's date as a bare date (you did it, not an agent) and commits it under
-your git identity, only when the gate's preconditions hold. It can also launch
+your git identity, only when the gate's preconditions hold (recording
+`intent_accepted` on a draft also sets `status: accepted`, in the same commit).
+A row shows `running` or `needs you` while the page holds a live session for
+that intent, whatever the hook log says. It can also launch
 a headless Claude Code session per intent through the Agent SDK (implementer
 in the worktree as the `heraklios-implementer` agent, reviewer or `/auto` in
 the main checkout), stream its messages and answer its permission prompts and

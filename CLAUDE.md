@@ -139,7 +139,8 @@ npm run sessions -- --log 30    # the raw event tail
   sessions through the Agent SDK. A reviewer or `/auto` session it launches
   in the main checkout **is** the coordinator for that run, so "only the
   coordinator" below holds unchanged. A click on one of its gate buttons is
-  the owner writing the gate directly: a bare date, a commit under the
+  the owner writing the gate directly: a bare date (plus `status: accepted`
+  for `intent_accepted` on a draft), a commit under the
   owner's git identity (`intents/README.md` → "Who edits what"). It stores
   nothing of its own, listens on 127.0.0.1 only and checks Host and Origin
   like the save API. Its sessions have terminal parity: what your settings
