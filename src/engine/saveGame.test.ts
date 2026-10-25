@@ -430,6 +430,23 @@ describe('allowSwaps (§54)', () => {
     expect(result.save.gameState.allowSwaps).toBe(true);
   });
 
+  it('loads a version-2 save with no allowSwaps with swaps ON', () => {
+    const save = sampleSave() as unknown as Record<string, unknown>;
+    const gameState = save.gameState as Record<string, unknown>;
+    delete gameState.allowSwaps;
+    delete gameState.winnerIds;
+    gameState.winnerId = null;
+    delete gameState.clockLimitMs;
+    delete gameState.elapsedMs;
+    delete gameState.roundLimit;
+    delete gameState.paused;
+    delete gameState.pendingGameEnd;
+    save.version = 2;
+    const result = parseSavedGame(JSON.stringify(save));
+    if (!('save' in result)) throw new Error(`expected a valid save, got ${JSON.stringify(result)}`);
+    expect(result.save.gameState.allowSwaps).toBe(true);
+  });
+
   it('refuses a non-boolean value', () => {
     for (const bad of ['yes', 1, null]) {
       const save = sampleSave() as unknown as Record<string, unknown>;
