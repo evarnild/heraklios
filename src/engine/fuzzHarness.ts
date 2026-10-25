@@ -1,7 +1,7 @@
 import type { HexCoord } from '../data/map';
 import { MAP_TERRAIN, hexKey as mapHexKey } from '../data/map';
 import { canEnterTerrain } from '../data/terrain';
-import { DIRECTIONS, hexAdd } from './hex';
+import { DIRECTIONS, hexAdd, hexEquals } from './hex';
 import { getUnitType } from '../data/units';
 import type { CombatResult } from '../data/combatTable';
 import { legalActions, applyAction, type Action } from './actions';
@@ -1247,8 +1247,17 @@ async function applyOneAction(
       return;
     }
 
+    case 'landSwap': {
+      const before = [requireUnit(state, action.unitId).position, requireUnit(state, action.otherId).position];
+      applyAction(state, action, rng);
+      const after = [requireUnit(state, action.unitId).position, requireUnit(state, action.otherId).position];
+      if (!hexEquals(after[0]!, before[1]!) || !hexEquals(after[1]!, before[0]!)) {
+        throw new Error(`Invariant violated: landSwap ${action.unitId}<->${action.otherId} did not exchange the units' positions`);
+      }
+      return;
+    }
+
     case 'landMove':
-    case 'landSwap':
     case 'navalMove':
     case 'navalRotate': {
       applyAction(state, action, rng);
@@ -1331,6 +1340,11 @@ async function applyOneAction(
         }
       }
       return;
+    }
+
+    default: {
+      const unhandled: never = action;
+      throw new Error(`applyOneAction: unhandled action kind ${(unhandled as Action).kind}`);
     }
   }
 }
