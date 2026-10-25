@@ -226,13 +226,30 @@ describe('GET /api/state (spec B3)', () => {
     const body = payload(await handle(get('/api/state')));
     expect(body.intents.map((i) => [i.id, i.session, i.next.step])).toEqual([
       [29, 'needs you', 'Answer the waiting session'],
-      [52, 'working', 'Accept the spec'],
+      [52, 'running', 'Accept the spec'], // a live manager session wins over the hook log's "working" (§58)
       [51, null, 'Nothing: done'],
     ]);
-    live[1].state = 'needs you'; // wins over the hook log's "working" for an intent with a worktree
+    live[1].state = 'needs you'; // wins over the hook log for an intent with a worktree
     const again = payload(await handle(get('/api/state')));
     const row = again.intents.find((i) => i.id === 52);
     expect([row.session, row.worktree.session, row.next.step]).toEqual(['needs you', 'needs you', 'Answer the waiting session']);
+  });
+  it('shows a running manager session over the hook log, and only live states count', async () => {
+    const hook = [{ ...SESSIONS[0], session: { state: 'not started', since: null, ageSeconds: null, detail: '' } }];
+    const live = [{ sid: 's1', intent: '52', state: 'running' }];
+    const { handle } = setup({ answer: scriptsAnswer(QUEUE, hook), sessions: { runningFor: () => false, list: () => live } });
+    const row = async (id = 52) => payload(await handle(get('/api/state'))).intents.find((i) => i.id === id);
+    const running = await row();
+    expect([running.session, running.worktree.session]).toEqual(['running', 'running']);
+    for (const dead of ['stopped', 'done', 'error']) {
+      live[0].state = dead;
+      expect((await row()).session).toBe('not started');
+    }
+    live[0].state = 'running';
+    live.push({ sid: 's2', intent: '52', state: 'needs you' }, { sid: 's3', intent: '29', state: 'stopped' });
+    expect((await row()).session).toBe('needs you'); // needs you beats running
+    live.splice(1, 1);
+    expect((await row(29)).session).toBeNull(); // another intent's running session does not leak
   });
   it('reports a failing script as 500 with its message', async () => {
     const { handle } = setup({ answer: () => ({ code: 1, stdout: '', stderr: 'boom' }) });
@@ -259,7 +276,7 @@ describe('gate buttons (spec B8)', () => {
   it('writes on main, in the main checkout, for an intent without a branch', async () => {
     const { runner, fs, handle } = setup();
     await handle(post('/api/gate/29/intent_accepted'));
-    expect(fs.writes).toEqual([[`${ROOT}/intents/29-grid/metadata.yml`, metaText({ id: '29', slug: 'grid', status: 'draft', intent_accepted: '2026-10-24' })]]);
+    expect(fs.writes).toEqual([[`${ROOT}/intents/29-grid/metadata.yml`, metaText({ id: '29', slug: 'grid', status: 'accepted', intent_accepted: '2026-10-24' })]]);
     expect(runner.calls.filter((c) => c.cmd[0] === 'git').map((c) => c.cwd)).toEqual([ROOT, ROOT]);
   });
   it('refuses a gate whose precondition fails, writing and committing nothing', async () => {

@@ -25,10 +25,15 @@ async function runJson(runner, call, what) {
   }
 }
 
-/** `'needs you'` when the in-memory session manager holds a request waiting on the owner for this intent, else null. */
-function waitingSession(sessions, id) {
-  const live = sessions?.list?.() ?? [];
-  return live.some((s) => String(s.intent) === String(id) && s.state === 'needs you') ? 'needs you' : null;
+/**
+ * What the in-memory session manager says about an intent: `'needs you'` if a
+ * live session of it waits on the owner, else `'running'` if one runs, else
+ * null. Stopped, done and errored sessions don't count (§58).
+ */
+function liveSession(sessions, id) {
+  const mine = (sessions?.list?.() ?? []).filter((s) => String(s.intent) === String(id));
+  if (mine.some((s) => s.state === 'needs you')) return 'needs you';
+  return mine.some((s) => s.state === 'running') ? 'running' : null;
 }
 
 /** `{ kind, base }`: where an intent's files are read and written. */
@@ -78,8 +83,8 @@ export async function loadState(deps) {
     rows.map(async (intent) => {
       const wt = byId.get(String(intent.id)) ?? null;
       const location = sourceOf(intent, wt, root);
-      // The hook log never sees reviewer or auto sessions (they run in the main checkout), so the manager's word wins for `needs you` (spec B6).
-      const session = waitingSession(deps.sessions, intent.id) ?? wt?.session?.state ?? null;
+      // The hook log never sees reviewer or auto sessions (they run in the main checkout) nor an implementer subagent, so the manager's word wins while a session is live (spec B6, B11).
+      const session = liveSession(deps.sessions, intent.id) ?? wt?.session?.state ?? null;
       const worktree = { exists: wt !== null, path: wt?.path ?? null, branch: wt?.branch ?? null, session };
       const read = TERMINAL.has(intent.status)
         ? { metadata: { status: intent.status }, reviewHeader: null, files: {} }

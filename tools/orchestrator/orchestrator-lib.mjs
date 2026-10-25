@@ -87,7 +87,10 @@ export function gateAllowed(gate, { metadata, specExists, planExists, reviewHead
 export function gateWrite(text, gate, date) {
   if (!GATE_FIELDS.includes(gate)) throw new Error(`${gate} is not a gate`);
   if (!DATE_RE.test(date)) throw new Error(`date must be YYYY-MM-DD, got "${date}"`);
-  return setKeys(text, { [gate]: date });
+  const keys = { [gate]: date };
+  // Accepting a draft intent also moves it to accepted (intents/README.md, "Who edits what"); no other gate or status is touched (§58).
+  if (gate === 'intent_accepted' && /^status:[ \t]*draft[ \t]*(#.*)?\r?$/m.test(text)) keys.status = 'accepted';
+  return setKeys(text, keys);
 }
 
 // --- The next step (spec B3) -----------------------------------------------
