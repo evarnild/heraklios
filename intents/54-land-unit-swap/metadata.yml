@@ -10,7 +10,7 @@ spec_accepted: 2026-10-24 by-agent    # owner: "swap is on by default, including
 plan_approved: 2026-10-24 by-agent    # auto: owner "/auto 54" (auto_authorized 2026-10-24)
 live_checked:
 merged:
-auto_authorized: 2026-10-25 by-agent    # owner: "a for 54 and prepare an intent to handle swaps for computer players then auto /54"
+auto_authorized: 2026-10-25 by-agent    # owner: "/auto 54" (after the escalate stop: diff read)
 auto_round: 2
 auto_stopped: escalate, owner reads the diff
 follows_up:
