@@ -11,8 +11,8 @@ plan_approved: 2026-10-24 by-agent    # auto: owner "/auto 54" (auto_authorized 
 live_checked:
 merged:
 auto_authorized: 2026-10-25 by-agent    # owner: "a for 54 and prepare an intent to handle swaps for computer players then auto /54"
-auto_round: 1
-auto_stopped: decision needed
+auto_round: 2
+auto_stopped:
 follows_up:
 links:
   - plan-history.md#8-bug-units-cannot-move-through-friendly-units
