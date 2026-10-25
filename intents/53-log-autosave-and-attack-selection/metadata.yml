@@ -8,7 +8,7 @@ review_tier:
 intent_accepted: 2026-10-24 by-agent    # owner: "yes /auto 53"
 spec_accepted: 2026-10-24 by-agent    # owner: "53: add terrain modifiers and then yes to the spec" (B5a added in the commit before)
 plan_approved: 2026-10-24 by-agent    # auto: owner "/auto 53" (auto_authorized 2026-10-24)
-live_checked:
+live_checked: 2026-10-25 by-agent    # owner: "53 live checked /ship 53"
 merged:
 auto_authorized: 2026-10-24 by-agent    # owner: "yes /auto 53"
 auto_round: 2
