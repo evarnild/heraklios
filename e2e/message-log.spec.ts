@@ -13,7 +13,10 @@ const UNDO = '↶ Undo';
 const NOTHING_TO_UNDO = 'Nothing to undo.';
 const UNDO_CLICKS = 30;
 
-const logEntries = (page: Page) => page.evaluate(() => window.__heraklios.logEntries());
+// The async "Autosaved." line (§53) lands at an unpredictable point among the
+// entries this scenario counts, so it is left out of what it reads.
+const logEntries = async (page: Page) =>
+  (await page.evaluate(() => window.__heraklios.logEntries())).filter((e) => e.text !== 'Autosaved.');
 const panel = (page: Page) => page.evaluate(() => window.__heraklios.logPanel());
 const zoom = (page: Page) => page.evaluate(() => window.__heraklios.cameraZoom());
 

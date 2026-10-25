@@ -271,11 +271,27 @@ export function attackForceAgainst(attacker: Unit, defenders: readonly Unit[]): 
   return currentAttack(attacker);
 }
 
-function computeLandAttackDetail(
-  attackers: Unit[],
-  defenders: Unit[],
-  rawDieRoll: number,
-): LandAttackDetail {
+/**
+ * What a land attack looks like BEFORE the die is rolled: the two forces and
+ * the die modifier. It is the very code `computeLandAttackDetail` (the roll)
+ * uses, so a pre-roll summary in the log can't drift from the roll.
+ *
+ * Terrain and the river are a modifier on the DIE ROLL (`modifiedDieRoll =
+ * rawDieRoll + terrainModifier`), not part of either force; the preview
+ * reports them beside the forces, as the combat report does after the roll.
+ */
+export interface LandAttackPreview {
+  attackForce: number;
+  attackerForces: ReadonlyMap<string, number>;
+  defenseForce: number;
+  terrainModifier: number;
+  terrainOnlyModifier: number;
+  terrainModifierSource: TerrainType | null;
+  terrainModifierSourceHex: HexCoord | null;
+  riverCrossingApplied: boolean;
+}
+
+export function previewLandAttack(attackers: readonly Unit[], defenders: readonly Unit[]): LandAttackPreview {
   const attackerForces = new Map<string, number>(
     attackers.map((u) => [u.id, attackForceAgainst(u, defenders)]),
   );
@@ -304,7 +320,26 @@ function computeLandAttackDetail(
     }
     if (attackers.some((a) => riverBetween(a.position, defender.position))) acrossRiver = true;
   }
-  const modifier = terrainOnlyModifier + (acrossRiver ? RIVER_CROSSING.combatModifier : 0);
+  const terrainModifier = terrainOnlyModifier + (acrossRiver ? RIVER_CROSSING.combatModifier : 0);
+  return {
+    attackForce,
+    attackerForces,
+    defenseForce,
+    terrainModifier,
+    terrainOnlyModifier,
+    terrainModifierSource,
+    terrainModifierSourceHex,
+    riverCrossingApplied: acrossRiver,
+  };
+}
+
+function computeLandAttackDetail(
+  attackers: Unit[],
+  defenders: Unit[],
+  rawDieRoll: number,
+): LandAttackDetail {
+  const preview = previewLandAttack(attackers, defenders);
+  const { attackForce, attackerForces, defenseForce, terrainModifier: modifier } = preview;
 
   const modifiedDieRoll = rawDieRoll + modifier;
   const result = resolveLandCombat(attackForce, defenseForce, modifiedDieRoll);
@@ -318,10 +353,10 @@ function computeLandAttackDetail(
     ratioLabel,
     crtColumnIndex,
     terrainModifier: modifier,
-    terrainOnlyModifier,
-    terrainModifierSource,
-    terrainModifierSourceHex,
-    riverCrossingApplied: acrossRiver,
+    terrainOnlyModifier: preview.terrainOnlyModifier,
+    terrainModifierSource: preview.terrainModifierSource,
+    terrainModifierSourceHex: preview.terrainModifierSourceHex,
+    riverCrossingApplied: preview.riverCrossingApplied,
     rawDieRoll,
     modifiedDieRoll,
     result,

@@ -3,6 +3,8 @@
 // table. The optional `m` is for tests, which format in a chosen language.
 import type { ArmyError } from '../../engine/army';
 import { driftExitKind, type DriftEvent } from '../../engine/drift';
+import type { LandAttackPreview } from '../../engine/combat';
+import { RIVER_CROSSING } from '../../data/terrain';
 import type { SavedGame, SaveError } from '../../engine/saveGame';
 import { messages, type Messages } from './index';
 
@@ -78,4 +80,43 @@ export function roundLimitText(rounds: number | null, m: Messages = messages()):
 
 function unitNameIn(m: Messages, typeId: string): string {
   return (m.units as Record<string, string>)[typeId] ?? typeId;
+}
+
+/** The named contributors to a combined die modifier — "2 plateau at (4, 9)",
+ * "1 river crossing" — so a modifier can be traced to its terrain hex or river.
+ * Shared by the combat report and the pre-roll attack line. */
+export function dieModifierParts(
+  d: Pick<LandAttackPreview, 'terrainOnlyModifier' | 'terrainModifierSource' | 'terrainModifierSourceHex' | 'riverCrossingApplied'>,
+  m: Messages = messages(),
+): string[] {
+  const parts: string[] = [];
+  if (d.terrainOnlyModifier !== 0 && d.terrainModifierSource) {
+    const hex = d.terrainModifierSourceHex;
+    const terrain = (m.terrain as Record<string, string>)[d.terrainModifierSource] ?? d.terrainModifierSource;
+    parts.push(m.log.terrainModifier(d.terrainOnlyModifier, terrain, hex?.q ?? null, hex?.r ?? null));
+  }
+  if (d.riverCrossingApplied) parts.push(m.log.riverModifier(RIVER_CROSSING.combatModifier));
+  return parts;
+}
+
+/** The attack being built, as one log line (§53 B3, B6). `preview` is null
+ * when there is no land target (none yet, or a naval selection). An empty
+ * attacker list is "Attack cleared."; the totals appear only with a target. */
+export function formatAttackLine(
+  attackerNames: readonly string[],
+  targetNames: readonly string[],
+  preview: LandAttackPreview | null,
+  m: Messages = messages(),
+): string {
+  if (attackerNames.length === 0) return m.log.attackCleared;
+  const attackers = attackerNames.join(', ');
+  if (!preview || targetNames.length === 0) return m.log.attackChooseTarget(attackers);
+  return m.log.attackWithTargets(
+    attackers,
+    preview.attackForce,
+    targetNames.join(', '),
+    preview.defenseForce,
+    preview.terrainModifier,
+    dieModifierParts(preview, m).join(' + '),
+  );
 }

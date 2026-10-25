@@ -4,7 +4,8 @@ import type { DriftEvent } from '../../engine/drift';
 import { buildSavedGame } from '../../engine/saveGame';
 import { createInitialState } from '../../engine/turnManager';
 import type { Player, PlayerId, Unit } from '../../engine/state';
-import { clockLimitText, describeSlot, formatArmyError, formatDriftEvent, formatSaveError, roundLimitText } from './format';
+import type { LandAttackPreview } from '../../engine/combat';
+import { clockLimitText, describeSlot, dieModifierParts, formatAttackLine, formatArmyError, formatDriftEvent, formatSaveError, roundLimitText } from './format';
 import { messagesFor, type Language } from './index';
 
 const LANGS: Language[] = ['en', 'fr'];
@@ -181,5 +182,68 @@ describe('clockLimitText and roundLimitText', () => {
     expect(roundLimitText(null, en)).toBe('Off');
     expect(roundLimitText(6, en)).toBe('6 rounds');
     expect(roundLimitText(12, fr)).toBe('12 manches');
+  });
+});
+
+describe('formatAttackLine (§53)', () => {
+  const base: LandAttackPreview = {
+    attackForce: 12,
+    attackerForces: new Map(),
+    defenseForce: 6,
+    terrainModifier: 0,
+    terrainOnlyModifier: 0,
+    terrainModifierSource: null,
+    terrainModifierSourceHex: null,
+    riverCrossingApplied: false,
+  };
+  const hill = { ...base, terrainModifier: 2, terrainOnlyModifier: 2, terrainModifierSource: 'plateau' as const, terrainModifierSourceHex: { q: 4, r: 9 } };
+  const river = { ...base, terrainModifier: 1, riverCrossingApplied: true };
+  const both = { ...hill, terrainModifier: 3, riverCrossingApplied: true };
+  const en = messagesFor('en');
+  const fr = messagesFor('fr');
+  const A = ['Archers', 'Hoplites'];
+  const T = ['Peltasts'];
+
+  it('attackers and targets with both forces, no modifier', () => {
+    expect(formatAttackLine(A, T, base, en)).toBe('Attack: Archers, Hoplites (12) → Peltasts (6)');
+    expect(formatAttackLine(A, T, base, fr)).toBe('Attaque : Archers, Hoplites (12) → Peltasts (6)');
+  });
+
+  it('adds the die modifier and its parts: terrain only, river only, both', () => {
+    expect(formatAttackLine(A, T, hill, en)).toBe(
+      'Attack: Archers, Hoplites (12) → Peltasts (6), die +2 (2 Plateau at (4, 9))'.replace('Plateau', en.terrain.plateau),
+    );
+    expect(formatAttackLine(A, T, river, en)).toBe('Attack: Archers, Hoplites (12) → Peltasts (6), die +1 (1 river crossing)');
+    expect(formatAttackLine(A, T, both, en)).toBe(
+      `Attack: Archers, Hoplites (12) → Peltasts (6), die +3 (2 ${en.terrain.plateau} at (4, 9) + 1 river crossing)`,
+    );
+    expect(formatAttackLine(A, T, river, fr)).toBe('Attaque : Archers, Hoplites (12) → Peltasts (6), dé +1 (1 traversée de rivière)');
+    expect(formatAttackLine(A, T, hill, fr)).toBe(
+      `Attaque : Archers, Hoplites (12) → Peltasts (6), dé +2 (2 ${fr.terrain.plateau} en (4, 9))`,
+    );
+  });
+
+  it('joins several targets in order, with the summed defence', () => {
+    expect(formatAttackLine(A, ['Peltasts', 'Archers'], base, en)).toBe('Attack: Archers, Hoplites (12) → Peltasts, Archers (6)');
+    expect(formatAttackLine(A, ['Peltasts', 'Archers'], base, fr)).toBe('Attaque : Archers, Hoplites (12) → Peltasts, Archers (6)');
+  });
+
+  it('attackers alone ask for a target, with no number', () => {
+    expect(formatAttackLine(A, [], null, en)).toBe('Attack: Archers, Hoplites, choose a target.');
+    expect(formatAttackLine(['Trireme'], [], null, fr)).toBe('Attaque : Trireme, choisissez une cible.');
+  });
+
+  it('an empty attacker group is cleared', () => {
+    expect(formatAttackLine([], [], null, en)).toBe('Attack cleared.');
+    expect(formatAttackLine([], [], null, fr)).toBe('Attaque annulée.');
+  });
+
+  it('dieModifierParts is empty when nothing modifies the die', () => {
+    expect(dieModifierParts(base, en)).toEqual([]);
+  });
+
+  it('autosave line in both languages', () => {
+    expect(en.saves.autosaved).toBe('Autosaved.');
+    expect(fr.saves.autosaved).toBe('Sauvegarde automatique effectuée.');
   });
 });

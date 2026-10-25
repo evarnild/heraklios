@@ -258,6 +258,10 @@ export const en = {
     terrainModifier: (value: number, terrain: string, q: number | null, r: number | null) =>
       `${value} ${terrain}${q === null || r === null ? '' : ` at (${q}, ${r})`}`,
     riverModifier: (value: number) => `${value} river crossing`,
+    attackWithTargets: (attackers: string, attack: number, targets: string, defense: number, modifier: number, parts: string) =>
+      `Attack: ${attackers} (${attack}) → ${targets} (${defense})${modifier !== 0 ? `, die +${modifier} (${parts})` : ''}`,
+    attackChooseTarget: (attackers: string) => `Attack: ${attackers}, choose a target.`,
+    attackCleared: 'Attack cleared.',
     combatReport: (r: CombatReport) =>
       [
         `ATTACKERS (total ${r.attackTotal}):`,
@@ -317,6 +321,7 @@ export const en = {
     savingFailed: "The game server isn't answering — nothing was saved.",
     loadingFailed: "The game server isn't answering — nothing was loaded.",
     deletingFailed: "The game server isn't answering — nothing was deleted.",
+    autosaved: 'Autosaved.',
     autosaveFailed: "Autosave failed: the game server isn't answering.",
     copyBrowserSaves: 'Copy browser saves to files',
     copyStopped: (copied: number) =>
