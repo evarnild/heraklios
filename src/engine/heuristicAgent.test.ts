@@ -897,3 +897,19 @@ describe('HeuristicAgent: unit swaps (§54)', () => {
     }
   });
 });
+
+describe('HeuristicAgent: swap filter at the random tier (§54)', () => {
+  it('never returns a landSwap from a list where one is likely, over 20 seeds', () => {
+    const units = [
+      makeUnit({ id: 'a', typeId: 'fantassins', position: landRow(0), movementLeft: 3 }),
+      makeUnit({ id: 'b', typeId: 'fantassins', position: landRow(1), movementLeft: 3 }),
+    ];
+    const state = makeGame(units, 'movement');
+    const swap: Action = { kind: 'landSwap', unitId: 'a', otherId: 'b' };
+    const legal: Action[] = [{ kind: 'endPhase' }, swap, swap, swap];
+    for (let seed = 0; seed < 20; seed++) {
+      const agent = new HeuristicAgent({ difficulty: 'random', rng: createSeededRng(seed) });
+      expect(agent.chooseNextAction(state, legal).kind).toBe('endPhase');
+    }
+  });
+});
