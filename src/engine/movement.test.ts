@@ -372,6 +372,26 @@ describe('swapStep', () => {
     expect(swapStep(state, a, a)).toBeNull();
   });
 
+  it('is null when a galley and a land unit stand on adjacent wide-river hexes both can enter (either one the galley)', () => {
+    const galley = makeCavalry({ id: 'g', typeId: 'galeres', position: { q: 20, r: 4 }, movementLeft: 6 });
+    const walker = inf('w', 20, 3);
+    const state = makeState([galley, walker]);
+    expect(swapStep(state, galley, walker)).toBeNull();
+    expect(swapStep(state, walker, galley)).toBeNull();
+  });
+
+  it('is null at distance 2 even with no enemy about (the distance check alone)', () => {
+    const a = inf('a', 10, 3);
+    const far = inf('f', 12, 3);
+    expect(swapStep(makeState([a, far]), a, far)).toBeNull();
+  });
+
+  it('is null when the FIRST unit is destroyed', () => {
+    const a = inf('a', 10, 3);
+    const dead = inf('d', 11, 3, { destroyed: true });
+    expect(swapStep(makeState([a, dead]), dead, a)).toBeNull();
+  });
+
   it('is null with the option off', () => {
     const a = inf('a', 10, 3);
     const b = inf('b', 11, 3);
