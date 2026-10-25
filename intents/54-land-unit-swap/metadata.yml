@@ -2,14 +2,14 @@
 id: 54
 slug: land-unit-swap
 type: feature
-status: in-review
+status: done
 title: Two adjacent friendly land units can swap places, as a game option
 review_tier:
 intent_accepted: 2026-10-24 by-agent    # owner: "54 yes and /auto 54"
 spec_accepted: 2026-10-24 by-agent    # owner: "swap is on by default, including on old saves loading, then yes" (amended in the commit before)
 plan_approved: 2026-10-24 by-agent    # auto: owner "/auto 54" (auto_authorized 2026-10-24)
 live_checked: 2026-10-25 by-agent    # owner: "54 live checked"
-merged:
+merged: 6c1724d    # 2026-10-25, merged by Claude on the owner's explicit request in chat
 auto_authorized: 2026-10-25 by-agent    # owner: "/auto 54" (after the escalate stop: diff read)
 auto_round: 2
 auto_stopped: ready for /ship
