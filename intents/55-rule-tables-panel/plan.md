@@ -158,3 +158,28 @@ Re-read on `main` at `7d69063`.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-10-26 — all five subtasks
+
+Commits: `1f2fedc` table builders, `316bedb` highlight, `840d6a2` texts,
+`939eed1` panel and button, `9fcd912` dev hook, e2e and README.
+
+Shipped: `src/engine/ruleTables.ts` (terrain, land, ramming, boarding
+builders and `landCombatHighlight`, all read through `resolveLandCombat`,
+`resolveBoarding`, `rammingSuccessRange`; `src/data/` untouched), `rules`
+and `board.tables` messages in English and French, `unitCategoryName`,
+`src/ui/rulesPanel.ts`, the Tables button beside Save / Load, Escape, the
+`rulesPanel()` dev-hook reader, `e2e/rules-panel.spec.ts`, README section
+"The Tables panel".
+
+Tests: `npm run verify` green, 62 files / 1171 tests (1165 before this
+intent's builders). Lint 21 warnings (cap unchanged). `npm run e2e`: 17 of 17
+passed, including the new scenario and placement.spec.ts (22.9 s, no timeout).
+
+Divergences: the panel is drawn at the top right of the canvas, 580 x 392,
+and covers the map centre at the 1100 x 750 game size, so the e2e pans the
+camera 9 hexes before clicking and the live check should judge the placement.
+The highlight also resyncs on undo/redo restores (not only on the §53 line
+sites), and `reset()` clears the panel on a new game. Boarding codes D-n / A-n
+are formed in the panel from `side` and `equipmentLoss`. Ramming shows the
+printed (no-bonus) range, the bonus being in the legend.
