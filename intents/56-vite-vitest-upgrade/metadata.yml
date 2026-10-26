@@ -12,7 +12,7 @@ live_checked:
 merged:
 auto_authorized: 2026-10-25 by-agent    # owner: "/auto 56"
 auto_round: 1
-auto_stopped:
+auto_stopped: live check owed
 follows_up:
 links:
   - intents/45-save-api
