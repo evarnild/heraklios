@@ -223,6 +223,9 @@ and rendering.
   `buildPushScenarioGameState`/`buildElephantScenarioGameState` builders in
   `fuzzHarness.ts` are purpose-built positions that make the push and drift
   paths reachable deterministically rather than by luck.
+- The board's **Tables panel** (§55): `engine/ruleTables.ts` turns the rule data into
+  rows and cells (and the land-table highlight) and is unit-tested; `ui/rulesPanel.ts`
+  only draws them, placed by `ui/rulesPanelLayout.ts` (kept clear of the centred prompts).
 - `src/scenes/` — the Phaser scenes, run in sequence: `MenuScene` →
   `ArmyBuilderScene` → `PlacementScene` → `BoardScene` → `GameOverScene`.
   `BoardScene.ts` is by far the largest file in the repo (~3000 lines) and

@@ -179,7 +179,7 @@ export const fr: Messages = {
     modifierFlat: (n: number) => (n === 0 ? '0' : `+${n}`),
     nobody: '—',
     categories: { chariot: 'chars', cavalry: 'cavalerie', elephant: 'éléphants', land: 'unités terrestres', naval: 'navires' } as Record<string, string>,
-    riverCrossing: "Traversée de rivière (côté d'hexagone)",
+    riverCrossing: "Rivière (côté d'hexagone)",
     riverCrossingCost: (n: number) => `+${n} pour traverser`,
     terrainNote: "Le modificateur s'ajoute au dé de l'attaquant, d'après l'hexagone du défenseur.",
     dieHeader: 'Dé',

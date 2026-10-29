@@ -9,6 +9,7 @@ import {
   type LandCombatHighlight,
 } from '../engine/ruleTables';
 import { messages } from './i18n';
+import { RULES_PANEL_H, RULES_PANEL_W, rulesPanelRect } from './rulesPanelLayout';
 import { terrainName, unitCategoryName, unitName } from './i18n/names';
 
 export type RulesTab = 'terrain' | 'land' | 'ramming' | 'boarding';
@@ -26,9 +27,8 @@ export interface RulesPanelConfig {
   onObjectsCreated: (objects: Phaser.GameObjects.GameObject[]) => void;
 }
 
-const PANEL_W = 580;
-const PANEL_H = 392;
-const MARGIN = 12;
+const PANEL_W = RULES_PANEL_W;
+const PANEL_H = RULES_PANEL_H;
 const DEPTH = 35;
 const PAD = 14;
 const TEXT_COLOR = '#e8d9b0';
@@ -94,8 +94,8 @@ export class RulesPanel {
     if (this.opened) return;
     this.opened = true;
     this.tab ??= defaultTab;
-    const { width } = this.scene.scale;
-    this.bounds = { left: width - PANEL_W - MARGIN, top: MARGIN };
+    const { left, top } = rulesPanelRect(this.scene.scale.width);
+    this.bounds = { left, top };
     this.buildShell();
     this.render();
   }
@@ -171,7 +171,7 @@ export class RulesPanel {
   private render(): void {
     for (const o of this.content) o.destroy();
     this.content = [];
-    const body = { x: this.bounds.left + PAD, y: this.bounds.top + 48 };
+    const body = { x: this.bounds.left + PAD, y: this.bounds.top + 40 };
     switch (this.tab) {
       case 'land':
         this.renderLand(body);
@@ -188,9 +188,9 @@ export class RulesPanel {
     this.config.onObjectsCreated(this.content);
   }
 
-  private text(x: number, y: number, text: string, color = TEXT_COLOR): Phaser.GameObjects.Text {
+  private text(x: number, y: number, text: string, color = TEXT_COLOR, width = PANEL_W - 2 * PAD): Phaser.GameObjects.Text {
     const t = this.scene.add
-      .text(x, y, text, { fontSize: '11px', color, wordWrap: { width: PANEL_W - 2 * PAD } })
+      .text(x, y, text, { fontSize: '10px', color, wordWrap: { width } })
       .setScrollFactor(0)
       .setDepth(DEPTH + 1);
     return this.track(this.content, t);
@@ -247,8 +247,8 @@ export class RulesPanel {
       { text: t.modifierFlat(table.riverCrossing.combatModifier) },
       { text: t.nobody },
     ]);
-    const y = this.grid(at.x, at.y, [150, 80, 220, 100], 38, [header, ...rows]);
-    this.text(at.x, y + 8, t.terrainNote, MUTED_COLOR);
+    const y = this.grid(at.x, at.y, [190, 100, 270, 150], 24, [header, ...rows]);
+    this.text(at.x, y + 4, t.terrainNote, MUTED_COLOR);
   }
 
   private renderLand(at: { x: number; y: number }): void {
@@ -269,8 +269,9 @@ export class RulesPanel {
         return { text: code, fill: hitRows.has(d + 1) ? HIT_FILL : COLUMN_FILL };
       }),
     ]);
-    const y = this.grid(at.x, at.y + 18, [46, ...table.columns.map(() => 50)], 24, [header, ...rows]);
-    this.text(at.x, y + 8, t.landLegend.join('\n'), MUTED_COLOR);
+    const gridWidth = 46 + table.columns.length * 50;
+    this.grid(at.x, at.y + 16, [46, ...table.columns.map(() => 50)], 22, [header, ...rows]);
+    this.text(at.x + gridWidth + 12, at.y, t.landLegend.join('\n\n'), MUTED_COLOR, PANEL_W - 2 * PAD - gridWidth - 12);
   }
 
   private renderRamming(at: { x: number; y: number }): void {
@@ -284,8 +285,8 @@ export class RulesPanel {
       { text: unitName(ship), fill: HEADER_FILL },
       ...table.cells[a]!.map((faces): Cell => ({ text: faces.join('-') })),
     ]);
-    const y = this.grid(at.x, at.y, [150, 100, 100, 100, 100], 34, [header, ...rows]);
-    this.text(at.x, y + 8, t.rammingLegend(MAX_RAMMING_BONUS), MUTED_COLOR);
+    const y = this.grid(at.x, at.y, [150, 100, 100, 100, 100], 32, [header, ...rows]);
+    this.text(at.x, y + 6, t.rammingLegend(MAX_RAMMING_BONUS), MUTED_COLOR);
   }
 
   private renderBoarding(at: { x: number; y: number }): void {
@@ -299,7 +300,8 @@ export class RulesPanel {
       { text: String(d + 1), fill: HEADER_FILL },
       ...table.codes[d]!.map((code): Cell => (code === null ? { text: '', fill: NO_RESULT_FILL } : { text: code })),
     ]);
-    const y = this.grid(at.x, at.y, [50, ...table.columns.map(() => 70)], 26, [header, ...rows]);
-    this.text(at.x, y + 8, t.boardingLegend.join('\n'), MUTED_COLOR);
+    const gridWidth = 50 + table.columns.length * 70;
+    this.grid(at.x, at.y, [50, ...table.columns.map(() => 70)], 26, [header, ...rows]);
+    this.text(at.x + gridWidth + 12, at.y, t.boardingLegend.join('\n\n'), MUTED_COLOR, PANEL_W - 2 * PAD - gridWidth - 12);
   }
 }

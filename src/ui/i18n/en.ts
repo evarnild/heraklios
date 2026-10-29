@@ -194,7 +194,7 @@ export const en = {
     modifierFlat: (n: number) => (n === 0 ? '0' : `+${n}`),
     nobody: '—',
     categories: { chariot: 'chariots', cavalry: 'cavalry', elephant: 'elephants', land: 'land units', naval: 'ships' } as Record<string, string>,
-    riverCrossing: 'River crossing (a hexside)',
+    riverCrossing: 'River crossing (hexside)',
     riverCrossingCost: (n: number) => `+${n} to cross`,
     terrainNote: "The die modifier is added to the attacker's roll, from the defender's hex.",
     dieHeader: 'Die',

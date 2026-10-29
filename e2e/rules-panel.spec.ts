@@ -14,28 +14,23 @@ import {
   MENU_CLOSE_COMBAT,
   activeUnitOfType,
   clickButton,
+  clickHex,
+  settle,
   startFromMenu,
   state,
   waitIdle,
-  type Hex,
 } from './helpers';
 
 const en = messagesFor('en');
+/** Rows to scroll the camera so a unit lands in the panel's area. */
+const PAN_ROWS = 6;
 
 const panel = (page: Page) => page.evaluate(() => window.__heraklios.rulesPanel());
 const attackLines = (page: Page) =>
   page.evaluate(() => window.__heraklios.logEntries().filter((e) => e.text.startsWith('Attack')).length);
 
-/** Clicks `hex` with the camera shifted so the hex sits left of the panel, not under it. */
-async function clickHexClearOfPanel(page: Page, hex: Hex): Promise<void> {
-  await page.evaluate((h) => window.__heraklios.centerOn({ q: h.q + 9, r: h.r }), hex);
-  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
-  const pt = await page.evaluate((h) => window.__heraklios.hexToCanvas(h), hex);
-  expect(pt, 'hex on screen').not.toBeNull();
-  expect(pt!.x, 'clear of the panel (left edge 508)').toBeLessThan(500);
-  const box = (await page.locator('canvas').boundingBox())!;
-  await page.mouse.click(box.x + pt!.x, box.y + pt!.y);
-}
+const frames = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+const canvasBox = async (page: Page) => (await page.locator('canvas').boundingBox())!;
 
 test('the Tables panel: tabs, Escape, a highlight that follows the attack, clicks that stay on the panel', async ({ page }) => {
   const errors = await startFromMenu(page, MENU_CLOSE_COMBAT, 'close-combat', 1);
@@ -62,7 +57,7 @@ test('the Tables panel: tabs, Escape, a highlight that follows the attack, click
   await clickButton(page, en.board.tables);
   expect(await panel(page)).toMatchObject({ open: true, tab: 'land', highlight: null });
 
-  // Build an attack with the panel open.
+  // Build an attack with the panel open: the panel sits above the centre, so the board is clickable.
   await clickButton(page, 'End phase');
   await waitIdle(page);
   const st = await state(page);
@@ -73,31 +68,58 @@ test('the Tables panel: tabs, Escape, a highlight that follows the attack, click
   expect(target).toBeTruthy();
   const lines = await attackLines(page);
 
-  await clickHexClearOfPanel(page, archers.position);
+  await clickHex(page, archers.position);
   await page.waitForFunction((n) => window.__heraklios.logEntries().filter((e) => e.text.startsWith('Attack')).length > n, lines);
   expect((await panel(page)).highlight, 'attackers alone: nothing to highlight yet').toBeNull();
 
-  await clickHexClearOfPanel(page, target.position);
+  await clickHex(page, target.position);
   await page.waitForFunction(() => window.__heraklios.rulesPanel().highlight !== null);
   const expected = landCombatHighlight(previewLandAttack([archers], [target]));
   expect(expected).not.toBeNull();
   expect((await panel(page)).highlight).toEqual(expected);
 
+  // Undo takes the target back (the highlight follows the restored selection); redo puts it back.
+  await page.keyboard.press('Control+z');
+  await page.waitForFunction(() => window.__heraklios.rulesPanel().highlight === null);
+  await page.keyboard.press('Control+Shift+z');
+  await page.waitForFunction(() => window.__heraklios.rulesPanel().highlight !== null);
+  expect((await panel(page)).highlight).toEqual(expected);
+
   // Remove the target: the highlight clears.
-  await clickHexClearOfPanel(page, target.position);
+  await clickHex(page, target.position);
   await page.waitForFunction(() => window.__heraklios.rulesPanel().highlight === null);
 
-  // A click on the panel (the attacker's hex centred under it) does not reach the map.
-  await page.evaluate((h) => window.__heraklios.centerOn(h), archers.position);
-  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  // A click on the panel (the attacker's hex scrolled up under it) does not reach the map.
+  await page.evaluate(([h, rows]) => window.__heraklios.centerOn({ q: h.q, r: h.r + rows }), [archers.position, PAN_ROWS] as const);
+  await frames(page);
   const under = (await page.evaluate((h) => window.__heraklios.hexToCanvas(h), archers.position))!;
-  expect(under.x, 'the hex is under the panel').toBeGreaterThan(520);
+  expect(under.y, 'the hex is under the panel').toBeLessThan(260);
+  expect(under.x, 'the hex is under the panel').toBeGreaterThan(330);
   const before = await attackLines(page);
-  const box = (await page.locator('canvas').boundingBox())!;
+  const box = await canvasBox(page);
   await page.mouse.click(box.x + under.x, box.y + under.y);
   await waitIdle(page);
   expect(await attackLines(page), 'nothing selected through the panel').toBe(before);
   expect((await panel(page)).open).toBe(true);
+
+  // The wheel over the panel does not zoom the map.
+  const zoom = await page.evaluate(() => window.__heraklios.cameraZoom());
+  await page.mouse.move(box.x + under.x, box.y + under.y);
+  await page.mouse.wheel(0, -300);
+  await frames(page);
+  expect(await page.evaluate(() => window.__heraklios.cameraZoom())).toBe(zoom);
+
+  // The Tables button closes an open panel.
+  await clickButton(page, en.board.tables);
+  expect((await panel(page)).open).toBe(false);
+
+  // Resolving the attack clears the highlight: reopen, build it again, resolve.
+  await clickButton(page, en.board.tables);
+  await clickHex(page, target.position); // the archers are still selected
+  await page.waitForFunction(() => window.__heraklios.rulesPanel().highlight !== null);
+  await clickButton(page, 'Resolve attack');
+  await settle(page);
+  expect((await panel(page)).highlight, 'cleared by the resolution').toBeNull();
 
   await page.keyboard.press('Escape');
   expect((await panel(page)).open).toBe(false);
