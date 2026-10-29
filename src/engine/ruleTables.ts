@@ -99,14 +99,20 @@ export interface BoardingTable {
   columns: readonly string[];
   /** rows[face - 1][column]; side null = the print's pink (no result) cell. */
   rows: BoardingResult[][];
+  /** The printed code of each cell, same shape as `rows`: "D-1", "A-2", or null for a no-result cell. */
+  codes: (string | null)[][];
+}
+
+/** The print's code for a boarding cell: D-n (defender loses n), A-n (attacker loses n), null = no result. */
+export function boardingCode(result: BoardingResult): string | null {
+  if (result.side === null) return null;
+  return `${result.side === 'attacker' ? 'A' : 'D'}-${result.equipmentLoss}`;
 }
 
 export function boardingTable(): BoardingTable {
   const forces = BOARDING_RATIO_COLUMNS.map(columnForces);
-  return {
-    columns: BOARDING_RATIO_COLUMNS,
-    rows: DIE_FACES.map((face) => forces.map((f) => resolveBoarding(f.attack, f.defense, face))),
-  };
+  const rows = DIE_FACES.map((face) => forces.map((f) => resolveBoarding(f.attack, f.defense, face)));
+  return { columns: BOARDING_RATIO_COLUMNS, rows, codes: rows.map((row) => row.map(boardingCode)) };
 }
 
 

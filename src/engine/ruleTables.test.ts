@@ -4,6 +4,7 @@ import { BOARDING_RATIO_COLUMNS, boardingRatioToColumnIndex, resolveBoarding } f
 import { rammingSuccessRange } from '../data/navalRamming';
 import { RIVER_CROSSING, TERRAIN_EFFECTS, isSeaLike, type TerrainType } from '../data/terrain';
 import {
+  boardingCode,
   boardingTable,
   columnForces,
   landCombatHighlight,
@@ -83,7 +84,7 @@ describe('rammingTable (§55)', () => {
     const idx = (s: string) => table.ships.indexOf(s as never);
     expect(table.cells[idx('galeres')]![idx('quintiremes')]).toEqual([1]);
     expect(table.cells[idx('quintiremes')]![idx('galeres')]).toEqual([1, 2, 3, 4, 5]);
-    expect(table.ships.length).toBe(4);
+    expect(table.ships).toEqual(['galeres', 'biremes', 'triremes', 'quintiremes']);
   });
 });
 
@@ -103,6 +104,20 @@ describe('boardingTable (§55)', () => {
       }),
     );
   });
+  it('has the print columns, in order', () => {
+    expect(table.columns).toEqual(BOARDING_RATIO_COLUMNS);
+    expect(table.columns).toEqual(['1-3', '1-2', '1-1', '2-1', '3-1', '4-1', '5-1']);
+  });
+  it('words each cell as the print does: D-n, A-n, or none for a no-result cell', () => {
+    expect(table.codes[0]![0]).toBe('D-1');
+    expect(table.codes[5]![0]).toBe('A-2');
+    expect(table.codes[0]![6]).toBe('D-4');
+    expect(table.codes[1]![0]).toBeNull();
+    expect(boardingCode({ side: 'attacker', equipmentLoss: 1 })).toBe('A-1');
+    expect(boardingCode({ side: 'defender', equipmentLoss: 3 })).toBe('D-3');
+    expect(boardingCode({ side: null, equipmentLoss: 0 })).toBeNull();
+    table.rows.forEach((row, d) => row.forEach((cell, c) => expect(table.codes[d]![c]).toBe(boardingCode(cell))));
+  });
   it('matches the print', () => {
     expect(table.rows[1]![0]).toEqual({ side: null, equipmentLoss: 0 });
     expect(table.rows[0]![0]).toEqual({ side: 'defender', equipmentLoss: 1 });
@@ -111,7 +126,7 @@ describe('boardingTable (§55)', () => {
   });
 });
 
-describe('landCombatHighlight (�55)', () => {
+describe('landCombatHighlight (§55)', () => {
   it('is null with no attack', () => {
     expect(landCombatHighlight(null)).toBeNull();
   });

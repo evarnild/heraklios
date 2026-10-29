@@ -182,7 +182,6 @@ export const fr: Messages = {
     riverCrossing: "Traversée de rivière (côté d'hexagone)",
     riverCrossingCost: (n: number) => `+${n} pour traverser`,
     terrainNote: "Le modificateur s'ajoute au dé de l'attaquant, d'après l'hexagone du défenseur.",
-    ratioHeader: 'Attaque : défense',
     dieHeader: 'Dé',
     landLegend: [
       "AE : attaquants éliminés. AR : attaquants reculent d'un hexagone. DE : défenseurs éliminés. DR : défenseurs reculent d'un hexagone.",
@@ -195,8 +194,8 @@ export const fr: Messages = {
     rammingLegend: (maxBonus: number) =>
       `Faces qui coulent le défenseur. Tout autre jet échoue. Le mouvement inutilisé donne une bonification jusqu'à ${maxBonus} à la face la plus haute.`,
     boardingLegend: [
-      "D-n : le défenseur perd n points d'équipement. A-n : l'attaquant perd n. Case teintée : aucun résultat.",
-      "Chaque point d'équipement perdu retire 5 à l'attaque et 5 à la défense ; un navire à 0 est retiré.",
+      "D-n : le défenseur perd n points d'équipage. A-n : l'attaquant perd n. Case teintée : aucun résultat.",
+      "Chaque point d'équipage perdu retire 5 à l'attaque et 5 à la défense ; un navire à 0 est retiré.",
     ],
   },
 

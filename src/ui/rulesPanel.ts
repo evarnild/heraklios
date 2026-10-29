@@ -297,12 +297,7 @@ export class RulesPanel {
     ];
     const rows: Cell[][] = table.rows.map((row, d) => [
       { text: String(d + 1), fill: HEADER_FILL },
-      ...row.map(
-        (cell): Cell =>
-          cell.side === null
-            ? { text: '', fill: NO_RESULT_FILL }
-            : { text: `${cell.side === 'attacker' ? 'A' : 'D'}-${cell.equipmentLoss}` },
-      ),
+      ...table.codes[d]!.map((code): Cell => (code === null ? { text: '', fill: NO_RESULT_FILL } : { text: code })),
     ]);
     const y = this.grid(at.x, at.y, [50, ...table.columns.map(() => 70)], 26, [header, ...rows]);
     this.text(at.x, y + 8, t.boardingLegend.join('\n'), MUTED_COLOR);

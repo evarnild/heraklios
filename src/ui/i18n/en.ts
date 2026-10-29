@@ -197,7 +197,6 @@ export const en = {
     riverCrossing: 'River crossing (a hexside)',
     riverCrossingCost: (n: number) => `+${n} to cross`,
     terrainNote: "The die modifier is added to the attacker's roll, from the defender's hex.",
-    ratioHeader: 'Attack : defense',
     dieHeader: 'Die',
     landLegend: [
       'AE: attackers eliminated. AR: attackers retreat one hex. DE: defenders eliminated. DR: defenders retreat one hex.',
