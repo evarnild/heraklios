@@ -172,8 +172,8 @@ and `board.tables` messages in English and French, `unitCategoryName`,
 `rulesPanel()` dev-hook reader, `e2e/rules-panel.spec.ts`, README section
 "The Tables panel".
 
-Tests: `npm run verify` green, 62 files / 1171 tests (1165 before this
-intent's builders). Lint 21 warnings (cap unchanged). `npm run e2e`: 17 of 17
+Tests: `npm run verify` green, 62 files / 1171 tests (the base was 1153; the intent
+added 18). Lint 21 warnings (cap unchanged). `npm run e2e`: 17 of 17
 passed, including the new scenario and placement.spec.ts (22.9 s, no timeout).
 
 Divergences: the panel is drawn at the top right of the canvas, 580 x 392,
@@ -183,3 +183,36 @@ The highlight also resyncs on undo/redo restores (not only on the §53 line
 sites), and `reset()` clears the panel on a new game. Boarding codes D-n / A-n
 are formed in the panel from `side` and `equipmentLoss`. Ramming shows the
 printed (no-bonus) range, the bonus being in the legend.
+
+### 2026-10-29 — review round 1 rework
+
+Commits: `3cc1f3d` (boarding codes in the engine, print-pinned boarding
+columns and ship order, French "points d'équipage", unused `ratioHeader`
+removed, the stray 0xA7 byte now a UTF-8 "§"), `c55d5d4` (panel moved, e2e
+extended, CLAUDE.md), and this entry. The count in the first entry above is
+corrected (base 1153, +18).
+
+Decision (c), the owner's: the panel is now 776 x 266 at the top right
+(x 312..1088, y 8..274 at the 1100 x 750 game size), a wide short layout:
+tables on the left, legends in a column to their right (land, boarding) or
+below (terrain, ramming), 10 px legend text, 22-26 px rows. It ends at y 274,
+one pixel above the prompt box (centre 550, 375; 340 x 200: y 275..475), and
+starts right of the 300 px side panel. `src/ui/rulesPanelLayout.ts` holds the
+rectangle and the prompt box; `rulesPanelLayout.test.ts` asserts no
+intersection at 1100 x 750, 1280 x 750 and 1100 x 800, and clearance of the
+side panel. The river label was shortened to "River crossing (hexside)" /
+"Rivière (côté d'hexagone)" to fit one line. Still non-modal.
+
+Resolutions: V3 (`boardingCode`, `boardingTable().codes`, pinned D-1, A-2,
+D-4, null), E21, E23, S5/S6/S11/S2 (e2e: undo and redo follow the
+selection, resolving clears, the Tables button closes, the wheel over the
+panel leaves the zoom), fr text, `ratioHeader`, the byte, the Progress count,
+CLAUDE.md Architecture. Not done: S10 (a save-load step), E17 (equivalent),
+"Closed to" for the wide river and coast (owner call).
+
+Counts: verify 62 + 1 files (63), 1177 tests; lint 21; e2e 17 of 17.
+Mutants, one at a time, each killed: boarding A/D swapped (vitest), boarding
+columns reversed (vitest), ships reversed (vitest), `syncRulesPanel` removed
+from `clearCombatSelection`, from the undo/redo restore, `contains` removed
+from `pointerBlocked`, the toggle made open-only (all four by
+`rules-panel.spec.ts`). Files restored by copy; the tree matched HEAD.
