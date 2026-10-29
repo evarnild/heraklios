@@ -11,8 +11,8 @@ plan_approved: 2026-10-25 by-agent    # auto: owner "/auto 55" (auto_authorized 
 live_checked:
 merged:
 auto_authorized: 2026-10-29 by-agent    # owner: "55 c /auto 55"
-auto_round: 1
-auto_stopped: decision needed
+auto_round: 2
+auto_stopped:
 follows_up:
 links:
   - intents/53-log-autosave-and-attack-selection
