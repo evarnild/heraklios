@@ -1,0 +1,19 @@
+# generated-by: heraklios/intent@0.1.5
+id: 61
+slug: architecture-guardrails
+type: feature
+status: draft
+title: The SDLC checks the architecture with written principles, import rules, a size budget and a review pass
+review_tier:
+intent_accepted:
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+auto_authorized:
+auto_round:
+auto_stopped:
+follows_up:
+links:
+  - intents/26-ai-sdlc-kit
+  - intents/60-five-parallel-intents
