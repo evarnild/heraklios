@@ -117,8 +117,19 @@ test('the Tables panel: tabs, Escape, a highlight that follows the attack, click
   await clickButton(page, en.board.tables);
   await clickHex(page, target.position); // the archers are still selected
   await page.waitForFunction(() => window.__heraklios.rulesPanel().highlight !== null);
+  const tabBefore = (await panel(page)).tab;
   await clickButton(page, 'Resolve attack');
+  // The seeded roll leaves a retreat, push or advance choice pending: the panel is hidden meanwhile,
+  // the Tables button does not bring it back, and it returns on the same tab once the choice is made.
+  await page.waitForFunction(() => window.__heraklios.busy().includes('decisionPending'), undefined, { timeout: 5000 });
+  await frames(page);
+  expect((await panel(page)).open, 'hidden while a decision is pending').toBe(false);
+  await clickButton(page, en.board.tables);
+  await frames(page);
+  expect((await panel(page)).open, 'the Tables button does not open it meanwhile').toBe(false);
   await settle(page);
+  await frames(page);
+  expect(await panel(page), 'back as it was').toMatchObject({ open: true, tab: tabBefore });
   expect((await panel(page)).highlight, 'cleared by the resolution').toBeNull();
 
   await page.keyboard.press('Escape');

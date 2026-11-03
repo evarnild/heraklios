@@ -216,3 +216,45 @@ columns reversed (vitest), ships reversed (vitest), `syncRulesPanel` removed
 from `clearCombatSelection`, from the undo/redo restore, `contains` removed
 from `pointerBlocked`, the toggle made open-only (all four by
 `rules-panel.spec.ts`). Files restored by copy; the tree matched HEAD.
+
+### Review round 2 rework (2026-11-03)
+
+Commits: `§55: review round 2 rework: hide the Tables panel while a decision is
+pending, real prompt sizes in the layout test`, and a second one with the e2e
+check and this entry.
+
+- **MEDIUM, decision (c): done.** The panel is hidden while `decisionPending`
+  is set and returns as it was (open or closed, same tab) when it clears. The
+  pure piece is `src/ui/rulesPanelState.ts` (`RulesPanelState`: the player's
+  wish kept apart from the suppression; open, toggle, close and tab changes are
+  ignored while suppressed), `RulesPanel` builds or destroys its objects to
+  match it, and `BoardScene.update` only wires `setSuppressed(decisionPending)`
+  (not widened to `retreatChoice` or `driftState`). Read in the code: `chooseAdvance`
+  (`BoardScene.ts` ~2421) and `chooseExchangeSacrifice` (~2673) both set
+  `decisionPending = true` before drawing their chooser, so both are covered
+  (so are `chooseRetreat` and `choosePushTarget`, which set it too). The ram
+  prompt (`promptRam`) and the boarding prompt (`navalAttackPrompt`) do NOT set
+  `decisionPending`, so the panel stays open beside them and must stay clear.
+- **MEDIUM, layout model and test: done.** The fake 340 x 200 box is gone.
+  `src/ui/boardPrompts.ts` exports `RAM_PROMPT` (280 x 130) and `BOARD_PROMPT`
+  (260 x 120) plus `centredPromptRect`; `BoardScene` draws those two prompts
+  from them and `rulesPanelLayout.ts`'s `visiblePromptRects` feeds the test.
+  The test pins the sizes and rectangles (a mutant on 130 -> 131 fails) and the
+  no-intersection check. The comments say what holds.
+- **LOW plan.md "22-26 px rows": corrected in place to "22-32 px rows"** (ramming rows are 32 px).
+- **LOW SIDE_PANEL_WIDTH: done.** `BoardScene`'s `PANEL_WIDTH` is now
+  `SIDE_PANEL_WIDTH` from `rulesPanelLayout.ts`.
+- **LOW G6 (`TOP` 8 -> 9): killed** by a new test pinning the rectangle at
+  312..1088 x 8..274.
+- **e2e: added** in `rules-panel.spec.ts`. Seed 1's roll deterministically
+  leaves a decision pending after Resolve attack: the panel reads hidden, the
+  Tables button does not reopen it, and after `settle` it is back on the same tab.
+- Mutants, each killed: update-line removed (e2e), hide only and never restored
+  (e2e, "back as it was"), `shown` ignoring suppression and `open` ignoring it
+  (`rulesPanelState.test.ts`), `TOP` 9 and RAM height 131 (layout test). Files
+  restored by copy.
+- Tests 1177 -> 1183 (+5 in `rulesPanelState.test.ts`, layout test net +1);
+  lint warnings 21 (unchanged, cap untouched); e2e 17 passed (one run had
+  `placement.spec.ts` time out at 30 s under machine load; it passes alone with
+  a longer timeout and does not touch the Board). One `fileSaveFs` stress test
+  timed out once under load and passed alone.
