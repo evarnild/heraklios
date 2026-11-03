@@ -1,38 +1,36 @@
 <!-- generated-by: heraklios/review@0.1.5 -->
 # §55 review — A Tables panel on the board shows the terrain table and the three combat tables
 
-verdict: rework
+verdict: attest
 tier: attested
-reviewed-commit: f8da4e3
-round: 4
+reviewed-commit: 7025cbb
+round: 5
 sampled: no
 run: manual
 live-check: owed
 
 **Tier:** Attested, by the path table alone (`src/ui/**`, `src/scenes/**`,
 `src/engine/ruleTables.ts`, `e2e/`, `README.md`, `CLAUDE.md`, the intent
-folder); no `review_tier`; no CRITICAL or HIGH finding. **Run:** manual, a
-fourth round after the `/auto` run stopped out of rounds (`auto_round: 3`).
-The coordinator ran every pass itself, no reviewer agent: the change since
-round 3 (`2af8898..f8da4e3`) is 62 lines, of which `src/` is two bytes.
+folder); no `review_tier`; no CRITICAL or HIGH finding; nothing on the
+Reviewed list. **Run:** manual. **Disclosure:** the coordinator both wrote
+this round's change (the CLAUDE.md wording, on the owner's "fix claude.md")
+and reviewed it; the change is documentation only, four lines.
 
-**Verdict:** `rework`, on one mechanical finding: the new CLAUDE.md
-sentence names the wrong module for the decision choosers. Every round-3
-finding marked "Needs rework:" is resolved, RP1 and RP2 are killed, the
-regression set stays killed, and the scenario that was flaky passed 10 of 10
-repeats and the full suite.
+**Verdict:** `attest`. Round 4's one finding is resolved; nothing else
+changed since round 4 (`f8da4e3..7025cbb`: `CLAUDE.md` and this report).
+The live check is still owed and is the owner's.
 
 ## Passes
 | # | Pass | Result |
 | --- | --- | --- |
-| 1 | Intent and plan match | pass: the rework covers round 3's findings and nothing else (`e2e/rules-panel.spec.ts`, README, CLAUDE.md, two bytes, Progress) |
+| 1 | Intent and plan match | pass: the only change is the CLAUDE.md correction round 4 asked for |
 | 2 | Type check | pass apart from the owed live check (the owner's gate) |
 | 3 | Rulebook fidelity | pass: `src/data/` and `src/engine/ruleTables.ts` unchanged since round 2 |
-| 4 | Tests prove the rule, not only pass | pass: RP1 and RP2 now killed; M1, S2, S5, S6, S11, ST5 still killed by the e2e; RP4 survives (render only, optional) |
-| 5 | Engine/presentation boundary and conventions | pass: no code change beyond two comment bytes |
-| 6 | Numbers in prose | pass: Progress's 1183 → 1183, lint 21, e2e 17, repeat 10 of 10 reproduced |
-| 7 | Documentation | findings (1): CLAUDE.md:229-231 credits `ui/boardPrompts.ts` with the decision choosers |
-| 8 | Guardrails and hygiene | pass: lint 21 of 21, cap unchanged; every changed file valid UTF-8; no new dependency, `eslint-disable` or `innerHTML` |
+| 4 | Tests prove the rule, not only pass | pass: no code change since round 4, whose mutants stand (RP1, RP2, M1, S2, S5, S6, S11, ST5 killed; RP4 survives, render only) |
+| 5 | Engine/presentation boundary and conventions | pass: no code change |
+| 6 | Numbers in prose | pass: no new numbers |
+| 7 | Documentation | pass: CLAUDE.md:226-231 now matches the code (below) |
+| 8 | Guardrails and hygiene | pass: lint 21 of 21, cap unchanged; CLAUDE.md valid UTF-8 |
 | 9 | Repository-specific footguns | pass: presentation only |
 
 ## Type check
@@ -42,49 +40,38 @@ repeats and the full suite.
 
 type-check: FAIL (intent 55, feature)
   error: A live check is owed and not recorded. Do the steps in intents/55-rule-tables-panel/review.md → ## Live check, then set live_checked: <date> in intents/55-rule-tables-panel/metadata.yml.
-  note:  18 file(s), 1168 line(s) changed outside intents/.
+  note:  18 file(s), 1169 line(s) changed outside intents/.
 ```
 The only error is the owed live check, which the owner clears; not rework.
 
 ## Findings
-- **MEDIUM** `CLAUDE.md:229-231`: "`ui/boardPrompts.ts`' decision choosers
-  (retreat, push, advance, exchange, drift) hide the panel while pending".
-  `ui/boardPrompts.ts` holds only the ram and boarding prompt sizes
-  (`RAM_PROMPT`, `BOARD_PROMPT`, `centredPromptRect`); the decision choosers
-  are `BoardScene`'s (`chooseRetreat`, `choosePushTarget`, `chooseAdvance`,
-  `chooseExchangeSacrifice`, `beginDrift`), and what hides the panel is
-  `BoardScene.update` passing `decisionPending` to `RulesPanel.setSuppressed`.
-  Every agent reads CLAUDE.md, so it would send the next one to the wrong
-  file. Needs rework: reword it to, for example, "…; `ui/rulesPanelState.ts`
-  holds open/tab/hidden, `ui/boardPrompts.ts` sizes the ram and boarding
-  prompts the layout keeps clear of, and the Board hides the panel while a
-  decision (retreat, push, advance, exchange, drift) is pending; it returns as
-  it was."
-- Nit: `e2e/rules-panel.spec.ts:41`, `chord`'s `mods.reverse()` reverses the
-  caller's array in place (harmless with the literal arrays passed today).
+- None needing rework.
+- Nit, carried from round 4: `e2e/rules-panel.spec.ts:41`, `chord`'s
+  `mods.reverse()` reverses the caller's array in place (harmless today).
+- Worth a look, carried: RP4 (`src/ui/rulesPanel.ts:132`, the land table
+  drawn while the panel is closed), render only.
 
 ## Not checked
-- **Vitest-killed mutants** (ST1-ST10, G6, L1, SP1, BP1-BP4, V3, E21, E23):
-  not re-run; the unit tests and their targets are unchanged since round 3,
-  where the coordinator re-ran ST1, ST2, ST5, S11, G6, BP1, V3, E21 and E23.
+- **Mutants:** not re-run this round; no code or test changed since round 4,
+  which re-ran the e2e-killed set, and round 3, which re-ran the
+  vitest-killed set.
 - **The `chord` helper's timing** relies on two `requestAnimationFrame`s
-  covering at least one Phaser step between key events; it passed 10 of 10
-  repeats and the full suite under load, but is not proven for every machine.
+  covering at least one Phaser step between key events; shown by 10 of 10
+  repeats and three full-suite passes under load (rounds 4 and 5), not
+  proven for every machine.
 - **The game's own keyboard double handling** (Ctrl+Z/Y on the Board and in
-  Placement): outside this intent, drafted as §62. The live check's undo/redo
-  presses should be made one key at a time.
-- Carried over from round 3: the panel-versus-chooser window under one frame
-  (by code); the choosers individually and the drift flicker (live-check
-  items); scene literals BSR, BSB, BSP and RP6 (inherent or equivalent); S10;
-  hexes under the open panel; RP4 (render only).
+  Placement): outside this intent, drafted as §62.
+- Carried from round 3: the panel-versus-chooser window under one frame (by
+  code); the choosers individually and the drift flicker (live-check items);
+  scene literals BSR, BSB, BSP and RP6 (inherent or equivalent); S10; hexes
+  under the open panel.
 - No browser run beyond the e2e suite.
 
 ## Live check
 - **Owed** by rule 1 (`src/ui/rulesPanel.ts`, `rulesPanelState.ts`,
   `boardPrompts.ts`, `rulesPanelLayout.ts`, `src/scenes/BoardScene.ts`,
   `i18n/*`, `devHook.ts` across the branch), new and visual; rule 3 for the
-  drift flicker. Run it on the commit that resolves this round's finding
-  (a CLAUDE.md wording change; the game is the same as at `f8da4e3`).
+  drift flicker. Run it on `7025cbb` (the game is the same as at `f8da4e3`).
 - **Steps:**
   1. In `C:/Users/eric/src/heraklios-wt/55-rule-tables-panel`, with
      `HERAKLIOS_SAVES_DIR` set to an empty temp folder, `npm run dev -- --port
@@ -124,36 +111,45 @@ The only error is the owed live check, which the owner clears; not rework.
 
 ## Verified myself vs. taken on trust
 
-**Coordinator** (worktree at `f8da4e3`, `git status --short` clean before,
-and after every mutant):
-- Read the whole diff `2af8898..f8da4e3`: `e2e/rules-panel.spec.ts` (+26/-2),
-  `README.md` and `CLAUDE.md` (+4/-1 each), `plan.md` Progress (+28), and in
-  `src/` only `BoardScene.ts:1443` and `rulesPanelLayout.ts:4`, 0xA7 → C2 A7.
+**Coordinator** (worktree at `7025cbb`, `git status --short` clean before and
+after):
+- `git diff --name-only f8da4e3..7025cbb`: `CLAUDE.md` and this report only.
+- The new CLAUDE.md sentence against the code: `ui/boardPrompts.ts` exports
+  `RAM_PROMPT`, `BOARD_PROMPT`, `centredPromptRect` (the prompt sizes);
+  `BoardScene.update` (`BoardScene.ts:1442`) calls
+  `this.rulesPanel?.setSuppressed(this.decisionPending)` (`:1444`);
+  `RulesPanel.setSuppressed` is at `rulesPanel.ts:107`; `rulesPanelLayout.ts`
+  keeps the panel clear of those prompts (`visiblePromptRects`). Accurate.
+- `iconv -f UTF-8 -t UTF-8 CLAUDE.md`: passes.
 - `npm run verify`: exit 0, 64 files, 1183 tests, `21 problems (0 errors, 21
   warnings)`.
-- `npm run check:intent`: FAIL only on the owed live check (18 files, 1168
+- `npm run check:intent`: FAIL only on the owed live check (18 files, 1169
   lines).
-- `iconv -f UTF-8 -t UTF-8` over every file changed vs `main` in `src`, `e2e`,
-  `README.md`, `CLAUDE.md`: all pass.
-- `npm run e2e`: exit 0, 17 passed (36.9 s).
-- `npx playwright test e2e/rules-panel.spec.ts --repeat-each 10`: 10 passed
-  (34.3 s).
-- Mutants against `e2e/rules-panel.spec.ts` (byte-preserving apply, checked
-  as applied, restored by copy): RP1 killed ("drawn again once the choice is
-  made", `:61`); RP2 killed ("a closed panel does not block the wheel",
-  `:150`); RP4 survived; M1 killed ("hidden while a decision is pending",
-  `:52`); S2 killed (`:141` zoom); S5 killed ("cleared by the resolution",
-  `:159`); S6 killed (undo wait `:113`); S11 killed (`:145`); ST5 killed
-  ("back as it was", `:60`). These match the implementer's report.
+- `npm run e2e`: exit 0, 17 passed (34.5 s).
 - `npm run sdlc:scan -- --sample-due manual --exclude 55`: nth attested
   manual change = 13, every 5, `sampled: no`.
 
 **Taken on trust:** as in round 3 (the transcription; round 1's cell-by-cell
 table comparison; seed 1's roll leading to a choice; Phaser's step order).
 
-Scratch files, outside the repo:
-`C:/Users/eric/AppData/Local/Temp/claude/5fa25da4d97f8e6d/039c398c-c92e-4752-8e0d-48aac6d7afde/scratchpad/coord55r3/`
-(`r4.sh`, `r4-results.txt` and the logs).
+# Round 4 (history)
+- verdict: rework
+- tier: attested
+- reviewed-commit: f8da4e3
+- round: 4
+- sampled: no
+- run: manual
+- live-check: owed
+
+The full round-4 report is in git at `e6746b7`.
+
+Resolutions (round 5, checked at `7025cbb`):
+- **MEDIUM, CLAUDE.md naming `ui/boardPrompts.ts` for the decision
+  choosers: fixed** in `7025cbb` (the coordinator, on the owner's "fix
+  claude.md"): it now says `boardPrompts.ts` sizes the ram and boarding
+  prompts and `BoardScene.update` hides the panel through
+  `RulesPanel.setSuppressed` while a decision is pending.
+- **Nit, `chord`'s `mods.reverse()`:** unchanged.
 
 # Round 3 (history)
 - verdict: rework
