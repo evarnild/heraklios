@@ -30,6 +30,17 @@ const attackLines = (page: Page) =>
   page.evaluate(() => window.__heraklios.logEntries().filter((e) => e.text.startsWith('Attack')).length);
 
 const frames = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+/** One key press with a frame between each DOM event: Phaser re-processes the frame's queued key events on
+ * every DOM key event, so a press whose down and up land in one frame can fire its handler twice. */
+async function chord(page: Page, mods: string[], key: string): Promise<void> {
+  for (const m of mods) await page.keyboard.down(m);
+  await frames(page);
+  await page.keyboard.down(key);
+  await frames(page);
+  await page.keyboard.up(key);
+  for (const m of mods.reverse()) await page.keyboard.up(m);
+  await frames(page);
+}
 const canvasBox = async (page: Page) => (await page.locator('canvas').boundingBox())!;
 
 /** The seeded roll leaves a retreat, push or advance choice pending: the panel is hidden meanwhile,
@@ -98,12 +109,10 @@ test('the Tables panel: tabs, Escape, a highlight that follows the attack, click
 
   // Undo takes the target back (the highlight follows the restored selection); redo puts it back.
   // One press per action: a frame passes after each (Phaser re-processes queued key events within a frame).
-  await page.keyboard.press('Control+z');
-  await frames(page);
+  await chord(page, ['Control'], 'z');
   await page.waitForFunction(() => window.__heraklios.rulesPanel().highlight === null);
   await frames(page);
-  await page.keyboard.press('Control+Shift+z');
-  await frames(page);
+  await chord(page, ['Control', 'Shift'], 'z');
   await page.waitForFunction(() => window.__heraklios.rulesPanel().highlight !== null);
   expect((await panel(page)).highlight).toEqual(expected);
 
@@ -135,6 +144,7 @@ test('the Tables panel: tabs, Escape, a highlight that follows the attack, click
   await clickButton(page, en.board.tables);
   expect((await panel(page)).open).toBe(false);
   // Closed, it no longer blocks the wheel at the same point.
+  await page.mouse.move(box.x + under.x, box.y + under.y);
   await page.mouse.wheel(0, -300);
   await frames(page);
   expect(await page.evaluate(() => window.__heraklios.cameraZoom()), 'a closed panel does not block the wheel').not.toBe(zoom);

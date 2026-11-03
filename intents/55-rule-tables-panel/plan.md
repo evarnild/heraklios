@@ -258,3 +258,31 @@ check and this entry.
   `placement.spec.ts` time out at 30 s under machine load; it passes alone with
   a longer timeout and does not touch the Board). One `fileSaveFs` stress test
   timed out once under load and passed alone.
+
+### 2026-11-03 — review round 3 rework
+
+Findings and resolutions:
+- MEDIUM (e2e read state, not the drawn panel): `expectHiddenWhileDecisionPending`
+  now also asserts the Land combat tab button count is 0 while hidden (and after
+  the Tables button) and 1 once the choice is made. Mutant RP1 (`setSuppressed`
+  returns before `sync()` when not suppressed) killed by that assertion
+  ("drawn again once the choice is made", expected 1, received 0).
+- MEDIUM (flaky under load): undo/redo in the scenario go through a `chord`
+  helper (modifier down, frame, key down, frame, key up, modifiers up, frame), so
+  one press is one action. A first attempt (`press` plus frames after) still
+  failed 2 of 8, since down and up of one press land in one frame; the chord
+  helper passes `--repeat-each 10` (10 passed) and an earlier 5 of the first
+  variant. `BoardScene`/`PlacementScene` key handling untouched.
+- LOW RP2: after the Tables button closes the panel, the mouse is moved to the
+  same point and the wheel must change `cameraZoom()`. RP2 (`contains` without
+  the shown check) killed by "a closed panel does not block the wheel".
+- LOW stray 0xA7 bytes: `BoardScene.ts` and `rulesPanelLayout.ts` rewritten as
+  UTF-8 "§" byte-wise (line endings kept); `iconv -f UTF-8 -t UTF-8` passes on
+  every file changed vs main.
+- LOW docs: README Tables section gains the hide-and-restore sentence; CLAUDE.md
+  names `ui/rulesPanelState.ts` and `ui/boardPrompts.ts` and says what holds.
+- RP4 (optional): not done.
+
+Tests 1183 -> 1183 (unit unchanged; the change is e2e and docs); lint warnings
+21 (cap untouched); `npm run e2e` 17 passed; `check:intent` fails only on the
+owed live check.
