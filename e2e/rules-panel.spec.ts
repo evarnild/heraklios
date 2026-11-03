@@ -32,6 +32,20 @@ const attackLines = (page: Page) =>
 const frames = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 const canvasBox = async (page: Page) => (await page.locator('canvas').boundingBox())!;
 
+/** The seeded roll leaves a retreat, push or advance choice pending: the panel is hidden meanwhile,
+ * the Tables button does not bring it back, and it returns on the same tab once the choice is made. */
+async function expectHiddenWhileDecisionPending(page: Page, tab: unknown): Promise<void> {
+  await page.waitForFunction(() => window.__heraklios.busy().includes('decisionPending'), undefined, { timeout: 5000 });
+  await frames(page);
+  expect((await panel(page)).open, 'hidden while a decision is pending').toBe(false);
+  await clickButton(page, en.board.tables);
+  await frames(page);
+  expect((await panel(page)).open, 'the Tables button does not open it meanwhile').toBe(false);
+  await settle(page);
+  await frames(page);
+  expect(await panel(page), 'back as it was').toMatchObject({ open: true, tab: tab });
+}
+
 test('the Tables panel: tabs, Escape, a highlight that follows the attack, clicks that stay on the panel', async ({ page }) => {
   const errors = await startFromMenu(page, MENU_CLOSE_COMBAT, 'close-combat', 1);
   const tabs = en.rules.tabs;
@@ -119,17 +133,7 @@ test('the Tables panel: tabs, Escape, a highlight that follows the attack, click
   await page.waitForFunction(() => window.__heraklios.rulesPanel().highlight !== null);
   const tabBefore = (await panel(page)).tab;
   await clickButton(page, 'Resolve attack');
-  // The seeded roll leaves a retreat, push or advance choice pending: the panel is hidden meanwhile,
-  // the Tables button does not bring it back, and it returns on the same tab once the choice is made.
-  await page.waitForFunction(() => window.__heraklios.busy().includes('decisionPending'), undefined, { timeout: 5000 });
-  await frames(page);
-  expect((await panel(page)).open, 'hidden while a decision is pending').toBe(false);
-  await clickButton(page, en.board.tables);
-  await frames(page);
-  expect((await panel(page)).open, 'the Tables button does not open it meanwhile').toBe(false);
-  await settle(page);
-  await frames(page);
-  expect(await panel(page), 'back as it was').toMatchObject({ open: true, tab: tabBefore });
+  await expectHiddenWhileDecisionPending(page, tabBefore);
   expect((await panel(page)).highlight, 'cleared by the resolution').toBeNull();
 
   await page.keyboard.press('Escape');
