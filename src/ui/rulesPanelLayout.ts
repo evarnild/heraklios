@@ -1,7 +1,7 @@
 import { BOARD_PROMPT, RAM_PROMPT, centredPromptRect } from './boardPrompts';
 
 /**
- * Where the Tables panel sits (ง55). Pure geometry, so a test can pin that it
+ * Where the Tables panel sits (ยง55). Pure geometry, so a test can pin that it
  * stays clear of the prompts that are shown while it is open (the ram and
  * boarding prompts, from `boardPrompts.ts`, which `BoardScene` draws from) and
  * of the left side panel. The decision choosers (retreat, push, advance,

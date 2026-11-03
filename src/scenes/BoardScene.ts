@@ -1440,7 +1440,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * `update` doesn't need to check `paused` here.
    */
   update(_time: number, delta: number): void {
-    // The Tables panel is hidden while a decision is pending (ง55).
+    // The Tables panel is hidden while a decision is pending (ยง55).
     this.rulesPanel?.setSuppressed(this.decisionPending);
     const state = session.gameState;
     if (!state || state.gameOver) return;

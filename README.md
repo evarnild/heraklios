@@ -682,7 +682,10 @@ Land combat tab names the forces and highlights the ratio column and, in it,
 the row each die face lands on after the terrain and river modifier (a
 modified roll above 6 counts as 6). Ramming and boarding are not highlighted:
 they resolve as soon as the target is picked. The computer's attacks are not
-highlighted. Opening it changes nothing in the game.
+highlighted. While a retreat, push, advance or exchange choice (or an
+elephant's drift) is pending the panel hides, and the Tables button and Escape
+do nothing; it comes back as it was, on the same tab, once the choice is made.
+Opening it changes nothing in the game.
 
 ### Combat log detail
 

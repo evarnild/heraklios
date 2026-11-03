@@ -225,7 +225,10 @@ and rendering.
   paths reachable deterministically rather than by luck.
 - The board's **Tables panel** (§55): `engine/ruleTables.ts` turns the rule data into
   rows and cells (and the land-table highlight) and is unit-tested; `ui/rulesPanel.ts`
-  only draws them, placed by `ui/rulesPanelLayout.ts` (kept clear of the centred prompts).
+  only draws them, placed by `ui/rulesPanelLayout.ts` (the layout keeps it clear of the
+  ram and boarding prompts); `ui/rulesPanelState.ts` holds open/tab/hidden, and
+  `ui/boardPrompts.ts`' decision choosers (retreat, push, advance, exchange, drift) hide the
+  panel while pending and it returns as it was.
 - `src/scenes/` — the Phaser scenes, run in sequence: `MenuScene` →
   `ArmyBuilderScene` → `PlacementScene` → `BoardScene` → `GameOverScene`.
   `BoardScene.ts` is by far the largest file in the repo (~3000 lines) and

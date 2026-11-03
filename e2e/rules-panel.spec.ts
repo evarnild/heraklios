@@ -37,13 +37,17 @@ const canvasBox = async (page: Page) => (await page.locator('canvas').boundingBo
 async function expectHiddenWhileDecisionPending(page: Page, tab: unknown): Promise<void> {
   await page.waitForFunction(() => window.__heraklios.busy().includes('decisionPending'), undefined, { timeout: 5000 });
   await frames(page);
+  const drawn = (label: string) => page.evaluate((l) => window.__heraklios.buttonCount(l), label);
   expect((await panel(page)).open, 'hidden while a decision is pending').toBe(false);
+  expect(await drawn(en.rules.tabs.land), 'the tab buttons are gone while hidden').toBe(0);
   await clickButton(page, en.board.tables);
   await frames(page);
   expect((await panel(page)).open, 'the Tables button does not open it meanwhile').toBe(false);
+  expect(await drawn(en.rules.tabs.land), 'still not drawn after the Tables button').toBe(0);
   await settle(page);
   await frames(page);
   expect(await panel(page), 'back as it was').toMatchObject({ open: true, tab: tab });
+  expect(await drawn(en.rules.tabs.land), 'drawn again once the choice is made').toBe(1);
 }
 
 test('the Tables panel: tabs, Escape, a highlight that follows the attack, clicks that stay on the panel', async ({ page }) => {
@@ -93,9 +97,13 @@ test('the Tables panel: tabs, Escape, a highlight that follows the attack, click
   expect((await panel(page)).highlight).toEqual(expected);
 
   // Undo takes the target back (the highlight follows the restored selection); redo puts it back.
+  // One press per action: a frame passes after each (Phaser re-processes queued key events within a frame).
   await page.keyboard.press('Control+z');
+  await frames(page);
   await page.waitForFunction(() => window.__heraklios.rulesPanel().highlight === null);
+  await frames(page);
   await page.keyboard.press('Control+Shift+z');
+  await frames(page);
   await page.waitForFunction(() => window.__heraklios.rulesPanel().highlight !== null);
   expect((await panel(page)).highlight).toEqual(expected);
 
@@ -126,6 +134,10 @@ test('the Tables panel: tabs, Escape, a highlight that follows the attack, click
   // The Tables button closes an open panel.
   await clickButton(page, en.board.tables);
   expect((await panel(page)).open).toBe(false);
+  // Closed, it no longer blocks the wheel at the same point.
+  await page.mouse.wheel(0, -300);
+  await frames(page);
+  expect(await page.evaluate(() => window.__heraklios.cameraZoom()), 'a closed panel does not block the wheel').not.toBe(zoom);
 
   // Resolving the attack clears the highlight: reopen, build it again, resolve.
   await clickButton(page, en.board.tables);
