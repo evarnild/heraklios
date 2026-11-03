@@ -195,7 +195,7 @@ corrected (base 1153, +18).
 Decision (c), the owner's: the panel is now 776 x 266 at the top right
 (x 312..1088, y 8..274 at the 1100 x 750 game size), a wide short layout:
 tables on the left, legends in a column to their right (land, boarding) or
-below (terrain, ramming), 10 px legend text, 22-26 px rows. It ends at y 274,
+below (terrain, ramming), 10 px legend text, 22-32 px rows. It ends at y 274,
 one pixel above the prompt box (centre 550, 375; 340 x 200: y 275..475), and
 starts right of the 300 px side panel. `src/ui/rulesPanelLayout.ts` holds the
 rectangle and the prompt box; `rulesPanelLayout.test.ts` asserts no

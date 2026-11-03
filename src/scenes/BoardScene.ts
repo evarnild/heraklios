@@ -9,6 +9,8 @@ import { session, resetToMenu, seatControlFor } from '../ui/session';
 import { showConfirmDialog } from '../ui/confirmDialog';
 import { SaveLoadPanel } from '../ui/saveLoadPanel';
 import { RulesPanel } from '../ui/rulesPanel';
+import { BOARD_PROMPT, RAM_PROMPT } from '../ui/boardPrompts';
+import { SIDE_PANEL_WIDTH } from '../ui/rulesPanelLayout';
 import {
   applySavedGame,
   captureCurrentGame,
@@ -86,7 +88,7 @@ import { BOARDING_RATIO_COLUMNS } from '../data/navalBoarding';
 
 /** Width of the left-hand HUD panel (buttons, phase status, combat log),
  * reserved outside the map's own viewport â€” see `MapView`'s `leftPanelWidth`. */
-const PANEL_WIDTH = 300;
+const PANEL_WIDTH = SIDE_PANEL_WIDTH;
 
 /**
  * How long an AI seat pauses between its own actions, so its turn plays out
@@ -1438,6 +1440,8 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * `update` doesn't need to check `paused` here.
    */
   update(_time: number, delta: number): void {
+    // The Tables panel is hidden while a decision is pending (§55).
+    this.rulesPanel?.setSuppressed(this.decisionPending);
     const state = session.gameState;
     if (!state || state.gameOver) return;
     const wasPending = state.pendingGameEnd;
@@ -1831,7 +1835,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * this same turn. */
   private promptRam(attacker: Unit, defender: Unit, bonus: 0 | 1 | 2): void {
     const { width, height } = this.scale;
-    const panel = this.add.rectangle(width / 2, height / 2, 280, 130, 0x1a1408, 0.95).setScrollFactor(0).setDepth(20);
+    const panel = this.add.rectangle(width / 2, height / 2, RAM_PROMPT.width, RAM_PROMPT.height, 0x1a1408, 0.95).setScrollFactor(0).setDepth(20);
     const label = this.add
       .text(width / 2, height / 2 - 40, messages().board.ramPrompt(nameOf(defender), bonus), {
         fontSize: '14px',
@@ -2770,7 +2774,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * direct consequence of a ship's path bringing it bow-on to an enemy. */
   private navalAttackPrompt(attacker: Unit, defender: Unit): void {
     const { width, height } = this.scale;
-    const panel = this.add.rectangle(width / 2, height / 2, 260, 120, 0x1a1408, 0.95).setScrollFactor(0).setDepth(20);
+    const panel = this.add.rectangle(width / 2, height / 2, BOARD_PROMPT.width, BOARD_PROMPT.height, 0x1a1408, 0.95).setScrollFactor(0).setDepth(20);
     const label = this.add
       .text(width / 2, height / 2 - 35, messages().board.boardPrompt(nameOf(attacker), nameOf(defender)), {
         fontSize: '13px',

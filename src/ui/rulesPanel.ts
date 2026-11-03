@@ -9,6 +9,7 @@ import {
   type LandCombatHighlight,
 } from '../engine/ruleTables';
 import { messages } from './i18n';
+import { RulesPanelState } from './rulesPanelState';
 import { RULES_PANEL_H, RULES_PANEL_W, rulesPanelRect } from './rulesPanelLayout';
 import { terrainName, unitCategoryName, unitName } from './i18n/names';
 
@@ -58,9 +59,10 @@ export class RulesPanel {
   private config: RulesPanelConfig;
   private shell: Phaser.GameObjects.GameObject[] = [];
   private content: Phaser.GameObjects.GameObject[] = [];
-  private tab: RulesTab | null = null;
+  private state = new RulesPanelState();
+  /** True while the objects are built (the state says shown). */
+  private built = false;
   private attack: RulesAttack | null = null;
-  private opened = false;
   private bounds = { left: 0, top: 0 };
 
   constructor(scene: Phaser.Scene, config: RulesPanelConfig) {
@@ -68,57 +70,73 @@ export class RulesPanel {
     this.config = config;
   }
 
+  /** Shown now: open and not hidden by a pending decision. */
   isOpen(): boolean {
-    return this.opened;
+    return this.state.shown;
   }
 
-  /** What a smoke test reads: whether it is open, the tab, and the highlight. */
+  /** What a smoke test reads: whether it is shown, the tab, and the highlight. */
   snapshot(): { open: boolean; tab: RulesTab | null; highlight: LandCombatHighlight | null } {
-    return { open: this.opened, tab: this.tab, highlight: landCombatHighlight(this.attack) };
+    return { open: this.state.shown, tab: this.state.tab, highlight: landCombatHighlight(this.attack) };
   }
 
   /** True for a screen point on the panel (the map must not pan or zoom there). */
   contains(x: number, y: number): boolean {
-    if (!this.opened) return false;
+    if (!this.state.shown) return false;
     const { left, top } = this.bounds;
     return x >= left && x <= left + PANEL_W && y >= top && y <= top + PANEL_H;
   }
 
-  /** Opens on `defaultTab` the first time, then on the last tab chosen; closes if open. */
+  /** Opens on `defaultTab` the first time, then on the last tab chosen; closes if open. No effect while hidden. */
   toggle(defaultTab: RulesTab): void {
-    if (this.opened) this.close();
-    else this.open(defaultTab);
+    this.state.toggle(defaultTab);
+    this.sync();
   }
 
   open(defaultTab: RulesTab): void {
-    if (this.opened) return;
-    this.opened = true;
-    this.tab ??= defaultTab;
-    const { left, top } = rulesPanelRect(this.scene.scale.width);
-    this.bounds = { left, top };
-    this.buildShell();
-    this.render();
+    this.state.open(defaultTab);
+    this.sync();
   }
 
   close(): void {
-    if (!this.opened) return;
-    this.opened = false;
-    for (const o of [...this.shell, ...this.content]) o.destroy();
-    this.shell = [];
-    this.content = [];
+    this.state.close();
+    this.sync();
+  }
+
+  /** Hides the panel while a decision is pending and brings it back as it was when it clears. */
+  setSuppressed(suppressed: boolean): void {
+    this.state.setSuppressed(suppressed);
+    this.sync();
+  }
+
+  /** Builds or destroys the objects to match what the state says is shown. */
+  private sync(): void {
+    const shown = this.state.shown;
+    if (shown === this.built) return;
+    this.built = shown;
+    if (shown) {
+      const { left, top } = rulesPanelRect(this.scene.scale.width);
+      this.bounds = { left, top };
+      this.buildShell();
+      this.render();
+    } else {
+      for (const o of [...this.shell, ...this.content]) o.destroy();
+      this.shell = [];
+      this.content = [];
+    }
   }
 
   /** The attack being built, or null: the land tab highlights it while open. */
   setAttack(attack: RulesAttack | null): void {
     this.attack = attack;
-    if (this.opened) this.render();
+    if (this.built) this.render();
   }
 
   /** Back to a fresh state (a new game or a load: nothing carries over). */
   reset(): void {
-    this.close();
+    this.state.reset();
+    this.sync();
     this.attack = null;
-    this.tab = null;
   }
 
   private track<T extends Phaser.GameObjects.GameObject>(list: Phaser.GameObjects.GameObject[], object: T): T {
@@ -164,15 +182,15 @@ export class RulesPanel {
   }
 
   private setTab(tab: RulesTab): void {
-    this.tab = tab;
-    this.render();
+    this.state.setTab(tab);
+    if (this.built) this.render();
   }
 
   private render(): void {
     for (const o of this.content) o.destroy();
     this.content = [];
     const body = { x: this.bounds.left + PAD, y: this.bounds.top + 40 };
-    switch (this.tab) {
+    switch (this.state.tab) {
       case 'land':
         this.renderLand(body);
         break;

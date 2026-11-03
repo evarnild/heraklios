@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { SIDE_PANEL_WIDTH, promptBox, rectsIntersect, rulesPanelRect } from './rulesPanelLayout';
+import { BOARD_PROMPT, RAM_PROMPT } from './boardPrompts';
+import { SIDE_PANEL_WIDTH, rectsIntersect, rulesPanelRect, visiblePromptRects } from './rulesPanelLayout';
 
 describe('the Tables panel layout (§55)', () => {
   it('detects an overlap, and a touching edge is not one', () => {
@@ -8,9 +9,11 @@ describe('the Tables panel layout (§55)', () => {
     expect(rectsIntersect(a, { left: 10, top: 0, width: 5, height: 5 })).toBe(false);
   });
 
-  it('never covers the centred prompts, at the game size or wider', () => {
+  it('never covers a prompt shown while it is open (ram, boarding), at the game size or wider', () => {
     for (const [w, h] of [[1100, 750], [1280, 750], [1100, 800]] as const) {
-      expect(rectsIntersect(rulesPanelRect(w), promptBox(w, h)), `${w}x${h}`).toBe(false);
+      for (const prompt of visiblePromptRects(w, h)) {
+        expect(rectsIntersect(rulesPanelRect(w), prompt), `${w}x${h}`).toBe(false);
+      }
     }
   });
 
@@ -21,7 +24,16 @@ describe('the Tables panel layout (§55)', () => {
     expect(r.top).toBeGreaterThanOrEqual(0);
   });
 
-  it('puts the prompt box where the prompts are: centred on (550, 375)', () => {
-    expect(promptBox(1100, 750)).toEqual({ left: 380, top: 275, width: 340, height: 200 });
+  it('sits at 312..1088 x 8..274 at the game size (the top margin and the bottom edge are pinned)', () => {
+    expect(rulesPanelRect(1100)).toEqual({ left: 312, top: 8, width: 776, height: 266 });
+  });
+
+  it('puts the ram and boarding prompts where BoardScene draws them: centred on (550, 375)', () => {
+    expect(RAM_PROMPT).toEqual({ width: 280, height: 130 });
+    expect(BOARD_PROMPT).toEqual({ width: 260, height: 120 });
+    expect(visiblePromptRects(1100, 750)).toEqual([
+      { left: 410, top: 310, width: 280, height: 130 },
+      { left: 420, top: 315, width: 260, height: 120 },
+    ]);
   });
 });

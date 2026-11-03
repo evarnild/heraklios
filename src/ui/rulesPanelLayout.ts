@@ -1,7 +1,12 @@
+import { BOARD_PROMPT, RAM_PROMPT, centredPromptRect } from './boardPrompts';
+
 /**
- * Where the Tables panel sits (ยง55). Pure geometry, so a test can pin that it
- * never covers the centre of the game area, where the Board's decision prompts
- * (ram, boarding, retreat, advance) are drawn, nor the left side panel.
+ * Where the Tables panel sits (ง55). Pure geometry, so a test can pin that it
+ * stays clear of the prompts that are shown while it is open (the ram and
+ * boarding prompts, from `boardPrompts.ts`, which `BoardScene` draws from) and
+ * of the left side panel. The decision choosers (retreat, push, advance,
+ * exchange sacrifice) are larger and set `decisionPending`; the panel is hidden
+ * while it is set (`rulesPanelState.ts`), so they are not modelled here.
  */
 export const SIDE_PANEL_WIDTH = 300;
 export const RULES_PANEL_W = 776;
@@ -16,15 +21,9 @@ export interface Rect {
   height: number;
 }
 
-/**
- * The area the centred prompts can occupy: centred on the middle of the game
- * (550, 375 at 1100 x 750), up to 340 wide and 200 tall (the retreat and
- * advance choosers are the largest).
- */
-export function promptBox(canvasWidth: number, canvasHeight: number): Rect {
-  const width = 340;
-  const height = 200;
-  return { left: canvasWidth / 2 - width / 2, top: canvasHeight / 2 - height / 2, width, height };
+/** The prompts that can be on screen beside an open panel, at a canvas size. */
+export function visiblePromptRects(canvasWidth: number, canvasHeight: number): Rect[] {
+  return [RAM_PROMPT, BOARD_PROMPT].map((p) => centredPromptRect(p, canvasWidth, canvasHeight));
 }
 
 /** The panel's rectangle: the top right of the game area, above the prompts. */
