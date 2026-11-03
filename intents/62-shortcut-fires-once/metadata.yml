@@ -1,0 +1,17 @@
+# generated-by: heraklios/intent@0.1.5
+id: 62
+slug: shortcut-fires-once
+type: fix
+status: draft
+title: One Ctrl+Z or Ctrl+Y press undoes or redoes one step, even on a slow frame
+review_tier:
+intent_accepted:
+plan_approved:
+live_checked:
+merged:
+auto_authorized:
+auto_round:
+auto_stopped:
+follows_up:
+links:
+  - intents/55-rule-tables-panel
