@@ -12,7 +12,7 @@ live_checked:
 merged:
 auto_authorized: 2026-11-03 by-agent    # owner: "/auto 55 count the flake as a round-3 finding"
 auto_round: 3
-auto_stopped: re-check mismatch
+auto_stopped:
 follows_up:
 links:
   - intents/53-log-autosave-and-attack-selection
