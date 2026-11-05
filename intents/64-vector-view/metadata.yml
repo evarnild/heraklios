@@ -6,7 +6,7 @@ status: accepted
 title: A second board view, a drawn 2D landscape with animated units
 review_tier:
 intent_accepted: 2026-11-05 by-agent    # owner: "accept 64 and /auto 64"
-spec_accepted:
+spec_accepted: 2026-11-05 by-agent    # owner: "accept 64 and 66 spec"
 plan_approved:
 live_checked:
 merged:
