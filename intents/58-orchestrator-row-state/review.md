@@ -3,82 +3,78 @@
 
 verdict: attest
 tier: attested
-reviewed-commit: d8dc5cf
-round: 2
-sampled: no
-run: auto
+reviewed-commit: c4e4463
+round: 3
+sampled: yes
+run: manual
 live-check: owed
 
-**Tier:** Attested, by the path table (`tools/**` like `scripts/**`).
-`review_tier` is empty, the type is fix, and nothing raises it.
+**Tier:** Attested, by the path table (`tools/**`, like `scripts/**`);
+`review_tier` empty; type fix; no HIGH or CRITICAL finding. **Run:** manual,
+on the owner's "58: rebase and review": the coordinator rebased the branch
+onto `main` at `0ffef22` (clean, 10 commits), so round 2's reviewed commit
+`d8dc5cf` is no longer an ancestor and a new round was due. Passes run by the
+`heraklios-reviewer` agent; the coordinator re-ran verify, check:intent, a
+merge test against the newest `main`, the surviving mutant and one killed
+one.
 
-**Verdict:** `attest`. Round 2 adds one `gateWrite` test (`b492a6e`) and a
-Progress entry (`69692e0`), no source change. The new test kills M11 and M13.
-M12 (dropping `\r?`) still survives, and no test could kill it: with the `m`
-flag a JavaScript `$` already matches before `\r` (CR is a line terminator),
-so `\r?` before `$` is redundant and round 1's MEDIUM premise ("without `\r?`,
-`status: draft\r` fails to match") was wrong. The CRLF case still earns its
-place as a regression guard: it fails if the regex ever demands `\n` straight
-after the value. Passes run by a `heraklios-reviewer` agent (a fresh one: the
-round-1 reviewer stalled twice); the coordinator re-ran verify, check:intent
-and the three regex mutants (below).
+**Verdict:** `attest`. The rebase changed none of §58's commits, nothing it
+depends on moved on `main`, and the tests still prove the change under vitest
+5: 14 of 15 mutants killed, the 15th equivalent. **`sampled: yes`:** this is
+the 15th attested manual change, so a post-merge full read of the diff is due.
 
 ## Passes
 | # | Pass | Result |
 | --- | --- | --- |
-| 1 | Intent and plan match | pass: since `780c7c4`, one test, a Progress entry, `auto_round: 2` and round 1's `review.md`; no source change |
+| 1 | Intent and plan match | pass: `git range-diff` gives all 10 commits `=`; the code diff is still `state.mjs`'s `liveSession` and `gateWrite`'s status write, their tests and three doc sentences |
 | 2 | Type check | pass apart from the owed live check (the owner's gate) |
-| 3 | Rulebook fidelity | not run: no game rule (`tools/orchestrator/` only) |
-| 4 | Tests prove the rule, not only pass | pass: M11, M13 killed; M12 equivalent (below); spot checks M1, M7 still killed |
-| 5 | Boundary and conventions | pass: unchanged since round 1 |
-| 6 | Numbers in prose | pass: Progress's 61 files, 1156 tests, lint 21 reproduce; its M12 claim reproduces |
-| 7 | Documentation | pass: unchanged since round 1 |
-| 8 | Guardrails and hygiene | pass: lint 21 of 21; no new dependency |
+| 3 | Rulebook fidelity | not run: `tools/orchestrator/` only |
+| 4 | Tests prove the rule | pass: 14 of 15 mutants killed (full suite each); M12 survives, equivalent |
+| 5 | Boundary and conventions | pass: no `src/` change; the overlay reads the in-memory manager only (spec B12); the gate write is still one `setKeys` call |
+| 6 | Numbers in prose | pass: Progress's "61 files, 1156 tests" are dated and were right then; on the new base the suite is 64 files, 1186 tests (main added tests) |
+| 7 | Documentation | pass: §58's `CLAUDE.md` (Parallel sessions, orchestrator paragraph), `README.md` ("## Orchestrator") and `intents/README.md` sentences sit cleanly beside §55's and §60's text; nothing duplicated or contradicted |
+| 8 | Guardrails and hygiene | pass: lint 21 of 21, cap unchanged; no new dependency; no `innerHTML` or `eval` |
 | 9 | Repository-specific footguns | not applicable |
 
 ## Type check
 ```
-> heraklios@0.1.0 check:intent
-> node scripts/check-intent.mjs
-
 type-check: FAIL (intent 58, fix)
   error: A live check is owed and not recorded. Do the steps in intents/58-orchestrator-row-state/review.md → ## Live check, then set live_checked: <date> in intents/58-orchestrator-row-state/metadata.yml.
   note:  6 file(s), 70 line(s) changed outside intents/.
 ```
-The only error is the owed live check (round 1 set `live-check: owed`); yours
-to clear, not rework.
+The only error is the owed live check, which the owner clears; not rework.
 
 ## Findings
-- **LOW** `tools/orchestrator/orchestrator-lib.mjs:92`: the `\r?` before `$` in
-  `/^status:[ \t]*draft[ \t]*(#.*)?\r?$/m` is redundant: a multiline `$`
-  already matches before `\r`, and `.` in `(#.*)` stops before `\r`. Both
-  forms give the same result on `'status: draft\r\nx'`, `'status: draft  #
-  y\r\nx'`, `'status: draft\rx'`, `'status: draft\r'`, `'status:
-  draft\r\r\n'` (true) and `'status: drafty\r\n'` (false). Keeping it leaves a
-  permanent survivor and suggests CRLF needs special handling. Worth a look:
-  drop it, or a short comment that it's redundant and kept for readers.
+- None needing rework.
+- **LOW** `tools/orchestrator/orchestrator-lib.mjs:92` (carried from round 2,
+  unchanged): the `\r?` before `$` in
+  `/^status:[ \t]*draft[ \t]*(#.*)?\r?$/m` is redundant, since a multiline
+  `$` already matches before `\r` here (the CRLF test passes without it), so
+  mutant M12 survives for good. Worth a look: drop it, or comment that it is
+  kept for readers.
 
 ## Not checked
-- **The page in a real browser:** the row showing `running` / `needs you` /
-  the hook-log state as a real SDK session starts, waits and stops, and a real
-  gate click on a real (CRLF) checkout. Rule 3. The orchestrator and SDK
-  sessions were not started.
+- **The page in a real browser** (rule 3): the row reading `running` or
+  `needs you` while a real SDK session runs, waits and stops; a real gate
+  click on a real CRLF checkout. No orchestrator or SDK session was started.
 - **The real `sdk-sessions.mjs` manager feeding `liveSession`:** the tests use
-  a fake `list()`; round 1 read the code.
-- **The page's worktrees table** (`public/app.js:154`) still shows the hook
-  log's `w.session.state`, not the overlay; judged intended in round 1, pinned
-  by no test.
-- **A quoted status** (`status: "draft"`) doesn't match; no file uses quotes.
-- **Mutants ran against `npx vitest run tools/orchestrator scripts`** (385
-  tests) in the reviewer's runs, the full suite in the coordinator's; round 1's
-  M2-M6, M8-M10 not re-run (no source change).
+  a fake `list()`. By reading: `launch` stores `intent: id` (`:152`),
+  `summary` passes it through (`:125`), `LIVE_STATES` is `running` and `needs
+  you` (`:17`), and `liveSession` compares with `String()` on both sides.
+- **The worktrees table** (`public/app.js`) still shows the hook log's state,
+  not the overlay: judged intended in round 1; no test pins it.
+- **A quoted status** (`status: "draft"`) does not match; no file uses quotes.
+- **e2e:** not run; no `src/scenes`, `src/ui`, `src/main.ts` or `e2e/` change.
+- **The implementer's failing-first runs** in Progress: not re-derived (the
+  M1 and M7 kills stand in for them).
 
 ## Live check
-- **Owed** by rule 3: the row state from a live SDK session, and a gate click
-  on a real CRLF checkout. Run it at `d8dc5cf` or a later commit that changes
-  only `review.md` / `metadata.yml`.
+- **Owed** by rule 3 (the row state from a live SDK session; a gate click on
+  a real CRLF checkout), unchanged by the rebase. Run it at `c4e4463` or a
+  later commit that changes only this report or `metadata.yml`.
 - **Steps:**
-  1. A disposable clone whose `main` is this branch:
+  1. A disposable clone whose `main` is this branch (never ship, push or
+     merge from it):
      ```
      git clone C:/Users/eric/src/heraklios C:/Users/eric/scratch/h58
      cd C:/Users/eric/scratch/h58
@@ -87,64 +83,71 @@ to clear, not rework.
      git checkout -B main FETCH_HEAD
      npm ci
      ```
-     Never ship, push or merge from it. (If `fetch origin` can't see the local
-     branch, clone with `--branch fix/58-orchestrator-row-state` from the local
-     repo.)
-  2. In the clone, commit on its `main`: a draft intent `intents/990-throwaway/`
-     (`status: draft`, empty `intent_accepted:`), its `metadata.yml` in CRLF as
-     a normal checkout writes it; and an accepted intent with its plan
-     approved, then `npm run spawn -- <id>` for it.
-  3. `npm run orchestrator` in the clone; open the printed 127.0.0.1 URL.
+  2. In the clone, commit two throwaway intents on `main`: a draft
+     `intents/990-throwaway/` (`status: draft`, empty `intent_accepted:`, its
+     `metadata.yml` in CRLF), and an accepted one with its plan approved; run
+     `npm run spawn -- <id>` for the second.
+  3. `npm run orchestrator` in the clone (port 5299, or `-- --port 5399` if
+     busy) and open the printed 127.0.0.1 URL.
   4. Click "Record intent_accepted" on §990 and confirm.
-  5. Click Implementer (or Auto) on the spawned intent, watch its row, then
-     Stop it from its session panel.
-- **You should see:** after step 4, `git show --stat HEAD` lists one file,
-  `intents/990-throwaway/metadata.yml`, message `§990: intent_accepted recorded
-  (orchestrator)`, with `intent_accepted: <today>` (bare date) and `status:
-  accepted`, CRLF kept, and the row reads accepted; during step 5, the row's
-  session column reads `running` while the panel says running (not `not
-  started`), `needs you` and first in the list on a permission request, and the
-  hook-log state after Stop, not `running`.
+  5. Click Implementer (or Auto) on the spawned intent and watch its row;
+     then Stop in its session panel.
+- **You should see:** after step 4, `git show --stat HEAD` lists only
+  `intents/990-throwaway/metadata.yml`, message `§990: intent_accepted
+  recorded (orchestrator)`, with `intent_accepted: <today>` (a bare date) and
+  `status: accepted`, CRLF kept, and the row reads accepted. During step 5,
+  while the panel says running, the row's session column reads `running`
+  (not `not started`); on a permission request it reads `needs you` and moves
+  first in the list; after Stop it shows the hook-log state again.
 
 ## Verified myself vs. taken on trust
 
-**Coordinator, re-run** (worktree at `d8dc5cf`, clean before and after):
-- `npm run verify`: exit 0, `21 problems (0 errors, 21 warnings)`, 61 files,
-  1156 tests (matches).
-- `npm run check:intent`: FAIL only on the owed live check, 6 files, 70 lines
-  (matches).
-- Mutants, one at a time, backed up and restored by copy, each checked as
-  applied, with the full `vitest run`: M11 (`/status:.*draft/m`) **killed**, 1
-  failed, "gateWrite (spec B8) > sets status on a CRLF draft and on a draft
-  with a comment, …"; M12 (no `\r?`) **survived**, 1156 passed (equivalent);
-  M13 (no comment group) **killed**, the same test (matches).
-- The M12 premise: `node -e "console.log(/^a$/m.test('a\r\nb'))"` → `true`,
-  and the regex without `\r?` matches `'id: 1\r\nstatus: draft\r\ntitle:
-  x\r\n'` → `true`.
+**Coordinator, re-run** (worktree at `c4e4463`, `git status --short` clean
+before and after):
+- `npm run verify`: exit 0, `21 problems (0 errors, 21 warnings)`, 64 files,
+  1186 tests (matches the reviewer).
+- `npm run check:intent`: FAIL only on the owed live check, 6 files, 70
+  lines (matches).
+- `git merge-tree --write-tree main HEAD` against `main` at `a057c9b` (after
+  §60's merge, which also edits `CLAUDE.md`): merges cleanly.
+- **M12** (drop `\r?`, `orchestrator-lib.mjs:92`; backed up and restored by
+  copy): **survived**, 1186 passed (matches).
+- **M7** (status write dropped, `:92`): **killed**, 3 failed: "sets status:
+  accepted with intent_accepted on a draft, and only then (§58)", "sets status
+  on a CRLF draft and on a draft with a comment, …", and server.test "writes
+  on main, in the main checkout, for an intent without a branch" (matches).
+- `npm run sdlc:scan -- --sample-due manual --exclude 58`: nth attested
+  manual change = 15, every 5, `sampled: yes`.
 
-**Reviewer agent** (same worktree and HEAD; nothing checked out):
-- `git diff 780c7c4..HEAD`: `metadata.yml` (`auto_round` 1→2), `plan.md`
-  (Progress), `review.md` (round 1) and the new test at
-  `orchestrator-lib.test.mjs:210-217`.
-- `npm run verify` (61 files, 1156 tests, lint 21), `check:intent` as above;
-  `npm run sdlc:scan -- --sample-due auto --exclude 58`: nth attested auto
-  change = 4, every 3, `sampled: no`.
-- M12 equivalent by the six-input comparison above; `/^status:[
-  \t]*draft[ \t]*(#.*)?\n/m.test('status: draft\r\nx')` is false, so the CRLF
-  test would catch a stricter regex.
-- Mutants with needles built from `String.fromCharCode(92)`, `npx vitest run
-  tools/orchestrator scripts`, restored by copy, tree clean after each: M11
-  killed (1 failed, 384 passed), M12 survived (385 passed), M13 killed; spot
-  checks M1 (`liveSession`'s `running` return → null: 2 server tests fail) and
-  M7 (the status write dropped: 3 tests fail) killed.
+**Reviewer agent** (same worktree and HEAD, foreground):
+- `git range-diff 19cf402..25bc148 main..HEAD`: 10 of 10 `=` (`d8dc5cf`, round
+  2's reviewed commit, is now `45153fa`); `git diff --name-only 19cf402 main
+  -- tools/ scripts/`: empty; §58's tests use no `vi.*`, mocks, fake timers or
+  timeouts, so vitest 5's API changes don't reach them.
+- `npm run verify` (64 files, 1186 tests, lint 21), `check:intent` (as above).
+- 15 mutants, each with a full `npx vitest run`, restored by copy, `git status
+  --short` empty after each: M1, M2, M3, M4, M4b, M5, M6 (`state.mjs:34-36`,
+  `:87`) and M7, M8, M9, M10, M11, M13 (`orchestrator-lib.mjs:92`) killed, by
+  the tests named in its report; M12 survived (equivalent).
+- No remote branch contains `c4e4463`.
 
-**Taken on trust:** round 1's passes 5 and 7 and its kills of M2-M6, M8-M10
-(no source change since); the implementer's failing-first runs in Progress;
-that the real manager's `list()` gives `intent` as the id string.
+**Taken on trust:** round 1's reading of passes 5 and 7 (re-checked against
+the diff only); the implementer's failing-first runs; that a real SDK
+session's `list()` behaves as the fake beyond what `sdk-sessions.mjs` shows.
 
-Scratch files, outside the repo:
-`C:/Users/eric/AppData/Local/Temp/claude/C--Users-eric-src-heraklios/d4d8f463-fc75-4c39-80e6-361cdb7ead3e/scratchpad/mut58b/`
-(reviewer) and `…/scratchpad/coord58/` (coordinator).
+# Round 2 (history)
+- verdict: attest
+- tier: attested
+- reviewed-commit: d8dc5cf (rebased since as `45153fa`)
+- round: 2
+- sampled: no
+- run: auto
+- live-check: owed
+
+The full round-2 report is in git at `235fdbf` (before the rebase, `5a8435e`).
+
+Resolutions (round 3, checked at `c4e4463`): no round-2 finding needed
+rework; the LOW on `orchestrator-lib.mjs:92` (`\r?`) is unchanged.
 
 # Round 1 (history)
 - verdict: rework
