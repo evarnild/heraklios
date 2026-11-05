@@ -1,11 +1,19 @@
 import { MAP_TERRAIN, RIVER_HEXSIDES } from '../../data/map';
 import { ZONE_TERRAINS, isSeaLike } from '../../data/terrain';
 import { DIRECTIONS } from '../../engine/hex';
-import { TERRAIN_COLORS } from '../hexRender';
 import type { PaintContext } from './paintContext';
 import { hexesWhere, smoothedLoops, terrainOf } from './paintTerrain';
 import { meander, riverPolylines } from './rivers';
 import { smoothPolyline } from './smoothing';
+
+/** A water tint per named bay: the print's land-like colours (brown, purple)
+ * would read as ground, so each bay gets a bright, distinct water hue. */
+const ZONE_TINT: Record<string, number> = {
+  'zone-anse-hypnos': 0x2fbf8f,
+  'zone-pointe-eole': 0xd9b24a,
+  'zone-baie-argos': 0x9a5fd0,
+  'zone-cap-zenon': 0x35c0e0,
+};
 
 const SHALLOW = 0x6fbfdc;
 const DEEP = 0x1e6eaa;
@@ -42,9 +50,9 @@ export function paintSea(ctx: PaintContext): void {
     ctx.fillLoop(loop, DEEP, 0.85);
   }
   for (const zone of ZONE_TERRAINS) {
-    const tint = TERRAIN_COLORS[zone] ?? DEEP;
+    const tint = ZONE_TINT[zone] ?? DEEP;
     for (const loop of smoothedLoops(sea.filter((h) => terrainOf(h) === zone))) {
-      ctx.fillLoop(loop, tint, 0.42);
+      ctx.fillLoop(loop, tint, 0.38);
       ctx.softEdge(loop, tint, 0.16);
       ctx.strokeLoop(loop, 1.2, tint, 0.6);
     }

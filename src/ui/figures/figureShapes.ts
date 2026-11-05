@@ -178,7 +178,7 @@ function galley(banks: number): Primitive[] {
     const reach = 0.1 + 0.08 * bank;
     for (let i = 0; i < 4; i++) {
       const x = -0.5 + 0.22 * i + 0.04 * bank;
-      out.push(line('dark', x, 0.3, x - 0.1, 0.3 + reach, 1), line('dark', x, -0.3, x - 0.1, -0.3 - reach, 1));
+      out.push(line('light', x, 0.3, x - 0.1, 0.3 + reach, 1.4), line('light', x, -0.3, x - 0.1, -0.3 - reach, 1.4));
     }
   }
   return out;

@@ -72,7 +72,7 @@ export interface SessionState {
    * smoke test can assert it started where it meant to (§32 spec B5).
    * Inert in normal play, and not part of `GameState`, so saves never carry it.
    */
-  testScenario: 'test' | 'close-combat' | null;
+  testScenario: 'test' | 'close-combat' | 'gallery' | null;
   gameState: GameState | null;
 }
 

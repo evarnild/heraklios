@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { session, resetSession, seatControlFor, MAX_PLAYERS } from '../ui/session';
 import { nextSeatControl } from '../engine/seatControl';
 import { nextClockLimitMs, nextRoundLimit } from '../engine/gameEndSettings';
-import { startTestGame, startCloseCombatTestGame } from '../ui/testMode';
+import { startTestGame, startCloseCombatTestGame, startFigureGalleryGame } from '../ui/testMode';
 import { SaveLoadPanel } from '../ui/saveLoadPanel';
 import { stagePendingLoad } from '../ui/saveStorage';
 import { PLAYER_COLOR_NAMES, markerTextureKey, markerAssetPath } from '../ui/hexRender';
@@ -231,6 +231,24 @@ export class MenuScene extends Phaser.Scene {
     });
     combatTestBtn.on('pointerover', () => combatTestBtn.setStyle({ backgroundColor: '#4a4a4a' }));
     combatTestBtn.on('pointerout', () => combatTestBtn.setStyle({ backgroundColor: '#333' }));
+
+    // Dev only (never in a production build): every unit type for every
+    // player, to compare the Drawn view's figures and bases side by side.
+    if (import.meta.env.DEV) {
+      const galleryBtn = this.add
+        .text(combatTestBtn.x + combatTestBtn.width / 2 + 8, 612, t.menu.figureGallery, {
+          fontSize: '16px',
+          color: '#cfcfcf',
+          backgroundColor: '#333',
+          padding: { x: 16, y: 8 },
+        })
+        .setOrigin(0, 0.5)
+        .setInteractive({ useHandCursor: true });
+      galleryBtn.on('pointerdown', () => {
+        startFigureGalleryGame();
+        this.scene.start('Board');
+      });
+    }
 
     // Always offered, even with every slot empty, since the panel can also
     // import a save from a .json file.

@@ -96,15 +96,15 @@ export class DrawnUnits {
     const base = scene.make.graphics({}, false);
     const fig = scene.make.graphics({}, false);
     drawUnit(base, fig, unit);
-    const badge = scene.make
-      .text({
-        x: 0,
-        y: BASE_R * 0.92,
-        text: counterBadge(getUnitType(unit.typeId)),
-        style: { fontSize: '11px', fontStyle: 'bold', color: '#ffffff', stroke: '#20180e', strokeThickness: 3 },
-      }, false)
-      .setOrigin(0.5)
-      .setResolution(2);
+    const badge = scene.add
+      .text(0, BASE_R * 0.92, counterBadge(getUnitType(unit.typeId)), {
+        fontSize: '11px',
+        fontStyle: 'bold',
+        color: '#ffffff',
+        stroke: '#20180e',
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5);
     const container = scene.add.container(at.x, at.y, [base, fig, badge]).setDepth(10);
     this.host.ignoreOnUiCamera(container);
     return container;
