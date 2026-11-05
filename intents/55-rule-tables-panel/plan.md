@@ -158,3 +158,131 @@ Re-read on `main` at `7d69063`.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-10-26 — all five subtasks
+
+Commits: `1f2fedc` table builders, `316bedb` highlight, `840d6a2` texts,
+`939eed1` panel and button, `9fcd912` dev hook, e2e and README.
+
+Shipped: `src/engine/ruleTables.ts` (terrain, land, ramming, boarding
+builders and `landCombatHighlight`, all read through `resolveLandCombat`,
+`resolveBoarding`, `rammingSuccessRange`; `src/data/` untouched), `rules`
+and `board.tables` messages in English and French, `unitCategoryName`,
+`src/ui/rulesPanel.ts`, the Tables button beside Save / Load, Escape, the
+`rulesPanel()` dev-hook reader, `e2e/rules-panel.spec.ts`, README section
+"The Tables panel".
+
+Tests: `npm run verify` green, 62 files / 1171 tests (the base was 1153; the intent
+added 18). Lint 21 warnings (cap unchanged). `npm run e2e`: 17 of 17
+passed, including the new scenario and placement.spec.ts (22.9 s, no timeout).
+
+Divergences: the panel is drawn at the top right of the canvas, 580 x 392,
+and covers the map centre at the 1100 x 750 game size, so the e2e pans the
+camera 9 hexes before clicking and the live check should judge the placement.
+The highlight also resyncs on undo/redo restores (not only on the §53 line
+sites), and `reset()` clears the panel on a new game. Boarding codes D-n / A-n
+are formed in the panel from `side` and `equipmentLoss`. Ramming shows the
+printed (no-bonus) range, the bonus being in the legend.
+
+### 2026-10-29 — review round 1 rework
+
+Commits: `3cc1f3d` (boarding codes in the engine, print-pinned boarding
+columns and ship order, French "points d'équipage", unused `ratioHeader`
+removed, the stray 0xA7 byte now a UTF-8 "§"), `c55d5d4` (panel moved, e2e
+extended, CLAUDE.md), and this entry. The count in the first entry above is
+corrected (base 1153, +18).
+
+Decision (c), the owner's: the panel is now 776 x 266 at the top right
+(x 312..1088, y 8..274 at the 1100 x 750 game size), a wide short layout:
+tables on the left, legends in a column to their right (land, boarding) or
+below (terrain, ramming), 10 px legend text, 22-32 px rows. It ends at y 274,
+one pixel above the prompt box (centre 550, 375; 340 x 200: y 275..475), and
+starts right of the 300 px side panel. `src/ui/rulesPanelLayout.ts` holds the
+rectangle and the prompt box; `rulesPanelLayout.test.ts` asserts no
+intersection at 1100 x 750, 1280 x 750 and 1100 x 800, and clearance of the
+side panel. The river label was shortened to "River crossing (hexside)" /
+"Rivière (côté d'hexagone)" to fit one line. Still non-modal.
+
+Resolutions: V3 (`boardingCode`, `boardingTable().codes`, pinned D-1, A-2,
+D-4, null), E21, E23, S5/S6/S11/S2 (e2e: undo and redo follow the
+selection, resolving clears, the Tables button closes, the wheel over the
+panel leaves the zoom), fr text, `ratioHeader`, the byte, the Progress count,
+CLAUDE.md Architecture. Not done: S10 (a save-load step), E17 (equivalent),
+"Closed to" for the wide river and coast (owner call).
+
+Counts: verify 62 + 1 files (63), 1177 tests; lint 21; e2e 17 of 17.
+Mutants, one at a time, each killed: boarding A/D swapped (vitest), boarding
+columns reversed (vitest), ships reversed (vitest), `syncRulesPanel` removed
+from `clearCombatSelection`, from the undo/redo restore, `contains` removed
+from `pointerBlocked`, the toggle made open-only (all four by
+`rules-panel.spec.ts`). Files restored by copy; the tree matched HEAD.
+
+### Review round 2 rework (2026-11-03)
+
+Commits: `§55: review round 2 rework: hide the Tables panel while a decision is
+pending, real prompt sizes in the layout test`, and a second one with the e2e
+check and this entry.
+
+- **MEDIUM, decision (c): done.** The panel is hidden while `decisionPending`
+  is set and returns as it was (open or closed, same tab) when it clears. The
+  pure piece is `src/ui/rulesPanelState.ts` (`RulesPanelState`: the player's
+  wish kept apart from the suppression; open, toggle, close and tab changes are
+  ignored while suppressed), `RulesPanel` builds or destroys its objects to
+  match it, and `BoardScene.update` only wires `setSuppressed(decisionPending)`
+  (not widened to `retreatChoice` or `driftState`). Read in the code: `chooseAdvance`
+  (`BoardScene.ts` ~2421) and `chooseExchangeSacrifice` (~2673) both set
+  `decisionPending = true` before drawing their chooser, so both are covered
+  (so are `chooseRetreat` and `choosePushTarget`, which set it too). The ram
+  prompt (`promptRam`) and the boarding prompt (`navalAttackPrompt`) do NOT set
+  `decisionPending`, so the panel stays open beside them and must stay clear.
+- **MEDIUM, layout model and test: done.** The fake 340 x 200 box is gone.
+  `src/ui/boardPrompts.ts` exports `RAM_PROMPT` (280 x 130) and `BOARD_PROMPT`
+  (260 x 120) plus `centredPromptRect`; `BoardScene` draws those two prompts
+  from them and `rulesPanelLayout.ts`'s `visiblePromptRects` feeds the test.
+  The test pins the sizes and rectangles (a mutant on 130 -> 131 fails) and the
+  no-intersection check. The comments say what holds.
+- **LOW plan.md "22-26 px rows": corrected in place to "22-32 px rows"** (ramming rows are 32 px).
+- **LOW SIDE_PANEL_WIDTH: done.** `BoardScene`'s `PANEL_WIDTH` is now
+  `SIDE_PANEL_WIDTH` from `rulesPanelLayout.ts`.
+- **LOW G6 (`TOP` 8 -> 9): killed** by a new test pinning the rectangle at
+  312..1088 x 8..274.
+- **e2e: added** in `rules-panel.spec.ts`. Seed 1's roll deterministically
+  leaves a decision pending after Resolve attack: the panel reads hidden, the
+  Tables button does not reopen it, and after `settle` it is back on the same tab.
+- Mutants, each killed: update-line removed (e2e), hide only and never restored
+  (e2e, "back as it was"), `shown` ignoring suppression and `open` ignoring it
+  (`rulesPanelState.test.ts`), `TOP` 9 and RAM height 131 (layout test). Files
+  restored by copy.
+- Tests 1177 -> 1183 (+5 in `rulesPanelState.test.ts`, layout test net +1);
+  lint warnings 21 (unchanged, cap untouched); e2e 17 passed (one run had
+  `placement.spec.ts` time out at 30 s under machine load; it passes alone with
+  a longer timeout and does not touch the Board). One `fileSaveFs` stress test
+  timed out once under load and passed alone.
+
+### 2026-11-03 — review round 3 rework
+
+Findings and resolutions:
+- MEDIUM (e2e read state, not the drawn panel): `expectHiddenWhileDecisionPending`
+  now also asserts the Land combat tab button count is 0 while hidden (and after
+  the Tables button) and 1 once the choice is made. Mutant RP1 (`setSuppressed`
+  returns before `sync()` when not suppressed) killed by that assertion
+  ("drawn again once the choice is made", expected 1, received 0).
+- MEDIUM (flaky under load): undo/redo in the scenario go through a `chord`
+  helper (modifier down, frame, key down, frame, key up, modifiers up, frame), so
+  one press is one action. A first attempt (`press` plus frames after) still
+  failed 2 of 8, since down and up of one press land in one frame; the chord
+  helper passes `--repeat-each 10` (10 passed) and an earlier 5 of the first
+  variant. `BoardScene`/`PlacementScene` key handling untouched.
+- LOW RP2: after the Tables button closes the panel, the mouse is moved to the
+  same point and the wheel must change `cameraZoom()`. RP2 (`contains` without
+  the shown check) killed by "a closed panel does not block the wheel".
+- LOW stray 0xA7 bytes: `BoardScene.ts` and `rulesPanelLayout.ts` rewritten as
+  UTF-8 "§" byte-wise (line endings kept); `iconv -f UTF-8 -t UTF-8` passes on
+  every file changed vs main.
+- LOW docs: README Tables section gains the hide-and-restore sentence; CLAUDE.md
+  names `ui/rulesPanelState.ts` and `ui/boardPrompts.ts` and says what holds.
+- RP4 (optional): not done.
+
+Tests 1183 -> 1183 (unit unchanged; the change is e2e and docs); lint warnings
+21 (cap untouched); `npm run e2e` 17 passed; `check:intent` fails only on the
+owed live check.

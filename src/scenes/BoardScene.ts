@@ -8,6 +8,9 @@ import type { BoardingReport, CombatReport, RamReport } from '../ui/i18n/reports
 import { session, resetToMenu, seatControlFor } from '../ui/session';
 import { showConfirmDialog } from '../ui/confirmDialog';
 import { SaveLoadPanel } from '../ui/saveLoadPanel';
+import { RulesPanel } from '../ui/rulesPanel';
+import { BOARD_PROMPT, RAM_PROMPT } from '../ui/boardPrompts';
+import { SIDE_PANEL_WIDTH } from '../ui/rulesPanelLayout';
 import {
   applySavedGame,
   captureCurrentGame,
@@ -85,7 +88,7 @@ import { BOARDING_RATIO_COLUMNS } from '../data/navalBoarding';
 
 /** Width of the left-hand HUD panel (buttons, phase status, combat log),
  * reserved outside the map's own viewport — see `MapView`'s `leftPanelWidth`. */
-const PANEL_WIDTH = 300;
+const PANEL_WIDTH = SIDE_PANEL_WIDTH;
 
 /**
  * How long an AI seat pauses between its own actions, so its turn plays out
@@ -409,6 +412,9 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * count on its own, which is what the dedup check above otherwise keys on. */
   private lastClockDisplayPaused: boolean | null = null;
   private logPanel!: LogPanel;
+  /** The Tables panel (§55); non-modal, so the board keeps working under it. */
+  private rulesPanel!: RulesPanel;
+  private tablesBtn!: Phaser.GameObjects.Text;
   /** Every message the Board logged this game (§49); recreated in `resetSceneState`. */
   private logHistory = new LogHistory();
   private resolveBtn!: Phaser.GameObjects.Text;
@@ -562,6 +568,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.driftContinueBtn?.setVisible(false);
     this.mapView?.clearDriftArrow();
     this.logHistory = new LogHistory();
+    this.rulesPanel?.reset();
     this.advanceEligibleAttackers = [];
     this.advanceOfferQueue = [];
     this.history = new History();
@@ -731,6 +738,18 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       .setInteractive({ useHandCursor: true });
     saveLoadBtn.on('pointerdown', () => this.openSaveLoad());
 
+    this.tablesBtn = this.add
+      .text(saveLoadBtn.x + saveLoadBtn.width + 8, height - 104, t.tables, {
+        fontSize: '12px',
+        color: '#fff',
+        backgroundColor: '#4a3f2a',
+        padding: { x: 8, y: 4 },
+      })
+      .setScrollFactor(0)
+      .setDepth(30)
+      .setInteractive({ useHandCursor: true });
+    this.tablesBtn.on('pointerdown', () => this.toggleRulesPanel());
+
     this.abandonBtn = this.add
       .text(16, height - 136, t.abandonGame, {
         fontSize: '12px',
@@ -806,6 +825,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.input.keyboard?.on('keydown-Y', (event: KeyboardEvent) => {
       if (event.ctrlKey || event.metaKey) this.redo();
     });
+    this.input.keyboard?.on('keydown-ESC', () => this.rulesPanel?.close());
     this.input.keyboard?.on('keydown-SPACE', () => this.resolveDriftContinue());
     this.input.keyboard?.on('keydown-ENTER', () => this.resolveDriftContinue());
 
@@ -836,7 +856,8 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // them, whatever the length of a combat report. Depth 29, one below the
     // buttons', pinned to the HUD camera by the panel itself.
     this.logPanel = createLogPanel(this, this.mapView, logPanelBounds(height, PANEL_WIDTH));
-    this.mapView.pointerBlocked = (x, y) => this.logPanel.contains(x, y);
+    this.rulesPanel = new RulesPanel(this, { onObjectsCreated: (objects) => this.mapView.excludeFromMainCamera(objects) });
+    this.mapView.pointerBlocked = (x, y) => this.logPanel.contains(x, y) || this.rulesPanel.contains(x, y);
 
     this.mapView.pinUIObjects([
       panelBg,
@@ -851,6 +872,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       this.undoBtn,
       this.redoBtn,
       saveLoadBtn,
+      this.tablesBtn,
       this.abandonBtn,
       this.endGameBtn,
       this.pauseBtn,
@@ -992,6 +1014,11 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     void writeSave('autosave', this.captureSave()).then((ok) => {
       this.log(ok ? messages().saves.autosaved : messages().saves.autosaveFailed);
     });
+  }
+
+  /** Opens or closes the Tables panel; read-only, so it works in every phase (§55). */
+  private toggleRulesPanel(): void {
+    this.rulesPanel.toggle(session.gameState?.phase === 'combat' ? 'land' : 'terrain');
   }
 
   private openSaveLoad(): void {
@@ -1193,6 +1220,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       ids.map((id) => byId.get(id)).filter((u): u is Unit => u !== undefined);
     this.attackGroup = resolve(snapshot.attackGroupIds);
     this.defenderGroup = resolve(snapshot.defenderGroupIds);
+    this.syncRulesPanel();
     this.selected = (snapshot.selectedId !== null ? byId.get(snapshot.selectedId) : undefined) ?? null;
 
     // Interactive sequences never span a snapshot — undo is refused while one
@@ -1412,6 +1440,8 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * `update` doesn't need to check `paused` here.
    */
   update(_time: number, delta: number): void {
+    // The Tables panel is hidden while a decision is pending (§55).
+    this.rulesPanel?.setSuppressed(this.decisionPending);
     const state = session.gameState;
     if (!state || state.gameOver) return;
     const wasPending = state.pendingGameEnd;
@@ -1805,7 +1835,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * this same turn. */
   private promptRam(attacker: Unit, defender: Unit, bonus: 0 | 1 | 2): void {
     const { width, height } = this.scale;
-    const panel = this.add.rectangle(width / 2, height / 2, 280, 130, 0x1a1408, 0.95).setScrollFactor(0).setDepth(20);
+    const panel = this.add.rectangle(width / 2, height / 2, RAM_PROMPT.width, RAM_PROMPT.height, 0x1a1408, 0.95).setScrollFactor(0).setDepth(20);
     const label = this.add
       .text(width / 2, height / 2 - 40, messages().board.ramPrompt(nameOf(defender), bonus), {
         fontSize: '14px',
@@ -1972,10 +2002,17 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * attackers alone.
    */
   private logAttackLine(): void {
+    const preview = this.syncRulesPanel();
+    this.log(formatAttackLine(this.attackGroup.map(nameOf), this.defenderGroup.map(nameOf), preview));
+  }
+
+  /** The land attack being built (null: no attackers, no target, or a naval selection), handed to the Tables panel to highlight. */
+  private syncRulesPanel(): ReturnType<typeof previewLandAttack> | null {
     const naval = this.attackGroup.length > 0 && unitType(this.attackGroup[0]!).domain === 'naval';
     const preview =
       !naval && this.defenderGroup.length > 0 ? previewLandAttack(this.attackGroup, this.defenderGroup) : null;
-    this.log(formatAttackLine(this.attackGroup.map(nameOf), this.defenderGroup.map(nameOf), preview));
+    this.rulesPanel?.setAttack(preview);
+    return preview;
   }
 
   /**
@@ -2079,6 +2116,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   private clearCombatSelection(): void {
     this.attackGroup = [];
     this.defenderGroup = [];
+    this.syncRulesPanel();
     this.mapView.clearHighlights();
   }
 
@@ -2736,7 +2774,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * direct consequence of a ship's path bringing it bow-on to an enemy. */
   private navalAttackPrompt(attacker: Unit, defender: Unit): void {
     const { width, height } = this.scale;
-    const panel = this.add.rectangle(width / 2, height / 2, 260, 120, 0x1a1408, 0.95).setScrollFactor(0).setDepth(20);
+    const panel = this.add.rectangle(width / 2, height / 2, BOARD_PROMPT.width, BOARD_PROMPT.height, 0x1a1408, 0.95).setScrollFactor(0).setDepth(20);
     const label = this.add
       .text(width / 2, height / 2 - 35, messages().board.boardPrompt(nameOf(attacker), nameOf(defender)), {
         fontSize: '13px',

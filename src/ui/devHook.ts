@@ -14,6 +14,8 @@ import { reachableHexes, swapStep } from '../engine/movement';
 import { pickButton, matchingButtons, type ButtonCandidate } from './devHookMatch';
 import { validateArmy } from '../engine/army';
 import { session } from './session';
+import type { LandCombatHighlight } from '../engine/ruleTables';
+import type { RulesTab } from './rulesPanel';
 
 type Hex = { q: number; r: number };
 type Point = { x: number; y: number };
@@ -82,6 +84,8 @@ export interface DevHook {
   };
   /** The main camera's zoom (§49: the wheel over the log must not change it). */
   cameraZoom(): number;
+  /** The Board's Tables panel: open or not, its tab, and the land table's highlight (§55). Read-only. */
+  rulesPanel(): { open: boolean; tab: RulesTab | null; highlight: LandCombatHighlight | null };
 }
 
 /** `BoardScene` members the log readers use, by name; guarded like `BUSY_FIELDS`. */
@@ -97,6 +101,9 @@ interface LogInternals {
     thumbRect(): { x: number; y: number; width: number; height: number } | null;
   };
 }
+
+/** `BoardScene` member `rulesPanel()` reads, by name; guarded like `LOG_MEMBERS`. */
+const RULES_MEMBERS = ['rulesPanel'] as const;
 
 /** `PlacementScene` members `placement()` reads, by name; guarded like `BUSY_FIELDS`. */
 const PLACEMENT_MEMBERS = ['queue', 'currentLegalHexes'] as const;
@@ -203,8 +210,17 @@ export function installDevHook(game: Phaser.Game): void {
     logEntries: () => logInternals(board()).logHistory.entries().map((e) => ({ kind: e.kind, text: e.text })),
     logPanel: () => logPanelSnapshot(logInternals(board()).logPanel),
     cameraZoom: () => board().cameras.main.zoom,
+    rulesPanel: () => rulesPanelSnapshot(board()),
   };
   (window as unknown as { __heraklios: DevHook }).__heraklios = hook;
+}
+
+function rulesPanelSnapshot(scene: Phaser.Scene): ReturnType<DevHook['rulesPanel']> {
+  const b = scene as unknown as Record<string, unknown>;
+  for (const m of RULES_MEMBERS) {
+    if (!(m in b)) throw new Error(`devHook: BoardScene has no "${m}" any more — update RULES_MEMBERS`);
+  }
+  return (b.rulesPanel as { snapshot(): ReturnType<DevHook['rulesPanel']> }).snapshot();
 }
 
 function armyBuilderSnapshot(game: Phaser.Game): ReturnType<DevHook['armyBuilder']> {

@@ -2,17 +2,17 @@
 id: 55
 slug: rule-tables-panel
 type: feature
-status: accepted
+status: in-review
 title: A Tables panel on the board shows the terrain table and the three combat tables
 review_tier:
 intent_accepted: 2026-10-24
 spec_accepted: 2026-10-25 by-agent    # owner: "yes to 55 spec"
 plan_approved: 2026-10-25 by-agent    # auto: owner "/auto 55" (auto_authorized 2026-10-25)
-live_checked:
+live_checked: 2026-11-05 by-agent    # owner: "all steps pass, record it"
 merged:
-auto_authorized: 2026-10-25 by-agent    # owner: "/auto 55"
-auto_round:
-auto_stopped:
+auto_authorized: 2026-11-03 by-agent    # owner: "/auto 55 count the flake as a round-3 finding"
+auto_round: 3
+auto_stopped: out of rounds, open findings below
 follows_up:
 links:
   - intents/53-log-autosave-and-attack-selection

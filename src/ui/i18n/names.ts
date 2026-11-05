@@ -34,3 +34,8 @@ export function phaseName(phase: Phase): string {
 export function seatControlName(control: SeatControl): string {
   return messages().seat[control];
 }
+
+/** A "may not enter" category of the terrain table (chariot, cavalry, …). */
+export function unitCategoryName(category: string): string {
+  return messages().rules.categories[category] ?? category;
+}

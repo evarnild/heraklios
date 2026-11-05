@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { TERRAIN_EFFECTS } from '../../data/terrain';
 import { UNIT_TYPES } from '../../data/units';
 import { resetSession, session } from '../session';
 import { PLAYER_COLOR_NAMES, TERRAIN_ORDER } from '../hexRender';
 import { messagesFor, resetLanguageForTests, setLanguage, type Language } from './index';
-import { colorName, countryNames, edgeName, phaseName, seatControlName, terrainName, unitName } from './names';
+import { colorName, countryNames, edgeName, phaseName, seatControlName, terrainName, unitCategoryName, unitName } from './names';
 
 const ENGLISH_UNITS: Record<string, string> = {
   archers: 'Archers',
@@ -39,6 +40,16 @@ describe('names', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     resetLanguageForTests();
+  });
+
+  it('names every unit category of the terrain table in both languages (§55)', () => {
+    for (const lang of ['en', 'fr'] as Language[]) {
+      const categories = messagesFor(lang).rules.categories;
+      for (const e of Object.values(TERRAIN_EFFECTS)) for (const c of e.forbiddenFor) expect(categories[c], `${lang} ${c}`).toBeTruthy();
+    }
+    setLanguage('fr');
+    expect(unitCategoryName('chariot')).toBe('chars');
+    expect(unitCategoryName('unknown')).toBe('unknown');
   });
 
   it('names every unit type in both languages', () => {

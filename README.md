@@ -662,6 +662,31 @@ target"; emptying the group says "Attack cleared.". A refused click adds no
 attack line, and the computer's attacks are not announced beforehand (their
 combat report names every unit and force).
 
+### The Tables panel
+
+The Board's **📖 Tables** button (beside Save / Load) opens a panel over the
+map with four tabs: **Terrain effects** (movement cost, die modifier, the
+"+2 if the attackers come from below" cases, which units may not enter, and the
+river crossing as a hexside), **Land combat** (the combat results table with a
+legend), **Ramming** (attacker ship by defender ship, the faces that sink the
+defender before any bonus) and **Boarding** (the boarding table; the tinted
+cells are the print's no-result cells). Every value is read from the game's own
+data through `src/engine/ruleTables.ts`, so the panel cannot disagree with the
+rules being played; the result codes stay as printed in both languages. The
+panel does not block the board: clicks outside it, panning and every button
+work as usual, while a click on the panel itself never reaches the map. It
+closes with **Close**, **Escape** or the button again, opens on Land combat
+during the combat phase and on Terrain effects otherwise, and reopens on the
+last tab chosen. While you build a land attack (attackers and a target), the
+Land combat tab names the forces and highlights the ratio column and, in it,
+the row each die face lands on after the terrain and river modifier (a
+modified roll above 6 counts as 6). Ramming and boarding are not highlighted:
+they resolve as soon as the target is picked. The computer's attacks are not
+highlighted. While a retreat, push, advance or exchange choice (or an
+elephant's drift) is pending the panel hides, and the Tables button and Escape
+do nothing; it comes back as it was, on the same tab, once the choice is made.
+Opening it changes nothing in the game.
+
 ### Combat log detail
 
 Every combat resolution's log entry is written to be auditable against the

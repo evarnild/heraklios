@@ -153,6 +153,7 @@ export const en = {
     endPhase: 'End phase',
     resolveAttack: 'Resolve attack',
     ram: 'Ram!',
+    tables: '📖 Tables',
     saveLoad: '💾 Save / Load',
     abandonGame: '✕ Abandon game',
     endGame: '⚑ End game',
@@ -182,6 +183,35 @@ export const en = {
       `${checked ? '☒' : '☐'} ${letter} — ${unit} (atk ${attack})`,
     selectedForce: (sum: number, required: number, met: boolean) => `Selected force: ${sum} / ${required}${met ? ' ✓' : ''}`,
     confirmLosses: 'Confirm losses',
+  },
+
+  /** The board's Tables panel (§55): the print tables, the codes as printed. */
+  rules: {
+    close: 'Close',
+    tabs: { terrain: 'Terrain effects', land: 'Land combat', ramming: 'Ramming', boarding: 'Boarding' },
+    terrainHeaders: { terrain: 'Terrain', moveCost: 'Move cost', modifier: 'Die modifier', forbidden: 'Closed to' },
+    modifierFromBelow: (n: number) => `+${n} if the attackers come from below, else 0`,
+    modifierFlat: (n: number) => (n === 0 ? '0' : `+${n}`),
+    nobody: '—',
+    categories: { chariot: 'chariots', cavalry: 'cavalry', elephant: 'elephants', land: 'land units', naval: 'ships' } as Record<string, string>,
+    riverCrossing: 'River crossing (hexside)',
+    riverCrossingCost: (n: number) => `+${n} to cross`,
+    terrainNote: "The die modifier is added to the attacker's roll, from the defender's hex.",
+    dieHeader: 'Die',
+    landLegend: [
+      'AE: attackers eliminated. AR: attackers retreat one hex. DE: defenders eliminated. DR: defenders retreat one hex.',
+      "EX: exchange — the defenders are removed, and so are attackers totalling at least the defenders' force.",
+      "The ratio is rounded in the defender's favour. The terrain modifier is added to the die; a modified roll above 6 counts as 6.",
+    ],
+    highlight: (attack: number, defense: number, column: string, modifier: number) =>
+      `Attack ${attack} vs defense ${defense}: column ${column}, die ${modifier >= 0 ? '+' : ''}${modifier}`,
+    rammingAttacker: 'Attacker ↓  defender →',
+    rammingLegend: (maxBonus: number) =>
+      `Faces that sink the defender. Any other roll fails. Unused movement adds a bonus of up to ${maxBonus} to the top face.`,
+    boardingLegend: [
+      'D-n: the defender loses n equipment points. A-n: the attacker loses n. A tinted cell: no result.',
+      'Each equipment point lost is -5 attack and -5 defense; a ship at 0 is removed.',
+    ],
   },
 
   /** Undo/redo labels: made in the language of the moment and kept in the history as text. */
