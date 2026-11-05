@@ -6,7 +6,7 @@ status: accepted
 title: Computer players use unit swaps
 review_tier:
 intent_accepted: 2026-10-25 by-agent    # owner: "accept 59"
-spec_accepted:
+spec_accepted: 2026-11-05 by-agent    # owner: "yes" (to the spec-drafted stop)
 plan_approved:
 live_checked:
 merged:
