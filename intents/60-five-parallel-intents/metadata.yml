@@ -10,7 +10,7 @@ spec_accepted:
 plan_approved:
 live_checked:
 merged:
-auto_authorized: 2026-10-25 by-agent    # owner: "accept 60 /auto 60"
+auto_authorized: 2026-11-05 by-agent    # owner: "/auto 60 /auto 59"
 auto_round:
 auto_stopped: too many sessions
 follows_up:
