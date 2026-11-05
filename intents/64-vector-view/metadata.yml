@@ -12,6 +12,6 @@ live_checked:
 merged:
 auto_authorized: 2026-11-05 by-agent    # owner: "live checked /ship 65 and then /auto 64"
 auto_round: 1
-auto_stopped:
+auto_stopped: decision needed
 follows_up:
 links:
