@@ -3,10 +3,10 @@ import { MAP_TERRAIN, hexKey as mapHexKey } from '../data/map';
 import { TERRAIN_EFFECTS, canEnterTerrain } from '../data/terrain';
 import type { HexCoord } from '../data/map';
 import { getUnitType } from '../data/units';
-import { legalActions, type Action } from './actions';
+import { applyAction, legalActions, type Action } from './actions';
 import { hexesUnderZoc } from './combat';
 import { DIRECTIONS, hexAdd, hexDistance } from './hex';
-import { enemyOwners, HeuristicAgent, movingUnitId } from './heuristicAgent';
+import { enemyOwners, HeuristicAgent, movingUnitId, type HeuristicWeights } from './heuristicAgent';
 import { evaluateCharge } from './movement';
 import { createSeededRng } from './rng';
 import { maxEquipmentPointsForType, type GameState, type Phase, type Player, type Unit } from './state';
@@ -880,36 +880,156 @@ describe("HeuristicAgent: the 'random' tier", () => {
   });
 });
 
-describe('HeuristicAgent: unit swaps (§54)', () => {
-  it('never chooses a landSwap and does not throw when one is offered, at any difficulty', () => {
-    const units = [
-      makeUnit({ id: 'a', typeId: 'fantassins', position: landRow(0), movementLeft: 3 }),
-      makeUnit({ id: 'b', typeId: 'fantassins', position: landRow(1), movementLeft: 3 }),
-    ];
-    const state = makeGame(units, 'movement');
-    const legal = legalActions(state, {});
-    expect(legal.some((a) => a.kind === 'landSwap')).toBe(true);
-    for (const difficulty of ['random', 'greedy', 'ev'] as const) {
-      for (let seed = 0; seed < 5; seed++) {
-        const agent = new HeuristicAgent({ difficulty, rng: createSeededRng(seed) });
-        expect(agent.chooseNextAction(state, legal).kind).not.toBe('landSwap');
-      }
-    }
-  });
-});
+describe('HeuristicAgent: unit swaps (§59)', () => {
+  /** The shared scenario: a unit on the front hex X facing an enemy on E, a
+   * second friendly unit behind it on Y. All on plain hexes in one row
+   * (CENTER's radius-2 disc). With `movementLeft` 1, stepping into X is the
+   * only way for the rear unit to reach contact, and X is occupied, so only a
+   * swap gets it there (Y -> X -> E is a straight line). */
+  const Y: HexCoord = { q: 10, r: 5 };
+  const X: HexCoord = { q: 11, r: 5 };
+  const E: HexCoord = { q: 12, r: 5 };
 
-describe('HeuristicAgent: swap filter at the random tier (§54)', () => {
-  it('never returns a landSwap from a list where one is likely, over 20 seeds', () => {
-    const units = [
-      makeUnit({ id: 'a', typeId: 'fantassins', position: landRow(0), movementLeft: 3 }),
-      makeUnit({ id: 'b', typeId: 'fantassins', position: landRow(1), movementLeft: 3 }),
-    ];
-    const state = makeGame(units, 'movement');
-    const swap: Action = { kind: 'landSwap', unitId: 'a', otherId: 'b' };
-    const legal: Action[] = [{ kind: 'endPhase' }, swap, swap, swap];
-    for (let seed = 0; seed < 20; seed++) {
-      const agent = new HeuristicAgent({ difficulty: 'random', rng: createSeededRng(seed) });
-      expect(agent.chooseNextAction(state, legal).kind).toBe('endPhase');
-    }
+  function pairState(front: string, behind: string, enemy: string, movementLeft = 1): GameState {
+    return makeGame(
+      [
+        makeUnit({ id: 'front', typeId: front, position: X, movementLeft }),
+        makeUnit({ id: 'behind', typeId: behind, position: Y, movementLeft }),
+        makeUnit({ id: 'enemy', typeId: enemy, position: E, owner: 1 }),
+      ],
+      'movement',
+    );
+  }
+
+  const isSwap = (a: Action) => a.kind === 'landSwap';
+  const SWAP: Action = { kind: 'landSwap', unitId: 'behind', otherId: 'front' };
+  const agentAt = (difficulty: 'greedy' | 'ev' | 'lookahead', weights?: Partial<HeuristicWeights>) =>
+    new HeuristicAgent({ difficulty, weights });
+  const PLANNING = ['greedy', 'ev', 'lookahead'] as const;
+
+  describe('who may swap (B1, B2)', () => {
+    it('the random tier can return a landSwap, including when it is the only non-end option', () => {
+      const state = pairState('fantassins', 'fantassins', 'archers');
+      expect(new HeuristicAgent({ difficulty: 'random', rng: createSeededRng(1) }).chooseNextAction(state, [SWAP])).toEqual(
+        SWAP,
+      );
+
+      const kinds = new Set<string>();
+      const agent = new HeuristicAgent({ difficulty: 'random', rng: createSeededRng(3) });
+      for (let i = 0; i < 40; i++) kinds.add(agent.chooseNextAction(state, [{ kind: 'endPhase' }, SWAP]).kind);
+      expect(kinds).toEqual(new Set(['endPhase', 'landSwap']));
+    });
+
+    it('a planning tier does not swap when the swap buys nothing, and does not throw on the offer', () => {
+      const state = makeGame(
+        [
+          makeUnit({ id: 'a', typeId: 'fantassins', position: landRow(0), movementLeft: 3 }),
+          makeUnit({ id: 'b', typeId: 'fantassins', position: landRow(1), movementLeft: 3 }),
+        ],
+        'movement',
+      );
+      expect(legalActions(state, {}).some(isSwap)).toBe(true);
+      for (const difficulty of PLANNING) expect(isSwap(choose(agentAt(difficulty), state))).toBe(false);
+    });
+
+    it('with swaps off the computer is offered none and plays on', () => {
+      const state = pairState('fantassins', 'cavalerie-lourde', 'archers');
+      state.allowSwaps = false;
+      expect(legalActions(state, {}).some(isSwap)).toBe(false);
+      for (const difficulty of PLANNING) expect(isSwap(choose(agentAt(difficulty), state))).toBe(false);
+    });
+  });
+
+  describe('contact (B4)', () => {
+    // Heavy cavalry behind a spearman facing an archer: the cavalry cannot
+    // reach the archer by a move, so only the swap brings the stronger
+    // attacker into contact.
+    const state = () => pairState('fantassins', 'cavalerie-lourde', 'archers');
+
+    it('every planning tier swaps the stronger attacker forward', () => {
+      for (const difficulty of PLANNING) {
+        expect(choose(agentAt(difficulty, { swapShelter: 0 }), state())).toEqual(SWAP);
+      }
+    });
+
+    it('and none does with the contact weight at zero (shelter off too, so only contact is in play)', () => {
+      for (const difficulty of PLANNING) {
+        expect(isSwap(choose(agentAt(difficulty, { swapContact: 0, swapShelter: 0 }), state()))).toBe(false);
+      }
+    });
+  });
+
+  describe('shelter (B5)', () => {
+    // A spearman on the front hex facing an elephant, a phalanx behind: the
+    // elephant threatens the spearman and not the phalanx, so swapping shelters
+    // the spearman. The contact weight is zeroed to isolate the term.
+    const state = () => pairState('fantassins', 'phalanges', 'elephants');
+
+    it('Expected value and Cautious swap the sturdier unit forward; Greedy, blind to risk, does not', () => {
+      for (const difficulty of ['ev', 'lookahead'] as const) {
+        expect(choose(agentAt(difficulty, { swapContact: 0 }), state())).toEqual(SWAP);
+      }
+      expect(isSwap(choose(agentAt('greedy', { swapContact: 0 }), state()))).toBe(false);
+    });
+
+    it('and neither does with the shelter weight at zero', () => {
+      for (const difficulty of ['ev', 'lookahead'] as const) {
+        expect(isSwap(choose(agentAt(difficulty, { swapContact: 0, swapShelter: 0 }), state()))).toBe(false);
+      }
+    });
+
+    it('a pair off the front line is not sheltered: the same swap far from any enemy is not taken', () => {
+      const away = makeGame(
+        [
+          makeUnit({ id: 'front', typeId: 'fantassins', position: X, movementLeft: 1 }),
+          makeUnit({ id: 'behind', typeId: 'phalanges', position: Y, movementLeft: 1 }),
+          makeUnit({ id: 'enemy', typeId: 'elephants', position: landRow(9), owner: 1 }),
+        ],
+        'movement',
+      );
+      expect(isSwap(choose(agentAt('ev', { swapContact: 0 }), away))).toBe(false);
+    });
+  });
+
+  describe('the reply check over both units (B6)', () => {
+    // The elephant hits the archer-spearman on X harder (2.33) than the
+    // spearman behind it (1.67): the swap shelters the first and exposes the
+    // second. Expected value takes the net gain; Cautious also charges 0.75 of
+    // the reply against the unit moving forward, which outweighs it.
+    const state = () => pairState('fantassins-archers', 'fantassins', 'elephants');
+
+    it('Expected value swaps where Cautious declines', () => {
+      const weights = { swapContact: 0 };
+      expect(choose(agentAt('ev', weights), state())).toEqual(SWAP);
+      expect(isSwap(choose(agentAt('lookahead', weights), state()))).toBe(false);
+    });
+  });
+
+  describe('the gate and no swap straight back (B7, B8)', () => {
+    const state = () => pairState('fantassins', 'cavalerie-lourde', 'archers');
+
+    it('a swap scoring below minMoveScore is not taken', () => {
+      for (const difficulty of PLANNING) {
+        expect(choose(agentAt(difficulty), state())).toEqual(SWAP);
+        expect(isSwap(choose(agentAt(difficulty, { minMoveScore: 1e9 }), state()))).toBe(false);
+        // The same swap with weights small enough to fall under the gate.
+        expect(isSwap(choose(agentAt(difficulty, { swapContact: 0.001, swapShelter: 0.001 }), state()))).toBe(false);
+      }
+    });
+
+    it('after swapping a pair, the agent does not swap it straight back', () => {
+      for (const difficulty of PLANNING) {
+        const game = state();
+        const first = choose(agentAt(difficulty), game);
+        expect(first).toEqual(SWAP);
+        applyAction(game, first);
+        // A swap costs the single point each unit had; give it back so the
+        // reverse swap is on offer (the scoring, not the points, must stop it)...
+        for (const unit of game.units) unit.movementLeft = 1;
+        expect(legalActions(game, {}).some(isSwap)).toBe(true);
+        // ...and is priced as the exact negative of the first, so it is declined.
+        expect(isSwap(choose(agentAt(difficulty), game))).toBe(false);
+      }
+    });
   });
 });

@@ -16,6 +16,7 @@ import { hexDistance, neighbors } from './hex';
 import { evaluateCharge } from './movement';
 import { findRammingContacts, type RammingContact } from './navalMovement';
 import { RandomAgent } from './randomAgent';
+import { scoreSwaps, type ScoredSwap } from './swapScoring';
 import { currentDefense, livingUnits, unitType, type GameState, type PlayerId, type Unit } from './state';
 
 /**
@@ -112,6 +113,16 @@ export interface HeuristicWeights {
    * the agent stops shuffling once nothing improves rather than burning
    * movement points on lateral wandering. */
   minMoveScore: number;
+  /** Multiplier on a unit swap's CONTACT gain (§59): the rise in the pair's
+   * best attack value from the hexes they would exchange. At 1.0 a swap that
+   * brings a stronger attacker into reach is worth exactly the extra attack
+   * value it buys, the same reading as `strike`. */
+  swapContact: number;
+  /** Multiplier on a unit swap's SHELTER gain (§59; Expected value and
+   * Cautious only): the fall in the pair's exposure to the strongest enemy
+   * reply. At 1.0 each point of expected loss avoided is worth a point of
+   * army. */
+  swapShelter: number;
 }
 
 export const DEFAULT_WEIGHTS: HeuristicWeights = {
@@ -121,6 +132,8 @@ export const DEFAULT_WEIGHTS: HeuristicWeights = {
   strike: 1,
   minAttackValue: 0,
   minMoveScore: 0.05,
+  swapContact: 1,
+  swapShelter: 1,
 };
 
 export interface HeuristicAgentOptions {
@@ -200,9 +213,6 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
 
   chooseNextAction(state: GameState, legal: Action[]): Action {
     if (legal.length === 0) throw new Error('HeuristicAgent: asked to choose from an empty action list');
-    // §54: this agent never plans a unit swap (a later intent may teach it),
-    // so it never sees one — including at the 'random' difficulty.
-    legal = legal.filter((a) => a.kind !== 'landSwap');
     if (this.difficulty === 'random') return this.random.chooseNextAction(state, legal);
     return state.phase === 'combat' ? this.chooseCombatAction(state, legal) : this.chooseMovementAction(state, legal);
   }
@@ -456,6 +466,8 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
       }
     });
 
+    candidates.push(...this.swapCandidates(state, legal, enemyZoc));
+
     const scored = this.difficulty === 'lookahead' ? this.applyMovementLookahead(state, candidates) : candidates;
     const best = this.pickBest(scored);
     if (!best || best.score < this.weights.minMoveScore) {
@@ -463,6 +475,20 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
       return endPhase;
     }
     return best.action;
+  }
+
+  /** §59: the offered unit swaps, scored by contact (and, at Expected value
+   * and Cautious, shelter) in `swapScoring.ts`. */
+  private swapCandidates(state: GameState, legal: Action[], enemyZoc: Set<string>): ScoredSwap[] {
+    return scoreSwaps({
+      state,
+      legal,
+      zoc: enemyZoc,
+      withShelter: this.difficulty === 'ev' || this.difficulty === 'lookahead',
+      weights: this.weights,
+      attackFrom: (board, unit) => this.bestAttackValueFrom(board, unit, unit.position, false),
+      exposure: (board, unitId) => this.enemyThreatAgainstUnit(structuredClone(board) as GameState, unitId),
+    });
   }
 
   /**
@@ -746,9 +772,12 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
       .sort((a, b) => b.score - a.score || a.order - b.order)
       .slice(0, LOOKAHEAD_CANDIDATE_LIMIT)
       .map((candidate) => {
-        const unitId = movingUnitId(candidate.action);
-        const afterThreat = this.enemyThreatAgainstUnitAfter(state, unitId, candidate.action);
-        const marginalThreat = Math.max(0, afterThreat - baselineFor(unitId));
+        // §59: a swap moves two units, so its reply check covers both.
+        const marginalThreat = threatenedUnitIds(candidate.action).reduce(
+          (sum, unitId) =>
+            sum + Math.max(0, this.enemyThreatAgainstUnitAfter(state, unitId, candidate.action) - baselineFor(unitId)),
+          0,
+        );
         return { ...candidate, score: candidate.score - LOOKAHEAD_REPLY_WEIGHT * marginalThreat };
       });
   }
@@ -874,6 +903,7 @@ export class HeuristicAgent implements PlayerAgent, ActionChooser {
   private cloneAfterDeterministicMovementAction(state: GameState, action: Action): GameState | null {
     switch (action.kind) {
       case 'landMove':
+      case 'landSwap':
       case 'navalMove':
       case 'navalRotate': {
         const clone = this.normalizedThreatProbeClone(state);
@@ -1005,6 +1035,14 @@ export function movingUnitId(action: Action): string {
     default:
       throw new Error(`HeuristicAgent: "${action.kind}" is not a movement-phase candidate action`);
   }
+}
+
+/** The units a movement-phase candidate puts at risk, for the lookahead
+ * tier's reply check: the mover, or both units of a §59 swap. Kept apart from
+ * `movingUnitId` so that function's one-id contract (and its throw on any
+ * other kind) is unchanged. */
+function threatenedUnitIds(action: Action): string[] {
+  return action.kind === 'landSwap' ? [action.unitId, action.otherId] : [movingUnitId(action)];
 }
 
 /** Whether `action` (a combat candidate — `landAttack` or `board`) targets
