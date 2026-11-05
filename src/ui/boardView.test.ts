@@ -23,6 +23,13 @@ describe('reconcileUnits', () => {
     expect(diff.update).toEqual([{ unit: u('a', 3, 1), recreate: false }]);
   });
 
+  it('treats a move along r only as an update', () => {
+    const diff = reconcileUnits(byId([u('a', 1, 1)]), [u('a', 1, 2)]);
+    expect(diff.update).toEqual([{ unit: u('a', 1, 2), recreate: false }]);
+    expect(diff.add).toEqual([]);
+    expect(diff.remove).toEqual([]);
+  });
+
   it('flags a changed type or owner for recreate', () => {
     expect(reconcileUnits(byId([u('a', 1, 1)]), [u('a', 1, 1, 'archer')]).update).toEqual([
       { unit: u('a', 1, 1, 'archer'), recreate: true },

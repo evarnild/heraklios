@@ -280,3 +280,16 @@ Divergences and notes:
   README does not mention `MapView`), so it is unchanged.
 - Live check still owed (hover/tooltip at edges, leaving the map, drag/zoom,
   Placement).
+
+### 2026-11-05 - review round 1 rework
+
+Fixed the two "Needs rework:" findings.
+- HIGH: `StandardBoardView.setUnits` now calls `scene.children.queueDepthSort()`
+  after the `bringToTop` loop (Phaser 3.90 `List.bringToTop` queues no sort).
+  New read-only dev-hook accessor `displayListSorted()` and new scenario
+  `e2e/draw-order.spec.ts` (swap, Undo; the display list stays depth-sorted).
+  With the `queueDepthSort` line removed the scenario fails ("sorted after the
+  swap"); restored, it passes. No existing scenario or test edited.
+- MEDIUM: `boardView.test.ts` gains a move along r only; mutant B5 (dropping
+  the `position.r` comparison) now fails it.
+Left alone as instructed: the `gameout` tooltip LOW and the plan-prose LOW.

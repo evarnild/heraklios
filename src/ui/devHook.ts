@@ -84,6 +84,12 @@ export interface DevHook {
   };
   /** The main camera's zoom (§49: the wheel over the log must not change it). */
   cameraZoom(): number;
+  /**
+   * True when the scene's display list is in non-decreasing depth order, i.e.
+   * nothing drawn at a lower depth sits after (and so over) a higher one
+   * (the markers re-stacking in `StandardBoardView.setUnits`). Read-only.
+   */
+  displayListSorted(): boolean;
   /** The Board's Tables panel: open or not, its tab, and the land table's highlight (§55). Read-only. */
   rulesPanel(): { open: boolean; tab: RulesTab | null; highlight: LandCombatHighlight | null };
 }
@@ -198,21 +204,29 @@ export function installDevHook(game: Phaser.Game): void {
       if (!choice) return [];
       return choice.kind === 'retreat' ? (choice.legalHexes ?? []) : (choice.pushTargets ?? []).map((u) => u.position);
     },
-    placement: () => {
-      if (!game.scene.isActive('Placement')) throw new Error('Placement scene is not active');
-      const p = game.scene.getScene('Placement') as unknown as PlacementInternals;
-      for (const m of PLACEMENT_MEMBERS) {
-        if (!(m in p)) throw new Error(`devHook: PlacementScene has no "${m}" any more — update PLACEMENT_MEMBERS`);
-      }
-      return { current: p.queue.find((q) => q.remaining > 0)?.typeId ?? null, legalHexes: p.currentLegalHexes() };
-    },
+    placement: () => placementSnapshot(game),
     armyBuilder: () => armyBuilderSnapshot(game),
     logEntries: () => logInternals(board()).logHistory.entries().map((e) => ({ kind: e.kind, text: e.text })),
     logPanel: () => logPanelSnapshot(logInternals(board()).logPanel),
     cameraZoom: () => board().cameras.main.zoom,
+    displayListSorted: () => displayListSorted(mapScene()),
     rulesPanel: () => rulesPanelSnapshot(board()),
   };
   (window as unknown as { __heraklios: DevHook }).__heraklios = hook;
+}
+
+function placementSnapshot(game: Phaser.Game): ReturnType<DevHook['placement']> {
+  if (!game.scene.isActive('Placement')) throw new Error('Placement scene is not active');
+  const p = game.scene.getScene('Placement') as unknown as PlacementInternals;
+  for (const m of PLACEMENT_MEMBERS) {
+    if (!(m in p)) throw new Error(`devHook: PlacementScene has no "${m}" any more — update PLACEMENT_MEMBERS`);
+  }
+  return { current: p.queue.find((q) => q.remaining > 0)?.typeId ?? null, legalHexes: p.currentLegalHexes() };
+}
+
+function displayListSorted(scene: Phaser.Scene): boolean {
+  const list = scene.children.list as unknown as { depth: number }[];
+  return list.every((obj, i) => i === 0 || list[i - 1]!.depth <= obj.depth);
 }
 
 function rulesPanelSnapshot(scene: Phaser.Scene): ReturnType<DevHook['rulesPanel']> {

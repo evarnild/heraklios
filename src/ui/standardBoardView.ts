@@ -122,6 +122,10 @@ export class StandardBoardView implements BoardView {
     // two stacked counters is on top. Keep it the order of `units`, as when
     // every render rebuilt them all in that order.
     for (const unit of units) this.host.scene.children.bringToTop(this.markers.get(unit.id)!.marker);
+    // `bringToTop` moves the item in the array but never queues a depth sort
+    // (Phaser 3.90 List.js); without this the unsorted list draws the depth-10
+    // markers over the rings, facings and labels (depths 11-13).
+    this.host.scene.children.queueDepthSort();
   }
 
   private removeMarker(id: string): void {
