@@ -79,6 +79,7 @@ import { createLogPanel, type LogPanel } from '../ui/logPanel';
 import { LogHistory, logPanelBounds, type LogContext } from '../ui/logHistory';
 import type { HexCoord } from '../data/map';
 import { RATIO_COLUMNS } from '../data/combatTable';
+import { createViewToggle } from '../ui/viewToggle';
 import {
   rammingSuccessRange,
   fullRammingSuccessRange,
@@ -762,6 +763,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       .setDepth(30)
       .setInteractive({ useHandCursor: true });
     this.abandonBtn.on('pointerdown', () => this.confirmAbandon());
+    const viewToggle = createViewToggle(this, this.abandonBtn.x + this.abandonBtn.width + 8, height - 136, this.mapView);
 
     // Mode C (plan.md §9.2.1): irreversible, so it goes through the same
     // confirm dialog as Abandon — but unlike Abandon it does NOT end the game
@@ -875,6 +877,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       saveLoadBtn,
       this.tablesBtn,
       this.abandonBtn,
+      viewToggle,
       this.endGameBtn,
       this.pauseBtn,
       this.statusText,

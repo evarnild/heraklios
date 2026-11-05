@@ -5,6 +5,7 @@ import { allHexes } from './mapBounds';
 import { formatHexTooltip } from './hexTooltip';
 import { hexAtPoint } from './hexHitTest';
 import { StandardBoardView } from './standardBoardView';
+import { DrawnBoardView } from './drawnBoardView';
 import type { BoardView, UnitDrawing, ViewHost } from './boardView';
 import { boardViewKind } from './boardViewPreference';
 import type { BoardViewKind } from './boardViewPreference';
@@ -145,9 +146,7 @@ export class MapView {
   }
 
   private createView(kind: BoardViewKind): BoardView {
-    // The Drawn view joins the factory with its own file (§64 subtask 5).
-    void kind;
-    return new StandardBoardView(this.viewHost());
+    return kind === 'drawn' ? new DrawnBoardView(this.viewHost()) : new StandardBoardView(this.viewHost());
   }
 
   /** The current view kind. */

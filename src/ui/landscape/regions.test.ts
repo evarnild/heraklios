@@ -57,4 +57,14 @@ describe('regionLoops', () => {
       for (const h of allHexes()) expect(insideLoops(hexToPixel(h), loops)).toBe(terrainOf(h) === zone);
     }
   });
+
+  it('winds every loop of the real map the same way, so no region has a hole', () => {
+    // paintWater and paintTerrain fill each loop on its own; a hole would be filled over.
+    const area = (l: { x: number; y: number }[]) =>
+      l.reduce((a, p, i) => a + (p.x * l[(i + 1) % l.length]!.y - l[(i + 1) % l.length]!.x * p.y), 0) / 2;
+    for (const keep of [isSeaLike, (t: string) => t === 'marsh', (t: string) => t === 'plateau' || t === 'steep-flank']) {
+      const loops = regionLoops(allHexes().filter((h) => keep(terrainOf(h) as never)));
+      for (const l of loops) expect(area(l)).toBeGreaterThan(0);
+    }
+  });
 });

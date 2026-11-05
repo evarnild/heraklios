@@ -53,6 +53,8 @@ export const en = {
 
   common: {
     abandon: 'Abandon',
+    switchToDrawn: '🗺 Drawn view',
+    switchToStandard: '🗺 Standard view',
     undo: '↶ Undo',
     redo: '↷ Redo',
     undoWith: (label: string) => `↶ Undo: ${label}`,

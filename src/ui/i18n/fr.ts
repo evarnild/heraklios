@@ -45,6 +45,8 @@ export const fr: Messages = {
 
   common: {
     abandon: 'Abandonner',
+    switchToDrawn: '🗺 Vue dessinée',
+    switchToStandard: '🗺 Vue standard',
     undo: '↶ Annuler',
     redo: '↷ Rétablir',
     undoWith: (label) => `↶ Annuler : ${label}`,

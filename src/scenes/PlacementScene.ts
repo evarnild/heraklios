@@ -15,6 +15,7 @@ import { getUnitType } from '../data/units';
 import { canEnterTerrain } from '../data/terrain';
 import { MAP_TERRAIN, hexKey } from '../data/map';
 import type { HexCoord } from '../data/map';
+import { createViewToggle } from '../ui/viewToggle';
 
 interface QueueItem {
   typeId: string;
@@ -270,8 +271,11 @@ export class PlacementScene extends Phaser.Scene {
       if (event.ctrlKey || event.metaKey) this.redo();
     });
 
+    const viewToggle = createViewToggle(this, 20, height - 136, this.mapView);
+
     this.mapView.pinUIObjects([
       titleText,
+      viewToggle,
       this.infoText,
       this.skipBtn,
       this.abandonBtn,
