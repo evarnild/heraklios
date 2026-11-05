@@ -43,8 +43,8 @@ this skill allows, in this conversation.
   branch in its worktree once spawned: read the worktree's copy then) and
   `intent_accepted` is recorded, as a bare date or `<date> by-agent`. If
   not, stop: a run starts from an accepted intent (`/intent` drafts one).
-- `npm run sessions` shows fewer than three other open intent sessions or
-  runs (`CLAUDE.md`, "about three"). If a fourth would open, stop (B11).
+- `npm run sessions` shows fewer than five other open intent sessions or
+  runs (`CLAUDE.md`, "about five"; B11 said three, now five). If a sixth would open, stop (B11).
 - The worktree, once it exists, is not held by a session you didn't start
   (`npm run sessions`: its row is not `working`, `idle` or `needs you`). If it
   is, stop (B11).
@@ -237,7 +237,7 @@ owner runs them.
 red `verify` or `check:intent` you cannot trace to a finding the implementer
 is fixing (`red verify` or `red check:intent`); an agent error or a stopped
 agent (`agent error`); a worktree held by a session you didn't start
-(`worktree held by another session`); a fourth open intent session or run
+(`worktree held by another session`); a sixth open intent session or run
 (`too many sessions`).
 
 ## 8. The ship stop (B10)

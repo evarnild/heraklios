@@ -82,7 +82,7 @@ and in `intents/README.md` / `REVIEW-POLICY.md` win if they disagree.
   `escalate` verdict (the owner reads the diff; the next `/auto <id>` goes
   on), a spec or plan amendment, running out of rounds, the live check, a
   CRITICAL finding, any red it cannot trace, a re-check mismatch, a plan that exists unapproved, a ship dry-run that
-  is blocked, a worktree held by another session, a fourth open session or an
+  is blocked, a worktree held by another session, a sixth open session or an
   agent error, and ends at "ready:
   `/ship <id>`"; it never ships, and never records `spec_accepted` or
   `live_checked` without the owner's yes; the `/auto` authorisation covers neither. A stop shows in `npm run sessions` as `auto · r<n> · <reason>`.
@@ -181,8 +181,10 @@ npm run sessions -- --log 30    # the raw event tail
   Progress shows in the worktree's `status`, `dirty`
   and `ahead` columns (the implementer commits early), and `in-review` means
   it finished.
-- Keep it to about three intent sessions (or launched implementers) at
+- Keep it to about five intent sessions (or launched implementers) at
   once. Merges and reviews are serial, so more sessions mostly add rebases.
+  The coordinator staggers heavy steps (e2e, mutation passes) rather than
+  running them in parallel worktrees, because of memory on this machine.
 - Spawned worktrees live outside the repo on purpose, so vite, vitest and
   eslint never pick up a nested checkout. They get a real `node_modules`
   from `npm ci`, never a junction (`docs/runbook.md` §4).
