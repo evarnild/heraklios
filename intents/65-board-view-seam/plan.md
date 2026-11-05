@@ -238,3 +238,58 @@ Re-read on `main` at `b75df0f`.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-11-05 - all six subtasks
+
+Commits: `hexAtPoint` + tests; `BoardView` + `reconcileUnits` + tests;
+`StandardBoardView` + `hexDraw.ts`; `MapView` surface/facade together with the
+scene call sites (subtasks 4 and 5 in one commit, so every commit builds);
+docs (`CLAUDE.md` `src/ui/` bullet) + this entry + `status: in-review`.
+
+Shipped: as planned. `MapView.ts` is the surface (origin, cameras, drag, zoom,
+one depth-0 `Zone` mapped through `hexAtPoint`, hover on hex change, tooltip)
+and forwards all drawing to a `StandardBoardView` behind `BoardView`. Scenes
+call `setUnits` with `UnitDrawing[]` (Board: living units, facing for ships;
+Placement: this player's units, via a new `drawPlacedUnits`). `devHook.ts` and
+`logPanel.ts` are untouched.
+
+Tests: 1195 vitest (was 1183+; +3 `hexHitTest`, +6 `boardView`), 66 files. No
+existing test or e2e scenario edited. `npm run e2e`: 17 passed. Lint: 21
+warnings (unchanged; `MapView.ts` 0, `BoardScene.ts` 5, `PlacementScene.ts` 1).
+Mutants (full `npx vitest run`, each caught, each restored by copy): membership
+check dropped (2 fail); rounding shifted (3 fail); `reconcileUnits` keyed by
+position (1 fail); owner ignored in recreate (1); move not an update (1);
+remove disabled (1); every unit always an update (2).
+
+Divergences and notes:
+- `hexHitTest.test.ts` uses its own ray-casting containment (the algorithm of
+  `Phaser.Geom.Polygon.Contains`), because importing Phaser needs a browser
+  `window` and the suite runs in node.
+- "0.9 x `HEX_SIZE` toward each edge midpoint" is read as 0.9 of the distance
+  to the midpoint (0.9 x `HEX_SIZE` would lie outside the hex).
+- `hexAtPoint` normalises `-0` to `0` so callers get the same hex values as
+  before.
+- `StandardBoardView.setUnits` re-sorts markers with `children.bringToTop` in
+  list order after any add or update, to keep which stacked counter is on top
+  as it was when every render rebuilt all markers in state order.
+- `mapObjects()` lists exactly what the old `pinUIObjects` ignored. The drift
+  arrow graphics were never in that list (so the UI camera may draw it a second
+  time at its world position); kept as is to hold behaviour constant. Flagged
+  for the owner, a one-line fix if wanted.
+- README: nothing to move (no "Known simplification" covers this refactor and
+  README does not mention `MapView`), so it is unchanged.
+- Live check still owed (hover/tooltip at edges, leaving the map, drag/zoom,
+  Placement).
+
+### 2026-11-05 - review round 1 rework
+
+Fixed the two "Needs rework:" findings.
+- HIGH: `StandardBoardView.setUnits` now calls `scene.children.queueDepthSort()`
+  after the `bringToTop` loop (Phaser 3.90 `List.bringToTop` queues no sort).
+  New read-only dev-hook accessor `displayListSorted()` and new scenario
+  `e2e/draw-order.spec.ts` (swap, Undo; the display list stays depth-sorted).
+  With the `queueDepthSort` line removed the scenario fails ("sorted after the
+  swap"); restored, it passes. No existing scenario or test edited.
+- MEDIUM: `boardView.test.ts` gains a move along r only; mutant B5 (dropping
+  the `position.r` comparison) now fails it.
+Left alone as instructed: the `gameout` tooltip LOW and the plan-prose LOW.

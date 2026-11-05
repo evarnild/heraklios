@@ -1,93 +1,31 @@
 import Phaser from 'phaser';
 import type { HexCoord } from '../data/map';
-import { MAP_TERRAIN, RIVER_HEXSIDES } from '../data/map';
-import {
-  HEX_SIZE,
-  hexToPixel,
-  hexPolygonPoints,
-  facingAngleRad,
-  TERRAIN_COLORS,
-  RIVER_COLOR,
-  markerTextureKey,
-  PLAYER_COLORS_HEX,
-} from './hexRender';
+import { HEX_SIZE, hexToPixel } from './hexRender';
 import { allHexes } from './mapBounds';
 import { formatHexTooltip } from './hexTooltip';
+import { hexAtPoint } from './hexHitTest';
+import { StandardBoardView } from './standardBoardView';
+import type { BoardView, UnitDrawing } from './boardView';
 
-/**
- * Draws one arrowhead triangle at `center`, pointing in `facing`'s bow
- * direction (see `facingAngleRad`). The shared drawing primitive behind
- * `setFacingIndicators` (one arrow per ship, hex-positioned via `toScreen`)
- * AND the Movement/Placement Turn buttons' post-turn facing glyph
- * (`BoardScene.ts`/`PlacementScene.ts`, screen-positioned, unrelated to any
- * hex — plan.md §17.2) — a free function rather than a `MapView` method
- * since the button glyph has no hex or camera to go through, only a fixed
- * screen point. `scale` shrinks the whole triangle proportionally: a
- * button-sized icon doesn't want a full ship-sized arrowhead.
- */
-export function drawFacingArrowhead(
-  graphics: Phaser.GameObjects.Graphics,
-  center: { x: number; y: number },
-  facing: number,
-  colorHex: string,
-  scale = 1,
-): void {
-  const angle = facingAngleRad(facing);
-  const tipRadius = HEX_SIZE * 0.95 * scale;
-  const backRadius = HEX_SIZE * 0.5 * scale;
-  const spread = 0.4; // radians half-width of the arrowhead's back edge
+export { drawFacingArrowhead } from './hexDraw';
 
-  const tip = { x: center.x + tipRadius * Math.cos(angle), y: center.y + tipRadius * Math.sin(angle) };
-  const backLeft = {
-    x: center.x + backRadius * Math.cos(angle + spread),
-    y: center.y + backRadius * Math.sin(angle + spread),
-  };
-  const backRight = {
-    x: center.x + backRadius * Math.cos(angle - spread),
-    y: center.y + backRadius * Math.sin(angle - spread),
-  };
-
-  const color = Phaser.Display.Color.HexStringToColor(colorHex).color;
-  graphics.fillStyle(color, 1);
-  graphics.lineStyle(1.5, 0x1a1408, 0.9);
-  graphics.beginPath();
-  graphics.moveTo(tip.x, tip.y);
-  graphics.lineTo(backLeft.x, backLeft.y);
-  graphics.lineTo(backRight.x, backRight.y);
-  graphics.closePath();
-  graphics.fillPath();
-  graphics.strokePath();
-}
-
-/** Renders the hex map into a scene and handles hex click callbacks. Owns
- * camera scrolling (drag) since the full board is larger than the viewport. */
+/** The shared board surface, plus a facade over the current `BoardView`.
+ * The surface owns the origin and coordinates, the main and fixed UI cameras,
+ * drag, zoom, hit-testing (one `Zone` over the board, mapped to a hex by
+ * `hexAtPoint`), hover and the tooltip. All drawing is forwarded to the
+ * `BoardView` (today only `StandardBoardView`), so a second view needs none
+ * of this. Owns camera scrolling (drag) since the full board is larger than
+ * the viewport. */
 export class MapView {
   private scene: Phaser.Scene;
   private originX: number;
   private originY: number;
   private viewportWidth: number;
   private viewportHeight: number;
-  private hexPolys = new Map<string, Phaser.GameObjects.Polygon>();
-  private overlayGraphics: Phaser.GameObjects.Graphics;
-  /** Hex outlines drawn ABOVE the unit markers (depth 11), which hide the fill overlay beneath them. */
-  private ringGraphics: Phaser.GameObjects.Graphics;
-  private riverGraphics!: Phaser.GameObjects.Graphics;
-  private facingGraphics: Phaser.GameObjects.Graphics;
-  /** The elephant drift-direction arrow (plan.md §21) — see its assignment
-   * in the constructor for why this isn't just reused from `facingGraphics`. */
-  private driftArrowGraphics: Phaser.GameObjects.Graphics;
-  private unitLabels = new Map<string, Phaser.GameObjects.GameObject>();
-  private movementLabel: Phaser.GameObjects.Text | null = null;
-  /** Per-hex "A"/"B"/"C" badges drawn during a choice prompt — see
-   * `setChoiceLabels`. Its own list, deliberately separate from `unitLabels`
-   * (which `clearAllUnitLabels` wipes on every `renderAllUnits`, mid-prompt). */
-  private choiceLabels: Phaser.GameObjects.Text[] = [];
-  /** Per-hex remaining-movement-points badges over a selected ship's full
-   * reachable range — see `setRangeLabels` (plan.md §22.3.1). Its own list,
-   * same "batch, redrawn together, own destroyable array" pattern as
-   * `choiceLabels`, since text can't be batched into one `Graphics` object
-   * the way `highlightHexGroups`'s fills can. */
-  private rangeLabels: Phaser.GameObjects.Text[] = [];
+  private boardView: BoardView;
+  private hitZone: Phaser.GameObjects.Zone;
+  /** The hex the pointer is over, so hover fires only when it changes. */
+  private hoveredKey: string | null = null;
   /** Set once `pinUIObjects` has added the fixed HUD camera — used so newly
    * created world objects (unit markers) get excluded from it too. */
   private uiCamera: Phaser.Cameras.Scene2D.Camera | null = null;
@@ -95,14 +33,15 @@ export class MapView {
   /** True for a screen point where the wheel must not zoom and a press must not start a map drag
    * (the Board's log panel scrolls and its thumb drags there; §49). */
   pointerBlocked: ((x: number, y: number) => boolean) | null = null;
-  /** Fired on `pointerover`/`pointerout`, mirroring `onHexClick` exactly (see
-   * `:71-80`'s per-hex wiring below) — a hook for callers that want to react
-   * to hover themselves. `MapView` does NOT rely on this to drive its own
-   * tooltip: `showHexTooltip`/`hideHexTooltip` are called directly from the
-   * same pointerover/pointerout listeners, so the tooltip's display logic
-   * (formatting, camera-pinning, depth, viewport clamping) lives in one place
-   * that a future trigger swap (e.g. "the selected hex" instead of "the
-   * hovered hex", see plan.md §13's flagged assumption) can call directly
+  /** Fired when the hex under the pointer changes (null once it leaves the
+   * map, the board, or moves onto a UI object above it), mirroring
+   * `onHexClick` - a hook for callers that want to react to hover
+   * themselves. `MapView` does NOT rely on this to drive its own tooltip:
+   * `showHexTooltip`/`hideHexTooltip` are called directly from the same
+   * pointer handlers, so the tooltip's display logic (formatting,
+   * camera-pinning, depth, viewport clamping) lives in one place that a
+   * future trigger swap (e.g. "the selected hex" instead of "the hovered
+   * hex", see plan.md section 13's flagged assumption) can call directly
    * without going back through this callback. */
   onHexHover: ((hex: HexCoord | null) => void) | null = null;
   /** The hover tooltip's backing text object, created lazily on first hover
@@ -149,39 +88,31 @@ export class MapView {
     this.originX = leftPanelWidth - minX + Math.max(margin, (availableWidth - boardWidth) / 2);
     this.originY = -minY + Math.max(margin, (viewportHeight - boardHeight) / 2);
 
-    this.overlayGraphics = scene.add.graphics().setDepth(5);
-    this.facingGraphics = scene.add.graphics().setDepth(11);
-    this.ringGraphics = scene.add.graphics().setDepth(11);
-    // Depth 12 — one above the ship facing indicators, so an elephant's
-    // drift arrow (plan.md §21) is never hidden behind them on the rare hex
-    // where both happen to be drawn at once. A separate `Graphics` object
-    // rather than sharing `facingGraphics`: `renderAllUnits` calls
-    // `setFacingIndicators` on every render, which `.clear()`s and redraws
-    // ship arrows from scratch — sharing one object would wipe the drift
-    // arrow out on every unrelated re-render unless every such call also
-    // remembered to re-supply it.
-    this.driftArrowGraphics = scene.add.graphics().setDepth(12);
+    this.boardView = new StandardBoardView({
+      scene,
+      toScreen: (hex) => this.toScreen(hex),
+      ignoreOnUiCamera: (objects) => this.uiCamera?.ignore(objects),
+    });
 
-    for (const hex of hexes) {
-      const terrain = MAP_TERRAIN.get(`${hex.q},${hex.r}`) ?? 'plain';
-      const center = this.toScreen(hex);
-      const points = hexPolygonPointsAt(center);
-      const poly = scene.add.polygon(0, 0, points, TERRAIN_COLORS[terrain] ?? 0xdec08c, 1).setOrigin(0, 0);
-      poly.setStrokeStyle(1, 0x2a2016, 0.4);
-      poly.setInteractive(new Phaser.Geom.Polygon(points), Phaser.Geom.Polygon.Contains);
-      poly.on('pointerdown', () => this.onHexClick?.(hex));
-      poly.on('pointerover', (pointer: Phaser.Input.Pointer) => {
-        this.onHexHover?.(hex);
-        this.showHexTooltip(hex, pointer.x, pointer.y);
-      });
-      poly.on('pointerout', () => {
-        this.onHexHover?.(null);
-        this.hideHexTooltip();
-      });
-      this.hexPolys.set(`${hex.q},${hex.r}`, poly);
-    }
-
-    this.drawRivers();
+    // One interactive Zone over the board (depth 0, under every HUD object,
+    // exactly where the per-hex polygons used to sit) replaces the per-hex
+    // interactive polygons; `hexAtPoint` maps a point on it to a hex.
+    this.hitZone = scene.add
+      .zone(
+        this.originX + minX - HEX_SIZE,
+        this.originY + minY - HEX_SIZE,
+        boardWidth + HEX_SIZE * 2,
+        boardHeight + HEX_SIZE * 2,
+      )
+      .setOrigin(0, 0)
+      .setInteractive();
+    this.hitZone.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      const hex = this.hexUnder(pointer);
+      if (hex) this.onHexClick?.(hex);
+    });
+    this.hitZone.on('pointermove', (pointer: Phaser.Input.Pointer) => this.updateHover(pointer));
+    this.hitZone.on('pointerout', () => this.updateHover(null));
+    scene.input.on('gameout', () => this.updateHover(null));
 
     // Bound panning/zooming to roughly the board's own extent (plus a little
     // slack) rather than a fixed margin sized for the old centering — so the
@@ -202,27 +133,22 @@ export class MapView {
     mainCam.setScroll(leftPanelWidth, 0);
   }
 
-  /** Draws each river as a thick blue line along the shared hexside. */
-  private drawRivers(): void {
-    const g = this.scene.add.graphics().setDepth(3);
-    this.riverGraphics = g;
-    g.lineStyle(4, RIVER_COLOR, 1);
-    for (const key of RIVER_HEXSIDES) {
-      const [ka, kb] = key.split('|');
-      const [aq, ar] = ka!.split(',').map(Number);
-      const [bq, br] = kb!.split(',').map(Number);
-      const A = this.toScreen({ q: aq!, r: ar! });
-      const B = this.toScreen({ q: bq!, r: br! });
-      const mx = (A.x + B.x) / 2;
-      const my = (A.y + B.y) / 2;
-      // shared edge is perpendicular to the center-center line, length ~HEX_SIZE
-      let px = -(B.y - A.y);
-      let py = B.x - A.x;
-      const len = Math.hypot(px, py) || 1;
-      px = (px / len) * (HEX_SIZE / 2);
-      py = (py / len) * (HEX_SIZE / 2);
-      g.lineBetween(mx - px, my - py, mx + px, my + py);
-    }
+  /** The map hex under a pointer, through the main camera's current scroll and zoom. */
+  private hexUnder(pointer: Phaser.Input.Pointer): HexCoord | null {
+    const world = this.scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    return hexAtPoint(world.x - this.originX, world.y - this.originY);
+  }
+
+  /** Fires hover (and the tooltip) only when the hex under the pointer
+   * changes; `null` means the pointer left the board or went under a UI object. */
+  private updateHover(pointer: Phaser.Input.Pointer | null): void {
+    const hex = pointer ? this.hexUnder(pointer) : null;
+    const key = hex ? `${hex.q},${hex.r}` : null;
+    if (key === this.hoveredKey) return;
+    this.hoveredKey = key;
+    this.onHexHover?.(hex);
+    if (hex && pointer) this.showHexTooltip(hex, pointer.x, pointer.y);
+    else this.hideHexTooltip();
   }
 
   private enableDrag(bounds: { x: number; y: number; width: number; height: number }): void {
@@ -276,7 +202,7 @@ export class MapView {
   /**
    * Pins the given HUD objects (status text, buttons, ...) to a fixed size
    * and position regardless of the map's pan/zoom. `setScrollFactor(0)`
-   * alone only cancels *panning* — Phaser's camera zoom still scales
+   * alone only cancels *panning* - Phaser's camera zoom still scales
    * everything the camera renders, HUD included. The fix is a second,
    * never-zoomed camera that renders only these objects, while the main
    * (zoomable) camera is told to ignore them.
@@ -286,14 +212,7 @@ export class MapView {
     uiCam.setScroll(0, 0);
     uiCam.setZoom(1);
 
-    uiCam.ignore([
-      ...this.hexPolys.values(),
-      this.overlayGraphics,
-      this.ringGraphics,
-      this.riverGraphics,
-      this.facingGraphics,
-      ...this.unitLabels.values(),
-    ]);
+    uiCam.ignore([...this.boardView.mapObjects(), this.hitZone]);
     this.uiCamera = uiCam;
     this.excludeFromMainCamera(uiObjects);
   }
@@ -310,241 +229,69 @@ export class MapView {
     return { x: p.x + this.originX, y: p.y + this.originY };
   }
 
+  /** The current drawing view (for a view toggle; the scenes use the forwarders below). */
+  get view(): BoardView {
+    return this.boardView;
+  }
+
+  setUnits(units: readonly UnitDrawing[]): void {
+    this.boardView.setUnits(units);
+  }
+
   highlightHexes(hexes: HexCoord[], color: number, alpha = 0.45): void {
-    this.highlightHexGroups([{ hexes, color, alpha }]);
+    this.boardView.highlightHexes(hexes, color, alpha);
   }
 
-  /** Like `highlightHexes`, but draws several differently-colored hex sets
-   * in one pass (e.g. "units in your attack group" vs. "eligible targets"
-   * vs. "units already chosen as defenders") without one call clobbering
-   * another's highlight. */
   highlightHexGroups(groups: { hexes: HexCoord[]; color: number; alpha?: number }[]): void {
-    this.overlayGraphics.clear();
-    this.ringGraphics.clear();
-    for (const { hexes, color, alpha = 0.45 } of groups) {
-      this.overlayGraphics.fillStyle(color, alpha);
-      for (const hex of hexes) {
-        const center = this.toScreen(hex);
-        const points = hexPolygonPointsAt(center);
-        this.overlayGraphics.fillPoints(toVec(points), true);
-      }
-    }
+    this.boardView.highlightHexGroups(groups);
   }
 
-  /** Outlines `hexes` in `color`, above the unit markers (so a highlighted
-   * occupied hex still shows). Cleared with the fill highlights. */
   highlightRings(hexes: HexCoord[], color: number): void {
-    this.ringGraphics.lineStyle(4, color, 1);
-    for (const hex of hexes) {
-      const points = hexPolygonPointsAt(this.toScreen(hex));
-      this.ringGraphics.strokePoints(toVec(points), true);
-    }
+    this.boardView.highlightRings(hexes, color);
   }
 
   clearHighlights(): void {
-    this.overlayGraphics.clear();
-    this.ringGraphics.clear();
+    this.boardView.clearHighlights();
   }
 
-  /** Renders a unit as its physical-counter marker image (see
-   * public/markers/), falling back to a colored text chip if the texture
-   * somehow isn't loaded. */
-  setUnitMarker(hex: HexCoord, typeId: string, playerIndex: number): void {
-    const key = `${hex.q},${hex.r}`;
-    const center = this.toScreen(hex);
-    const existing = this.unitLabels.get(key);
-    if (existing) existing.destroy();
-
-    const textureKey = markerTextureKey(playerIndex, typeId);
-    let marker: Phaser.GameObjects.GameObject;
-    if (this.scene.textures.exists(textureKey)) {
-      const img = this.scene.add.image(center.x, center.y, textureKey).setDepth(10);
-      const targetWidth = HEX_SIZE * 1.6;
-      const scale = targetWidth / img.width;
-      img.setDisplaySize(img.width * scale, img.height * scale);
-      marker = img;
-    } else {
-      marker = this.scene.add
-        .text(center.x, center.y, typeId.slice(0, 3).toUpperCase(), {
-          fontSize: '12px',
-          fontStyle: 'bold',
-          color: '#1a1408',
-          backgroundColor: PLAYER_COLORS_HEX[playerIndex] ?? '#ffffff',
-          padding: { x: 4, y: 2 },
-          align: 'center',
-        })
-        .setOrigin(0.5)
-        .setDepth(10);
-    }
-    this.unitLabels.set(key, marker);
-    // Newly-created markers appear after pinUIObjects ran once at scene
-    // setup — keep them out of the fixed HUD camera too.
-    if (this.uiCamera) this.uiCamera.ignore(marker);
-  }
-
-  clearUnitLabel(hex: HexCoord): void {
-    const key = `${hex.q},${hex.r}`;
-    this.unitLabels.get(key)?.destroy();
-    this.unitLabels.delete(key);
-  }
-
-  clearAllUnitLabels(): void {
-    for (const label of this.unitLabels.values()) label.destroy();
-    this.unitLabels.clear();
-  }
-
-  /** Shows the selected unit's remaining movement points centered on its
-   * marker — created once and repositioned/retexted on every call rather
-   * than recreated, since it tracks a single unit across a whole selection
-   * (following it across moves/rotations). */
   showMovementPoints(hex: HexCoord, value: number): void {
-    const center = this.toScreen(hex);
-    const text = Number.isInteger(value) ? `${value}` : value.toFixed(1);
-    if (this.movementLabel) {
-      this.movementLabel.setPosition(center.x, center.y);
-      this.movementLabel.setText(text);
-      this.movementLabel.setVisible(true);
-      return;
-    }
-    this.movementLabel = this.scene.add
-      .text(center.x, center.y, text, {
-        fontSize: '18px',
-        fontStyle: 'bold',
-        color: '#ffffff',
-        stroke: '#000000',
-        strokeThickness: 4,
-      })
-      .setOrigin(0.5)
-      .setDepth(12);
-    if (this.uiCamera) this.uiCamera.ignore(this.movementLabel);
+    this.boardView.showMovementPoints(hex, value);
   }
 
   hideMovementPoints(): void {
-    this.movementLabel?.setVisible(false);
+    this.boardView.hideMovementPoints();
   }
 
-  /**
-   * Draws a small arrowhead on every ship, pointing in its facing direction
-   * (see `facingAngleRad`) — the visual cue for a ship's bow, since the
-   * marker image itself is a physical-counter icon that must stay upright
-   * for its printed stats to stay readable, so it can't just be rotated in
-   * place. Redraws the whole set each call (paired with `renderAllUnits`),
-   * same pattern as `highlightHexGroups`.
-   */
   setFacingIndicators(ships: readonly { hex: HexCoord; facing: number; playerIndex: number }[]): void {
-    this.facingGraphics.clear();
-    for (const { hex, facing, playerIndex } of ships) {
-      const center = this.toScreen(hex);
-      const colorHex = PLAYER_COLORS_HEX[playerIndex] ?? '#ffffff';
-      drawFacingArrowhead(this.facingGraphics, center, facing, colorHex);
-    }
+    this.boardView.setFacingIndicators(ships);
   }
 
   clearFacingIndicators(): void {
-    this.facingGraphics.clear();
+    this.boardView.clearFacingIndicators();
   }
 
-  /**
-   * Draws a single arrowhead on `hex` pointing in `facing`'s direction — the
-   * currently-drifting elephant's just-rolled/in-progress direction (plan.md
-   * §21). Reuses `drawFacingArrowhead`, the same primitive `setFacingIndicators`
-   * draws ship bows with, rather than inventing a second arrow shape. Redraws
-   * from scratch each call (there is ever only one drifting elephant's arrow
-   * shown at a time — a nested trampled-elephant re-drift replaces it, it
-   * doesn't add a second one), same "clear, then redraw the current set"
-   * pattern as `setFacingIndicators`.
-   */
   setDriftArrow(hex: HexCoord, facing: number, colorHex: string): void {
-    this.driftArrowGraphics.clear();
-    const center = this.toScreen(hex);
-    drawFacingArrowhead(this.driftArrowGraphics, center, facing, colorHex, 1.15);
+    this.boardView.setDriftArrow(hex, facing, colorHex);
   }
 
   clearDriftArrow(): void {
-    this.driftArrowGraphics.clear();
+    this.boardView.clearDriftArrow();
   }
 
-  /**
-   * Draws a short per-hex badge (e.g. "A", "B", "C") over each candidate
-   * unit's hex during a choice prompt (`chooseAdvance`/`chooseExchangeSacrifice`
-   * — plan.md §16) — the dialog's rows show the same letters, so a combined
-   * attack of several identical-type units no longer reads as indistinguishable
-   * rows with nothing tying any of them to a hex. Redraws the whole set each
-   * call, same "batch, redrawn together" pattern as `setFacingIndicators` —
-   * but text can't be batched into one `Graphics` object the way vector
-   * shapes can, so this keeps its own destroyable list instead.
-   *
-   * Offset up-left from the hex center (not centered, unlike `movementLabel`)
-   * so the badge doesn't sit directly on top of the unit marker it's
-   * labeling — both would otherwise occupy the same point.
-   */
   setChoiceLabels(labels: readonly { hex: HexCoord; text: string }[]): void {
-    this.clearChoiceLabels();
-    for (const { hex, text } of labels) {
-      const center = this.toScreen(hex);
-      const badge = this.scene.add
-        .text(center.x - HEX_SIZE * 0.5, center.y - HEX_SIZE * 0.5, text, {
-          fontSize: '15px',
-          fontStyle: 'bold',
-          color: '#1a1408',
-          backgroundColor: '#ffcc44',
-          padding: { x: 4, y: 1 },
-        })
-        .setOrigin(0.5)
-        .setDepth(13);
-      if (this.uiCamera) this.uiCamera.ignore(badge);
-      this.choiceLabels.push(badge);
-    }
+    this.boardView.setChoiceLabels(labels);
   }
 
-  /** Clears whatever `setChoiceLabels` last drew. Must be called on every
-   * exit path of a choice prompt (decline, confirm, or otherwise) — a
-   * leftover badge would point at a hex whose unit has since moved, advanced,
-   * or died. */
   clearChoiceLabels(): void {
-    for (const badge of this.choiceLabels) badge.destroy();
-    this.choiceLabels = [];
+    this.boardView.clearChoiceLabels();
   }
 
-  /**
-   * Shows a small numeric badge on every hex in a selected ship's full
-   * reachable naval-movement range (`reachableNavalHexes`), reading
-   * `ship.movementLeft - cost` for that hex — the "how much movement would
-   * be left if I ended my move here" indicator (plan.md §22.3.1). Redrawn
-   * wholesale on every `refreshNavalMovementControls` call, same lifecycle
-   * as `highlightHexGroups`; call `clearRangeLabels` on every exit path
-   * (deselecting the ship, switching to a land unit, ending the phase) so a
-   * stale badge never survives past the selection it describes.
-   *
-   * Offset down-right from the hex center — the opposite corner from
-   * `setChoiceLabels`' up-left badges — since a ramming-contact hex can be
-   * both a choice-prompt candidate's hex AND (this being the ship's own
-   * reachable range) show a range label at the same time; keeping the two
-   * label kinds' corners apart avoids them ever overlapping each other.
-   */
   setRangeLabels(labels: readonly { hex: HexCoord; value: number }[]): void {
-    this.clearRangeLabels();
-    for (const { hex, value } of labels) {
-      const center = this.toScreen(hex);
-      const badge = this.scene.add
-        .text(center.x + HEX_SIZE * 0.5, center.y + HEX_SIZE * 0.5, `${value}`, {
-          fontSize: '13px',
-          fontStyle: 'bold',
-          color: '#ffffff',
-          backgroundColor: '#1a1408b0',
-          padding: { x: 3, y: 1 },
-        })
-        .setOrigin(0.5)
-        .setDepth(13);
-      if (this.uiCamera) this.uiCamera.ignore(badge);
-      this.rangeLabels.push(badge);
-    }
+    this.boardView.setRangeLabels(labels);
   }
 
-  /** Clears whatever `setRangeLabels` last drew. */
   clearRangeLabels(): void {
-    for (const badge of this.rangeLabels) badge.destroy();
-    this.rangeLabels = [];
+    this.boardView.clearRangeLabels();
   }
 
   /**
@@ -603,18 +350,6 @@ export class MapView {
   centerOnPoint(point: { x: number; y: number }): void {
     this.scene.cameras.main.centerOn(point.x + this.originX, point.y + this.originY);
   }
-}
-
-function hexPolygonPointsAt(center: { x: number; y: number }): number[] {
-  return hexPolygonPoints(center);
-}
-
-function toVec(points: number[]): Phaser.Geom.Point[] {
-  const vecs: Phaser.Geom.Point[] = [];
-  for (let i = 0; i < points.length; i += 2) {
-    vecs.push(new Phaser.Geom.Point(points[i]!, points[i + 1]!));
-  }
-  return vecs;
 }
 
 export { HEX_SIZE };

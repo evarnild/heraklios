@@ -2,17 +2,17 @@
 id: 65
 slug: board-view-seam
 type: refactor
-status: accepted
+status: in-review
 title: The board's drawing goes through one view interface, keyed by unit
 review_tier:
 intent_accepted: 2026-11-05 by-agent    # owner: "accept 65 /auto 65"
 spec_accepted:
 plan_approved: 2026-11-05 by-agent    # auto: owner "/auto 65" (auto_authorized 2026-11-05)
-live_checked:
+live_checked: 2026-11-05 by-agent    # owner: "live checked /ship 65 and then /auto 64"
 merged:
-auto_authorized: 2026-11-05 by-agent    # owner: "accept 65 /auto 65"
-auto_round:
-auto_stopped:
+auto_authorized: 2026-11-05 by-agent    # owner: "live checked /ship 59 and /auto 65"
+auto_round: 2
+auto_stopped: live check owed
 follows_up:
 links:
   - intents/64-vector-view

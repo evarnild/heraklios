@@ -316,13 +316,17 @@ export class PlacementScene extends Phaser.Scene {
     this.refreshUndoRedoButtons();
   }
 
+  /** Draws this player's placed units (only theirs, as each player places in
+   * private) from state. */
+  private drawPlacedUnits(): void {
+    const mine = session.gameState!.units.filter((u) => u.owner === this.playerIndex);
+    this.mapView.setUnits(mine.map((u) => ({ id: u.id, typeId: u.typeId, owner: u.owner, position: u.position })));
+  }
+
   /** Rebuilds the marker/arrow overlay from state after a restore. Only this
    * player's units are drawn, matching what `tryPlace` renders as you go. */
   private redrawPlacedUnits(): void {
-    this.mapView.clearAllUnitLabels();
-    for (const u of session.gameState!.units) {
-      if (u.owner === this.playerIndex) this.mapView.setUnitMarker(u.position, u.typeId, this.playerIndex);
-    }
+    this.drawPlacedUnits();
     this.mapView.setFacingIndicators(this.shipArrowList());
   }
 
@@ -447,7 +451,7 @@ export class PlacementScene extends Phaser.Scene {
     };
     state.units.push(unit);
     item.remaining -= 1;
-    this.mapView.setUnitMarker(hex, item.typeId, this.playerIndex);
+    this.drawPlacedUnits();
     this.refreshPlacementHighlight();
     this.updateInfo();
     this.refreshUndoRedoButtons();
@@ -515,7 +519,7 @@ export class PlacementScene extends Phaser.Scene {
     };
     state.units.push(unit);
     item.remaining -= 1;
-    this.mapView.setUnitMarker(pending.hex, pending.typeId, this.playerIndex);
+    this.drawPlacedUnits();
     this.placedShips.push({ hex: pending.hex, facing: pending.facing });
     this.pendingShip = null;
     this.mapView.setFacingIndicators(this.shipArrowList());
@@ -550,7 +554,7 @@ export class PlacementScene extends Phaser.Scene {
   private finishPlayer(): void {
     this.cancelPendingShip();
     const nextIndex = this.playerIndex + 1;
-    this.mapView.clearAllUnitLabels();
+    this.mapView.setUnits([]);
     if (nextIndex < session.playerCount) {
       this.scene.start('Placement', { playerIndex: nextIndex });
     } else {
