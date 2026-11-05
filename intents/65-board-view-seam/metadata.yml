@@ -1,0 +1,19 @@
+# generated-by: heraklios/intent@0.1.5
+id: 65
+slug: board-view-seam
+type: refactor
+status: draft
+title: The board's drawing goes through one view interface, keyed by unit
+review_tier:
+intent_accepted:
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+auto_authorized:
+auto_round:
+auto_stopped:
+follows_up:
+links:
+  - intents/64-vector-view
+  - intents/66-board-animations
