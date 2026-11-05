@@ -2,7 +2,7 @@
 id: 65
 slug: board-view-seam
 type: refactor
-status: accepted
+status: in-review
 title: The board's drawing goes through one view interface, keyed by unit
 review_tier:
 intent_accepted: 2026-11-05 by-agent    # owner: "accept 65 /auto 65"

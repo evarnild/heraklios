@@ -245,7 +245,13 @@ and rendering.
   advance/elimination bookkeeping is still not extracted and mutates
   `GameState` inline.
 - `src/ui/` — shared, Phaser-adjacent helpers used across scenes:
-  `MapView.ts`/`hexRender.ts` (camera + hex grid rendering), `session.ts`
+  `MapView.ts` (the shared surface and facade: origin, cameras, drag, zoom,
+  hit-testing through one `Zone` and the pure `hexHitTest.ts`, hover, tooltip;
+  it forwards all drawing to a `BoardView`), `boardView.ts` (the `BoardView`
+  interface, units drawn by id through `setUnits`/`reconcileUnits`),
+  `standardBoardView.ts` (today's look, the one implementation; a second view
+  implements `BoardView` and gets the camera and input for free),
+  `hexRender.ts`/`hexDraw.ts` (hex geometry and drawing helpers), `session.ts`
   (the in-memory `SessionState` — player setup, army selections, combat mode,
   test mode — that scenes read/write as they hand off to each other),
   `mapBounds.ts` (deployment-zone geometry), `saveStorage.ts`
