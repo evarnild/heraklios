@@ -2,14 +2,14 @@
 id: 58
 slug: orchestrator-row-state
 type: fix
-status: in-review
+status: done
 title: The orchestrator's intent row shows a running session, and accepting an intent sets its status
 review_tier:
 intent_accepted: 2026-10-24
 spec_accepted:
 plan_approved: 2026-10-25 by-agent    # auto: owner "/auto 58" (auto_authorized 2026-10-25)
 live_checked: 2026-11-05 by-agent    # owner: "live checked /ship 58"
-merged:
+merged: 35b8336    # 2026-11-05, merged by Claude on the owner's explicit request in chat
 auto_authorized: 2026-10-25 by-agent    # owner: "/auto 58"
 auto_round: 2
 auto_stopped: live check owed
