@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
 import { describe, it, expect } from 'vitest';
+import type { Action } from './actions';
 import type { DrivingAgent } from './agent';
 import { buildFuzzGameState, playRandomGame, type HarnessStats } from './fuzzHarness';
 import { HeuristicAgent, type Difficulty } from './heuristicAgent';
 import { RandomAgent } from './randomAgent';
-import type { PlayerId } from './state';
+import type { GameState, PlayerId } from './state';
 
 /**
  * Self-play soaks for plan.md §6.4's Stage 3 agent, run through the exact
@@ -29,8 +30,22 @@ const SEEDS = 12;
 
 type Tier = Difficulty | 'pure-random';
 
-function agentFor(tier: Tier, rng: () => number): DrivingAgent {
-  return tier === 'pure-random' ? new RandomAgent(rng) : new HeuristicAgent({ difficulty: tier, rng });
+/** A `HeuristicAgent` that counts the unit swaps it chooses (§59), so a series
+ * can say which TIER swapped rather than only that some seat did. */
+class SwapCountingAgent extends HeuristicAgent {
+  swaps = 0;
+  override chooseNextAction(state: GameState, legal: Action[]): Action {
+    const action = super.chooseNextAction(state, legal);
+    if (action.kind === 'landSwap') this.swaps++;
+    return action;
+  }
+}
+
+function agentFor(tier: Tier, rng: () => number, swapAgents?: SwapCountingAgent[]): DrivingAgent {
+  if (tier === 'pure-random') return new RandomAgent(rng);
+  const agent = new SwapCountingAgent({ difficulty: tier, rng });
+  swapAgents?.push(agent);
+  return agent;
 }
 
 interface SeriesResult {
@@ -38,22 +53,34 @@ interface SeriesResult {
   /** Total surviving army value across the series, per seat. */
   material: Record<PlayerId, number>;
   multiAttackerAttacks: number;
+  /** Unit swaps chosen by the seat playing each tier (§59), summed over the
+   * series. Both seats at one tier add to the same entry. */
+  swapsByTier: Partial<Record<Tier, number>>;
 }
 
-async function playSeries(seat0: Tier, seat1: Tier, seeds = SEEDS): Promise<SeriesResult> {
+async function playSeries(seat0: Tier, seat1: Tier, seeds = SEEDS, firstSeed = 1): Promise<SeriesResult> {
   const games: HarnessStats[] = [];
   const material = { 0: 0, 1: 0, 2: 0, 3: 0 } as Record<PlayerId, number>;
   let multiAttackerAttacks = 0;
-  for (let seed = 1; seed <= seeds; seed++) {
+  const swapsByTier: Partial<Record<Tier, number>> = {};
+  for (let seed = firstSeed; seed < firstSeed + seeds; seed++) {
+    const swapAgents: Array<[Tier, SwapCountingAgent]> = [];
     const stats = await playRandomGame(seed, {
-      createAgent: (rng, seat) => agentFor(seat === 0 ? seat0 : seat1, rng),
+      createAgent: (rng, seat) => {
+        const tier = seat === 0 ? seat0 : seat1;
+        const mine: SwapCountingAgent[] = [];
+        const agent = agentFor(tier, rng, mine);
+        for (const m of mine) swapAgents.push([tier, m]);
+        return agent;
+      },
     });
+    for (const [tier, agent] of swapAgents) swapsByTier[tier] = (swapsByTier[tier] ?? 0) + agent.swaps;
     games.push(stats);
     material[0] += stats.finalArmyValues[0] ?? 0;
     material[1] += stats.finalArmyValues[1] ?? 0;
     multiAttackerAttacks += stats.multiAttackerAttacks;
   }
-  return { games, material, multiAttackerAttacks };
+  return { games, material, multiAttackerAttacks, swapsByTier };
 }
 
 describe('HeuristicAgent: headless self-play', () => {
@@ -149,9 +176,15 @@ describe('HeuristicAgent: difficulty tiers are ordered by strength', () => {
    * Measured over these exact 12 seeds, as average surviving army value:
    *
    * ```
-   * ev-vs-ev          [22.50, 22.08]   wins [ 7, 5]
-   * random-vs-random  [40.00, 36.25]   wins [ 7, 5]
+   * ev-vs-ev          [29.17, 28.75]   wins [ 6, 6]
+   * random-vs-random  [40.83, 45.83]   wins [ 6, 7]
    * ```
+   *
+   * (Re-measured by plan §59, with the computer swapping. The previous
+   * figures, [22.50, 22.08] and [40.00, 36.25], were already stale before
+   * it: on the code just before §59 these exact seeds gave ev-vs-ev
+   * [27.50, 27.92] and the same random-vs-random as now, since the
+   * RandomAgent control always swapped. Only the EV seats' games changed.)
    *
    * A one-sided comparison would credit the seat rather than the agent, so
    * the tests below hold the seat constant on each side.
@@ -193,10 +226,15 @@ describe('HeuristicAgent: difficulty tiers are ordered by strength', () => {
 
     const heuristicTotal = asSeat0.material[0] + asSeat1.material[1];
     const randomTotal = asSeat0.material[1] + asSeat1.material[0];
-    // Measured at 1.99x: totals 825 vs 415 over the 12 seeds (per-game
-    // averages 34.4 vs 17.3 — both stated, because quoting only the averages
+    // Measured at 2.02x: totals 1020 vs 505 over the 12 seeds (per-game
+    // averages 42.5 vs 21.0 — both stated, because quoting only the averages
     // next to an assertion on the TOTALS reads as if they were the same
-    // number).
+    // number). Plan §59 (the computer now swaps) left it exactly where the
+    // code just before it measured: no EV seat chose a swap in these 24
+    // games, so every figure is identical. The older figures in the
+    // paragraphs below (1.99x, 825 vs 415) are the history of the floor, not
+    // today's roster. The 1.75x floor leaves 15.4% headroom (883.75 against
+    // 1020), the same proportional cushion the paragraphs below explain.
     //
     // READ THIS BEFORE RE-TUNING THE WEIGHTS. The floor was originally 2x,
     // chosen with the comment "so ordinary tuning doesn't turn a
@@ -236,6 +274,12 @@ describe('HeuristicAgent: difficulty tiers are ordered by strength', () => {
 
     expect(evInSeat0).toBeGreaterThan(greedyInSeat0);
     expect(evInSeat1).toBeGreaterThan(greedyInSeat1);
+
+    // §59: measured at 410/135 and 310/270 (EV in the left-hand seat first;
+    // 400/140 and 290/275 on the code just before swaps). The EV seats
+    // really swapped in these games (8 swaps, counted per tier), so the
+    // ordering is held WITH swaps in play.
+    expect((evFirst.swapsByTier.ev ?? 0) + (greedyFirst.swapsByTier.ev ?? 0)).toBeGreaterThan(0);
   });
 
   /**
@@ -283,9 +327,12 @@ describe('HeuristicAgent: difficulty tiers are ordered by strength', () => {
     const lookaheadInSeat1 = evFirst.material[1];
     const evInSeat1 = lookaheadFirst.material[1];
 
-    // Measured at 340/360 (94.4%) and 145/180 (80.6%) across these 12 seeds,
-    // down from 290/270 (107.4%) and 255/260 (98.1%) before plan.md §18's
-    // ramming-bonus fix. The floor was 0.85 and 80.6% no longer clears it.
+    // Plan §59 (computer swaps) re-measured it: 355/350 (101.4%) and 355/280
+    // (126.8%) across these 12 seeds, against 355/330 (107.6%) and 345/280
+    // (123.2%) on the code just before it. The paragraph below is the older
+    // history of the floor (340/360 and 145/180, down from 290/270 and
+    // 255/260 before plan.md §18's ramming-bonus fix; the floor was 0.85 and
+    // 80.6% no longer cleared it).
     //
     // READ THIS BEFORE RAISING THE FLOOR BACK. The drop is NOT the aggregate
     // noise the comment above documents, and it was briefly recorded as such
@@ -321,12 +368,17 @@ describe('HeuristicAgent: difficulty tiers are ordered by strength', () => {
     // and after the above it is not a "tiers are ordered" claim either.
     expect(lookaheadInSeat0).toBeGreaterThan(evInSeat0 * 0.75);
     expect(lookaheadInSeat1).toBeGreaterThan(evInSeat1 * 0.75);
+
+    // §59: the Cautious seats chose a swap in these games (once, so this is a
+    // presence check, not a rate).
+    expect((lookaheadFirst.swapsByTier.lookahead ?? 0) + (evFirst.swapsByTier.lookahead ?? 0)).toBeGreaterThan(0);
   });
 
   it('the lookahead tier ends with more material than the greedy tier, seat for seat', async () => {
     // Unlike the ev-vs-lookahead comparison above, this one IS a genuine
-    // strength claim, and measures as a large, stable margin (310 vs. 195,
-    // 310 vs. 205 over these 12 seeds) — lookahead's combat phase is
+    // strength claim, and measures as a large, stable margin (365 vs. 295 and
+    // 295 vs. 180 over these 12 seeds, re-measured by plan §59 with swaps on;
+    // 370 vs. 285 and 295 vs. 125 on the code just before it) — lookahead's combat phase is
     // identical to ev's, and ev already beats greedy convincingly (see the
     // ev-vs-greedy test above), so this is the same margin plus whatever
     // the threat check adds on top, never minus it.
@@ -340,5 +392,15 @@ describe('HeuristicAgent: difficulty tiers are ordered by strength', () => {
 
     expect(lookaheadInSeat0).toBeGreaterThan(greedyInSeat0);
     expect(lookaheadInSeat1).toBeGreaterThan(greedyInSeat1);
+  });
+
+  it('the greedy tier also swaps in a soak game (§59), though rarely', async () => {
+    // Greedy values a swap by contact alone, and a plain move toward the enemy
+    // nearly always outscores it, so natural games hold few: 1 game in 60 as
+    // seat 0 against EV (seed 24; none in 60 greedy mirror games). The seed is
+    // pinned so the series proves the tier CAN reach a swap in play, which the
+    // targeted tests in `heuristicAgent.test.ts` cover position by position.
+    const series = await playSeries('greedy', 'ev', 1, 24);
+    expect(series.swapsByTier.greedy ?? 0).toBeGreaterThan(0);
   });
 });
