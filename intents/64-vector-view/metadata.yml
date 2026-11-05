@@ -2,7 +2,7 @@
 id: 64
 slug: vector-view
 type: feature
-status: accepted
+status: in-review
 title: A second board view, a drawn 2D landscape with animated units
 review_tier:
 intent_accepted: 2026-11-05 by-agent    # owner: "accept 64 and /auto 64"

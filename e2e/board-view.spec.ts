@@ -53,6 +53,7 @@ test('the view toggle keeps state, camera and selection, and a move works in the
   await clickHex(page, to!);
   await waitIdle(page);
   expect((await unit(page, mover.id)).position).toEqual(to);
+  await frames(page); // the display list is sorted on the next render
   expect(await page.evaluate(() => window.__heraklios.displayListSorted()), 'depth-sorted after the move').toBe(true);
 
   // Zoom with the wheel and pan with a drag: the camera moves, nothing is baked again.

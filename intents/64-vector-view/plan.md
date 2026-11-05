@@ -252,3 +252,34 @@ Re-read on `main` at `5575baf` (after §65's merge, `209600f`).
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### Phase 1 (subtasks 1-9), 2026-11-05
+
+Commits: `bded7a9` (subtasks 1-2: remembered choice, drawing-state recorder, `MapView` swap), `850fab0` (3-4: pure landscape geometry and figure shapes), `e780628` (5-6: the Drawn view, the toggle, the dev-hook readers), `1d7e4b0` (7-8: figure gallery, `e2e/board-view.spec.ts`, visual tuning), and the closing commit (9: README, this entry, `status: in-review`).
+
+What shipped, as the plan lists it:
+- `ui/boardViewPreference.ts`, `ui/viewDrawingState.ts` and `MapView`'s `createView` / `setViewKind` / `viewKind`: every forwarder records first, a swap builds the new view, replays into it, destroys the old one and keeps it off the UI camera. A single `localStorage` key, `heraklios.boardView`.
+- `ui/landscape/` (pure: `geometry`, `regions`, `smoothing`, `rivers`, `variation`, `flanks`, `gridLines`; Phaser painters: `paintContext`, `paintTerrain`, `paintWater`, `paintLandscape`) and `ui/figures/figureShapes.ts` (pure).
+- `ui/drawnBoardView.ts` with `drawnUnits.ts` and `drawnOverlays.ts`; the landscape is baked once into a `RenderTexture` at scale 2 (1 when the GPU's `MAX_TEXTURE_SIZE` is too small).
+- `ui/viewToggle.ts` on the Board (right of Abandon) and in Placement (above Undo); i18n keys `common.switchToDrawn` / `switchToStandard` and `menu.figureGallery`; dev hook `boardView()`, `cameraScroll()`, `selectedUnitId()`, `landscapeBuilds()`.
+- Dev-only Menu button "Figure gallery (dev)" and `startFigureGalleryGame()` (`session.testScenario` gains `'gallery'`).
+- README: a "The Standard view and the Drawn view" section, and the `src/ui/` line of the project structure.
+
+Numbers: `npm run verify` green: 77 test files, 1277 tests (before: 69 files, 1236 tests; +8 files, +41 tests); lint 21 warnings (cap 21, unchanged). `npm run e2e`: 19 passed (18 existing, unchanged, plus `board-view.spec.ts`). Bundle (`vite build`): `main-*.js` 1,387.33 kB, gzip 372.58 kB. The plan's "before" figure (1,660.04 kB, gzip 390.16 kB) is not what `vite build` gives at `5575baf` here: a clean build of that commit gave 1,366.81 kB, gzip 366.18 kB, so the change adds 20.52 kB (gzip 6.40 kB).
+
+Divergences from the plan:
+- `regionLoops` takes the member hexes (`regionLoops(members: HexCoord[])`) instead of an `isMember` predicate: the caller filters, and off-map still counts as non-member.
+- `flanks.test.ts`: the plan's "every `steep-flank` hex on the real map has at least one side" is false on the real map (a flank at `30,-2` is walled in by plateau and flank). The test says "most flanks", and pins that hex to `[]`.
+- `regions.test.ts` gains one test the plan did not list: every loop of the sea, marsh and high-ground regions winds the same way, which is what lets the painters fill each loop on its own (there is no hole on this map).
+- `smoothing.ts` also has `smoothPolyline` (open-ended Chaikin, ends fixed), which the river painter needs.
+- The Drawn view's units are rebuilt (container destroyed and made again) whenever one is updated, so `queueDepthSort()` is redundant there (adding a child already queues a sort). It is kept as the plan says, but a mutant that drops it is not killed by `board-view.spec.ts` or `draw-order`, because nothing in the Drawn view can leave the list unsorted that way today.
+- The galley's oars are drawn in the pale tone and the bay tints are bright water hues (the print's brown and purple read as ground); both from looking at screenshots, not in the plan.
+- The e2e checks everything in the state except `elapsedMs` (the play clock runs on its own), and waits two frames before `displayListSorted()` (the sort happens on the next render).
+
+For the live check, look at:
+- Badge text: 11 px, with the counter's numbers; in a crowded position (combat test mode) the badges of neighbouring figures overlap. Say if it needs a smaller font or a different place.
+- Softness of the baked landscape at zoom 2.5 (scale 2 bake).
+- The four bay tints (the gold one, Pointe d'Eole, reads grey-green over deep water), and the galley figures with 1, 2, 3 and 5 oar banks at default zoom.
+- Placement's toggle at `(20, height - 136)` above Undo, and the Board's right of Abandon (it sits close to Tables on the row above).
+- A toggle during a prompt, a retreat or a computer turn; drift arrow, range and choice labels in the Drawn view.
+- The play against an unusually small `MAX_TEXTURE_SIZE` was not exercised (the 1x fallback is untested in a browser).
