@@ -37,6 +37,12 @@ import { currentDefense, livingUnits, unitType, type GameState, type PlayerId, t
  * | `'ev'` | maximizes expected material SWING, and combines attackers | as above, plus terrain, ZOC and charge value |
  * | `'lookahead'` | same exact-EV combat model | EV movement plus a bounded enemy-reply threat check |
  *
+ * UNIT SWAPS (§59): `'random'` sees a `landSwap` like any other option. The
+ * other tiers score one in `swapScoring.ts` as the gain in the pair's best
+ * attack (contact), plus, for `'ev'` and `'lookahead'`, the fall in the pair's
+ * exposure to the enemy's best reply (shelter); `'lookahead'` also runs its
+ * reply check over both units of the swap.
+ *
  * `'random'` is a genuine delegation, not a reimplementation — the tier
  * exists so a caller can select difficulty uniformly without special-casing
  * which class to construct, and reusing `RandomAgent` keeps "easiest AI" and

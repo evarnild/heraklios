@@ -2,7 +2,7 @@
 id: 59
 slug: ai-unit-swaps
 type: feature
-status: accepted
+status: in-review
 title: Computer players use unit swaps
 review_tier:
 intent_accepted: 2026-10-25 by-agent    # owner: "accept 59"

@@ -890,11 +890,11 @@ describe('HeuristicAgent: unit swaps (§59)', () => {
   const X: HexCoord = { q: 11, r: 5 };
   const E: HexCoord = { q: 12, r: 5 };
 
-  function pairState(front: string, behind: string, enemy: string, movementLeft = 1): GameState {
+  function pairState(front: string, behind: string, enemy: string, movementLeft = 1, rearId = 'behind'): GameState {
     return makeGame(
       [
         makeUnit({ id: 'front', typeId: front, position: X, movementLeft }),
-        makeUnit({ id: 'behind', typeId: behind, position: Y, movementLeft }),
+        makeUnit({ id: rearId, typeId: behind, position: Y, movementLeft }),
         makeUnit({ id: 'enemy', typeId: enemy, position: E, owner: 1 }),
       ],
       'movement',
@@ -1002,6 +1002,17 @@ describe('HeuristicAgent: unit swaps (§59)', () => {
       const weights = { swapContact: 0 };
       expect(choose(agentAt('ev', weights), state())).toEqual(SWAP);
       expect(isSwap(choose(agentAt('lookahead', weights), state()))).toBe(false);
+    });
+
+    it('charges the unit that moves forward whichever side of the action it is on', () => {
+      // A swap names its lower id first. Here the unit moving forward has the
+      // HIGHER id ('rear' > 'front'), so it is the action's `otherId`: a reply
+      // check that only looked at `unitId` would miss it and let Cautious swap.
+      const weights = { swapContact: 0 };
+      const rearState = () => pairState('fantassins-archers', 'fantassins', 'elephants', 1, 'rear');
+      const swap: Action = { kind: 'landSwap', unitId: 'front', otherId: 'rear' };
+      expect(choose(agentAt('ev', weights), rearState())).toEqual(swap);
+      expect(isSwap(choose(agentAt('lookahead', weights), rearState()))).toBe(false);
     });
   });
 

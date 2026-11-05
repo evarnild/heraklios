@@ -339,9 +339,20 @@ through a friendly one but never end on an occupied hex (see above). With
   ringed in green. Click one to swap (one undo step, "Swap A and B"). To select
   a ringed friend instead, click the selected unit again to deselect first.
   Ships never swap.
-- **The computer never swaps**, at any difficulty (Random included): the
-  heuristic agent drops swaps from the options it sees. A later intent (§59)
-  will teach it to.
+- **The computer swaps too**, at every difficulty, whenever the option is on
+  (a swap is one of the moves it is offered; with the option off it plays
+  exactly as before). Random takes a swap like any other option. The other
+  three levels score a swap by what it buys, in the same army points as their
+  moves: **contact**, the rise in the pair's best attack from the hexes they
+  would exchange (a strong attacker behind a weak one swaps forward to reach
+  the enemy); and, for Expected value and Cautious, **shelter**, the fall in the
+  pair's exposure to your strongest reply (a unit in danger swaps back behind a
+  sturdier one). Greedy counts contact only. Cautious also prices your best
+  reply against both units, as it does for a move. A swap is taken only when it
+  is the best option and clears the same small score floor as a move, and it
+  scores the exact opposite of the swap it would undo, so the computer never
+  swaps a pair straight back. Swaps are rare in computer-against-computer
+  games: a plain move toward the enemy usually scores higher.
 
 ### Combining attacks
 
@@ -884,10 +895,10 @@ below for why:
 
 | Level | How it plays |
 | --- | --- |
-| Random | Picks uniformly among the legal options (never a unit swap; see "Swapping places with a neighbour"). |
-| Greedy | Goes for the biggest expected damage to you, and ignores what the attempt might cost it. |
-| Expected value | Weighs damage against its own risk, declines attacks that aren't worth making, and concentrates several units into one attack when that pushes the force ratio into a better column. |
-| Cautious | Everything expected value does, plus a bounded look at your best reply: before committing to a move, it clones the board, plays the move out, and prices the strongest attack you could make against the specific unit that just moved — discounting a move for handing you a strong counter against that unit, not just for what the move buys outright. |
+| Random | Picks uniformly among the legal options, unit swaps included. |
+| Greedy | Goes for the biggest expected damage to you, and ignores what the attempt might cost it. Swaps places with a neighbour when that brings a stronger attacker into contact. |
+| Expected value | Weighs damage against its own risk, declines attacks that aren't worth making, and concentrates several units into one attack when that pushes the force ratio into a better column. Swaps places with a neighbour to bring a stronger attacker into contact, or to put a sturdier unit in the way of your best reply. |
+| Cautious | Everything expected value does, plus a bounded look at your best reply: before committing to a move, it clones the board, plays the move out, and prices the strongest attack you could make against the specific unit that just moved — discounting a move for handing you a strong counter against that unit, not just for what the move buys outright. It does the same for a swap, against both units of the pair. |
 
 The fourth level does not simulate your movement or search more than one
 ply — see `heuristicAgent.ts` for why a genuine rollout turned out to be a

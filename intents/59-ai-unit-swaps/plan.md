@@ -271,3 +271,114 @@ ratio 1020/505 = 2.02. Baseline per-test durations (soak file): self-play
 889 ms, combined attacks 1982 ms, replay 216 ms, fingerprints 86-224 ms each,
 EV vs random 2410 ms, EV vs greedy 1894 ms, lookahead vs ev 3152 ms,
 lookahead vs greedy 3848 ms.
+
+### 2026-11-05 - subtasks 2 to 6: swaps for the computer, shipped
+
+Commits (branch `feat/59-ai-unit-swaps`): `cdc5db1` (subtask 1, above),
+`408ecf5` (subtask 2: `swapScoring.ts` + `swapScoring.test.ts`), `0441aa5`
+(subtasks 3 and 4 together: `HeuristicAgent` wiring + behaviour tests; the
+two old section-54 "never swaps" tests could not stay green between them),
+`5d8c971` (subtask 5: soak re-measure), and the final commit (subtask 6:
+docs, the extra B6 test, Progress, `status: in-review`).
+
+What shipped: `src/engine/swapScoring.ts` (`swappedClone`, `contactGain`,
+`shelterGain`, `isFrontLinePair`, `scoreSwaps`, `SWAP_PROBE_LIMIT = 4`);
+`HeuristicAgent` without the `landSwap` filter, `swapContact: 1` and
+`swapShelter: 1` weights, one short private `swapCandidates`, `landSwap` in
+`cloneAfterDeterministicMovementAction`, and a module-private
+`threatenedUnitIds` so the Cautious reply check covers both units of a swap
+(`movingUnitId` is unchanged and still throws on a swap); the scene comment;
+README bullet and table rows; the `heuristicAgent.ts` header line.
+
+Tests: 1183 on main, 1205 after (+22: 4 swaps-off fingerprints, 1 greedy
+soak presence test, 7 in `swapScoring.test.ts`, and +10 in
+`heuristicAgent.test.ts`, 38 to 48, where the two section-54 "never swaps"
+tests became 12 swap tests). Lint stays at 21 warnings; `heuristicAgent.ts` gained no
+new one.
+
+Soak and tier numbers, old (unchanged code, from subtask 1) to new (swaps on),
+12 seeds, material seat0/seat1:
+
+| series | old | new | swaps (new) |
+| --- | --- | --- | --- |
+| ev vs pure-random | 570 / 325 | 570 / 325 | 0 |
+| pure-random vs ev | 180 / 450 | 180 / 450 | 0 |
+| ev vs greedy | 400 / 140 | 410 / 135 | ev 6, greedy 0 |
+| greedy vs ev | 275 / 290 | 270 / 310 | ev 2, greedy 0 |
+| lookahead vs ev | 355 / 280 | 355 / 280 | ev 1, lookahead 0 |
+| ev vs lookahead | 330 / 345 | 350 / 355 | ev 4, lookahead 1 |
+| lookahead vs greedy | 370 / 125 | 365 / 180 | not counted per tier |
+| greedy vs lookahead | 285 / 295 | 295 / 295 | not counted per tier |
+| ev vs ev | 330 / 335 | 350 / 345 | 5 |
+| pure-random vs pure-random | 490 / 550 | 490 / 550 | 2 (unchanged) |
+
+Assertions: EV vs random ratio 1020/505 = 2.02x (floor 1.75x, headroom 15.4%,
+unchanged); EV beats Greedy seat for seat (410 > 270 and 310 > 135); Cautious
+vs EV 355/350 (101.4%) and 355/280 (126.8%), floor 0.75x unchanged; Cautious
+beats Greedy seat for seat (365 > 295 and 295 > 180). No ordering broke, so
+B14 did not trigger and no threshold or weight was changed. The "Measured at"
+comments in `heuristicSoak.test.ts` were stale before this work (they matched
+an older roster); they now carry the figures above, and say what the code
+just before Â§59 measured.
+
+Swap presence per tier (AC8): the soak tests count swaps per tier with a
+counting subclass. EV swaps (8 in the ev/greedy series), Cautious swaps (1 in
+the lookahead/ev series). Greedy did NOT swap in any of the 12-seed series nor
+in 60 greedy mirror games; it swaps in 1 of 60 games as seat 0 against EV (seed
+24), so a dedicated one-game test pins that seed (`playSeries('greedy', 'ev',
+1, 24)`). Swaps are rare in self-play at every planning tier (a plain move
+toward the enemy usually outscores them); the targeted tests carry the
+behaviour.
+
+Durations (soak file, loaded machine, ms; old then new): self-play 889/972,
+combined attacks 1982/2232, replay 216/383, fingerprints 86-224/101-267, EV vs
+random 2410/3213, EV vs greedy 1894/2370, lookahead vs ev 3152/4015, lookahead
+vs greedy 3848/4819, greedy swap test (new) 83. All far under the 60 s
+timeout; the whole suite runs in about 57 s.
+
+AC5: the Cautious-only position exists on the shipped map, so no fallback test
+was needed: a spearman with archers (exposed to an elephant at 2.33) on the
+front hex, a plain spearman behind (1.67 if moved forward). EV swaps (shelter
+net +0.67), Cautious declines (0.75 of the 1.67 reply outweighs it). A second
+test puts the forward-moving unit on the `otherId` side.
+
+Mutants (back up by copy, one change, full `npx vitest run`, restore by copy;
+`git status --short` clean afterwards), all killed:
+- M1 restore the `landSwap` filter: 12 tests fail (all of AC1, AC3-AC6, the
+  swaps-off random fingerprint, two soak tests, `seatControl.test.ts`);
+- M2 `contactGain` returns 0: 7 fail (contact test, AC6 pair, the greedy soak
+  presence test, three `swapScoring` tests);
+- M3 `shelterGain` returns 0: 6 fail (shelter and B6 tests, a soak test, three
+  `swapScoring` tests);
+- M4 `SWAP_PROBE_LIMIT = 0`: 5 fail (shelter, B6, a soak test, two
+  `swapScoring` tests);
+- M5 `landSwap` dropped from `cloneAfterDeterministicMovementAction`: 1 fails
+  (the B6 "EV swaps where Cautious declines" test);
+- M6 reply check over `unitId` only: survived the first test set; added the
+  `otherId`-side B6 test, now killed;
+- M7 Greedy gets shelter: killed (shelter test);
+- M8 `isFrontLinePair` always true: killed (`swapScoring` no-call test);
+- M9 contact counts only the after side (reverse swap not negated): 4 fail
+  (AC6 straight-back, three `swapScoring` tests);
+- M10 shelter weight ignored: 2 fail;
+- M11 the lookahead calls `movingUnitId` on a swap (throws): 10 fail.
+Not mutated (no test can see it): clearing `charged` in `probeClone` for the
+priced boards, since `bestAttackValueFrom` already forces `charged = false`
+and `defendedThisPhase` is false in every constructed test position.
+
+Divergences from the plan:
+- Subtasks 3 and 4 are one commit (see above).
+- The `SWAP_PROBE_LIMIT` cap is applied to front-line pairs only (best by
+  contact, then `legal` order), not to all offered swaps: a non-front-line
+  pair costs no probe anyway, so ranking it into the cap would only waste a
+  slot. Same bound, spirit of B9.
+- `contactGain` and `shelterGain` live in `swapScoring.ts` as planned, plus a
+  `scoreSwaps` that holds the gathering (cap, per-unit caches of the unswapped
+  side) so the agent's private method is a single call; the exposure callback
+  clones the board each time because `enemyThreatAgainstUnit` mutates it.
+- The tests use `{ swapShelter: 0 }` or `{ swapContact: 0, swapShelter: 0 }`
+  as the twin where the plan said `{ swapContact: 0 }`, because at Expected
+  value and Cautious shelter alone can carry the swap; each term is isolated
+  on its own.
+- The soak greedy presence is a dedicated one-game series (see above) because
+  natural series never held a Greedy swap.
