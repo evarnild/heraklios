@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { landUnitsCentre } from '../ui/viewCentre';
 import { MapView, drawFacingArrowhead } from '../ui/MapView';
+import type { UnitDrawing } from '../ui/boardView';
 import { PLAYER_COLORS_HEX } from '../ui/hexRender';
 import { messages } from '../ui/i18n';
 import { dieModifierParts, formatAttackLine, formatDriftEvent } from '../ui/i18n/format';
@@ -904,15 +905,17 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   }
 
   private renderAllUnits(): void {
-    this.mapView.clearAllUnitLabels();
     const ships: { hex: HexCoord; facing: number; playerIndex: number }[] = [];
+    const drawings: UnitDrawing[] = [];
     for (const u of this.state().units) {
       if (u.destroyed) continue;
-      this.mapView.setUnitMarker(u.position, u.typeId, u.owner);
-      if (unitType(u).domain === 'naval') {
+      const naval = unitType(u).domain === 'naval';
+      drawings.push({ id: u.id, typeId: u.typeId, owner: u.owner, position: u.position, facing: naval ? u.facing : undefined });
+      if (naval) {
         ships.push({ hex: u.position, facing: u.facing, playerIndex: u.owner });
       }
     }
+    this.mapView.setUnits(drawings);
     this.mapView.setFacingIndicators(ships);
     // The elephant drift-direction arrow (plan.md §21) — read from scene
     // state rather than passed in, so EVERY render (not just the ones an
