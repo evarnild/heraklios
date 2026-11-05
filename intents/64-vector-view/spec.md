@@ -23,7 +23,7 @@ Written against `main` at `02f054a`.
 | `src/data/map.ts` (`MAP_TERRAIN`, `RIVER_HEXSIDES`) | The only map data: one terrain per hex, and river hexsides as `"q,r\|q,r"` keys. The landscape is derived from these alone. |
 | `src/data/terrain.ts:1-12` | The eleven terrain types: `plain`, `river-wide`, `steep-flank`, `plateau`, `marsh`, `coast`, the four `zone-*` bays, and `sea`. |
 | `src/ui/hexRender.ts` | `HEX_SIZE = 22`, `hexToPixel` (flat-top axial), `TERRAIN_COLORS`, `RIVER_COLOR`, and `PLAYER_COLORS_HEX = ['#ffd54a', '#ff5a5a', '#5ab4ff', '#5aff7a']`. |
-| `src/ui/MapView.ts` | What the standard view draws today, every one of which the new view must also draw: hex polygons and their hit areas (`:152-169`); rivers as 4 px lines on hexsides (`:187-205`); zoom 0.4 to 2.5 (`:249-251`); unit markers (`:352-383`, the counter images `public/markers/<colour>/<type>.png`); movement points; facing arrowheads; the drift arrow; choice labels; range labels; highlights and rings; and the hover tooltip `(q, r) — <terrain>`. |
+| `src/ui/MapView.ts` | What the standard view draws today, every one of which the new view must also draw: hex polygons and their hit areas (`:152-169`); rivers as 4 px lines on hexsides (`:187-205`); zoom 0.4 to 2.5 (`:256-257`); unit markers (`:352-383`, the counter images `public/markers/<colour>/<type>.png`); movement points; facing arrowheads; the drift arrow; choice labels; range labels; highlights and rings; and the hover tooltip `(q, r) — <terrain>`. |
 | `src/ui/i18n/index.ts:8` | The precedent for a remembered choice: `LANGUAGE_STORAGE_KEY = 'heraklios.language'` in `localStorage`, falling back when storage is unavailable. |
 | `README.md` | The board and placement sections gain the toggle; the print look stays the default. |
 
