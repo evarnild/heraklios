@@ -12,6 +12,6 @@ live_checked:
 merged:
 auto_authorized: 2026-11-05 by-agent    # owner: "accept 64 and /auto 64"
 auto_round:
-auto_stopped: spec drafted, waiting for spec_accepted
+auto_stopped: waiting for 65 to merge, plan cites its interface
 follows_up:
 links:
