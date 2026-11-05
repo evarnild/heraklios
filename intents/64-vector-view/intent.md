@@ -34,10 +34,11 @@ game that looks like a drawn map and shows the action as it happens.
   cavalry, chariots, elephants, galleys) in their player's colour, with their
   numbers readable, and with every state the counters show today (selected,
   in an attack group, damaged ship, facing, etc.).
-- **Animated:** movement (hex by hex along the path, ships turning, swaps
-  crossing), land combat (the clash and its result: retreat, push, advance,
-  elimination, exchange), naval combat (ramming, boarding) and the elephant
-  drift step by step.
+- **On the Board and in Placement**, with the same toggle in both.
+- **Animations are §66's** (amended 2026-11-05, on the owner's split into
+  three intents: §65 the view seam, this one the static view, §66 the
+  animations). This intent's view shows actions at once, as the standard view
+  does.
 - Same game either way: switching views never changes the state, the rules,
   saves, undo or what the computer decides.
 
@@ -48,6 +49,8 @@ game that looks like a drawn map and shows the action as it happens.
   needs to know what happened (a unit's path, a combat's result), it reads
   what the engine already returns, or the engine gains a pure, tested
   description of it, never a scene-side re-derivation of a rule.
+- **Depends on §65** (the board view interface, keyed by unit), merged
+  first; this view is the interface's second implementation.
 - **`BoardScene.ts` is ~3200 lines** and draws its units and overlays itself.
   Two views need one seam they both draw through; the spec decides whether
   that is a separate refactor intent first (behaviour held constant, e2e
