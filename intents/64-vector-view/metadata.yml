@@ -7,11 +7,11 @@ title: A second board view, a drawn 2D landscape with animated units
 review_tier:
 intent_accepted: 2026-11-05 by-agent    # owner: "accept 64 and /auto 64"
 spec_accepted: 2026-11-05 by-agent    # owner: "accept 64 and 66 spec"
-plan_approved:
+plan_approved: 2026-11-05 by-agent    # auto: owner "/auto 64" (auto_authorized 2026-11-05)
 live_checked:
 merged:
 auto_authorized: 2026-11-05 by-agent    # owner: "live checked /ship 65 and then /auto 64"
 auto_round:
-auto_stopped: waiting for 65 to merge, plan cites its interface
+auto_stopped:
 follows_up:
 links:
