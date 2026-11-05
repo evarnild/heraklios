@@ -319,7 +319,7 @@ beats Greedy seat for seat (365 > 295 and 295 > 180). No ordering broke, so
 B14 did not trigger and no threshold or weight was changed. The "Measured at"
 comments in `heuristicSoak.test.ts` were stale before this work (they matched
 an older roster); they now carry the figures above, and say what the code
-just before Â§59 measured.
+just before §59 measured.
 
 Swap presence per tier (AC8): the soak tests count swaps per tier with a
 counting subclass. EV swaps (8 in the ev/greedy series), Cautious swaps (1 in
@@ -377,8 +377,48 @@ Divergences from the plan:
   side) so the agent's private method is a single call; the exposure callback
   clones the board each time because `enemyThreatAgainstUnit` mutates it.
 - The tests use `{ swapShelter: 0 }` or `{ swapContact: 0, swapShelter: 0 }`
-  as the twin where the plan said `{ swapContact: 0 }`, because at Expected
-  value and Cautious shelter alone can carry the swap; each term is isolated
-  on its own.
+  as the twin where the plan said `{ swapContact: 0 }`: in the contact
+  position the shelter term also favours the swap, so a twin that zeroes
+  contact alone would still swap at Expected value and Cautious; the "no swap"
+  twin zeroes both, and each term's positive test zeroes the other.
 - The soak greedy presence is a dedicated one-game series (see above) because
   natural series never held a Greedy swap.
+
+### 2026-11-05 - review round 1 rework (tests only, no source change)
+
+Three MEDIUM findings, each fixed by a test; no change under `src/` except
+tests and two soak comments.
+
+- A6 (contact priced as a charge): new `heuristicAgent.test.ts` describe
+  "contact is never priced as a charge (B4)". Light cavalry behind a spearman
+  facing an archer: charged contact is 3.00 (EV) / 4.33 (Greedy), uncharged
+  0.33 / 0.17, and `minMoveScore: 1` sits between them. Killed by "a swap whose
+  uncharged contact is under the gate is not taken". A twin with the gate low
+  proves the swap is on offer.
+- S13 and S14 (cap selection): new `swapScoring.test.ts` test with eight units
+  (pairs 0-5 front line, pair 6 off the line with the highest contact), made-up
+  contacts `[3,1,5,2,6,4,9]`; it asserts the probed boards are exactly pairs
+  0, 2, 4, 5 (top four front-line by contact), and with all contacts equal
+  pairs 0-3 (legal order). Both mutants are killed by "probes the best
+  SWAP_PROBE_LIMIT front-line pairs by contact ...".
+- S2 and S1 (probe normalisation): two shelter tests. An enemy light cavalry
+  with `charged: true` (stale from its own turn) against an archer-spearman in
+  front of a phalanx: normalised the swap is worth nothing and is not taken; an
+  unnormalised board reads 0.67 of exposure. Killed S2 by "prices the enemy as
+  it would stand in its own combat phase ...". A front unit with
+  `defendedThisPhase: true` in the elephant position still swaps (the stale
+  flag would hide the threat). Killed S1 by "prices our own unit as attackable
+  even if it defended earlier ..." (the fragile soak check also fails). This
+  corrects the earlier note that no test could see the `charged` clear: it is
+  visible through the exposure side.
+
+Mutants, full `npx vitest run`, restored by copy, `git status --short` clean
+of source changes afterwards: S2, S1, S13, S14, A6 all killed (deciding tests
+above).
+
+Other: the two soak presence checks (Cautious, Greedy seed 24) gained a
+comment on how to re-find a seed. Progress corrections: the "shelter alone can
+carry the swap" justification is reworded (in the contact position the
+shelter term also favours the swap, so the "no swap" twin zeroes both
+weights), and the mojibake in an earlier entry is fixed. Untouched, per the
+coordinator: the B8-under-cap edge case.

@@ -159,6 +159,45 @@ describe('scoreSwaps', () => {
     expect(boards.size).toBe(0);
   });
 
+  it('probes the best SWAP_PROBE_LIMIT front-line pairs by contact (ties by legal order), never an off-line pair', () => {
+    // Eight units in a row: seven adjacent pairs. Pairs 0-5 touch enemy ZOC
+    // (units r0-r5 stand in it); pair 6 (r6, r7) does not, and has the highest
+    // contact of all. The made-up attack measure gives pair i a contact gain of
+    // gains[i] (the weights telescope: swapping i with i+1 is w_i - w_(i+1)).
+    const state = makeGame([0, 1, 2, 3, 4, 5, 6, 7].map((i) => makeUnit({ id: `r${i}`, typeId: 'fantassins-lourds', position: landRow(i) })));
+    const legal = legalActions(state, {});
+    const zoc = new Set([0, 1, 2, 3, 4, 5].map((i) => mapHexKey(landRow(i).q, landRow(i).r)));
+    const gains = [3, 1, 5, 2, 6, 4, 9];
+    const w = new Map<string, number>([['r7', 0]]);
+    for (let i = 6; i >= 0; i--) w.set(`r${i}`, w.get(`r${i + 1}`)! + gains[i]!);
+    const weighted = (_b: GameState, unit: Unit): number => w.get(unit.id)! * unit.position.q;
+
+    /** Which pairs got an exposure probe: a swapped board is told apart by the
+     * one pair of units standing out of their original hexes. */
+    const probedPairs = (attackFrom: (b: GameState, u: Unit) => number): number[] => {
+      const probed = new Set<number>();
+      scoreSwaps({
+        state,
+        legal,
+        zoc,
+        withShelter: true,
+        weights: { swapContact: 1, swapShelter: 1 },
+        attackFrom,
+        exposure: (board) => {
+          const moved = board.units.findIndex((u, i) => u.position.q !== landRow(i).q);
+          if (moved >= 0) probed.add(moved);
+          return 0;
+        },
+      });
+      return [...probed].sort((a, b) => a - b);
+    };
+
+    // Best four front-line pairs by contact: pairs 4 (6), 2 (5), 5 (4), 0 (3).
+    expect(probedPairs(weighted)).toEqual([0, 2, 4, 5]);
+    // All contacts equal: the first four in legal order.
+    expect(probedPairs(() => 0)).toEqual([0, 1, 2, 3]);
+  });
+
   it('weights the two terms and keeps the legal-list order of each candidate', () => {
     const { state } = pairGame();
     const legal = legalActions(state, {});

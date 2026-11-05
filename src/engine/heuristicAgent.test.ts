@@ -959,6 +959,28 @@ describe('HeuristicAgent: unit swaps (§59)', () => {
     });
   });
 
+  describe('contact is never priced as a charge (B4)', () => {
+    // Light cavalry behind a spearman facing an archer. Priced as a charge, the
+    // cavalry's attack from the front hex is worth 3.00 (EV) / 4.33 (Greedy);
+    // priced as it must be (a swap is never a charge) only 0.33 / 0.17. A gate
+    // of 1.0 sits between the two, so the swap is taken only if contact were
+    // (wrongly) priced as a charge. Nothing else clears 1.0: the cavalry's one
+    // point of movement reaches no other hex touching the archer.
+    const state = () => pairState('fantassins', 'cavalerie-legere', 'archers');
+
+    it('a swap whose uncharged contact is under the gate is not taken', () => {
+      for (const difficulty of PLANNING) {
+        expect(isSwap(choose(agentAt(difficulty, { swapShelter: 0, minMoveScore: 1 }), state()))).toBe(false);
+      }
+    });
+
+    it('and the same swap is taken once the gate sits under the uncharged contact', () => {
+      for (const difficulty of ['greedy', 'ev'] as const) {
+        expect(choose(agentAt(difficulty, { swapShelter: 0, minMoveScore: 0.05 }), state())).toEqual(SWAP);
+      }
+    });
+  });
+
   describe('shelter (B5)', () => {
     // A spearman on the front hex facing an elephant, a phalanx behind: the
     // elephant threatens the spearman and not the phalanx, so swapping shelters
@@ -975,6 +997,31 @@ describe('HeuristicAgent: unit swaps (§59)', () => {
     it('and neither does with the shelter weight at zero', () => {
       for (const difficulty of ['ev', 'lookahead'] as const) {
         expect(isSwap(choose(agentAt(difficulty, { swapContact: 0, swapShelter: 0 }), state()))).toBe(false);
+      }
+    });
+
+    it('prices the enemy as it would stand in its own combat phase: a stale charge flag does not raise the threat', () => {
+      // An enemy light cavalry that charged on its own turn keeps charged: true
+      // through our movement phase. Taken at face value it would threaten the
+      // archer-spearman on the front hex at double strength (0.67 of exposure
+      // a swap with the phalanx would remove); normalised, the threat is zero
+      // either way, so there is nothing to shelter and no swap.
+      for (const difficulty of ['ev', 'lookahead'] as const) {
+        const game = pairState('fantassins-archers', 'phalanges', 'cavalerie-legere');
+        game.units.find((u) => u.id === 'enemy')!.charged = true;
+        expect(isSwap(choose(agentAt(difficulty, { swapContact: 0 }), game))).toBe(false);
+      }
+    });
+
+    it('prices our own unit as attackable even if it defended earlier: a stale defendedThisPhase does not hide the threat', () => {
+      // A unit that defended last round still carries defendedThisPhase until
+      // the combat phase resets it; taken at face value it could not be
+      // attacked, its exposure would read 0, and the sheltering swap would
+      // look worthless.
+      for (const difficulty of ['ev', 'lookahead'] as const) {
+        const game = state();
+        game.units.find((u) => u.id === 'front')!.defendedThisPhase = true;
+        expect(choose(agentAt(difficulty, { swapContact: 0 }), game)).toEqual(SWAP);
       }
     });
 

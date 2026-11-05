@@ -370,7 +370,9 @@ describe('HeuristicAgent: difficulty tiers are ordered by strength', () => {
     expect(lookaheadInSeat1).toBeGreaterThan(evInSeat1 * 0.75);
 
     // §59: the Cautious seats chose a swap in these games (once, so this is a
-    // presence check, not a rate).
+    // presence check, not a rate; if a roster or weight change makes it fail,
+    // re-find a seed with a swap by counting `landSwap`s of the Cautious seat
+    // over seeds 1-60 and pin that one).
     expect((lookaheadFirst.swapsByTier.lookahead ?? 0) + (evFirst.swapsByTier.lookahead ?? 0)).toBeGreaterThan(0);
   });
 
@@ -400,6 +402,8 @@ describe('HeuristicAgent: difficulty tiers are ordered by strength', () => {
     // seat 0 against EV (seed 24; none in 60 greedy mirror games). The seed is
     // pinned so the series proves the tier CAN reach a swap in play, which the
     // targeted tests in `heuristicAgent.test.ts` cover position by position.
+    // This is a presence check on one game: if a change moves the swap away,
+    // re-find a seed the same way (count Greedy's `landSwap`s per seed) and pin it.
     const series = await playSeries('greedy', 'ev', 1, 24);
     expect(series.swapsByTier.greedy ?? 0).toBeGreaterThan(0);
   });
