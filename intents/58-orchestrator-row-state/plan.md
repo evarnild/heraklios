@@ -109,3 +109,53 @@ Re-read on `main` at `9b7c4d1`.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-10-25 — subtasks 1-3 (implementer)
+
+Commits: `95f8d60` (row overlay + status on accept, with tests), `a426b78`
+(docs: README.md, intents/README.md, CLAUDE.md). Divergence: subtasks 1 and 2
+went in one code commit, not two (their tests share two files); verify ran
+green on the combined tree before it.
+
+Failing-first, run on the unchanged code:
+- `server.test.mjs` "shows a running manager session over the hook log, and
+  only live states count": `expected [ 'not started', 'not started' ] to
+  deeply equal [ 'running', 'running' ]`.
+- `server.test.mjs` "writes on main ... for an intent without a branch"
+  (now expecting `status: accepted`): the written file still had `status: draft`.
+- `orchestrator-lib.test.mjs` "sets status: accepted with intent_accepted on
+  a draft, and only then": `expected false to be true`.
+
+Shipped: `state.mjs` `liveSession` (replaces `waitingSession`): `needs you`
+if a live session of that intent waits, else `running`, else the hook log;
+`stopped`/`done`/`error` and other intents' sessions never count.
+`gateWrite` also sets `status: accepted` for `intent_accepted` when the
+status line is `draft`; same `setKeys` call, so one file, one commit.
+
+Tests changed: `server.test.mjs` gate route (was `status: 'draft'`, asserted
+the old behaviour) now `'accepted'`; the §52 overlay test expected intent 52
+`working` while the manager listed it `running`, now `running` (new rule);
+its `needs you` assertions unchanged. Added: dead-state, precedence and
+other-intent cases, and four `gateWrite` cases (draft, other gate, in-review,
+already accepted).
+
+Counts: `npm run verify` green: 61 files, 1155 tests; lint 21 warnings (cap
+21, unchanged). No e2e (no src/ or e2e/ change). Live check still owed per
+the plan; §57's own `status: draft` not touched.
+
+### 2026-10-26 — review round 1 rework (implementer)
+
+Commit `b492a6e`: one new `gateWrite` test in `orchestrator-lib.test.mjs`
+(CRLF draft; `status: draft    # x`; `status: in-review    # was draft`
+unchanged). No source change. `npm run verify` green: 61 files, 1156 tests,
+lint 21.
+
+Mutants (one at a time, backed up and restored by copy, `git diff --quiet`
+returned 1 each time, `git status --short` clean after):
+- M13 (drop the `(#.*)?` group): killed by the new test.
+- M11 (regex replaced by `/status:.*draft/m`): killed by the new test.
+- M12 (drop `\r?` before `$`): SURVIVES, and is an equivalent mutant: in
+  JavaScript a multiline `$` already matches before `\r` (line terminators
+  include CR; `/^a$/m.test('a\r\nb')` is true), so `\r?` is redundant and
+  no input can tell the two apart. The CRLF case stays as a regression test
+  (it would fail if the regex ever demanded `\n` directly after the value).

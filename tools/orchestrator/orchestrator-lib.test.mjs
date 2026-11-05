@@ -198,6 +198,23 @@ describe('gateWrite (spec B8)', () => {
     '',
   ].join('\n');
 
+  it('sets status: accepted with intent_accepted on a draft, and only then (§58)', () => {
+    const draft = text.replace('status: accepted', 'status: draft');
+    const has = (t, gate, line) => gateWrite(t, gate, '2026-10-24').split('\n').includes(line);
+    expect(has(draft, 'intent_accepted', 'status: accepted')).toBe(true);
+    expect(has(draft, 'spec_accepted', 'status: draft')).toBe(true);
+    const review = text.replace('status: accepted', 'status: in-review');
+    expect(has(review, 'intent_accepted', 'status: in-review')).toBe(true);
+    expect(has(text, 'intent_accepted', 'status: accepted')).toBe(true);
+  });
+  it('sets status on a CRLF draft and on a draft with a comment, and reads a comment on another status as that status', () => {
+    const crlf = text.replace('status: accepted', 'status: draft').replace(/\n/g, '\r\n');
+    expect(gateWrite(crlf, 'intent_accepted', '2026-10-24')).toContain('status: accepted\r\n');
+    const commented = text.replace('status: accepted', 'status: draft    # x');
+    expect(gateWrite(commented, 'intent_accepted', '2026-10-24').split('\n')).toContain('status: accepted');
+    const other = text.replace('status: accepted', 'status: in-review    # was draft');
+    expect(gateWrite(other, 'intent_accepted', '2026-10-24').split('\n')).toContain('status: in-review    # was draft');
+  });
   it('replaces only that line with a bare date', () => {
     expect(gateWrite(text, 'spec_accepted', '2026-10-24')).toBe(
       text.replace('spec_accepted:\n', 'spec_accepted: 2026-10-24\n'),
