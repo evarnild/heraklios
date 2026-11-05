@@ -22,7 +22,7 @@ it a second time at its unscrolled, unzoomed position. `pinUIObjects` ignores:
 - the overlay, ring, river and facing graphics;
 - the unit markers.
 
-It doesn't ignore `driftArrowGraphics` (created at `:146`, depth 12, drawn by
+It doesn't ignore `driftArrowGraphics` (created at `:163`, depth 12, drawn by
 `setDriftArrow`). So during an elephant drift (plan-history §21), the arrow
 showing the drift direction is likely drawn twice:
 - once on the elephant, through the main camera;
