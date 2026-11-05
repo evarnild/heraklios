@@ -1,6 +1,7 @@
+import { createHash } from 'node:crypto';
 import { describe, it, expect } from 'vitest';
 import type { DrivingAgent } from './agent';
-import { playRandomGame, type HarnessStats } from './fuzzHarness';
+import { buildFuzzGameState, playRandomGame, type HarnessStats } from './fuzzHarness';
 import { HeuristicAgent, type Difficulty } from './heuristicAgent';
 import { RandomAgent } from './randomAgent';
 import type { PlayerId } from './state';
@@ -101,6 +102,36 @@ describe('HeuristicAgent: headless self-play', () => {
     expect(first.length).toBeGreaterThan(0);
     expect(first).toEqual(second);
   });
+
+  /**
+   * §59 (B3): with the unit-swap option off the computer plays exactly as it
+   * did before it learned to swap. The constants were recorded from the code
+   * as it stood BEFORE §59 changed anything (seed 7, both seats at the
+   * difficulty), so any change to swaps-off play, in any tier, fails here.
+   */
+  const SWAPS_OFF_FINGERPRINTS: Record<Difficulty, { length: number; sha256: string }> = {
+    random: { length: 118, sha256: 'ca1d38335e373b4198e06ba92f4b7bd4827dcb894535f4a912288f94708949cd' },
+    greedy: { length: 92, sha256: '995c3ee87774013a5592e6a3fef7ab9734b960bd5455c266152f9a03739d9fe1' },
+    ev: { length: 72, sha256: 'e95c6828ceb1ef961682861593601ebafce1187b5955127a55c34c4d7cb5cbb0' },
+    lookahead: { length: 58, sha256: '662a47ec8a048e059a553b39dd5fcbb811d899e816e42634e87d3328ac0a8e3b' },
+  };
+  for (const difficulty of ['random', 'greedy', 'ev', 'lookahead'] as const) {
+    it(`with swaps off, ${difficulty} plays the same game as before swaps were taught (seed 7)`, async () => {
+      const trace: string[] = [];
+      await playRandomGame(7, {
+        createAgent: (rng) => new HeuristicAgent({ difficulty, rng }),
+        buildInitialState: () => {
+          const state = buildFuzzGameState();
+          state.allowSwaps = false;
+          return state;
+        },
+        trace,
+      });
+      const expected = SWAPS_OFF_FINGERPRINTS[difficulty];
+      expect(trace).toHaveLength(expected.length);
+      expect(createHash('sha256').update(trace.join('\n')).digest('hex')).toBe(expected.sha256);
+    });
+  }
 });
 
 describe('HeuristicAgent: difficulty tiers are ordered by strength', () => {

@@ -234,3 +234,40 @@ Re-read on `main` at `0214862`.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-11-05 - subtask 1: characterise before changing (baseline, unchanged code)
+
+No source change. `heuristicSoak.test.ts` gains four swaps-off fingerprint
+tests (seed 7, both seats at the difficulty, `allowSwaps = false`),
+constants recorded from the unchanged code:
+
+| difficulty | trace length | sha256 of `trace.join('\n')` |
+| --- | --- | --- |
+| random | 118 | ca1d38335e373b4198e06ba92f4b7bd4827dcb894535f4a912288f94708949cd |
+| greedy | 92 | 995c3ee87774013a5592e6a3fef7ab9734b960bd5455c266152f9a03739d9fe1 |
+| ev | 72 | e95c6828ceb1ef961682861593601ebafce1187b5955127a55c34c4d7cb5cbb0 |
+| lookahead | 58 | 662a47ec8a048e059a553b39dd5fcbb811d899e816e42634e87d3328ac0a8e3b |
+
+Baseline material (sum of surviving army value over seeds 1-12, seat0/seat1;
+measured now on the unchanged code, so some differ from the stale "Measured
+at" comments in the file):
+
+| series (seat0 vs seat1) | material | landSwap actions |
+| --- | --- | --- |
+| ev vs pure-random | 570 / 325 | 0 |
+| pure-random vs ev | 180 / 450 | 0 |
+| ev vs greedy | 400 / 140 | 0 |
+| greedy vs ev | 275 / 290 | 0 |
+| lookahead vs ev | 355 / 280 | 0 |
+| ev vs lookahead | 330 / 345 | 0 |
+| lookahead vs greedy | 370 / 125 | 0 |
+| greedy vs lookahead | 285 / 295 | 0 |
+| ev vs ev | 330 / 335 | 0 |
+| pure-random vs pure-random | 490 / 550 | 2 |
+
+(The soak's heuristic seats filter swaps out today; the pure-random control
+already swaps, as the harness's RandomAgent always did.) Heuristic EV-vs-random
+ratio 1020/505 = 2.02. Baseline per-test durations (soak file): self-play
+889 ms, combined attacks 1982 ms, replay 216 ms, fingerprints 86-224 ms each,
+EV vs random 2410 ms, EV vs greedy 1894 ms, lookahead vs ev 3152 ms,
+lookahead vs greedy 3848 ms.
