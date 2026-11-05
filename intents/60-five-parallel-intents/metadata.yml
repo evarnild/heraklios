@@ -2,14 +2,14 @@
 id: 60
 slug: five-parallel-intents
 type: adjustment
-status: in-review
+status: done
 title: Up to five intents in parallel, not three
 review_tier:
 intent_accepted: 2026-10-25 by-agent    # owner: "accept 60 /auto 60"
 spec_accepted:
 plan_approved:
 live_checked:
-merged:
+merged: b21d353    # 2026-11-05, merged by Claude on the owner's explicit request in chat
 auto_authorized: 2026-11-05 by-agent    # owner: "/auto 60" (diff read)
 auto_round: 1
 auto_stopped: ready for /ship
