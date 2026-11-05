@@ -2,14 +2,14 @@
 id: 56
 slug: vite-vitest-upgrade
 type: refactor
-status: in-review
+status: done
 title: Move to current vite and vitest majors and clear npm audit
 review_tier:
 intent_accepted: 2026-10-24 by-agent    # owner: "Accept 55 and 56"
 spec_accepted:
 plan_approved: 2026-10-25 by-agent    # auto: owner "/auto 56" (auto_authorized 2026-10-25)
 live_checked: 2026-11-05 by-agent    # owner: "step 2 done, all good, record it"
-merged:
+merged: 0765cda    # 2026-11-05, merged by Claude on the owner's explicit request in chat
 auto_authorized: 2026-10-25 by-agent    # owner: "/auto 56"
 auto_round: 1
 auto_stopped:
