@@ -199,3 +199,18 @@ successor; neither is an error and both were left alone as not forced;
 (3) the README, CLAUDE.md, AGENTS.md and docs/runbook.md name no vite or vitest
 version, so no doc edit. The live check (owed, vite.config.ts) is the
 owner's; this run is evidence only, not that gate.
+
+### 2026-11-05 - review round 2 rework (coordinator, owner's choice (a))
+
+Rebased onto `main` at `27e7066` (§55 merged; the owner's "rebase 56"): the
+branch's commits and package files are unchanged. On the new base: 64 files,
+1183 tests, lint 21; e2e 17 passed.
+
+`npm audit` after: **7 moderate, left as they are** (the outcome's "every one
+left listed with a reason"), on the owner's "a" to round 2's finding:
+
+| Advisory | Package | Path | Reason left |
+| --- | --- | --- | --- |
+| GHSA-g3hv-75wg-m249 (minimatch `>=7.0.0 <11.0.1`, denial of service, moderate, published 2026-10-30) | `minimatch@10.2.6` | `typescript-eslint@8.71.1` → `@typescript-eslint/typescript-estree` (the other six entries are the typescript-eslint packages depending on it) | Lint toolchain only, nothing in the bundle; outside the vite/vitest tree §56 moves, and the intent leaves typescript-eslint alone unless forced; no release fixes it (typescript-eslint 8.72.1, the newest, still declares `minimatch ^10.2.2`); the same entries are on `main`. To be tracked separately. |
+
+No code, config or package change in this entry.
