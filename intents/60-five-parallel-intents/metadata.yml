@@ -11,8 +11,8 @@ plan_approved:
 live_checked:
 merged:
 auto_authorized: 2026-11-05 by-agent    # owner: "/auto 60 /auto 59"
-auto_round:
-auto_stopped: too many sessions
+auto_round: 1
+auto_stopped:
 follows_up:
 links:
   - intents/27-parallel-sessions
