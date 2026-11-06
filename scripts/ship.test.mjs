@@ -686,6 +686,18 @@ describe('npm run ship: KonMari commits after the review (§61 F1)', { timeout: 
     expect(kept.status, out(kept)).toBe(0);
     expect(kept.stdout).toMatch(/ok\s+preconditions/);
     expect(kept.stdout).toMatch(/note\s+konmari\s+kept/);
+    // a merge commit is never accepted, even when everything it brings in is listed
+    git(w.path, 'checkout', '-q', '-b', 'side', 'HEAD~2');
+    const sideHash = commitFile(w.path, 'docs/side.md', 'side\n', '§61 konmari: side');
+    git(w.path, 'checkout', '-q', w.branch);
+    const record = join(w.path, 'intents', '61-t61', 'konmari.md');
+    writeFileSync(record, `${readFileSync(record, 'utf8')}- ${sideHash} — docs/side.md — side\n`);
+    git(w.path, 'commit', '-q', '-am', '§61: konmari record, side listed');
+    git(w.path, 'merge', '-q', '--no-ff', 'side', '-m', 'merge side');
+    const merged = ship(['61', '--dry-run']);
+    expect(merged.stdout).toMatch(/WOULD STOP\s+preconditions\s+unreviewed-changes/);
+    expect(merged.stdout).not.toContain(sideHash);
+    git(w.path, 'reset', '-q', '--hard', 'HEAD~1');
     commitFile(w.path, 'docs/unlisted.md', 'not listed\n', 'unlisted');
     const stray = ship(['61', '--dry-run']);
     expect(stray.stdout).toMatch(/WOULD STOP\s+preconditions\s+unreviewed-changes/);

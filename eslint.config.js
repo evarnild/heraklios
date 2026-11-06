@@ -39,7 +39,9 @@ const noServer = {
   message: 'The game never imports the save server (principle 3).',
 };
 const noPhaser = {
-  group: ['phaser', 'phaser/**'],
+  // 'phaser' alone covers its subpaths ('phaser/src/x'): the matcher is
+  // gitignore-style, so a 'phaser/**' entry would be redundant.
+  group: ['phaser'],
   message: 'Phaser is presentation only (principle 1).',
 };
 const noEngine = {
