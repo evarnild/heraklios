@@ -125,3 +125,46 @@ export function checkBudget({ measured, baseline, baseBaseline, planText }) {
   }
   return errors;
 }
+
+/**
+ * Splits checkBudget's failures into check-intent's `errors` and `routes`.
+ * An adjustment or experiment has no plan, so it can't state a reason to
+ * raise a ceiling: rules 3 and 4 route it ("re-declare as a fix or feature")
+ * rather than block it. Rules 1, 2 and 5 are errors for every type.
+ */
+export function budgetVerdict(failures, type) {
+  const errors = [];
+  const routes = [];
+  const planless = type === 'adjustment' || type === 'experiment';
+  for (const f of failures) {
+    if (planless && (f.rule === 3 || f.rule === 4)) {
+      routes.push(`Declared ${type}, which has no plan to state a budget: line. ${f.message} Re-declare as a fix or feature.`);
+    } else {
+      errors.push(`Size budget: ${f.message}`);
+    }
+  }
+  return { errors, routes };
+}
+
+/**
+ * Reads the output of `git cat-file --batch` for a known list of requests, in
+ * order: `<oid> <type> <size>\n<content>\n` per found object, or
+ * `<name> missing\n`. Returns each object's text, or null when it was missing.
+ */
+export function parseCatFileBatch(buffer, count) {
+  const out = [];
+  let pos = 0;
+  for (let i = 0; i < count; i++) {
+    const eol = buffer.indexOf(0x0a, pos);
+    const header = buffer.toString('utf8', pos, eol);
+    pos = eol + 1;
+    if (header.endsWith(' missing')) {
+      out.push(null);
+      continue;
+    }
+    const size = Number(header.split(' ')[2]);
+    out.push(buffer.toString('utf8', pos, pos + size));
+    pos += size + 1;
+  }
+  return out;
+}

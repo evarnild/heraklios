@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ALLOWANCE, baselineFrom, budgetLines, checkBudget, countLines, isBudgeted, LIMIT } from './size-budget-lib.mjs';
+import { ALLOWANCE, baselineFrom, budgetLines, budgetVerdict, checkBudget, countLines, isBudgeted, LIMIT, parseCatFileBatch } from './size-budget-lib.mjs';
 
 const F = 'src/scenes/Big.ts';
 const plan = (...lines) => `## Where this goes\n\n${lines.join('\n')}\n\n## Subtasks\n`;
@@ -166,5 +166,36 @@ describe('checkBudget', () => {
       planText: plan(`budget: ${F} +10: ok`),
     });
     expect(e).toEqual([]);
+  });
+});
+
+describe('budgetVerdict', () => {
+  const failures = [
+    { rule: 1, message: 'over' },
+    { rule: 4, message: 'no line' },
+  ];
+  it('keeps every failure an error for a feature', () => {
+    const v = budgetVerdict(failures, 'feature');
+    expect(v.errors).toHaveLength(2);
+    expect(v.routes).toEqual([]);
+  });
+  it('routes rules 3 and 4 for an adjustment or experiment, and keeps the others errors', () => {
+    for (const type of ['adjustment', 'experiment']) {
+      const v = budgetVerdict(failures, type);
+      expect(v.errors).toEqual(['Size budget: over']);
+      expect(v.routes).toHaveLength(1);
+      expect(v.routes[0]).toContain('Re-declare as a fix or feature');
+    }
+  });
+});
+
+describe('parseCatFileBatch', () => {
+  it('reads found and missing objects in order', () => {
+    const buf = Buffer.from('abc blob 4\na\nb\n\nmain:gone missing\ndef blob 0\n\n');
+    expect(parseCatFileBatch(buf, 3)).toEqual(['a\nb\n', null, '']);
+  });
+  it('counts bytes, not characters', () => {
+    const buf = Buffer.from('abc blob 3\n\u00e9x\n');
+    expect(parseCatFileBatch(buf, 1)).toEqual(['\u00e9x']);
   });
 });
