@@ -3,6 +3,7 @@ import {
   checkPreconditions,
   commitMessage,
   isBookkept,
+  konmariLine,
   markLiveChecked,
   markMerged,
   mergeMessage,
@@ -200,5 +201,32 @@ describe('merge message', () => {
     );
     expect(mergeMessage(9, 'Thing')).toBe('Merge §9: Thing\n');
     expect(commitMessage('s', ['  ', ''])).toBe('s\n');
+  });
+});
+
+describe('konmariLine (§61 AC9)', () => {
+  const line = (over) => konmariLine({ type: 'feature', metadata: {}, konmariText: null, ...over });
+  const record = (outcome) => `# §9 KonMari record\n\noutcome: ${outcome}\nbase: abc1234\n`;
+
+  it.each(['kept', 'discarded', 'nothing to tidy'])('reports %s from the record', (outcome) => {
+    expect(line({ konmariText: record(outcome) })).toBe(`konmari: ${outcome}`);
+  });
+
+  it('reports skipped when metadata says skip, even with a record', () => {
+    expect(line({ metadata: { konmari: 'skip' } })).toBe('konmari: skipped');
+    expect(line({ metadata: { konmari: 'skip' }, konmariText: record('kept') })).toBe('konmari: skipped');
+  });
+
+  it('reports not run with no record, or an outcome it does not know', () => {
+    expect(line({})).toBe('konmari: not run');
+    expect(line({ konmariText: record('maybe') })).toBe('konmari: not run');
+    expect(line({ konmariText: 'the word outcome: kept in prose, mid-line' })).toBe('konmari: not run');
+  });
+
+  it('works for fix and refactor, and gives an adjustment or experiment no line', () => {
+    expect(line({ type: 'fix' })).toBe('konmari: not run');
+    expect(line({ type: 'refactor', konmariText: record('kept') })).toBe('konmari: kept');
+    expect(line({ type: 'adjustment' })).toBeNull();
+    expect(line({ type: 'experiment', konmariText: record('kept') })).toBeNull();
   });
 });

@@ -165,3 +165,21 @@ export function commitMessage(subject, trailers = []) {
 export function mergeMessage(id, title, trailers = []) {
   return commitMessage(`Merge §${id}: ${title}`, trailers);
 }
+
+/**
+ * The dry-run's `konmari:` note (§61 B19): what became of the KonMari tidy-up.
+ * It informs and never blocks. An adjustment or experiment never runs the
+ * step, so it gets no line (null). `konmari: skip` in metadata.yml is
+ * `skipped`; otherwise the `outcome:` of the intent's konmari.md
+ * (`kept`, `discarded`, `nothing to tidy`), and `not run` when there is no
+ * record or its outcome is none of those.
+ *
+ * @param {{type:string, metadata:object, konmariText:string|null}} input
+ * @returns {string|null}
+ */
+export function konmariLine({ type, metadata, konmariText }) {
+  if (type === 'adjustment' || type === 'experiment') return null;
+  if (metadata?.konmari === 'skip') return 'konmari: skipped';
+  const m = /^outcome:\s*(kept|discarded|nothing to tidy)\s*$/m.exec(konmariText ?? '');
+  return `konmari: ${m ? m[1] : 'not run'}`;
+}

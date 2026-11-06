@@ -26,6 +26,7 @@ import {
   checkPreconditions,
   commitMessage,
   isBookkept,
+  konmariLine,
   markLiveChecked,
   markMerged,
   mergeMessage,
@@ -332,9 +333,24 @@ function cleanup(root, id, loc) {
 const log = [];
 const say = (status, id, text) => log.push(`  ${status.padEnd(8)} ${id.padEnd(13)} ${text}`);
 
+/** The intent's konmari.md from its branch (or main once the branch is gone), or null. */
+function readKonmari(root, loc) {
+  for (const ref of loc.branchExists ? [loc.branch] : ['main']) {
+    try {
+      return git(root, 'show', `${ref}:${loc.dir}/konmari.md`);
+    } catch {
+      // no record on that ref
+    }
+  }
+  return null;
+}
+
 function dryRun(root, loc, steps) {
   say('note', 'fetch', 'a dry run does not fetch: origin/main is as last fetched');
   for (const s of steps) say(s.status === 'done' || s.status === 'n/a' ? s.status : 'would', s.id, s.label);
+  // The KonMari step informs and never blocks (§61 B19).
+  const konmari = konmariLine({ type: loc.metadata.type, metadata: loc.metadata, konmariText: readKonmari(root, loc) });
+  if (konmari) say('note', 'konmari', konmari.replace(/^konmari: /, ''));
   if (loc.state.merged) return;
   // check:intent would fail only because the live check is not recorded yet; the run records it first.
   const pending = loc.state.liveCheckRequested && !loc.state.liveCheckRecorded;
