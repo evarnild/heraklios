@@ -12,7 +12,7 @@ live_checked:
 merged:
 auto_authorized: 2026-11-06 by-agent    # owner: "/auto 61" (second, to go on to the build)
 auto_round: 1
-auto_stopped:
+auto_stopped: decision needed
 follows_up:
 links:
   - intents/26-ai-sdlc-kit
