@@ -3,6 +3,177 @@
 
 verdict: rework
 tier: reviewed
+reviewed-commit: bdc9160
+round: 2
+sampled: no
+run: auto
+live-check: owed
+
+**Tier:** Reviewed. Round 1 set it, and a tier is never lowered. The path table alone gives Attested (`src/ui/**`, `src/scenes/**`, `e2e/**`), and the metadata sets no `review_tier`.
+
+**Verdict:** `rework`. The round-1 HIGH is resolved as the owner decided, option (b). X1 and X2 are now killed. This round has 2 MEDIUM and 1 LOW, all "Needs rework:".
+- The e2e step added for the HIGH proves the ghost appears and turns.
+- It doesn't prove that placed galleys keep their facing: S2 and S3 survive.
+- It doesn't prove the ghost goes away when it should: U1, U4 and RG survive.
+- By reading, the code itself is correct.
+
+The `heraklios-reviewer` agent ran the passes. The coordinator re-ran verify, check:intent, e2e and every listed mutant, and every result matches.
+
+## Passes
+| # | Pass | Result |
+| --- | --- | --- |
+| 1 | Intent and plan match | pass. The rework does option (b) and nothing more. The ghost rides `setFacingIndicators`, so the `BoardView` method set is unchanged. `boardObjects().ghostRotation` goes beyond the finding, and Progress records it |
+| 2 | Type check | FAIL, but its only error is the owed live check, which the owner clears |
+| 3 | Rulebook fidelity | not applicable: digital-only, and nothing in `src/engine`, `src/data` or the save format changes |
+| 4 | Tests prove it | findings (2): S2 and S3 survive; U1, U4 and RG survive. X1, X2, S1, D1, B1-B4, L1 and L2 are killed |
+| 5 | Boundary and conventions | pass. `ghostDrawing` is pure and tested, and Phaser only draws. No `GameState`, history or save change |
+| 6 | Numbers in prose | findings (1, LOW): Progress says a toggle mid-staging keeps the ghost, and that is unproven (RG survives). Every count reproduces |
+| 7 | Documentation | pass. `README.md:543-546` describes Placement. The bake comment is fixed at `paintLandscape.ts:31-36` |
+| 8 | Guardrails and hygiene | pass. Lint is 21 of 21, and `package.json` and `eslint.config.js` are untouched. No new dependency, no `innerHTML` or `eval` |
+| 9 | Repository-specific footguns | pass. No drift or engine change, and headless and AI play are untouched |
+
+## Type check
+```
+type-check: FAIL (intent 64, feature)
+  error: A live check is owed and not recorded. Do the steps in intents/64-vector-view/review.md → ## Live check, then set live_checked: <date> in intents/64-vector-view/metadata.yml.
+  note:  42 file(s), 2527 line(s) changed outside intents/.
+```
+That is the only error. It's the owed live check, which the owner records, so it isn't rework.
+
+## Findings
+- **MEDIUM**, `src/scenes/PlacementScene.ts:335`: the HIGH fix's other half, "placed galleys point their chosen way", is unproven.
+  - Mutant S2 (`? u.facing : undefined` → `? undefined : undefined`) survives the full e2e suite.
+  - So does S3, which passes `u.facing` for every unit and so would tilt land figures.
+  - `boardObjects()` exposes no placed unit's rotation.
+  - **Needs rework:**
+    - add the placed figures' rotations to the dev-only reader, for example `unitRotations: Record<id, number>` from `DrawnUnits`;
+    - in `board-view.spec.ts`, after "Confirm facing", assert that the new ship's figure rotation equals the ghost's last rotation (`r1`), and that a land unit's rotation is 0.
+    - This kills S2 and S3.
+- **MEDIUM**, `src/ui/drawnUnits.ts:78`, `:131` and `src/ui/viewDrawingState.ts:102`: the ghost's lifecycle is unproven. Three mutants survive:
+  - **U1**, `this.ghost?.destroy();` deleted: stale ghosts pile up on every Turn.
+  - **U4**, `this.setGhost(null);` deleted from `destroy()`: a Drawn ghost is left on the Standard board.
+  - **RG**, the recorder's replay drops `ghostTypeId`: a toggle mid-staging loses the ghost. It also survives vitest.
+
+  The reader can't see any of them. `inspect()` reads only the view's own reference, `drawnInspect()` returns null in Standard, and no scenario toggles while a ship is staged.
+  - **Needs rework:** count ghost containers on the scene's display list instead, for example a `name` such as `GHOST_SHIP_ID` counted in `mapScene().children`, working in both views. In the Placement scenario, assert:
+    - 1 ghost after the Turn;
+    - 0 ghosts after toggling to Standard with the ship staged;
+    - 1 ghost at rotation `r1` after toggling back to Drawn;
+    - 0 ghosts after Confirm.
+
+    This kills U1, U4 and RG.
+- **LOW**, `intents/64-vector-view/plan.md` (Progress, the round-1 rework's HIGH bullet): "the recorder replays the entry, so a toggle mid-staging keeps the ghost" is stated as shipped but untested, since RG survives both suites. **Needs rework:** the e2e step above proves it. Otherwise, mark the claim as untested in Progress.
+
+## Mutants (pass 4)
+The reviewer applied each mutant as an exact-string replace with exactly one match, checked for a non-empty `git diff`, ran the full suite, then restored from a copy and checked for an empty `git diff`.
+
+| Mutant | Target | Result | Killed by |
+| --- | --- | --- | --- |
+| B1 | `boardView.ts` `ghostDrawing`, find → `() => true` | killed (vitest) | `boardView.test.ts` › ghostDrawing |
+| B2 | `facing: g.facing` → `0` | killed (vitest) | `boardView.test.ts` › "draws the staged ship… pending facing" |
+| B3 | `owner: g.playerIndex` → `0` | killed (vitest) | same |
+| B4 | `if (!g) return null` returns a drawing | killed (vitest) | `boardView.test.ts` › "is null when no ship is staged" |
+| X1 | `MapView.ts:162` `this.drawing.replay(next);` deleted | killed (e2e) | `board-view.spec.ts:41` |
+| X2 | `MapView.ts:167` `this.uiCamera?.ignore(next.mapObjects());` deleted | killed (e2e) | `board-view.spec.ts:41` and `:103` |
+| S1 | `PlacementScene.ts:483` `ghostTypeId: typeId` dropped | killed (e2e) | `board-view.spec.ts:103` |
+| D1 | `drawnBoardView.ts:69` `setGhost(…)` → `setGhost(null)` | killed (e2e) | `board-view.spec.ts:103` |
+| L1 | probe: ghost not ignored by the UI camera | killed (e2e) | `board-view.spec.ts:103` (hudLeaks 1), so `hudLeaks` doesn't false-green |
+| L2 | probe: `drawnUnits.ts:126` `ignoreOnUiCamera(container)` deleted | killed (e2e) | `board-view.spec.ts:103` |
+| S2 | `PlacementScene.ts:335`, naval facing → `undefined` | **survived** | (MEDIUM 1) |
+| S3 | `PlacementScene.ts:335`, `u.facing` for all units | **survived** | (MEDIUM 1) |
+| U1 | `drawnUnits.ts:78`, the ghost's destroy dropped | **survived** | (MEDIUM 2) |
+| U4 | `drawnUnits.ts:131`, `setGhost(null)` dropped | **survived** | (MEDIUM 2) |
+| RG | `viewDrawingState.ts:102`, replay strips `ghostTypeId` | **survived** both suites | (MEDIUM 2) |
+| D2 | `drawnBoardView.ts:73` `clearFacingIndicators` emptied | survived, accepted | equivalent: no scene calls it, and replay calls it only on a fresh view |
+| U2 | `drawnUnits.ts:79` `.setAlpha(GHOST_ALPHA)` dropped | survived, accepted | visual only, covered by the live check |
+| U3 | `drawnUnits.ts:73` `objects()` omits the ghost | survived, accepted | equivalent today. Keep the ghost in `objects()`, since U3 together with L1 would blind `hudLeaks` |
+
+Round-1 accepted survivors G3, N3, T1 and T4: their files are byte-identical between 3e26fff and HEAD, so their status is unchanged.
+
+## Not checked
+- **The look:** the ghost's translucency, the placed galleys' orientation on screen, and all of round 1's visual items: landscape, figures, greyscale bases, overlapping badges, sharpness at maximum zoom, pan and zoom smoothness. This is the owner's live check. No browser was driven this round.
+- **Cancel and Undo while a ship is staged, in Drawn:** checked by reading only.
+- **The `save-load.spec.ts:57` flake:** it failed in 2 of about 18 reviewer e2e runs and in 2 of 10 coordinator runs (S2, RG), each time on a Standard-view path that no mutant touches. It's pre-existing (§33, §48) and wasn't investigated.
+- **A toggle during a prompt, a drift pause or a computer turn** (B2): still untested by e2e.
+- **`main` has moved ahead by four §61 artefact commits.** A rebase is due before ship. It isn't a code concern.
+
+## Live check
+- **Owed** by rule 1 (`src/scenes/**`, `src/ui/**`). The change is new and visual (AC4-AC6), so the smoke suite can't stand in for it. Run it after this round's rework.
+- **Setup:** in `C:/Users/eric/src/heraklios-wt/64-vector-view`, run:
+  - PowerShell: `$env:HERAKLIOS_SAVES_DIR = (New-Item -ItemType Directory -Force "$env:TEMP\h64-saves").FullName; npm run dev -- --port 5264 --strictPort --host 127.0.0.1`
+  - Git Bash: `HERAKLIOS_SAVES_DIR=$(mktemp -d) npm run dev -- --port 5264 --strictPort --host 127.0.0.1`
+
+  Then open http://127.0.0.1:5264/.
+- **Steps:**
+  1. **Combat test mode,** then **🗺 Drawn view** (bottom left, right of **✕ Abandon game**). You should see:
+     - a smooth coastline with shallow water;
+     - a pale shore on `coast` hexes;
+     - four distinct bay tints, named in the tooltip;
+     - meandering rivers, and broad water for the wide river;
+     - relief on plateaus and hatched outward flanks;
+     - marsh pools and reeds, and grass with light variation;
+     - a thin grid.
+  2. **Zoom fully out and in, and drag,** comparing with **🗺 Standard view**:
+     - the grid stays faint at the minimum zoom;
+     - the landscape is acceptably sharp at the maximum zoom;
+     - panning is as smooth as Standard;
+     - no second, unzoomed copy of anything appears.
+  3. **In Drawn,** select, move, attack and Undo; turn a ship; answer a retreat or advance if one comes; watch a drift arrow if you reach one.
+     - Every overlay is legible.
+     - A turned galley rotates.
+     - The badges show the counter numbers.
+     - Say whether overlapping badges on adjacent units are acceptable.
+  4. **Toggle at awkward moments:** with a unit selected, with a prompt open, and during a computer seat's turn. Only the look should change.
+  5. **The gallery:** **Figure gallery (dev)** on the Menu shows 14 types × 4 owners.
+     - Each type is recognisable.
+     - The round, square, diamond and shield bases stay distinct under DevTools → Rendering → Emulate vision deficiencies → Achromatopsia.
+  6. **Placement, the ghost.** From the Menu: **2** players, then **Use default army** and **Confirm army** for both seats. In Placement, click **🗺 Drawn view** (above **Undo**).
+     1. Place the land units on tinted zone hexes. Each lands where clicked.
+     2. When a ship comes up, click a sea hex in the zone. A **translucent galley** appears.
+     3. Press each **Turn** button a few times. The galley turns 60° per press, and only one ghost is ever visible.
+     4. With the ship staged, click **🗺 Standard view**. You should see no translucent galley, only the facing arrow.
+     5. Switch back to Drawn. The ghost is back, at the same facing.
+     6. Press **Confirm facing**. The ghost goes, and a solid galley stays, pointing the same way.
+     7. Stage another ship and press **Cancel**. The ghost goes, and nothing is placed.
+     8. Press **Undo** once. The last placement is removed, and nothing stale remains.
+  7. **Reload (F5)** and start test mode again. The board opens in Drawn.
+
+## Verified myself vs. taken on trust
+- **Coordinator, re-run**, in `C:/Users/eric/src/heraklios-wt/64-vector-view`. The code was at `bdc9160`; HEAD has only metadata commits after it.
+  - `npm run verify`: exit 0. Lint shows 21 problems (0 errors, 21 warnings). Vitest shows 77 files and 1279 tests passed. This matches the reviewer and the implementer.
+  - `npm run check:intent`: FAIL on the owed live check only, with 42 files and 2527 lines (output above). This matches.
+  - `npm run e2e`: 20 passed. This matches.
+- **Coordinator, re-run, mutants.** Each was backed up by copy, applied as an exact-string replace (one match, non-empty diff checked), run with the full e2e suite, and restored by copy (empty diff checked).
+
+  | Mutant | Coordinator result | Matches the reviewer? |
+  | --- | --- | --- |
+  | S2 | first run: 1 failed, `save-load.spec.ts:57` only, the known flake. Clean re-run: 20 passed, so survived | yes |
+  | S3 | 20 passed, survived | yes |
+  | U1 | 20 passed, survived | yes |
+  | U4 | 20 passed, survived | yes |
+  | RG | vitest 1279 passed. e2e first run failed on the `save-load.spec.ts:57` flake only; clean re-run: 20 passed. Survived both suites | yes |
+  | X1 | killed by `board-view.spec.ts:41` (19 passed, 1 failed) | yes |
+  | X2 | killed by `board-view.spec.ts:41` and `:103` (18 passed, 2 failed) | yes |
+
+  `git status --short` was clean at the end.
+- **The reviewer, its own runs:**
+  - verify, check:intent and e2e, with the counts above;
+  - 19 mutant runs plus 1 re-run;
+  - the main-baseline count: 67 files and 1223 tests, from `git ls-tree` and `it(`/`test(` line counts;
+  - `npm run sdlc:scan -- --sample-due auto --exclude 64`: sampled: no;
+  - by reading, that Standard Placement ignores `ghostTypeId` and `facing`.
+- **Taken on trust:**
+  - the reviewer's B1-B4, S1, D1, L1, L2, D2, U2 and U3 runs, which the coordinator didn't re-run because they're killed or accepted rather than survivors the rework must kill;
+  - round 1's browser probe, bundle sizes and Phaser source readings.
+
+The coordinator's mutant-line citation for X1 is `MapView.ts:162`, where the reviewer had `:164`. It's the same statement, and the outcome isn't affected.
+
+# Round 1 (history)
+
+# §64 review — A second board view, a drawn 2D landscape with unit figures
+
+verdict: rework
+tier: reviewed
 reviewed-commit: 3e26fff
 round: 1
 sampled: no
