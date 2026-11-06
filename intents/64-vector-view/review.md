@@ -1,6 +1,154 @@
 <!-- generated-by: heraklios/review@0.1.5 -->
 # §64 review — A second board view, a drawn 2D landscape with unit figures
 
+verdict: escalate
+tier: reviewed
+reviewed-commit: 2f769c1
+round: 3
+sampled: no
+run: auto
+live-check: owed
+
+**Tier:** Reviewed. Round 1's HIGH set it, and a tier is never lowered. On its own, the path table gives Attested (`src/ui/**`, `src/scenes/**`, `e2e/**`).
+
+**Verdict:** `escalate`. No finding needs rework, and all three round-2 findings are resolved. The tier is Reviewed, so the owner reads the diff, runs the live check and records `live_checked:`, then `/ship 64`. The passes were run by the `heraklios-reviewer` agent. The coordinator re-ran verify, check:intent, e2e and every mutant the rework claims to kill, and every result matches.
+
+## Passes
+| # | Pass | Result |
+| --- | --- | --- |
+| 1 | Intent and plan match | pass. `c5e3811` touches only `e2e/board-view.spec.ts`, `src/ui/MapView.ts` (a type), `src/ui/devHook.ts`, `src/ui/drawnBoardView.ts` (a type) and `src/ui/drawnUnits.ts`, which is exactly the round-2 rework. `10b536d` appends to Progress only |
+| 2 | Type check | FAIL, but the only error is the owed live check, which the owner clears |
+| 3 | Rulebook fidelity | not applicable: digital-only, and nothing in `src/engine`, `src/data` or the save format changes |
+| 4 | Tests prove it | pass: 15 mutants this round, 15 killed |
+| 5 | Boundary and conventions | pass. The new code is dev-hook readers and a container `name` only |
+| 6 | Numbers in prose | pass. The round-2 Progress claims reproduce. Nit: Progress gives "see `git log`" instead of `c5e3811` |
+| 7 | Documentation | pass. `README.md:518-546` covers the Placement ghost and placed-galley facing |
+| 8 | Guardrails and hygiene | pass. Lint 21 of 21, cap unchanged, no new dependency, `eslint-disable`, `innerHTML` or `eval` |
+| 9 | Repository-specific footguns | pass. No drift or engine change, and headless and AI play are untouched |
+
+## Type check
+```
+type-check: FAIL (intent 64, feature)
+  error: A live check is owed and not recorded. Do the steps in intents/64-vector-view/review.md → ## Live check, then set live_checked: <date> in intents/64-vector-view/metadata.yml.
+  note:  42 file(s), 2565 line(s) changed outside intents/.
+```
+The owed live check is the only error, and the owner clears it, so it isn't rework. The line count is up 38 from round 2's 2527, which matches `c5e3811`'s +47/−9.
+
+## Findings
+None need rework. One nit: the round-2 Progress entry names no commit hash.
+
+Round 2's findings are resolved:
+- **MEDIUM, placed-galley facing (S2, S3):** `board-view.spec.ts:163` checks the ship is drawn at the ghost's rotation `r1`, and `:165` checks a land unit is drawn upright.
+- **MEDIUM, ghost lifecycle (U1, U4, RG):** `:143` checks one ghost after a Turn. `:147` checks none on Standard. `:149-150` check the ghost is back at `r1` after toggling to Drawn. `:156` checks none after Confirm.
+- **LOW, Progress toggle claim:** proven now that RG is killed.
+
+## Mutants (pass 4)
+Every mutant was killed by the e2e suite. The vitest suite imports none of these files, so e2e is the only suite that can catch them.
+
+| Mutant | Target | Killed by |
+| --- | --- | --- |
+| S2 | `PlacementScene.ts:335` naval facing → `undefined` | `board-view.spec.ts:163` (expected −0.5236, got 0) |
+| S3 | `PlacementScene.ts:335` → `facing: u.facing,` | `:165` (expected 0, got 0.5236) |
+| U1 | `drawnUnits.ts:78` `this.ghost?.destroy();` deleted | `:143` (expected 1, got 2) |
+| U4 | `drawnUnits.ts` `destroy()`: `this.setGhost(null);` deleted | `:147` (expected 0, got 1) |
+| RG | `viewDrawingState.ts:102`, replay strips `ghostTypeId` | `:149` (expected 1, got 0); vitest survives at 1279 |
+| X1 | `MapView.ts:162` `this.drawing.replay(next);` deleted | `:41` and `:103` |
+| X2 | `MapView.ts:167` `this.uiCamera?.ignore(next.mapObjects());` deleted | `:41` and `:103` (hudLeaks 4) |
+| N1 | `drawnUnits.ts:128` `.setName(unit.id)` dropped | `:143` (expected 1, got 0). A missing name can't false-green |
+| N2 | `drawnUnits.ts:128` → `.setName('unit')` | `:143` |
+| H1 | `devHook.ts` ghost filter `===` → `!==` | `:143` (expected 1, got 62) |
+| H2 | `devHook.ts` count `* 0` | `:143` |
+| H3 | `devHook.ts` `ghosts: 1` constant | `:147` |
+| R1 | `unitRotations` reads `list[0]`, the base | `:163` |
+| R2 | `unitRotations` reads the container's rotation | `:163` |
+| R3 | `unitRotations` loop over an empty map | `:163` (undefined) |
+
+`c5e3811`'s changes to `MapView.ts` and `drawnBoardView.ts` only widen return types, so there is nothing there to mutate.
+
+The accepted survivors are unchanged: D2, U2 and U3 from round 2, and G3, N3, T1 and T4 from round 1, all on lines untouched since.
+
+## Not checked
+- **The look:** the landscape, figures, greyscale bases, overlapping badges, sharpness at the maximum zoom, pan and zoom smoothness, the ghost's translucency, and placed galleys' orientation on screen. This is the owner's live check.
+- **Cancel and Undo while a ship is staged in Drawn:** checked by reading only.
+- **A toggle during a Board prompt, a drift pause or a computer turn (B2):** still untested by e2e.
+- **The 1× bake fallback:** dead under `Phaser.CANVAS`.
+- **The `save-load.spec.ts:57` flake:** it failed in 3 of the reviewer's 16 runs and in none of the coordinator's 8. It's pre-existing and was not investigated.
+- **The rebase:** `main` is ahead by §61 and §69 artefact commits (merge base `d483ec7`). A rebase is due before the ship. Per "Merging", that needs a new review only if it changes the reviewed code.
+
+## Live check
+- **Owed** by rule 1 (`src/scenes/**`, `src/ui/**`). The change is new and visual (AC4-AC6), so the smoke suite can't stand in. The steps are round 2's, unchanged.
+- **Setup:** in `C:/Users/eric/src/heraklios-wt/64-vector-view`:
+  - PowerShell: `$env:HERAKLIOS_SAVES_DIR = (New-Item -ItemType Directory -Force "$env:TEMP\h64-saves").FullName; npm run dev -- --port 5264 --strictPort --host 127.0.0.1`
+  - Git Bash: `HERAKLIOS_SAVES_DIR=$(mktemp -d) npm run dev -- --port 5264 --strictPort --host 127.0.0.1`
+
+  Then open http://127.0.0.1:5264/.
+- **Steps:**
+  1. **Combat test mode,** then **🗺 Drawn view** (bottom left, right of **✕ Abandon game**). You should see:
+     - a smooth coastline with shallow water;
+     - a pale shore on `coast` hexes;
+     - four distinct bay tints, named in the tooltip;
+     - meandering rivers, and broad water for the wide river;
+     - relief on plateaus and hatched outward flanks;
+     - marsh pools and reeds;
+     - grass with light variation;
+     - a thin grid.
+  2. **Zoom fully out and in, and drag,** comparing with **🗺 Standard view**:
+     - the grid stays faint at the minimum zoom;
+     - the landscape is acceptably sharp at the maximum zoom;
+     - panning is as smooth as in Standard;
+     - no second, unzoomed copy of anything appears.
+  3. **In Drawn,** select, move, attack and Undo; turn a ship; answer a retreat or advance if one comes; watch a drift arrow if you reach one. You should see:
+     - every overlay legible;
+     - a turned galley rotating;
+     - the badges showing the counter numbers.
+
+     Say whether overlapping badges on adjacent units are acceptable.
+  4. **Toggle at awkward moments:** with a unit selected, with a prompt open, and during a computer seat's turn. Only the look should change.
+  5. **The gallery:** **Figure gallery (dev)** on the Menu shows 14 types × 4 owners.
+     - Each type is recognisable.
+     - The round, square, diamond and shield bases stay distinct under DevTools → Rendering → Emulate vision deficiencies → Achromatopsia.
+  6. **Placement, the ghost.** From the Menu, pick **2** players, then **Use default army** and **Confirm army** for both seats. In Placement, click **🗺 Drawn view** (above **Undo**).
+     1. Place the land units on tinted zone hexes. Each lands where clicked.
+     2. When a ship comes up, click a sea hex in the zone. A translucent galley appears.
+     3. Press each **Turn** button a few times. It turns 60° per press, and only one ghost is ever visible.
+     4. With the ship staged, click **🗺 Standard view**. You should see no translucent galley, only the facing arrow.
+     5. Switch back to Drawn. The ghost is back, at the same facing.
+     6. Press **Confirm facing**. The ghost goes, and a solid galley stays, pointing the same way. Land figures stay upright.
+     7. Stage another ship and press **Cancel**. The ghost goes, and nothing is placed.
+     8. Press **Undo** once. The last placement is removed, and nothing stale remains.
+  7. **Reload (F5)** and start test mode again. The board opens in Drawn.
+
+## Verified myself vs. taken on trust
+- **Coordinator, re-run,** in `C:/Users/eric/src/heraklios-wt/64-vector-view` at `2f769c1`, with each heavy command run one at a time:
+  - `npm run verify`: exit 0. Lint shows 21 problems (0 errors, 21 warnings). Vitest shows 77 files and 1279 tests passed. This matches the reviewer and the implementer.
+  - `npm run check:intent`: FAIL on the owed live check only, with 42 files and 2565 lines. This matches.
+  - `npm run e2e`: 20 passed. This matches.
+- **Coordinator, re-run, the mutants the rework claims to kill.** Each was backed up by copy, applied as an exact single-match replace, run with the full e2e suite, and restored by copy:
+
+  | Mutant | Killed by |
+  | --- | --- |
+  | S2 | `board-view.spec.ts:163` |
+  | S3 | `:165` |
+  | U1 | `:143` |
+  | U4 | `:147` |
+  | RG | `:149` (vitest survives at 1279) |
+  | X1 | `:41` and `:103` |
+  | X2 | `:41` and `:103` |
+
+  All 7 match the reviewer's results and assertions. `git status --short` was clean at the end.
+- **The reviewer:**
+  - verify, check:intent and e2e, with the counts above;
+  - 15 mutant e2e runs and 1 vitest run, including the eight new N, H and R mutants and the false-green probes;
+  - `npm run sdlc:scan -- --sample-due auto --exclude 64` printed "nth attested auto change = 5, every 3, sampled: no".
+- **Taken on trust:**
+  - the reviewer's N1, N2, H1-H3 and R1-R3 runs (killed, not re-run by the coordinator);
+  - round 2's B1-B4, S1, D1, L1 and L2;
+  - round 1's vitest mutants, browser probe, bundle sizes and Phaser readings.
+
+# Round 2 (history)
+
+# §64 review — A second board view, a drawn 2D landscape with unit figures
+
 verdict: rework
 tier: reviewed
 reviewed-commit: bdc9160
