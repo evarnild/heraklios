@@ -2,7 +2,7 @@
 id: 61
 slug: architecture-guardrails
 type: feature
-status: accepted
+status: in-review
 title: The SDLC keeps the architecture good with written principles, import rules, a size budget, a review pass and a KonMari tidy-up step
 review_tier:
 intent_accepted: 2026-11-06 by-agent    # owner: "Yes" (to accepting the merged §61)

@@ -241,3 +241,48 @@ Skill and agent text has no unit test. Review pass 7 reads it, and greps check `
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-11-06 — all nine subtasks (implementer)
+
+Commits on `feat/61-architecture-guardrails`:
+
+| # | Commit | What shipped |
+| --- | --- | --- |
+| 1 | `7274846` | `docs/architecture.md`: the 17 principles with Enforced/Judged, the five recorded exceptions, the physical-lines note; one pointer line in `CLAUDE.md` |
+| 2 | `b998bb3` | `no-restricted-imports` as errors in `eslint.config.js`: disjoint blocks for `src/engine`, `src/data`, `src/ui`, `src/scenes`, `src/map-editor`, `src/*.ts`, and the server's non-test files (regex allowing only `src/engine/saveGame`) |
+| 3 | `2bba34c` | `scripts/architecture-rules.test.mjs`: 47 cases through `new ESLint({ cwd })`, `../` and `../../` depths, the allowed map-editor, server and server-test imports |
+| 4 | `abc8cee` | `scripts/size-budget-lib.mjs` and its test: `countLines`, `isBudgeted`, `baselineFrom`, `budgetLines`, `checkBudget` (B8 rules 1 to 5, null base = first creation) |
+| 5 | `3e94898` | `scripts/size-budget.mjs` and `npm run size:baseline`; `scripts/size-baseline.json` (the six files of the plan, same numbers); `check:intent` calls the budget (branch mode reads `git cat-file --batch`); `budgetVerdict` routes rules 3/4 for an adjustment or experiment; `parseCatFileBatch` |
+| 6 | `442a00b` | `## Where this goes` in the plan template; `/build-plan` 0.2.0; `REVIEW-POLICY.md` pass 10 (pass 1 exempts `konmari.md` commits, pass 5 points to it); `/review` 0.2.0 and both reviewer agents say "ten" |
+| 7 | `e1ac30c` | `heraklios-konmari` (`model: opus`) and its Codex toml; `/konmari` 0.1.0 |
+| 8 | `acbb91b` | `/auto` 0.2.0 (step 5a, the step-10 brief, the `plan_approved`-after-merge cut-off); `konmari:` checked by `intent-check-lib` and in the metadata template; `konmariLine` in `ship-lib` and a `note` in `ship.mjs` `dryRun()`; `sdlc.md` and `intents/README.md` |
+
+9 (close): no player-facing change, so no `README.md` edit; `status: in-review`.
+
+Counts: `npm run verify` green, 69 test files, 1325 tests (was 67 and 1223 at
+subtask 1; +47 rule cases, +41 size-budget, +14 in intent-check/ship lib);
+lint 0 errors, 21 warnings, cap unchanged at 21 (checked after subtask 2:
+no import rule fired on today's code). `npm run check:intent`: PASS.
+
+Mutants checked by hand (restored by copy): removing the server `ignores`
+fails the two server-test cases; adding `noUi` to the map-editor block fails
+the `../ui/hexRender` case; `>=` in rule 1, `ALLOWANCE = 51` and dropping the
+section filter in `budgetLines` each fail tests. A baseline edited to 3100
+makes `check:intent` FAIL on `BoardScene.ts`.
+
+Divergences and notes:
+- No `budget:` lines were needed (first creation, as planned).
+- `merged:` in `metadata.yml` holds a commit hash, not a date, so `/auto`'s
+  cut-off compares `plan_approved` with the date of the merge commit named
+  there (`git log -1 --format=%cs`); no `merged:` yet means the step doesn't run.
+- The size budget skips itself when neither the branch nor the merge base has
+  `scripts/size-baseline.json` (a branch that predates §61).
+- `REVIEW-POLICY.md` had no "nine" to change; the "nine" text was in the
+  review skill and the two reviewer agents.
+- `check:intent`'s `review.md` parsing doesn't count passes; nothing to change.
+- `npm run ship -- 61 --dry-run` could not be run from the worktree (it
+  refuses); the `konmari:` line is covered by `konmariLine`'s unit tests only,
+  and the coordinator's dry-run at review shows it.
+- **AC10 is not met here.** It is owed to the first `/auto` run after this
+  merge (the KonMari step end to end on one real intent), to be recorded as a
+  Not-checked item in this intent's review.
