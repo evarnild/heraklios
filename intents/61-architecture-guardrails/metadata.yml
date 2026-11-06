@@ -10,7 +10,7 @@ spec_accepted: 2026-11-06 by-agent    # owner: "yes to 61 spec"
 plan_approved: 2026-11-06 by-agent    # auto: owner "/auto 61" (auto_authorized 2026-11-06)
 live_checked:
 merged:
-auto_authorized: 2026-11-06 by-agent    # owner: "/auto 61"
+auto_authorized: 2026-11-06 by-agent    # owner: "/auto 61" (second, to go on to the build)
 auto_round:
 auto_stopped:
 follows_up:
