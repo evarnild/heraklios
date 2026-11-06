@@ -1,12 +1,20 @@
 <!-- generated-by: heraklios/intent@0.1.5 -->
-# §61 — The SDLC checks the architecture: written principles, import rules, a size budget and a review pass
+# §61 — The SDLC keeps the architecture good: written principles, import rules, a size budget, a review pass and a KonMari tidy-up step
 
 **Type:** feature
 **Originator:** the owner (2026-11-02): "I would like my sdlc process to analyze
 the architecture and keep it good"; then "draft the intent for 1-3 with these
-principles"
-**Source:** the coordinator's proposals 1-3 and its 17 principles, in that
-conversation
+principles". On 2026-11-06, the owner asked to "add a konmari step to our sdlc
+process" (drafted as §68), then "Couldn't we merge 61 and 68" and "Go ahead".
+**Source:**
+- the coordinator's proposals 1-3 and its 17 principles, in the 2026-11-02 conversation;
+- Tom Meyer's LinkedIn post on the "Vibing-Kruger effect"
+  (https://www.linkedin.com/posts/tomto_in-1999-a-man-robbed-banks-after-smearing-share-7523687664953257984-ssCU/).
+  It proposes six steps for AI-assisted work: ALIGN, TEST-BUILD, TEAR-DOWN,
+  AMEND, CHECK and KONMARI. The last step: "Now ask the AI to clean up,
+  refactor and DRY the code to make it simpler and more consistent,
+  Marie-Kondo style", because "AIs like to duplicate code and this keeps your
+  codebase manageable and simple."
 
 ## Problem
 
@@ -27,6 +35,19 @@ growing unnoticed:
 - **The principles aren't written in one place.** There is no
   `docs/architecture.md`; some rules are in `CLAUDE.md` and `REVIEW-POLICY.md`,
   others are only practice.
+- **Nothing removes what slips through.** The flow already covers five of the
+  post's six steps:
+  - ALIGN is the intent, spec and plan;
+  - TEST-BUILD is the implementer;
+  - TEAR-DOWN is the separate reviewer;
+  - AMEND is the rework rounds;
+  - CHECK is the live check.
+
+  No step covers KONMARI, a tidy-up. The implementer's job is to meet the plan,
+  and the reviewer only reads, so duplication an agent wrote stays unless a
+  finding names it. Two review rules work against a tidy-up. Pass 1 says
+  "Refactoring mixed into a feature is a finding". The "Finding vs nit" rule
+  leaves out "could be shorter".
 
 ## Outcome
 
@@ -46,6 +67,24 @@ growing unnoticed:
   and the diff. A wrong layer is a "Needs rework:" finding; a real trade-off or
   new exception is a "Needs decision:" finding. `/review` and the reviewer
   agent run it.
+- **The KonMari step:** the process has a named tidy-up step, written in
+  `sdlc.md`, `intents/README.md` and the skills that run it.
+  - In the step, an agent simplifies the intent's own change against the
+    principles below. It removes duplication, both inside the diff and with
+    existing code. It takes out dead code, and it makes names and patterns
+    consistent with their neighbours.
+  - Behaviour doesn't change, and the evidence for that is:
+    - `npm run verify` and `check:intent` stay green;
+    - `npm run e2e` stays green when the paths call for it;
+    - the test count doesn't fall, and no test is weakened;
+    - the lint warning count doesn't rise;
+    - the mutants review killed are still killed.
+  - It ends with a short record, in the intent's folder, of what was tidied and
+    what was looked at and left.
+  - Review accepts the step's commits: they aren't a pass 1 "refactoring mixed
+    in" finding, and the review that clears the branch has seen them.
+  - `/auto` runs the step without a new prompt, and its stop rules and round
+    budget still hold.
 
 ### The principles
 
@@ -128,6 +167,14 @@ Tests and traceability:
 - **Rulebook:** none; SDLC tooling.
 - **Live check:** not expected, since nothing runtime-only changes; the review
   decides.
+- **The KonMari step keeps the gates' meaning.** The `live_checked` gate must
+  cover the code that merges, so the step can't change code after the live
+  check without that check being redone.
+- **The step tidies this intent's change, not the codebase.** A larger cleanup
+  it notices becomes a new `refactor` intent.
+- **`/auto`'s safety rules apply unchanged (step 10).** Nothing merges,
+  pushes or rebases. No subagent records a gate. The lint cap is never raised.
+  Mutants are restored by copy.
 
 ## Type-specific questions
 
@@ -156,14 +203,50 @@ Tests and traceability:
   - **Pass numbering:** a new pass 10, or a rewrite of pass 5 that absorbs it
     (reports and the policy cite the numbers); and how it shares principle 14
     with pass 8.
+  - **Where the KonMari step sits.** The post puts KonMari after CHECK, but our
+    live check must cover the code that merges. The options are:
+    - after review attests and before the live check, with a short re-review
+      of only the tidy-up commits;
+    - inside the last rework round;
+    - after the live check, which is then redone;
+    - after merge, as a follow-up `refactor` intent.
+  - **Who tidies.** The options are:
+    - the implementer, which knows the code;
+    - a fresh agent, as the post suggests for review ("use a new AI");
+    - Claude Code's built-in `/simplify`, which makes quality-only changes.
+  - **Its reach.** It could cover only the lines the diff added or changed, or
+    also existing code the diff duplicates, for example replacing a new helper
+    with an existing one.
+  - **Its proof.** Is "suite and e2e green, review's killed mutants still
+    killed" enough? Or does it need its own mutation sample over the moved
+    lines?
+  - **Its review.** Should pass 1 exempt the step's commits by name, or should
+    the new architecture pass cover them? Does a tidy-up re-review count as
+    one of `/auto`'s three rounds?
+  - **Which types run it.** Feature, fix and refactor seem likely; adjustment
+    and experiment probably not. Can the owner skip it for one intent, and
+    where is that recorded?
+  - **Phasing.** This intent is now large. Should the plan deliver it in phases
+    with KonMari last, since it relies on `docs/architecture.md` and the
+    architecture pass? Or should the spec split it again?
 
 ## Assumptions I made
 
 - **Type is feature, not refactor or adjustment:** it adds new checks and a new
   plan section, well over an adjustment's limits, and has open design questions.
-- This intent covers proposals 1-3 only. The periodic `/architecture` review (4)
-  and paying down `BoardScene` (5) are later intents, and nothing here shrinks
-  an existing file.
+- This intent covers proposals 1-3, plus the KonMari step merged in from §68.
+  The periodic `/architecture` review (proposal 4) and paying down `BoardScene`
+  (proposal 5) are later intents. The KonMari step tidies only each new change,
+  so nothing here shrinks an existing file.
+- **What "KonMari" means here.** It is Marie Kondo's tidying method: keep only
+  what earns its place, and put everything where it belongs. Following the
+  post, I read it as cleaning up, refactoring and de-duplicating the change. It
+  doesn't mean deleting features or tests.
+- **§68 is folded in, not kept.** It was drafted on 2026-11-06 and never
+  committed, and its folder is deleted. Its id isn't reused.
+- **The post was read through a summary.** I fetched the LinkedIn post with a
+  tool that summarised it, so the post's quotes are that tool's. I didn't check
+  them against the page.
 - `docs/architecture.md` is the single source of the principles;
   `REVIEW-POLICY.md`'s pass points to it instead of restating them.
 - Principle 2's arrow allows skipping a layer: `scenes` may import `engine` and

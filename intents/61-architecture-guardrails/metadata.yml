@@ -2,10 +2,10 @@
 id: 61
 slug: architecture-guardrails
 type: feature
-status: draft
-title: The SDLC checks the architecture with written principles, import rules, a size budget and a review pass
+status: accepted
+title: The SDLC keeps the architecture good with written principles, import rules, a size budget, a review pass and a KonMari tidy-up step
 review_tier:
-intent_accepted:
+intent_accepted: 2026-11-06 by-agent    # owner: "Yes" (to accepting the merged §61)
 spec_accepted:
 plan_approved:
 live_checked:
@@ -17,3 +17,4 @@ follows_up:
 links:
   - intents/26-ai-sdlc-kit
   - intents/60-five-parallel-intents
+  - intents/50-sdlc-auto-mode
