@@ -11,7 +11,7 @@ plan_approved: 2026-11-05 by-agent    # auto: owner "/auto 64" (auto_authorized 
 live_checked:
 merged:
 auto_authorized: 2026-11-06 by-agent    # owner: "/auto 64" (after the low-memory stop)
-auto_round: 2
+auto_round: 3
 auto_stopped:
 follows_up:
 links:
