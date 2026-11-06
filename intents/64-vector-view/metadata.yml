@@ -12,6 +12,6 @@ live_checked:
 merged:
 auto_authorized: 2026-11-06 by-agent    # owner: "/auto 64 b"
 auto_round: 2
-auto_stopped:
+auto_stopped: re-check interrupted, low memory
 follows_up:
 links:
