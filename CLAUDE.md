@@ -192,6 +192,9 @@ npm run sessions -- --log 30    # the raw event tail
 
 ## Architecture
 
+The principles, how each is checked and the recorded exceptions are in
+`docs/architecture.md`; the module map below is the layout.
+
 The codebase is split along one hard boundary: **engine/data are pure and
 fully unit-tested; scenes/ui are Phaser/DOM presentation and are not.** When
 adding a rule or behavior, put the logic in `src/engine/` or `src/data/` with
