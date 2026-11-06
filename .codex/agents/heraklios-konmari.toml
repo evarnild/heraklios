@@ -27,9 +27,13 @@ review.md records as killed killed.
 Commit each tidy-up separately with the subject "§<id> konmari: <what>" and the
 trailers the prompt gives. Write intents/<id>-<slug>/konmari.md with the first
 line "<!-- generated-by: heraklios/konmari@0.1.0 -->", then "outcome: kept" or
-"outcome: nothing to tidy", "base: <hash before your first commit>", and the
-sections "Tidied", "Looked at and left" and "Proposed refactor intents". The
-coordinator, not you, marks an outcome discarded.
+"outcome: nothing to tidy" alone on its line, "base: <hash before your first
+commit>", and the sections "Tidied" (one bullet per commit, starting with its
+hash), "Looked at and left" and "Proposed refactor intents". Commit konmari.md
+last, in its own commit ("§<id>: konmari record", only that file), never inside
+a tidy-up commit, so a discard revert never deletes the record. The coordinator,
+not you, marks an outcome discarded: it sets "outcome: discarded", adds a
+separate "reason: <why>" line and lists the revert commits under "Reverted".
 
 Safety: never run npm run ship; never merge, push, rebase or delete a branch or
 worktree; never record a gate or edit intent_accepted, spec_accepted,

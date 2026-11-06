@@ -210,7 +210,11 @@ check both cover the tidied code.
   KonMari.
 - **Not a round.** It doesn't change `auto_round` or use one of the three
   rounds. It writes `intents/<id>-<slug>/konmari.md` and a `## KonMari check`
-  section in the round's `review.md`; commit them on the branch.
+  section in the round's `review.md`; commit them on the branch, `konmari.md`
+  in its own commit apart from the `§<id> konmari:` tidy-up commits. `reviewed-commit`
+  stays put: `npm run ship` accepts the commits `konmari.md` lists (tidy-ups
+  and, for a discard, their reverts) and the record's own commit after it, and
+  blocks any other.
 - **Never a stop.** A failed check discards the tidy-up (`git revert`,
   `outcome: discarded`) and the run goes on to the stop or the ship stop as if
   nothing had been tidied. The step's heavy commands run one at a time, and

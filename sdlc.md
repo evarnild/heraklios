@@ -54,26 +54,8 @@ Run `/review` from the coordinator. It runs `npm run verify`,
 `review.md` with a verdict:
 
 - **rework** — fix, then `/review` again;
-- **attest** or **escalate** — go to step 6.
-
-The report also says `live-check: owed` or `not-needed`. It's owed for
-changes to scenes, UI, the map editor, `src/main.ts`, `index.html`,
-`map-editor.html`, `vite.config.ts` or `.claude/settings.json`, and for
-anything else only a live run can show. The one exception: when the
-check is owed only because of the paths it touches, the browser smoke
-suite (`npm run e2e`) already covers the changed behaviour,
-the change is neither new nor visual, and `/review` ran the suite and it
-passed, the report may say `not-needed` and name the scenario. You can
-always set it back to `owed`. When owed, its `## Live check`
-section gives the steps: run them yourself (`npm run dev` on the
-worktree's port, a test-mode shortcut), then record
-`live_checked: <date>` in `metadata.yml`. If you find a defect, leave the
-date empty and send it back to rework. `check:intent` blocks the merge
-until the date is there.
-
-Commit `review.md` and the `live_checked:` date to the branch before the
-merge: the merge check reads the branch from git and can't see
-uncommitted files.
+- **attest** or **escalate** — go to the KonMari step (5a), then to your
+  diff read, the live check or the ship (step 6).
 
 **5a. KonMari: tidy the change before the live check** (feature, fix and
 refactor)
@@ -95,6 +77,25 @@ refactor)
   intent. It is not a gate. `npm run ship -- <id> --dry-run` reports `konmari:
   kept | discarded | nothing to tidy | skipped | not run`, and never blocks.
 
+The review report also says `live-check: owed` or `not-needed`. It's owed for
+changes to scenes, UI, the map editor, `src/main.ts`, `index.html`,
+`map-editor.html`, `vite.config.ts` or `.claude/settings.json`, and for
+anything else only a live run can show. The one exception: when the
+check is owed only because of the paths it touches, the browser smoke
+suite (`npm run e2e`) already covers the changed behaviour,
+the change is neither new nor visual, and `/review` ran the suite and it
+passed, the report may say `not-needed` and name the scenario. You can
+always set it back to `owed`. When owed, its `## Live check`
+section gives the steps: run them yourself (`npm run dev` on the
+worktree's port, a test-mode shortcut), then record
+`live_checked: <date>` in `metadata.yml`. If you find a defect, leave the
+date empty and send it back to rework. `check:intent` blocks the merge
+until the date is there.
+
+Commit `review.md` and the `live_checked:` date to the branch before the
+merge: the merge check reads the branch from git and can't see
+uncommitted files.
+
 **6. Approve and merge — your gate**
 
 - **Automated tier** (only intents or docs touched): merge.
@@ -110,8 +111,9 @@ removal — each only when you ask for it, for that change, in the current
 conversation. `/ship <id>` does all of it in order and stops at the first
 step that fails (`/ship <id> --dry-run`, or "can §N ship?", only reports);
 say in the same message that you ran the live check if you did. Run it from
-the main checkout, on `main`. It first checks that nothing but the review and the
-metadata changed after the reviewed commit, that `check:intent` passes,
+the main checkout, on `main`. It first checks that nothing but the review, the
+metadata and, for the KonMari step, `konmari.md` and the commits it lists
+changed after the reviewed commit, that `check:intent` passes,
 and that any owed live check is recorded, and refuses if not
 (`REVIEW-POLICY.md` → "Merging").
 

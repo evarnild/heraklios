@@ -25,6 +25,7 @@ npm run lint       # eslint, capped at the current guardrail-warning count
 npm run verify     # build + lint + test — THE check before a change is done
 npm run check:intent  # does this branch's change match its intent? (intents/README.md)
 npm run sdlc:scan  # the evidence behind docs/sdlc-grid.md
+npm run size:baseline  # measure the size budget; --write rewrites scripts/size-baseline.json (a shrinking change runs it, §61)
 npm run spawn -- <id>  # parallel session for an intent (see "Parallel sessions")
 npm run ship -- <id>  # merge a reviewed intent, bookkeep, push, remove worktree and branch (the /ship skill)
 npm run queue      # the intent queue, generated from metadata.yml (--next-id, --json); nobody edits it

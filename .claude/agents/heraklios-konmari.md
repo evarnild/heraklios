@@ -39,7 +39,12 @@ the diff (`git diff main...HEAD`).
   must keep the mutant killed; the coordinator re-applies each.
 
 **Commits.** One tidy-up per commit, with the subject `§<id> konmari: <what>`
-and the trailers the prompt gives. Commit each as it is verified.
+and the trailers the prompt gives. Commit each as it is verified. Commit
+`konmari.md` last, **in its own commit** (`§<id>: konmari record`, touching
+only that file), never inside a tidy-up commit: a discard `git revert`s the
+tidy-up commits, and must not delete the record. `npm run ship` accepts the
+commits `konmari.md` lists (`## Tidied`, `## Reverted`) and the record's own
+commit, and blocks any other commit after the review.
 
 **The record.** Write `intents/<id>-<slug>/konmari.md`, first line
 `<!-- generated-by: heraklios/konmari@0.1.0 -->`, then:
@@ -60,8 +65,12 @@ base: <hash of HEAD before your first tidy-up commit>
 - <or "none">
 ```
 
-`outcome: nothing to tidy` means you made no commit. The coordinator, not you,
-marks an outcome `discarded`.
+The `outcome:` value is alone on its line (`npm run ship --dry-run` reads it
+with an anchored pattern). `outcome: nothing to tidy` means you made no tidy-up
+commit. The coordinator, not you, marks an outcome `discarded`: it sets
+`outcome: discarded`, adds a separate `reason: <why>` line (never text after
+the outcome), and lists the revert commits in a `## Reverted` section in the
+same bullet form as `## Tidied`.
 
 **Safety rules (kept from `/auto` step 10).**
 - Never run `npm run ship`; never merge, push, rebase or delete a branch or

@@ -74,14 +74,27 @@ result marked **Coordinator, re-run**, and the reviewer's read. Commit it as
 tidy-up, and pass 1 doesn't count the commits in `konmari.md` as refactoring
 mixed in.
 
+`reviewed-commit` does not move. `npm run ship` and `REVIEW-POLICY.md` →
+"Merging" rule 1 accept, after it, the commits `konmari.md` lists under
+`## Tidied` and `## Reverted`, `konmari.md` itself and the usual `review.md`
+and `metadata.yml` commits, and nothing else. So `konmari.md` is committed in
+its own commit (`§<id>: konmari record`, only that file), separate from the
+`§<id> konmari:` tidy-up commits: a discard `git revert`s the tidy-up commits
+and must never delete the record.
+
 ## 6. A failed check discards, never blocks (B18)
 
 If any item in step 3 fails, or the reviewer's read finds a behaviour change
 or a reach beyond the diff and its duplicates:
 
-- `git revert` the KonMari commits (new commits; no rewritten history);
-- set `outcome: discarded` in `konmari.md` with the reason, and re-run
-  `npm run verify`;
+- `git revert` the KonMari tidy-up commits (new commits; no rewritten history;
+  never the record's own commit);
+- in `konmari.md` set `outcome: discarded` alone on its line, add a separate
+  `reason: <why>` line (never text after the outcome: the ship dry-run reads
+  the outcome with an anchored pattern and would report `not run`), list the
+  revert commits under a `## Reverted` heading in the same bullet form as
+  `## Tidied` (`- <hash> — revert of <hash>`), commit that as
+  `§<id>: konmari discarded`, and re-run `npm run verify`;
 - go on as if no tidy-up had been made.
 
 `outcome: nothing to tidy` (no commit) and `outcome: kept` need no revert.

@@ -132,10 +132,16 @@ Asked to merge, it first checks, and refuses naming the one that failed:
    <branch>:intents/<id>-<slug>/review.md`, never a copy on disk) is
    `attest` or `escalate`; its `reviewed-commit` is an ancestor of the
    branch (`git merge-base --is-ancestor`), so a rebase since the review
-   means a new round; and nothing but that intent's `review.md` or
-   `metadata.yml` differs between the two (`git diff --name-only
-   <reviewed-commit> <branch>`): recording the review and the live check
-   happens on top of the reviewed commit, anything else is unreviewed;
+   means a new round; and every commit after it touches only that
+   intent's `review.md`, `metadata.yml` or `konmari.md` (`git log
+   <reviewed-commit>..<branch>` with each commit's files): recording the
+   review and the live check happens on top of the reviewed commit, anything
+   else is unreviewed. The one exception is the KonMari step (§61): a commit
+   whose hash `konmari.md` lists under `## Tidied` or `## Reverted` (the
+   `§<id> konmari:` tidy-up commits and, for a `discarded` outcome, their
+   `git revert` commits) is also accepted, provided it touches nothing else
+   inside the intent's folder than `konmari.md`. A merge commit, or any
+   other commit, still blocks;
 2. `npm run check:intent <branch>` reports PASS, or ROUTE with the reason
    already stated in `review.md`;
 3. no live check is owed without `live_checked:` recorded (`check:intent`
@@ -186,7 +192,8 @@ Each pass reports `pass`, `findings`, or `not run` (with why).
    is meant to be presentation-only. Map editor: generated `map.ts` was
    regenerated, not hand-edited.
 10. **Architecture** (`docs/architecture.md`). Judge the principles marked
-    *Judged* there (5 to 12 and 15 to 17) against the plan's "Where this
+    *Judged* there (5 to 12 and 15 to 17, and the judged half of 1: no
+    browser APIs in `src/engine` or `src/data`) against the plan's "Where this
     goes" section and the diff. Don't restate the principles; cite them by
     number. Principle 14 (dependencies) stays in pass 8, and the *Enforced*
     ones (1 to 4, 13) are failures of `npm run lint` and `check:intent`, not

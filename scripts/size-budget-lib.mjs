@@ -24,7 +24,7 @@ const norm = (p) => p.replace(/\\/g, '/');
 /**
  * B7: a budgeted file is a non-test `*.ts`, `*.mjs` or `*.js` under `src/`,
  * `server/`, `scripts/` or `tools/`. Excluded: tests (the lint length rules
- * are off there too), e2e, the generated `src/data/map.ts` and
+ * are off there too), the generated `src/data/map.ts` and
  * `tools/map-extract/` (not Node/TS, not run at build time).
  */
 export function isBudgeted(path) {
@@ -32,7 +32,6 @@ export function isBudgeted(path) {
   if (!/^(src|server|scripts|tools)\//.test(p)) return false;
   if (!/\.(ts|mjs|js)$/.test(p)) return false;
   if (/\.test\.[^/]+$/.test(p)) return false;
-  if (p.startsWith('e2e/')) return false;
   if (p === 'src/data/map.ts') return false;
   if (p.startsWith('tools/map-extract/')) return false;
   return true;

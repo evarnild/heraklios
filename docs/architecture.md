@@ -27,7 +27,8 @@ Each principle says how it is checked:
    `src/engine/saveGame.ts` from the game. *Enforced* for non-test files.
 4. **Tooling stays out of the game.** `tools/` and `scripts/` are never
    imported by the game, and the build contains nothing from them. *Enforced
-   for imports*; the build half follows, since Vite bundles only what `src/`
+   for imports*, by a catch-all block over every `src/**` file, so a new
+   `src/<folder>/` refuses `scripts/`, `tools/` and `server/` too; the build half follows, since Vite bundles only what `src/`
    imports.
 
 ## Where logic lives
