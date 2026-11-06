@@ -74,14 +74,58 @@ export function routeReasonStated(reviewText) {
 }
 
 /**
+ * The commit hashes a konmari.md lists (§61 F1): the first word of each
+ * `- <hash> — ...` bullet under `## Tidied` and `## Reverted` (the tidy-up
+ * commits and, for a discarded outcome, their `git revert` commits). Hashes
+ * are 7 to 40 hex characters and are matched by prefix. Nothing else in the
+ * file counts, so a hash in prose or under "Looked at and left" lists nothing.
+ *
+ * @param {string|null|undefined} konmariText
+ * @returns {string[]}
+ */
+export function konmariCommits(konmariText) {
+  const hashes = [];
+  let listed = false;
+  for (const line of (konmariText ?? '').split(/\r?\n/)) {
+    if (/^## /.test(line)) listed = /^## (?:Tidied|Reverted)\b/.test(line);
+    const m = listed ? /^- `?([0-9a-f]{7,40})`?(?=\s|$)/i.exec(line) : null;
+    if (m) hashes.push(m[1].toLowerCase());
+  }
+  return hashes;
+}
+
+/**
+ * Whether the post-review commit `commit` ({hash, files}) is accepted
+ * (REVIEW-POLICY.md → "Merging" rule 1; §61 F1 option b). Accepted when
+ *  - it touches only the intent's review.md, metadata.yml or konmari.md (the
+ *    record is committed on its own, so a discard revert never deletes it), or
+ *  - its hash is listed in konmari.md (a tidy-up commit or its revert) and it
+ *    touches nothing else inside the intent's folder than konmari.md: a
+ *    listed commit may change code, never the intent, spec, plan or gates.
+ * A merge commit (`merge: true`) is never accepted: its file list would hide
+ * what it brings in.
+ */
+function commitAccepted(commit, listed, intentDir) {
+  if (commit.merge) return false;
+  const own = new Set([`${intentDir}/review.md`, `${intentDir}/metadata.yml`, `${intentDir}/konmari.md`]);
+  if (commit.files.every((f) => own.has(f))) return true;
+  const hash = commit.hash.toLowerCase();
+  if (!listed.some((h) => hash.startsWith(h))) return false;
+  return commit.files.every((f) => !f.startsWith(`${intentDir}/`) || f === `${intentDir}/konmari.md`);
+}
+
+/**
  * REVIEW-POLICY.md → "Merging", preconditions 1 to 3, from values the caller
  * read out of git. `checkIntent` is left out to evaluate precondition 1 alone.
+ * `commits` are those after reviewed-commit, `{hash, files}` each (ship.mjs);
+ * `konmariText` is the intent's konmari.md on the branch, if any.
  *
- * @param {{reviewHeader:Record<string,string>|null, isAncestor:boolean, changedFiles:string[],
+ * @param {{reviewHeader:Record<string,string>|null, isAncestor:boolean,
+ *          commits:{hash:string, files:string[], merge?:boolean}[], konmariText?:string|null,
  *          intentDir:string, checkIntent?:{verdict:'PASS'|'ROUTE'|'FAIL', reasonStated:boolean}}} input
  * @returns {{ok:true}|{ok:false, failed:string, message:string}}
  */
-export function checkPreconditions({ reviewHeader, isAncestor, changedFiles, intentDir, checkIntent }) {
+export function checkPreconditions({ reviewHeader, isAncestor, commits, konmariText, intentDir, checkIntent }) {
   const fail = (failed, message) => ({ ok: false, failed, message });
   if (!reviewHeader) return fail('verdict', `${intentDir}/review.md is not committed on the branch.`);
   const verdict = reviewHeader.verdict;
@@ -95,10 +139,14 @@ export function checkPreconditions({ reviewHeader, isAncestor, changedFiles, int
       `reviewed-commit ${reviewHeader['reviewed-commit']} is not an ancestor of the branch (rebased since the review: a new round is needed).`,
     );
   }
-  const allowed = new Set([`${intentDir}/review.md`, `${intentDir}/metadata.yml`]);
-  const stray = changedFiles.filter((f) => !allowed.has(f));
+  const listed = konmariCommits(konmariText);
+  const stray = commits.filter((c) => !commitAccepted(c, listed, intentDir));
   if (stray.length) {
-    return fail('unreviewed-changes', `changed since the reviewed commit besides review.md and metadata.yml: ${stray.join(', ')}.`);
+    const what = stray.map((c) => `${c.hash.slice(0, 7)} (${c.files.join(', ') || 'no files'})`).join('; ');
+    return fail(
+      'unreviewed-changes',
+      `changed since the reviewed commit besides review.md, metadata.yml, konmari.md and the commits konmari.md lists: ${what}.`,
+    );
   }
   if (!checkIntent) return { ok: true };
   if (checkIntent.verdict === 'FAIL') return fail('check-intent', 'npm run check:intent reports FAIL for the branch.');
@@ -172,7 +220,8 @@ export function mergeMessage(id, title, trailers = []) {
  * step, so it gets no line (null). `konmari: skip` in metadata.yml is
  * `skipped`; otherwise the `outcome:` of the intent's konmari.md
  * (`kept`, `discarded`, `nothing to tidy`), and `not run` when there is no
- * record or its outcome is none of those.
+ * record or its outcome is none of those. The outcome is alone on its line:
+ * a discard's reason goes on a separate `reason:` line (F4).
  *
  * @param {{type:string, metadata:object, konmariText:string|null}} input
  * @returns {string|null}

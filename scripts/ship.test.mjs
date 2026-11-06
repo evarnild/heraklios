@@ -664,3 +664,32 @@ describe('npm run ship: leftovers and what a commit may hold', { timeout: 90_000
     expect(read('intents', '49-t49', 'metadata.yml')).toContain('status: in-review');
   });
 });
+
+describe('npm run ship: KonMari commits after the review (§61 F1)', { timeout: 90_000 }, () => {
+  const commitFile = (p, rel, text, message) => {
+    mkdirSync(dirname(join(p, rel)), { recursive: true });
+    writeFileSync(join(p, rel), text);
+    git(p, 'add', '.');
+    git(p, 'commit', '-q', '-m', message);
+    return git(p, 'rev-parse', '--short', 'HEAD');
+  };
+
+  it('accepts the listed tidy commit and its own konmari.md commit, and refuses an unlisted one', () => {
+    let tidy;
+    const w = makeIntent(61, {
+      afterReview: (p) => {
+        tidy = commitFile(p, 'docs/tidied.md', 'tidied\n', '§61 konmari: unify');
+        commitFile(p, 'intents/61-t61/konmari.md', `# §61 KonMari record\n\noutcome: kept\nbase: abc1234\n\n## Tidied\n- ${tidy} — docs/tidied.md — unified\n`, '§61: konmari record');
+      },
+    });
+    const kept = ship(['61', '--dry-run']);
+    expect(kept.status, out(kept)).toBe(0);
+    expect(kept.stdout).toMatch(/ok\s+preconditions/);
+    expect(kept.stdout).toMatch(/note\s+konmari\s+kept/);
+    commitFile(w.path, 'docs/unlisted.md', 'not listed\n', 'unlisted');
+    const stray = ship(['61', '--dry-run']);
+    expect(stray.stdout).toMatch(/WOULD STOP\s+preconditions\s+unreviewed-changes/);
+    expect(stray.stdout).toContain('docs/unlisted.md');
+    expect(stray.stdout).not.toContain('docs/tidied.md');
+  });
+});

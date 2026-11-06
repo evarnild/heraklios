@@ -14,7 +14,8 @@ import globals from 'globals';
 
 // Architecture import boundaries (§61, docs/architecture.md principles 1-4).
 // `no-restricted-imports` options REPLACE rather than merge when two config
-// blocks match one file, so the layer blocks below are disjoint and each
+// blocks match one file, so the layer blocks below are disjoint (after one
+// catch-all for `src/**`) and each
 // carries the shared tooling/server patterns itself. The patterns match the
 // import string as written, so `**/x/**` covers any relative depth.
 const noTooling = {
@@ -84,6 +85,14 @@ export default tseslint.config(
     },
   },
   {
+    // Catch-all: any file under src/ refuses tooling and the server, so a
+    // future src/<newdir>/ is covered without its own block. The layer blocks
+    // below come later and replace this one for their files (each carries the
+    // same two patterns plus its own).
+    files: ['src/**/*.ts'],
+    rules: restrict(noServer, noTooling),
+  },
+  {
     files: ['src/engine/**/*.ts'],
     rules: restrict(noPhaser, noUi, noScenes, noMapEditor, noServer, noTooling),
   },
@@ -104,10 +113,6 @@ export default tseslint.config(
     // import ui, engine and data (it reuses ui/hexRender).
     files: ['src/map-editor/**/*.ts'],
     rules: restrict(noScenes, noPhaser, noServer, noTooling),
-  },
-  {
-    files: ['src/*.ts'],
-    rules: restrict(noServer, noTooling),
   },
   {
     // The server only stores (principle 3): of the game it may import only

@@ -181,12 +181,23 @@ function readReview(root, branch, dir) {
   }
 }
 
+/** The commits after `rc` on `branch`, oldest first, each with the files it changes (a merge commit is flagged: never accepted). */
+function commitsAfter(root, rc, branch) {
+  const lines = git(root, 'log', '--reverse', '--format=%H %P', `${rc}..${branch}`).split(/\r?\n/).filter(Boolean);
+  return lines.map((line) => {
+    const [hash, ...parents] = line.split(' ');
+    if (parents.length > 1) return { hash, files: [], merge: true };
+    const files = git(root, 'diff-tree', '--root', '-r', '--no-commit-id', '--name-only', hash).split(/\r?\n/).filter(Boolean);
+    return { hash, files };
+  });
+}
+
 function preconditionInputs(root, loc) {
   const review = readReview(root, loc.branch, loc.dir);
   const rc = review.header?.['reviewed-commit'];
   const isAncestor = !!rc && gitOk(root, 'merge-base', '--is-ancestor', rc, loc.branch);
-  const changedFiles = isAncestor ? git(root, 'diff', '--name-only', rc, loc.branch).split(/\r?\n/).filter(Boolean) : [];
-  return { reviewHeader: review.header, isAncestor, changedFiles, intentDir: loc.dir, reviewText: review.text };
+  const commits = isAncestor ? commitsAfter(root, rc, loc.branch) : [];
+  return { reviewHeader: review.header, isAncestor, commits, konmariText: readKonmari(root, loc), intentDir: loc.dir, reviewText: review.text };
 }
 
 function runCheckIntent(root, branch, reviewText) {
