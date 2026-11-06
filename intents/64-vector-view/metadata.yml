@@ -12,6 +12,6 @@ live_checked: 2026-11-06 by-agent    # owner: "all passed, record live_checked"
 merged:
 auto_authorized: 2026-11-06 by-agent    # owner: "/auto 64" (after live_checked was recorded)
 auto_round: 3
-auto_stopped: live check owed
+auto_stopped: ready for /ship
 follows_up:
 links:
