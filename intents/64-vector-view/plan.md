@@ -283,3 +283,24 @@ For the live check, look at:
 - Placement's toggle at `(20, height - 136)` above Undo, and the Board's right of Abandon (it sits close to Tables on the row above).
 - A toggle during a prompt, a retreat or a computer turn; drift arrow, range and choice labels in the Drawn view.
 - The play against an unusually small `MAX_TEXTURE_SIZE` was not exercised (the 1x fallback is untested in a browser).
+
+### Round 1 rework, 2026-11-06
+
+Commits: `9609d79` (code, tests, README) and the closing commit (this entry).
+
+Owner's decision on the HIGH finding: option (b), "/auto 64 b". The galley's orientation stays the facing in the Drawn view (no arrowheads).
+
+Resolutions:
+- **HIGH (Placement facing).** `PlacementScene.drawPlacedUnits` passes `facing` for ships, so placed galleys are drawn at their real facing in both views (Standard ignores it, unchanged). The staged ship rides on `setFacingIndicators`: `shipArrowList` marks the pending entry with `ghostTypeId` (new `FacingShip` type and pure `ghostDrawing` in `boardView.ts`, provisional id `ghost-ship`). The Drawn view draws it as a 50% alpha figure outside its unit map (`DrawnUnits.setGhost`), rebuilt on every call so it follows Turn and goes when the facings are cleared on confirm or cancel. Standard still draws its arrow. The recorder replays the entry, so a toggle mid-staging keeps the ghost. README section updated for Placement.
+- **MEDIUM (X1, X2).** New dev-hook reader `boardObjects()` returns `{ unitDrawings, hudLeaks, ghostRotation }` (zeros and null in Standard), from `MapView.drawnInspect()`. `board-view.spec.ts` asserts `unitDrawings` equals the living units and `hudLeaks` is 0 after each toggle to Drawn with a unit selected. The new Placement scenario checks the ghost exists, one Turn changes its rotation by pi/3, and it is gone after Confirm.
+- **LOW (Progress counts).** The Phase 1 line "before: 69 files, 1236 tests; +8 files, +41 tests" is wrong. `main` had 67 test files and 1223 tests; Phase 1 ended at 77 files, 1277 tests (+10 files, +54 tests).
+- **LOW (dead 1x fallback).** Kept the branch, fixed the comment on `maxTextureSide`: the game runs `Phaser.CANVAS`, so it returns 4096 and the bake is 2x today.
+- **LOW (stale install in main checkout):** not mine to act on; noted only.
+
+Numbers: `npm run verify` green: 77 test files, 1279 tests (+2: `ghostDrawing`), lint 21 warnings (cap 21, unchanged). `npm run e2e`: 20 passed (19 + the Placement scenario).
+
+Mutants, each applied to `src/ui/MapView.ts` by copy and restored by copy, one-line deletion confirmed by `git diff --stat`:
+- X1 (`this.drawing.replay(next);` deleted): killed, `board-view.spec.ts` "the view toggle keeps state, camera and selection..." (unitDrawings 0).
+- X2 (`this.uiCamera?.ignore(next.mapObjects());` deleted): killed by the same test (hudLeaks > 0) and by the Placement ghost scenario.
+
+Divergence: none from the plan above the Progress marker. `boardObjects()` also carries `ghostRotation`, which the finding did not list.
