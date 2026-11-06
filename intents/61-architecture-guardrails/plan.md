@@ -286,3 +286,29 @@ Divergences and notes:
 - **AC10 is not met here.** It is owed to the first `/auto` run after this
   merge (the KonMari step end to end on one real intent), to be recorded as a
   Not-checked item in this intent's review.
+
+### Round 1 rework (2026-11-06)
+
+Commits: `88a8eea`, `c970e37`, `d520189`, `be104cc` (plus this entry's commit). Owner's decisions: "/auto 61 1b 2a 3b".
+
+| Finding | Resolution |
+| --- | --- |
+| F1 (HIGH, option b) | `REVIEW-POLICY.md` Merging rule 1 and `checkPreconditions` now take `commits: [{hash, files, merge?}]` (was `changedFiles`) and `konmariText`. A post-review commit passes when it touches only that intent's `review.md`, `metadata.yml` or `konmari.md`, or its hash is listed in `konmari.md` (bullets under `## Tidied` and `## Reverted`, `konmariCommits()`) and it touches nothing else inside the intent's folder. A merge commit never passes. `ship.mjs` reads the commits (`commitsAfter`) and `konmari.md` from the branch tip. Pinned: a listed commit that also edits `plan.md` or `spec.md` fails. `/konmari` 5-6, `/auto` 5a and `sdlc.md` updated. |
+| F2 | Forbidden cases for data/ui/scenes/map-editor/`src/main.ts` importing the server, and `phaser/src/x` from the engine. The `E-noPhaser-drop-subpath` mutant was equivalent: the gitignore-style matcher makes `'phaser'` cover `phaser/src/x`, so the redundant `'phaser/**'` entry is removed (comment in `eslint.config.js`). |
+| F3 | `check-intent.test.mjs`: 7 end-to-end cases on a sandbox repo with a baseline on `main`: growth past the ceiling fails in branch and working-tree mode; the same growth with a raised ceiling and a `budget:` line passes; a raised ceiling without a line (and a line outside "Where this goes") fails; an over-budget adjustment routes (exit 2); no baseline on either side skips; a baseline created by the branch is still checked (rule 1); an untracked over-limit file fails in working-tree mode. |
+| F4 (a) | `konmari.md` has `outcome:` alone on its line and a separate `reason:` line when discarded, plus a `## Reverted` section; stated in the agent, its Codex toml and `/konmari` 6. `konmariLine` is unchanged; a test shows a `reason:` line (even one containing "outcome: kept") doesn't confuse it. |
+| F5 | Pass 10 now lists the judged half of principle 1 (no browser APIs in `src/engine`/`src/data`). |
+| F6 (b) | A catch-all block `src/**/*.ts` (noServer, noTooling) placed before the layer blocks, which replace it for their files and carry the same patterns; the `src/*.ts` block is gone. Cases: `src/newdir/x.ts` importing scripts, tools or server fails, importing engine passes. `docs/architecture.md` principle 4 says so. |
+| F7 | The dead `e2e/` exclusion in `size-budget-lib.mjs` is removed. |
+| F8 | `CLAUDE.md` Commands lists `npm run size:baseline`. |
+| F9 | The agent, its toml, `/konmari` 5 and `/auto` 5a say `konmari.md` is committed alone (`§<id>: konmari record`), apart from the tidy commits. |
+| F10 | `sdlc.md` step 5 sends attest/escalate to 5a, and 5a sits before the live-check paragraph. |
+
+Counts: `npm run verify` green, 69 test files, 1352 tests (was 1325; +10 architecture-rules, +9 ship-lib, +1 ship, +7 check-intent); lint 0 errors, 21 warnings, cap unchanged at 21. `npm run check:intent`: PASS. No `budget:` lines needed.
+
+Mutants (backup by copy, literal replace, diff non-empty, run the test file named, restore by copy, diff empty each time; the file-level run, not the full suite, since each target has one test file):
+- Killed by architecture-rules.test.mjs, the case named after it: E-data-drop-noServer ("src/data/x.ts importing ../../server/saveApi"), E-ui-drop-noServer, E-scenes-drop-noServer, E-mapeditor-drop-noServer (the same case per layer), E-srcroot-catchall-drop-noServer ("src/main.ts importing ../server/saveApi" and "src/newdir/x.ts ... server"), E-noPhaser-drop-pattern (35 cases), E-catchall-glob-rootonly ("src/newdir/x.ts ... scripts"), E-catchall-drop-noTooling (src/main.ts and src/newdir cases).
+- Killed by ship-lib.test.mjs: R-merge-accepted ("a merge commit is never accepted, even listed"), R-konmari-md-in-listed and R-listed-may-touch-intent ("a listed commit may not touch the intent folder besides konmari.md"), R-listed-any-hash ("an unlisted extra commit still fails" and 3 more), R-drop-reverted-section ("discarded: ... reverts ... pass"), R-own-files-drop-konmari ("kept: ..." and 2 more), L-konmariLine-unanchored ("a reason line below the outcome does not confuse it").
+- Killed by ship.test.mjs ("accepts the listed tidy commit and its own konmari.md commit, and refuses an unlisted one"): R-wiring-konmariText, R-wiring-merge-flag (survived the first run; the integration test now builds a listed side branch and a merge commit).
+- Killed by check-intent.test.mjs: C-planText ("passes the same growth when the ceiling is raised with a budget: line"), C-routes-dropped ("routes an over-budget adjustment"), C-errors-dropped (4 cases), C-skip-or ("checks a baseline the branch creates", added after it survived), C-untracked ("measures a budgeted file that is only untracked"), C-batch-branch-path (the branch-mode growth cases).
+- The 50 mutants the reviewer's run lost to the memory reaper (27 `S-*` on `size-budget-lib.mjs`, `K-*`, and the rest) were not re-run here; they are not part of this rework's findings.
