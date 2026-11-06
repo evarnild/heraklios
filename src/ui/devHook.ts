@@ -16,6 +16,8 @@ import { validateArmy } from '../engine/army';
 import { session } from './session';
 import type { LandCombatHighlight } from '../engine/ruleTables';
 import type { RulesTab } from './rulesPanel';
+import { GHOST_SHIP_ID } from './boardView';
+import { landscapeBuilds } from './landscape/paintLandscape';
 
 type Hex = { q: number; r: number };
 type Point = { x: number; y: number };
@@ -28,7 +30,19 @@ type Point = { x: number; y: number };
 const BUSY_FIELDS = ['aiRunning', 'decisionPending', 'retreatChoice', 'driftState'] as const;
 
 interface BoardInternals extends Phaser.Scene {
-  mapView: { toScreen(h: Hex): Point };
+  mapView: {
+    toScreen(h: Hex): Point;
+    viewKind: 'standard' | 'drawn';
+    drawnInspect(): { unitDrawings: number; ghostRotation: number | null; unitRotations: Record<string, number>; hudLeaks: number } | null;
+  };
+}
+
+export interface BoardObjects {
+  unitDrawings: number;
+  hudLeaks: number;
+  ghostRotation: number | null;
+  unitRotations: Record<string, number>;
+  ghosts: number;
 }
 
 export interface DevHook {
@@ -90,6 +104,23 @@ export interface DevHook {
    * (the markers re-stacking in `StandardBoardView.setUnits`). Read-only.
    */
   displayListSorted(): boolean;
+  /** Which board view the surface is showing (§64). */
+  boardView(): 'standard' | 'drawn';
+  /** The main camera's scroll (§64: a view toggle must not move it). */
+  cameraScroll(): Point;
+  /** The id of the Board's selected unit, or null (§64: a view toggle keeps the selection). */
+  selectedUnitId(): string | null;
+  /**
+   * The Drawn view's objects (read-only; §64): its unit figures, the staged
+   * ship's ghost rotation in radians (null if none), and the view's world
+   * objects the HUD camera would render (`hudLeaks`, must be 0). All zero/null
+   * in the Standard view. `ghosts` counts the ghost containers on the scene's
+   * display list (not the view's own reference), in either view; `unitRotations`
+   * is each unit figure's rotation by id.
+   */
+  boardObjects(): BoardObjects;
+  /** How many landscapes this page has baked (§64: pan and zoom must not bake). */
+  landscapeBuilds(): number;
   /** The Board's Tables panel: open or not, its tab, and the land table's highlight (§55). Read-only. */
   rulesPanel(): { open: boolean; tab: RulesTab | null; highlight: LandCombatHighlight | null };
 }
@@ -211,6 +242,11 @@ export function installDevHook(game: Phaser.Game): void {
     cameraZoom: () => board().cameras.main.zoom,
     displayListSorted: () => displayListSorted(mapScene()),
     rulesPanel: () => rulesPanelSnapshot(board()),
+    boardView: () => mapScene().mapView.viewKind,
+    cameraScroll: () => ({ x: mapScene().cameras.main.scrollX, y: mapScene().cameras.main.scrollY }),
+    selectedUnitId: () => selectedUnitId(board()),
+    boardObjects: () => boardObjects(mapScene()),
+    landscapeBuilds: () => landscapeBuilds(),
   };
   (window as unknown as { __heraklios: DevHook }).__heraklios = hook;
 }
@@ -222,6 +258,19 @@ function placementSnapshot(game: Phaser.Game): ReturnType<DevHook['placement']> 
     if (!(m in p)) throw new Error(`devHook: PlacementScene has no "${m}" any more — update PLACEMENT_MEMBERS`);
   }
   return { current: p.queue.find((q) => q.remaining > 0)?.typeId ?? null, legalHexes: p.currentLegalHexes() };
+}
+
+/** `BoardScene.selected` read by name, guarded like `BUSY_FIELDS`. */
+function selectedUnitId(scene: Phaser.Scene): string | null {
+  const b = scene as unknown as Record<string, unknown>;
+  if (!('selected' in b)) throw new Error('devHook: BoardScene has no "selected" field any more - update selectedUnitId');
+  return (b.selected as { id: string } | null)?.id ?? null;
+}
+
+function boardObjects(scene: BoardInternals): BoardObjects {
+  const ghosts = scene.children.list.filter((o) => o.name === GHOST_SHIP_ID).length;
+  const drawn = scene.mapView.drawnInspect() ?? { unitDrawings: 0, hudLeaks: 0, ghostRotation: null, unitRotations: {} };
+  return { ...drawn, ghosts };
 }
 
 function displayListSorted(scene: Phaser.Scene): boolean {

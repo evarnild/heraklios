@@ -252,3 +252,64 @@ Re-read on `main` at `5575baf` (after §65's merge, `209600f`).
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### Phase 1 (subtasks 1-9), 2026-11-05
+
+Commits: `bded7a9` (subtasks 1-2: remembered choice, drawing-state recorder, `MapView` swap), `850fab0` (3-4: pure landscape geometry and figure shapes), `e780628` (5-6: the Drawn view, the toggle, the dev-hook readers), `1d7e4b0` (7-8: figure gallery, `e2e/board-view.spec.ts`, visual tuning), and the closing commit (9: README, this entry, `status: in-review`).
+
+What shipped, as the plan lists it:
+- `ui/boardViewPreference.ts`, `ui/viewDrawingState.ts` and `MapView`'s `createView` / `setViewKind` / `viewKind`: every forwarder records first, a swap builds the new view, replays into it, destroys the old one and keeps it off the UI camera. A single `localStorage` key, `heraklios.boardView`.
+- `ui/landscape/` (pure: `geometry`, `regions`, `smoothing`, `rivers`, `variation`, `flanks`, `gridLines`; Phaser painters: `paintContext`, `paintTerrain`, `paintWater`, `paintLandscape`) and `ui/figures/figureShapes.ts` (pure).
+- `ui/drawnBoardView.ts` with `drawnUnits.ts` and `drawnOverlays.ts`; the landscape is baked once into a `RenderTexture` at scale 2 (1 when the GPU's `MAX_TEXTURE_SIZE` is too small).
+- `ui/viewToggle.ts` on the Board (right of Abandon) and in Placement (above Undo); i18n keys `common.switchToDrawn` / `switchToStandard` and `menu.figureGallery`; dev hook `boardView()`, `cameraScroll()`, `selectedUnitId()`, `landscapeBuilds()`.
+- Dev-only Menu button "Figure gallery (dev)" and `startFigureGalleryGame()` (`session.testScenario` gains `'gallery'`).
+- README: a "The Standard view and the Drawn view" section, and the `src/ui/` line of the project structure.
+
+Numbers: `npm run verify` green: 77 test files, 1277 tests (before: 69 files, 1236 tests; +8 files, +41 tests); lint 21 warnings (cap 21, unchanged). `npm run e2e`: 19 passed (18 existing, unchanged, plus `board-view.spec.ts`). Bundle (`vite build`): `main-*.js` 1,387.33 kB, gzip 372.58 kB. The plan's "before" figure (1,660.04 kB, gzip 390.16 kB) is not what `vite build` gives at `5575baf` here: a clean build of that commit gave 1,366.81 kB, gzip 366.18 kB, so the change adds 20.52 kB (gzip 6.40 kB).
+
+Divergences from the plan:
+- `regionLoops` takes the member hexes (`regionLoops(members: HexCoord[])`) instead of an `isMember` predicate: the caller filters, and off-map still counts as non-member.
+- `flanks.test.ts`: the plan's "every `steep-flank` hex on the real map has at least one side" is false on the real map (a flank at `30,-2` is walled in by plateau and flank). The test says "most flanks", and pins that hex to `[]`.
+- `regions.test.ts` gains one test the plan did not list: every loop of the sea, marsh and high-ground regions winds the same way, which is what lets the painters fill each loop on its own (there is no hole on this map).
+- `smoothing.ts` also has `smoothPolyline` (open-ended Chaikin, ends fixed), which the river painter needs.
+- The Drawn view's units are rebuilt (container destroyed and made again) whenever one is updated, so `queueDepthSort()` is redundant there (adding a child already queues a sort). It is kept as the plan says, but a mutant that drops it is not killed by `board-view.spec.ts` or `draw-order`, because nothing in the Drawn view can leave the list unsorted that way today.
+- The galley's oars are drawn in the pale tone and the bay tints are bright water hues (the print's brown and purple read as ground); both from looking at screenshots, not in the plan.
+- The e2e checks everything in the state except `elapsedMs` (the play clock runs on its own), and waits two frames before `displayListSorted()` (the sort happens on the next render).
+
+For the live check, look at:
+- Badge text: 11 px, with the counter's numbers; in a crowded position (combat test mode) the badges of neighbouring figures overlap. Say if it needs a smaller font or a different place.
+- Softness of the baked landscape at zoom 2.5 (scale 2 bake).
+- The four bay tints (the gold one, Pointe d'Eole, reads grey-green over deep water), and the galley figures with 1, 2, 3 and 5 oar banks at default zoom.
+- Placement's toggle at `(20, height - 136)` above Undo, and the Board's right of Abandon (it sits close to Tables on the row above).
+- A toggle during a prompt, a retreat or a computer turn; drift arrow, range and choice labels in the Drawn view.
+- The play against an unusually small `MAX_TEXTURE_SIZE` was not exercised (the 1x fallback is untested in a browser).
+
+### Round 1 rework, 2026-11-06
+
+Commits: `9609d79` (code, tests, README) and the closing commit (this entry).
+
+Owner's decision on the HIGH finding: option (b), "/auto 64 b". The galley's orientation stays the facing in the Drawn view (no arrowheads).
+
+Resolutions:
+- **HIGH (Placement facing).** `PlacementScene.drawPlacedUnits` passes `facing` for ships, so placed galleys are drawn at their real facing in both views (Standard ignores it, unchanged). The staged ship rides on `setFacingIndicators`: `shipArrowList` marks the pending entry with `ghostTypeId` (new `FacingShip` type and pure `ghostDrawing` in `boardView.ts`, provisional id `ghost-ship`). The Drawn view draws it as a 50% alpha figure outside its unit map (`DrawnUnits.setGhost`), rebuilt on every call so it follows Turn and goes when the facings are cleared on confirm or cancel. Standard still draws its arrow. The recorder replays the entry, so a toggle mid-staging keeps the ghost. README section updated for Placement.
+- **MEDIUM (X1, X2).** New dev-hook reader `boardObjects()` returns `{ unitDrawings, hudLeaks, ghostRotation }` (zeros and null in Standard), from `MapView.drawnInspect()`. `board-view.spec.ts` asserts `unitDrawings` equals the living units and `hudLeaks` is 0 after each toggle to Drawn with a unit selected. The new Placement scenario checks the ghost exists, one Turn changes its rotation by pi/3, and it is gone after Confirm.
+- **LOW (Progress counts).** The Phase 1 line "before: 69 files, 1236 tests; +8 files, +41 tests" is wrong. `main` had 67 test files and 1223 tests; Phase 1 ended at 77 files, 1277 tests (+10 files, +54 tests).
+- **LOW (dead 1x fallback).** Kept the branch, fixed the comment on `maxTextureSide`: the game runs `Phaser.CANVAS`, so it returns 4096 and the bake is 2x today.
+- **LOW (stale install in main checkout):** not mine to act on; noted only.
+
+Numbers: `npm run verify` green: 77 test files, 1279 tests (+2: `ghostDrawing`), lint 21 warnings (cap 21, unchanged). `npm run e2e`: 20 passed (19 + the Placement scenario).
+
+Mutants, each applied to `src/ui/MapView.ts` by copy and restored by copy, one-line deletion confirmed by `git diff --stat`:
+- X1 (`this.drawing.replay(next);` deleted): killed, `board-view.spec.ts` "the view toggle keeps state, camera and selection..." (unitDrawings 0).
+- X2 (`this.uiCamera?.ignore(next.mapObjects());` deleted): killed by the same test (hudLeaks > 0) and by the Placement ghost scenario.
+
+Divergence: none from the plan above the Progress marker. `boardObjects()` also carries `ghostRotation`, which the finding did not list.
+
+### 2026-11-06, round 2 rework (no spec or plan change)
+- Commit: see `git log` (the "round 2 rework" commit and this Progress entry).
+- `DrawnUnits.make` names each container by its unit id (the ghost is `GHOST_SHIP_ID`); `inspect()` adds `unitRotations`. The dev hook's `boardObjects()` now also returns `ghosts`, counted from the scene's display list (`children.list` by name), so it works in both views and does not read a view's own reference. Standard reports 0.
+- MEDIUM 1 (S2, S3): after "Confirm facing", `board-view.spec.ts` asserts the new ship's figure rotation equals the ghost's `r1` and a land unit's is 0.
+- MEDIUM 2 (U1, U4, RG): the Placement scenario asserts 1 ghost after a Turn, 0 after toggling to Standard with the ship staged, 1 at rotation `r1` after toggling back to Drawn, 0 after Confirm.
+- LOW 3: the round-1 claim "a toggle mid-staging keeps the ghost" is now proven by the toggle steps above (RG is killed).
+- Mutants (copy backup, one-line change, non-empty diff, restore by copy, empty diff). All killed by `e2e/board-view.spec.ts:103` (the Placement scenario): S2, S3, U1, U4, RG (RG survives vitest, 1279 tests, and is killed only by e2e). X1 and X2 stay killed (`board-view.spec.ts:41` and `:103`).
+- Counts: e2e 20 passed; verify and lint counts are in the final report (lint 21 of 21, cap untouched). Divergence: none.

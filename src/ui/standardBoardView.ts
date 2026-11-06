@@ -5,7 +5,7 @@ import { HEX_SIZE, TERRAIN_COLORS, RIVER_COLOR, markerTextureKey, PLAYER_COLORS_
 import { allHexes } from './mapBounds';
 import { drawFacingArrowhead, hexPolygonPointsAt, toVec } from './hexDraw';
 import { reconcileUnits } from './boardView';
-import type { BoardView, UnitDrawing, ViewHost } from './boardView';
+import type { BoardView, FacingShip, UnitDrawing, ViewHost } from './boardView';
 
 type Marker = Phaser.GameObjects.Image | Phaser.GameObjects.Text;
 
@@ -239,7 +239,7 @@ export class StandardBoardView implements BoardView {
    * place. Redraws the whole set each call (paired with `renderAllUnits`),
    * same pattern as `highlightHexGroups`.
    */
-  setFacingIndicators(ships: readonly { hex: HexCoord; facing: number; playerIndex: number }[]): void {
+  setFacingIndicators(ships: readonly FacingShip[]): void {
     this.facingGraphics.clear();
     for (const { hex, facing, playerIndex } of ships) {
       const center = this.host.toScreen(hex);

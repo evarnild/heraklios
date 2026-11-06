@@ -15,6 +15,8 @@ import { getUnitType } from '../data/units';
 import { canEnterTerrain } from '../data/terrain';
 import { MAP_TERRAIN, hexKey } from '../data/map';
 import type { HexCoord } from '../data/map';
+import { createViewToggle } from '../ui/viewToggle';
+import type { FacingShip } from '../ui/boardView';
 
 interface QueueItem {
   typeId: string;
@@ -270,8 +272,11 @@ export class PlacementScene extends Phaser.Scene {
       if (event.ctrlKey || event.metaKey) this.redo();
     });
 
+    const viewToggle = createViewToggle(this, 20, height - 136, this.mapView);
+
     this.mapView.pinUIObjects([
       titleText,
+      viewToggle,
       this.infoText,
       this.skipBtn,
       this.abandonBtn,
@@ -320,7 +325,16 @@ export class PlacementScene extends Phaser.Scene {
    * private) from state. */
   private drawPlacedUnits(): void {
     const mine = session.gameState!.units.filter((u) => u.owner === this.playerIndex);
-    this.mapView.setUnits(mine.map((u) => ({ id: u.id, typeId: u.typeId, owner: u.owner, position: u.position })));
+    // A ship carries its facing so the Drawn view turns the galley; the Standard view ignores it.
+    this.mapView.setUnits(
+      mine.map((u) => ({
+        id: u.id,
+        typeId: u.typeId,
+        owner: u.owner,
+        position: u.position,
+        facing: getUnitType(u.typeId).domain === 'naval' ? u.facing : undefined,
+      })),
+    );
   }
 
   /** Rebuilds the marker/arrow overlay from state after a restore. Only this
@@ -462,9 +476,12 @@ export class PlacementScene extends Phaser.Scene {
   /** Combines already-placed ships with the current pending preview (if any)
    * for a single `setFacingIndicators` call — same array shape BoardScene
    * uses for the Movement phase's facing arrows. */
-  private shipArrowList(): { hex: HexCoord; facing: number; playerIndex: number }[] {
-    const list = this.placedShips.map((s) => ({ ...s, playerIndex: this.playerIndex }));
-    if (this.pendingShip) list.push({ ...this.pendingShip, playerIndex: this.playerIndex });
+  private shipArrowList(): FacingShip[] {
+    const list: FacingShip[] = this.placedShips.map((s) => ({ ...s, playerIndex: this.playerIndex }));
+    if (this.pendingShip) {
+      const { hex, facing, typeId } = this.pendingShip;
+      list.push({ hex, facing, playerIndex: this.playerIndex, ghostTypeId: typeId });
+    }
     return list;
   }
 

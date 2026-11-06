@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { reconcileUnits, type UnitDrawing } from './boardView';
+import { GHOST_SHIP_ID, ghostDrawing, reconcileUnits, type UnitDrawing } from './boardView';
 
 const u = (id: string, q: number, r: number, typeId = 'hoplite', owner = 0, facing?: number): UnitDrawing => ({
   id,
@@ -61,5 +61,22 @@ describe('reconcileUnits', () => {
     expect([...x.update].sort(sortId)).toEqual([...y.update].sort(sortId));
     expect([...x.add].sort((p, q) => p.id.localeCompare(q.id))).toEqual([...y.add].sort((p, q) => p.id.localeCompare(q.id)));
     expect([...x.remove].sort()).toEqual([...y.remove].sort());
+  });
+});
+
+describe('ghostDrawing', () => {
+  const ship = { hex: { q: 1, r: 2 }, facing: 3, playerIndex: 1 };
+  it('is null when no ship is staged', () => {
+    expect(ghostDrawing([ship])).toBeNull();
+    expect(ghostDrawing([])).toBeNull();
+  });
+  it('draws the staged ship with a provisional id at its pending facing', () => {
+    expect(ghostDrawing([ship, { ...ship, hex: { q: 4, r: 4 }, facing: 5, ghostTypeId: 'galeres' }])).toEqual({
+      id: GHOST_SHIP_ID,
+      typeId: 'galeres',
+      owner: 1,
+      position: { q: 4, r: 4 },
+      facing: 5,
+    });
   });
 });

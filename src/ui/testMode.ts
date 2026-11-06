@@ -1,10 +1,12 @@
 import { session } from './session';
 import { countryNames } from './i18n/names';
-import { deploymentBand, seaZoneNear } from './mapBounds';
+import { deploymentBand, navalDeploymentBand, seaZoneNear } from './mapBounds';
 import { createInitialState } from '../engine/turnManager';
 import { emptySelection } from '../engine/army';
-import { maxEquipmentPointsForType, type Unit, type Player, type PlayerId } from '../engine/state';
+import { maxEquipmentPointsForType, unitCategory, type Unit, type Player, type PlayerId } from '../engine/state';
 import { UNIT_TYPES, getUnitType } from '../data/units';
+import { MAP_TERRAIN } from '../data/map';
+import { canEnterTerrain } from '../data/terrain';
 import type { HexCoord } from '../data/map';
 
 const LAND_TEST_UNITS = ['fantassins', 'archers', 'cavalerie-legere'];
@@ -158,5 +160,56 @@ export function startCloseCombatTestGame(): void {
     state.units.push(makeUnit(1 as PlayerId, typeId, { q: navalBaseQ + i, r: 9 }, 2));
   });
 
+  session.gameState = state;
+}
+
+/**
+ * Developer shortcut for the Drawn view's figures (§64 AC6): a 4-player game,
+ * players on the edges N, E, S and W, each with one of every land type on
+ * the first free hexes of its deployment band that the type may enter, and one
+ * of every ship type in its bay. Every (type, owner) pair is on the board
+ * once, so each figure and each owner's base can be compared side by side.
+ */
+export function startFigureGalleryGame(): void {
+  unitCounter = 0;
+  session.playerCount = 4;
+  session.testMode = true;
+  session.testScenario = 'gallery';
+  session.edges = ['N', 'E', 'S', 'W'];
+  session.armySelections = Array.from({ length: 4 }, () => emptySelection());
+  session.playerNames = countryNames();
+
+  const players: Player[] = session.edges.map((edge, i) => ({
+    id: i as PlayerId,
+    name: session.playerNames[i]!,
+    edge,
+    purchasePoints: 400,
+    eliminated: false,
+  }));
+  const state = createInitialState(
+    players,
+    session.combatMode,
+    session.randomizedTurnOrder,
+    session.clockLimitMs,
+    session.roundLimit,
+    session.allowSwaps,
+  );
+
+  const taken = new Set<string>();
+  const place = (owner: PlayerId, typeId: string, band: HexCoord[]): void => {
+    const category = unitCategory(typeId);
+    const hex = band.find(
+      (h) =>
+        !taken.has(`${h.q},${h.r}`) &&
+        canEnterTerrain(MAP_TERRAIN.get(`${h.q},${h.r}`)!, category, typeId === 'galeres'),
+    );
+    if (!hex) throw new Error(`gallery: no free hex for ${typeId}`);
+    taken.add(`${hex.q},${hex.r}`);
+    state.units.push(makeUnit(owner, typeId, hex));
+  };
+  for (const player of players) {
+    for (const t of UNIT_TYPES.filter((u) => u.domain === 'land')) place(player.id, t.id, deploymentBand(player.edge));
+    for (const t of UNIT_TYPES.filter((u) => u.domain === 'naval')) place(player.id, t.id, navalDeploymentBand(player.edge));
+  }
   session.gameState = state;
 }

@@ -2,16 +2,16 @@
 id: 64
 slug: vector-view
 type: feature
-status: accepted
+status: in-review
 title: A second board view, a drawn 2D landscape with animated units
 review_tier:
 intent_accepted: 2026-11-05 by-agent    # owner: "accept 64 and /auto 64"
 spec_accepted: 2026-11-05 by-agent    # owner: "accept 64 and 66 spec"
 plan_approved: 2026-11-05 by-agent    # auto: owner "/auto 64" (auto_authorized 2026-11-05)
-live_checked:
+live_checked: 2026-11-06 by-agent    # owner: "all passed, record live_checked"
 merged:
-auto_authorized: 2026-11-05 by-agent    # owner: "live checked /ship 65 and then /auto 64"
-auto_round:
-auto_stopped:
+auto_authorized: 2026-11-06 by-agent    # owner: "/auto 64" (after live_checked was recorded)
+auto_round: 3
+auto_stopped: ready for /ship
 follows_up:
 links:

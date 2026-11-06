@@ -45,6 +45,8 @@ export const fr: Messages = {
 
   common: {
     abandon: 'Abandonner',
+    switchToDrawn: '🗺 Vue dessinée',
+    switchToStandard: '🗺 Vue standard',
     undo: '↶ Annuler',
     redo: '↷ Rétablir',
     undoWith: (label) => `↶ Annuler : ${label}`,
@@ -86,6 +88,7 @@ export const fr: Messages = {
     seatLabel: (name, control) => `${name} : ${control}`,
     testMode: 'Mode test (2 joueurs, armées prêtes)',
     combatTestMode: 'Mode test de combat (unités face à face, à 2 hexagones)',
+    figureGallery: 'Galerie des figurines (dev)',
     loadGame: 'Charger une partie',
   },
 

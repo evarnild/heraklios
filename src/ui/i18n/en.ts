@@ -53,6 +53,8 @@ export const en = {
 
   common: {
     abandon: 'Abandon',
+    switchToDrawn: '🗺 Drawn view',
+    switchToStandard: '🗺 Standard view',
     undo: '↶ Undo',
     redo: '↷ Redo',
     undoWith: (label: string) => `↶ Undo: ${label}`,
@@ -100,6 +102,7 @@ export const en = {
     seatLabel: (name: string, control: string) => `${name}: ${control}`,
     testMode: 'Test mode (2 players, armies ready)',
     combatTestMode: 'Combat test mode (units face to face, 2 hexes)',
+    figureGallery: 'Figure gallery (dev)',
     loadGame: 'Load a game',
   },
 

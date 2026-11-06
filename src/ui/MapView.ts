@@ -5,7 +5,11 @@ import { allHexes } from './mapBounds';
 import { formatHexTooltip } from './hexTooltip';
 import { hexAtPoint } from './hexHitTest';
 import { StandardBoardView } from './standardBoardView';
-import type { BoardView, UnitDrawing } from './boardView';
+import { DrawnBoardView } from './drawnBoardView';
+import type { BoardView, FacingShip, UnitDrawing, ViewHost } from './boardView';
+import { boardViewKind } from './boardViewPreference';
+import type { BoardViewKind } from './boardViewPreference';
+import { ViewDrawingState } from './viewDrawingState';
 
 export { drawFacingArrowhead } from './hexDraw';
 
@@ -23,6 +27,9 @@ export class MapView {
   private viewportWidth: number;
   private viewportHeight: number;
   private boardView: BoardView;
+  private kind: BoardViewKind;
+  /** The last call of each drawing setter, replayed into a new view on a toggle (B2). */
+  private drawing = new ViewDrawingState();
   private hitZone: Phaser.GameObjects.Zone;
   /** The hex the pointer is over, so hover fires only when it changes. */
   private hoveredKey: string | null = null;
@@ -88,11 +95,8 @@ export class MapView {
     this.originX = leftPanelWidth - minX + Math.max(margin, (availableWidth - boardWidth) / 2);
     this.originY = -minY + Math.max(margin, (viewportHeight - boardHeight) / 2);
 
-    this.boardView = new StandardBoardView({
-      scene,
-      toScreen: (hex) => this.toScreen(hex),
-      ignoreOnUiCamera: (objects) => this.uiCamera?.ignore(objects),
-    });
+    this.kind = boardViewKind();
+    this.boardView = this.createView(this.kind);
 
     // One interactive Zone over the board (depth 0, under every HUD object,
     // exactly where the per-hex polygons used to sit) replaces the per-hex
@@ -131,6 +135,48 @@ export class MapView {
     // (e.g. snapping to the padding edge) rather than flush against the
     // panel, so start the camera explicitly at the board's own top-left.
     mainCam.setScroll(leftPanelWidth, 0);
+  }
+
+  private viewHost(): ViewHost {
+    return {
+      scene: this.scene,
+      toScreen: (hex) => this.toScreen(hex),
+      ignoreOnUiCamera: (objects) => this.uiCamera?.ignore(objects),
+    };
+  }
+
+  private createView(kind: BoardViewKind): BoardView {
+    return kind === 'drawn' ? new DrawnBoardView(this.viewHost()) : new StandardBoardView(this.viewHost());
+  }
+
+  /** The current view kind. */
+  get viewKind(): BoardViewKind {
+    return this.kind;
+  }
+
+  /** Swaps the drawing view in place: the camera, hit zone and tooltip stay,
+   * and the new view is brought to what the old one showed (B2). */
+  setViewKind(kind: BoardViewKind): void {
+    if (kind === this.kind) return;
+    const next = this.createView(kind);
+    this.drawing.replay(next);
+    this.boardView.destroy();
+    this.boardView = next;
+    this.kind = kind;
+    // A view made after pinUIObjects must be kept off the fixed HUD camera.
+    this.uiCamera?.ignore(next.mapObjects());
+  }
+
+  /**
+   * Dev-hook reader (read-only): the Drawn view's unit figures, the staged
+   * ship's ghost rotation, and how many of the view's world objects the HUD
+   * camera would render (must be 0). Null in the Standard view.
+   */
+  drawnInspect(): { unitDrawings: number; ghostRotation: number | null; unitRotations: Record<string, number>; hudLeaks: number } | null {
+    if (!(this.boardView instanceof DrawnBoardView)) return null;
+    const ui = this.uiCamera;
+    const hudLeaks = ui ? this.boardView.mapObjects().filter((o) => (o.cameraFilter & ui.id) === 0).length : 0;
+    return { ...this.boardView.inspect(), hudLeaks };
   }
 
   /** The map hex under a pointer, through the main camera's current scroll and zoom. */
@@ -235,62 +281,77 @@ export class MapView {
   }
 
   setUnits(units: readonly UnitDrawing[]): void {
+    this.drawing.setUnits(units);
     this.boardView.setUnits(units);
   }
 
   highlightHexes(hexes: HexCoord[], color: number, alpha = 0.45): void {
+    this.drawing.highlightHexes(hexes, color, alpha);
     this.boardView.highlightHexes(hexes, color, alpha);
   }
 
   highlightHexGroups(groups: { hexes: HexCoord[]; color: number; alpha?: number }[]): void {
+    this.drawing.highlightHexGroups(groups);
     this.boardView.highlightHexGroups(groups);
   }
 
   highlightRings(hexes: HexCoord[], color: number): void {
+    this.drawing.highlightRings(hexes, color);
     this.boardView.highlightRings(hexes, color);
   }
 
   clearHighlights(): void {
+    this.drawing.clearHighlights();
     this.boardView.clearHighlights();
   }
 
   showMovementPoints(hex: HexCoord, value: number): void {
+    this.drawing.showMovementPoints(hex, value);
     this.boardView.showMovementPoints(hex, value);
   }
 
   hideMovementPoints(): void {
+    this.drawing.hideMovementPoints();
     this.boardView.hideMovementPoints();
   }
 
-  setFacingIndicators(ships: readonly { hex: HexCoord; facing: number; playerIndex: number }[]): void {
+  setFacingIndicators(ships: readonly FacingShip[]): void {
+    this.drawing.setFacingIndicators(ships);
     this.boardView.setFacingIndicators(ships);
   }
 
   clearFacingIndicators(): void {
+    this.drawing.clearFacingIndicators();
     this.boardView.clearFacingIndicators();
   }
 
   setDriftArrow(hex: HexCoord, facing: number, colorHex: string): void {
+    this.drawing.setDriftArrow(hex, facing, colorHex);
     this.boardView.setDriftArrow(hex, facing, colorHex);
   }
 
   clearDriftArrow(): void {
+    this.drawing.clearDriftArrow();
     this.boardView.clearDriftArrow();
   }
 
   setChoiceLabels(labels: readonly { hex: HexCoord; text: string }[]): void {
+    this.drawing.setChoiceLabels(labels);
     this.boardView.setChoiceLabels(labels);
   }
 
   clearChoiceLabels(): void {
+    this.drawing.clearChoiceLabels();
     this.boardView.clearChoiceLabels();
   }
 
   setRangeLabels(labels: readonly { hex: HexCoord; value: number }[]): void {
+    this.drawing.setRangeLabels(labels);
     this.boardView.setRangeLabels(labels);
   }
 
   clearRangeLabels(): void {
+    this.drawing.clearRangeLabels();
     this.boardView.clearRangeLabels();
   }
 

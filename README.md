@@ -515,6 +515,49 @@ opens on a game or a save is loaded. It doesn't happen between the
 movement and combat phases or on undo/redo, and dragging and zooming stay
 yours.
 
+### The Standard view and the Drawn view
+
+The Board and Placement can show the map two ways, and a button at the
+bottom left switches between them at any moment (on the Board it sits right
+of **Abandon**; in Placement, above **Undo**). Its label names the view it
+switches to (**Drawn view** / **Standard view**, **Vue dessinée** / **Vue
+standard**).
+
+- **Standard** is the print look and the default: terrain-coloured hexes and
+  the physical counter images.
+- **Drawn** paints the map as one landscape, all of it derived from the map's
+  terrain and river data: a smoothed coastline with shallow water and a pale
+  shore on the `coast` hexes; the four named bays as water inlets, each with
+  a tint of its own; rivers that meander along their hexsides and wide
+  rivers as broad water; plateaux with relief and hatched slopes on the sides
+  their flanks face; marsh with pools and reeds; grass with light variation
+  that is the same in every game; and a thin hex grid over it all. The
+  landscape is painted once into a texture, so panning and zooming cost no
+  more than in the Standard view. Each unit is a vector figure (infantry,
+  phalanx, bow, rider, chariot, elephant, and a galley with 1, 2, 3 or 5
+  rows of oars) on a base in its owner's colour, with a different base shape
+  per player (round, square, diamond, shield) so the players differ by more
+  than hue, and a small badge with the counter's numbers
+  (`attack (ranged) range / defence movement`). A ship's facing is the
+  galley itself pointing that way, so the Drawn view draws no separate
+  facing arrowhead; the elephant's drift arrow stays an arrow. In Placement
+  the same holds: placed galleys point their chosen way, and the ship you
+  have staged but not yet confirmed is drawn as a translucent galley that
+  turns with the Turn buttons and goes when you confirm or cancel.
+
+Switching changes only the look. The camera's scroll and zoom, the
+selection, every highlight, label and prompt on screen, the history and the
+computer's turn are untouched, and a switch is allowed at any time. The
+choice is remembered in the browser (`heraklios.boardView`, like the
+language) and is not part of a save, so loading a game keeps the view you
+chose; with nothing remembered, or storage unavailable, the view is
+Standard. Clicks, hover and the tooltip behave the same in both views: the
+hex under the cursor is the one the board's own geometry says it is.
+
+In a dev server only, the Menu has a **Figure gallery (dev)** button next to
+the combat test mode: four players, each with all 14 unit types, to compare
+the figures and bases side by side.
+
 ### Ending the game
 
 The rulebook lets the table agree on time and turn limits for the whole
@@ -838,7 +881,10 @@ terminal (the real `claude` command line in the page) is not built yet.
 - `src/scenes/` — the Phaser UI: menu, army builder, placement, board,
   game-over.
 - `src/ui/` — shared rendering helpers (hex grid rendering/camera, session
-  state shared across scenes).
+  state shared across scenes). The board is drawn through one `BoardView`
+  interface with two implementations: `standardBoardView.ts` and the Drawn
+  view (`drawnBoardView.ts`, with its pure geometry in `landscape/` and its
+  pure figure shapes in `figures/`).
 - `tools/map-extract/` — one-off scripts used to derive `map.ts` from the
   scanned board image (not run at build time; the source scan itself isn't
   included since it's copyrighted magazine content).
