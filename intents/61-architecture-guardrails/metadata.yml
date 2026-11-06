@@ -7,7 +7,7 @@ title: The SDLC keeps the architecture good with written principles, import rule
 review_tier:
 intent_accepted: 2026-11-06 by-agent    # owner: "Yes" (to accepting the merged §61)
 spec_accepted: 2026-11-06 by-agent    # owner: "yes to 61 spec"
-plan_approved:
+plan_approved: 2026-11-06 by-agent    # auto: owner "/auto 61" (auto_authorized 2026-11-06)
 live_checked:
 merged:
 auto_authorized: 2026-11-06 by-agent    # owner: "/auto 61"
