@@ -1,9 +1,9 @@
 import type { HexCoord } from '../data/map';
-import type { BoardView, UnitDrawing } from './boardView';
+import type { BoardView, FacingShip, UnitDrawing } from './boardView';
 
 type Group = { hexes: HexCoord[]; color: number; alpha?: number };
 type Ring = { hexes: HexCoord[]; color: number };
-type Ship = { hex: HexCoord; facing: number; playerIndex: number };
+type Ship = FacingShip;
 type ChoiceLabel = { hex: HexCoord; text: string };
 type RangeLabel = { hex: HexCoord; value: number };
 

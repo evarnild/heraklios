@@ -3,7 +3,8 @@
 // stay, a move made in the Drawn view lands on the clicked hex, pan and zoom
 // never re-bake the landscape, and the choice survives a reload.
 import { expect, test, type Page } from '@playwright/test';
-import { MENU_TEST, activeUnitOfType, clickButton, clickHex, key, reachable, startFromMenu, state, unit, waitIdle } from './helpers';
+import { getUnitType } from '../src/data/units';
+import { MENU_TEST, activeUnitOfType, clickButton, clickHex, collectErrors, key, reachable, startFromMenu, state, unit, waitIdle } from './helpers';
 
 const DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]] as const;
 const DRAWN = '🗺 Drawn view';
@@ -29,6 +30,14 @@ async function toggle(page: Page, label: string, kind: 'standard' | 'drawn') {
   await frames(page);
 }
 
+/** The Drawn view draws one figure per living unit and leaves none to the HUD camera. */
+async function expectDrawnObjects(page: Page, label: string) {
+  const living = (await state(page)).units.filter((u) => !u.destroyed).length;
+  const objects = await page.evaluate(() => window.__heraklios.boardObjects());
+  expect(objects.unitDrawings, `${label}: a figure per living unit`).toBe(living);
+  expect(objects.hudLeaks, `${label}: no world object on the HUD camera`).toBe(0);
+}
+
 test('the view toggle keeps state, camera and selection, and a move works in the Drawn view', async ({ page }) => {
   const errors = await startFromMenu(page, MENU_TEST, 'test', 1);
   expect(await page.evaluate(() => window.__heraklios.boardView())).toBe('standard');
@@ -45,6 +54,7 @@ test('the view toggle keeps state, camera and selection, and a move works in the
 
   await toggle(page, DRAWN, 'drawn');
   expect(await snapshot(page)).toEqual(before);
+  await expectDrawnObjects(page, 'after the first toggle, unit selected');
   expect(await page.evaluate(() => window.__heraklios.displayListSorted()), 'depth-sorted in the Drawn view').toBe(true);
   const builds = await page.evaluate(() => window.__heraklios.landscapeBuilds());
   expect(builds).toBeGreaterThanOrEqual(1);
@@ -78,11 +88,62 @@ test('the view toggle keeps state, camera and selection, and a move works in the
 
   // The choice is remembered: Drawn again, reload, start again.
   await toggle(page, DRAWN, 'drawn');
+  await expectDrawnObjects(page, 'after the second toggle');
   await page.reload();
   await page.waitForFunction((l) => window.__heraklios?.buttonCount(l) === 1, MENU_TEST);
   await clickButton(page, MENU_TEST);
   await page.waitForFunction(() => window.__heraklios.scenes().includes('Board'));
   await waitIdle(page);
   expect(await page.evaluate(() => window.__heraklios.boardView())).toBe('drawn');
+  expect(errors).toEqual([]);
+});
+
+// Placement in the Drawn view: a staged ship is not a unit, so it is drawn as
+// a ghost figure that follows the Turn buttons and goes when it is confirmed.
+test('in Placement the Drawn view shows the staged ship as a ghost that follows Turn', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.addInitScript(() => localStorage.setItem('heraklios.language', 'en'));
+  await page.goto('/');
+  await page.waitForFunction(() => window.__heraklios?.buttonCount('2') === 1);
+  await clickButton(page, '2');
+  for (let seat = 0; seat < 2; seat++) {
+    await page.waitForFunction(() => window.__heraklios.buttonCount('Use default army') === 1);
+    await clickButton(page, 'Use default army');
+    await clickButton(page, 'Confirm army');
+  }
+  await page.waitForFunction(() => window.__heraklios.scenes().includes('Placement'));
+  await page.waitForFunction(() => window.__heraklios.state() !== null);
+  await toggle(page, DRAWN, 'drawn');
+
+  const ghost = () => page.evaluate(() => window.__heraklios.boardObjects().ghostRotation);
+  const placedCount = async () => (await state(page)).units.length;
+  for (let guard = 0; guard < 200; guard++) {
+    const { current } = await page.evaluate(() => window.__heraklios.placement());
+    if (!current || getUnitType(current).domain === 'naval') break;
+    const before = await placedCount();
+    const { legalHexes } = await page.evaluate(() => window.__heraklios.placement());
+    const taken = new Set((await state(page)).units.map((u) => key(u.position)));
+    await clickHex(page, legalHexes.find((h) => !taken.has(key(h)))!);
+    await page.waitForFunction((n) => (window.__heraklios.state() as { units: unknown[] }).units.length === n + 1, before);
+  }
+  await expectDrawnObjects(page, 'land units placed');
+  expect(await ghost(), 'no ghost before a ship is staged').toBeNull();
+
+  const { legalHexes } = await page.evaluate(() => window.__heraklios.placement());
+  const taken = new Set((await state(page)).units.map((u) => key(u.position)));
+  await clickHex(page, legalHexes.find((h) => !taken.has(key(h)))!);
+  await page.waitForFunction(() => window.__heraklios.boardObjects().ghostRotation !== null);
+  const r0 = (await ghost())!;
+  await clickButton(page, 'Turn', 0);
+  await page.waitForFunction((r) => window.__heraklios.boardObjects().ghostRotation !== r, r0);
+  const r1 = (await ghost())!;
+  expect(Math.abs(r1 - r0), 'one Turn is one facing (60 degrees)').toBeCloseTo(Math.PI / 3, 5);
+  expect((await page.evaluate(() => window.__heraklios.boardObjects())).hudLeaks).toBe(0);
+
+  const before = await placedCount();
+  await clickButton(page, 'Confirm facing');
+  await page.waitForFunction((n) => (window.__heraklios.state() as { units: unknown[] }).units.length === n + 1, before);
+  await page.waitForFunction(() => window.__heraklios.boardObjects().ghostRotation === null);
+  await expectDrawnObjects(page, 'ship confirmed');
   expect(errors).toEqual([]);
 });

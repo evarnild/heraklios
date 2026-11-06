@@ -28,7 +28,12 @@ export function landscapeBounds(): { minX: number; minY: number; width: number; 
   return { minX, minY, width: maxX - minX, height: maxY - minY };
 }
 
-/** The GPU's largest texture side, or 4096 when it can't be asked (canvas renderer). */
+/**
+ * The GPU's largest texture side, or 4096 when it can't be asked. The game
+ * runs `Phaser.CANVAS` (main.ts), which has no GL context, so today this is
+ * always 4096 and the bake is 2x; the GL branch only matters if the renderer
+ * ever changes.
+ */
 function maxTextureSide(scene: Phaser.Scene): number {
   const gl = (scene.game.renderer as Phaser.Renderer.WebGL.WebGLRenderer).gl;
   const size = gl ? (gl.getParameter(gl.MAX_TEXTURE_SIZE) as number) : 4096;

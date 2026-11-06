@@ -29,7 +29,11 @@ type Point = { x: number; y: number };
 const BUSY_FIELDS = ['aiRunning', 'decisionPending', 'retreatChoice', 'driftState'] as const;
 
 interface BoardInternals extends Phaser.Scene {
-  mapView: { toScreen(h: Hex): Point; viewKind: 'standard' | 'drawn' };
+  mapView: {
+    toScreen(h: Hex): Point;
+    viewKind: 'standard' | 'drawn';
+    drawnInspect(): { unitDrawings: number; ghostRotation: number | null; hudLeaks: number } | null;
+  };
 }
 
 export interface DevHook {
@@ -97,6 +101,13 @@ export interface DevHook {
   cameraScroll(): Point;
   /** The id of the Board's selected unit, or null (§64: a view toggle keeps the selection). */
   selectedUnitId(): string | null;
+  /**
+   * The Drawn view's objects (read-only; §64): its unit figures, the staged
+   * ship's ghost rotation in radians (null if none), and the view's world
+   * objects the HUD camera would render (`hudLeaks`, must be 0). All zero/null
+   * in the Standard view.
+   */
+  boardObjects(): { unitDrawings: number; hudLeaks: number; ghostRotation: number | null };
   /** How many landscapes this page has baked (§64: pan and zoom must not bake). */
   landscapeBuilds(): number;
   /** The Board's Tables panel: open or not, its tab, and the land table's highlight (§55). Read-only. */
@@ -223,6 +234,7 @@ export function installDevHook(game: Phaser.Game): void {
     boardView: () => mapScene().mapView.viewKind,
     cameraScroll: () => ({ x: mapScene().cameras.main.scrollX, y: mapScene().cameras.main.scrollY }),
     selectedUnitId: () => selectedUnitId(board()),
+    boardObjects: () => mapScene().mapView.drawnInspect() ?? { unitDrawings: 0, hudLeaks: 0, ghostRotation: null },
     landscapeBuilds: () => landscapeBuilds(),
   };
   (window as unknown as { __heraklios: DevHook }).__heraklios = hook;

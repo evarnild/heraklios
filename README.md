@@ -540,7 +540,10 @@ standard**).
   than hue, and a small badge with the counter's numbers
   (`attack (ranged) range / defence movement`). A ship's facing is the
   galley itself pointing that way, so the Drawn view draws no separate
-  facing arrowhead; the elephant's drift arrow stays an arrow.
+  facing arrowhead; the elephant's drift arrow stays an arrow. In Placement
+  the same holds: placed galleys point their chosen way, and the ship you
+  have staged but not yet confirmed is drawn as a translucent galley that
+  turns with the Turn buttons and goes when you confirm or cancel.
 
 Switching changes only the look. The camera's scroll and zoom, the
 selection, every highlight, label and prompt on screen, the history and the

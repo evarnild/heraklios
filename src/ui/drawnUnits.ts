@@ -11,6 +11,8 @@ const PALE = 0xf3ead2;
 /** The base radius, and the figure's scale on it. */
 const BASE_R = HEX_SIZE * 0.78;
 const FIGURE_R = BASE_R * 0.9;
+/** A staged (not yet placed) ship is drawn this see-through. */
+const GHOST_ALPHA = 0.5;
 
 function ownerColor(owner: number): number {
   return Phaser.Display.Color.HexStringToColor(PLAYER_COLORS_HEX[owner] ?? '#ffffff').color;
@@ -63,8 +65,23 @@ export class DrawnUnits {
 
   constructor(private host: ViewHost) {}
 
+  /** The staged ship's translucent figure (Placement), outside `units`: it is not a unit. */
+  private ghost: Phaser.GameObjects.Container | null = null;
+
   objects(): Phaser.GameObjects.GameObject[] {
-    return [...this.units.values()].map((u) => u.container);
+    const all = [...this.units.values()].map((u) => u.container);
+    return this.ghost ? [...all, this.ghost] : all;
+  }
+
+  /** Shows (or, with null, removes) the staged ship; rebuilt each call so it follows every Turn. */
+  setGhost(drawing: UnitDrawing | null): void {
+    this.ghost?.destroy();
+    this.ghost = drawing ? this.make(drawing).setAlpha(GHOST_ALPHA) : null;
+  }
+
+  inspect(): { unitDrawings: number; ghostRotation: number | null } {
+    const fig = this.ghost?.list[1] as Phaser.GameObjects.Graphics | undefined;
+    return { unitDrawings: this.units.size, ghostRotation: fig ? fig.rotation : null };
   }
 
   setUnits(units: readonly UnitDrawing[]): void {
@@ -111,6 +128,7 @@ export class DrawnUnits {
   }
 
   destroy(): void {
+    this.setGhost(null);
     for (const id of [...this.units.keys()]) this.remove(id);
   }
 }

@@ -6,7 +6,7 @@ import { formatHexTooltip } from './hexTooltip';
 import { hexAtPoint } from './hexHitTest';
 import { StandardBoardView } from './standardBoardView';
 import { DrawnBoardView } from './drawnBoardView';
-import type { BoardView, UnitDrawing, ViewHost } from './boardView';
+import type { BoardView, FacingShip, UnitDrawing, ViewHost } from './boardView';
 import { boardViewKind } from './boardViewPreference';
 import type { BoardViewKind } from './boardViewPreference';
 import { ViewDrawingState } from './viewDrawingState';
@@ -167,6 +167,18 @@ export class MapView {
     this.uiCamera?.ignore(next.mapObjects());
   }
 
+  /**
+   * Dev-hook reader (read-only): the Drawn view's unit figures, the staged
+   * ship's ghost rotation, and how many of the view's world objects the HUD
+   * camera would render (must be 0). Null in the Standard view.
+   */
+  drawnInspect(): { unitDrawings: number; ghostRotation: number | null; hudLeaks: number } | null {
+    if (!(this.boardView instanceof DrawnBoardView)) return null;
+    const ui = this.uiCamera;
+    const hudLeaks = ui ? this.boardView.mapObjects().filter((o) => (o.cameraFilter & ui.id) === 0).length : 0;
+    return { ...this.boardView.inspect(), hudLeaks };
+  }
+
   /** The map hex under a pointer, through the main camera's current scroll and zoom. */
   private hexUnder(pointer: Phaser.Input.Pointer): HexCoord | null {
     const world = this.scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
@@ -303,7 +315,7 @@ export class MapView {
     this.boardView.hideMovementPoints();
   }
 
-  setFacingIndicators(ships: readonly { hex: HexCoord; facing: number; playerIndex: number }[]): void {
+  setFacingIndicators(ships: readonly FacingShip[]): void {
     this.drawing.setFacingIndicators(ships);
     this.boardView.setFacingIndicators(ships);
   }

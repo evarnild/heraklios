@@ -17,6 +17,29 @@ export interface UnitDrawing {
 }
 
 /**
+ * One ship's facing indicator. `ghostTypeId` marks a ship that is staged but
+ * not yet placed (Placement's `pendingShip`, which is not a unit): the
+ * Standard view draws it as an arrow like any other, the Drawn view draws it
+ * as a translucent figure of that type turned to `facing`.
+ */
+export interface FacingShip {
+  hex: HexCoord;
+  facing: number;
+  playerIndex: number;
+  ghostTypeId?: string;
+}
+
+/** The id the Drawn view gives the staged ship's provisional figure. */
+export const GHOST_SHIP_ID = 'ghost-ship';
+
+/** The staged ship in `ships` as a unit drawing (provisional id), or null if none is staged. */
+export function ghostDrawing(ships: readonly FacingShip[]): UnitDrawing | null {
+  const g = ships.find((s) => s.ghostTypeId !== undefined);
+  if (!g) return null;
+  return { id: GHOST_SHIP_ID, typeId: g.ghostTypeId!, owner: g.playerIndex, position: g.hex, facing: g.facing };
+}
+
+/**
  * What a scene asks a board view to draw: the drawing half of the old
  * `MapView`. The shared surface (`MapView`: origin, cameras, drag, zoom,
  * hit-testing, hover, tooltip) is not part of it; a second view implements
@@ -34,7 +57,7 @@ export interface BoardView {
   showMovementPoints(hex: HexCoord, value: number): void;
   hideMovementPoints(): void;
 
-  setFacingIndicators(ships: readonly { hex: HexCoord; facing: number; playerIndex: number }[]): void;
+  setFacingIndicators(ships: readonly FacingShip[]): void;
   clearFacingIndicators(): void;
 
   setDriftArrow(hex: HexCoord, facing: number, colorHex: string): void;

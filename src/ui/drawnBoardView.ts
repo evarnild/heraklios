@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { HexCoord } from '../data/map';
-import type { BoardView, UnitDrawing, ViewHost } from './boardView';
+import { ghostDrawing } from './boardView';
+import type { BoardView, FacingShip, UnitDrawing, ViewHost } from './boardView';
 import { DrawnOverlays } from './drawnOverlays';
 import { DrawnUnits } from './drawnUnits';
 import { bakeLandscape } from './landscape/paintLandscape';
@@ -61,13 +62,20 @@ export class DrawnBoardView implements BoardView {
     this.overlays.hideMovementPoints();
   }
 
-  /** Draws nothing: a galley's bow is its own rotation (see `DrawnUnits`). */
-  setFacingIndicators(_ships: readonly { hex: HexCoord; facing: number; playerIndex: number }[]): void {
-    // intentionally empty
+  /** Draws no arrows: a galley's bow is its own rotation (see `DrawnUnits`).
+   * The one exception is a staged ship (Placement), which is not a unit yet
+   * and so is drawn here as a translucent ghost figure at its pending facing. */
+  setFacingIndicators(ships: readonly FacingShip[]): void {
+    this.units.setGhost(ghostDrawing(ships));
   }
 
   clearFacingIndicators(): void {
-    // intentionally empty
+    this.units.setGhost(null);
+  }
+
+  /** Dev-hook reading: the unit figures drawn, and the ghost's real rotation (null if none). */
+  inspect(): { unitDrawings: number; ghostRotation: number | null } {
+    return this.units.inspect();
   }
 
   setDriftArrow(hex: HexCoord, facing: number, colorHex: string): void {
