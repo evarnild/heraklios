@@ -3,7 +3,7 @@ name: build-plan
 description: Draft or revise the plan (intents/<id>-<slug>/plan.md) for an accepted heraklios feature, fix or refactor, stamped as made by this skill. Use after spec_accepted (feature) or intent_accepted (fix, refactor) is recorded, or when a review sends its plan back. Invoke as /build-plan <id>.
 metadata:
   owner: evarnild
-  version: 0.1.0
+  version: 0.2.0
   scope: repository
   status: experimental
   review-tier: reviewed
@@ -15,7 +15,7 @@ Follow `intents/README.md` → "Drafting an artefact" for everything the three
 drafting skills share. This file adds only what is the plan's own. It is not
 Claude Code's plan mode, and it writes `plan.md` in the intent's folder.
 
-Stamp: `<!-- generated-by: heraklios/build-plan@0.1.0 -->` as the first line
+Stamp: `<!-- generated-by: heraklios/build-plan@0.2.0 -->` as the first line
 of `plan.md`.
 
 ## 1. Check the preconditions, and stop if one fails
@@ -47,6 +47,11 @@ here.
   anything specific;
 - **Verified against the codebase**: "Re-read on `main` at `<hash>`", then
   `path:line — what is there` for each reliance;
+- **Where this goes** (between Verified and Subtasks): modules touched, new
+  modules each with a one-sentence job, why there against
+  `docs/architecture.md`, and any `budget: <path> +<n>: <reason>` line a file
+  over 500 lines needs (`scripts/size-budget-lib.mjs`, at most +50 per
+  intent). Review pass 10 judges it;
 - Subtasks, each committable with `npm run verify` green;
 - Tests: for each behavioural line, the test that would fail if it were
   mutated; for a fix, the failing-first test;

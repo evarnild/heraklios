@@ -7,7 +7,7 @@ Review one Heraklios feature branch or patch.
 
 Read CLAUDE.md, AGENTS.md, REVIEW-POLICY.md, and the change's
 intents/<id>-<slug>/ folder first. REVIEW-POLICY.md defines the tiers, the
-nine passes, and the report format to use.
+ten passes, and the report format to use.
 Do not modify files.
 Do not trust the implementer's summary; re-derive the behavior from the diff,
 tests, and rulebook text.

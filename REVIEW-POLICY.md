@@ -151,7 +151,8 @@ Each pass reports `pass`, `findings`, or `not run` (with why).
 
 1. **Intent and plan match.** The diff does what `intent.md`'s outcome and
    `plan.md`'s subtasks say, nothing more. Unplanned scope is a finding.
-   Refactoring mixed into a feature is a finding (guidelines §1.5).
+   Refactoring mixed into a feature is a finding (guidelines §1.5), except the
+   commits listed in the intent's `konmari.md` (pass 10).
 2. **Type check.** `npm run check:intent` — paste its output. `ROUTE` needs a
    stated reason or a re-declared type.
 3. **Rulebook fidelity.** Every rule behaviour checked against
@@ -169,7 +170,8 @@ Each pass reports `pass`, `findings`, or `not run` (with why).
    in `src/engine`/`src/data` with tests; `GameState` mutations push history
    first; die rolls and phase changes stay undo boundaries; `GameState` shape
    changes update `saveGame.ts` + `saveStorage.ts` + `SAVE_VERSION`; every
-   ambiguous-rule interpretation has a code comment.
+   ambiguous-rule interpretation has a code comment. The layer and import
+   boundaries beyond these conventions are pass 10's.
 6. **Numbers in prose.** Every measurement in the intent's `plan.md`, `plan-history.md`,
    `README.md`, intent artefacts and test comments is reproducible.
 7. **Documentation.** `README.md` documents new behaviour in its existing
@@ -183,6 +185,21 @@ Each pass reports `pass`, `findings`, or `not run` (with why).
    AI tiers: headless and AI-vs-AI play stay byte-identical where the change
    is meant to be presentation-only. Map editor: generated `map.ts` was
    regenerated, not hand-edited.
+10. **Architecture** (`docs/architecture.md`). Judge the principles marked
+    *Judged* there (5 to 12 and 15 to 17) against the plan's "Where this
+    goes" section and the diff. Don't restate the principles; cite them by
+    number. Principle 14 (dependencies) stays in pass 8, and the *Enforced*
+    ones (1 to 4, 13) are failures of `npm run lint` and `check:intent`, not
+    of this pass. A plan without "Where this goes" (written before §61) is
+    judged on the diff alone. Finding kinds: a wrong layer, a misplaced
+    module, or duplication of existing code is **"Needs rework:"**; a real
+    trade-off, a new exception or a new layer is **"Needs decision:"**, and
+    belongs in `docs/architecture.md` (principle 17). When the intent has a
+    `konmari.md`, check it too: its commits stay within the KonMari reach
+    (the diff's lines and what they duplicate), change no test assertion and
+    add no dependency; its `outcome:` matches the commits; what it left is
+    recorded. Report the pass as `not run` if `docs/architecture.md` is
+    missing.
 
 **Finding vs nit.** A finding is something that is wrong, unproven, or will
 mislead the next person: a rule deviation, a surviving mutant, a stale

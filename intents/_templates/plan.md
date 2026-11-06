@@ -20,6 +20,15 @@ the rule, stale line citations), plus anything specific here.>
 <Every file, symbol and line this plan relies on, re-read on current main.
 `path:line — what is there`. Line numbers rot; re-check before launch.>
 
+## Where this goes
+
+<Placement, against the principles in `docs/architecture.md` (§61). Name:
+- **Modules touched:** the existing files this change edits;
+- **New modules:** each with its one-sentence job;
+- **Why there:** the layer and principle that put it there (not in a large file that has a natural home elsewhere);
+- **Budget lines:** only if a file over 500 lines must grow past its ceiling in `scripts/size-baseline.json`: `budget: <path> +<n>: <reason>` (at most +50 per intent).
+"None" is a valid answer for each.>
+
 ## Subtasks
 
 1. <Small, ordered, each independently committable.>
