@@ -12,6 +12,6 @@ live_checked:
 merged:
 auto_authorized: 2026-11-06 by-agent    # owner: "/auto 64" (after the low-memory stop)
 auto_round: 3
-auto_stopped:
+auto_stopped: escalate, owner reads the diff
 follows_up:
 links:
