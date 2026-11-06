@@ -1,0 +1,19 @@
+# generated-by: heraklios/intent@0.1.5
+id: 70
+slug: unity-front-end-probe
+type: experiment
+status: draft
+title: "Probe: can a Unity front end drive the existing TypeScript rules engine?"
+review_tier:
+intent_accepted:
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+auto_authorized:
+auto_round:
+auto_stopped:
+follows_up:
+links:
+  - intents/65-board-view-seam
+  - intents/64-vector-view
