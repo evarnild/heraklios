@@ -16,6 +16,7 @@ import { validateArmy } from '../engine/army';
 import { session } from './session';
 import type { LandCombatHighlight } from '../engine/ruleTables';
 import type { RulesTab } from './rulesPanel';
+import { GHOST_SHIP_ID } from './boardView';
 import { landscapeBuilds } from './landscape/paintLandscape';
 
 type Hex = { q: number; r: number };
@@ -32,8 +33,16 @@ interface BoardInternals extends Phaser.Scene {
   mapView: {
     toScreen(h: Hex): Point;
     viewKind: 'standard' | 'drawn';
-    drawnInspect(): { unitDrawings: number; ghostRotation: number | null; hudLeaks: number } | null;
+    drawnInspect(): { unitDrawings: number; ghostRotation: number | null; unitRotations: Record<string, number>; hudLeaks: number } | null;
   };
+}
+
+export interface BoardObjects {
+  unitDrawings: number;
+  hudLeaks: number;
+  ghostRotation: number | null;
+  unitRotations: Record<string, number>;
+  ghosts: number;
 }
 
 export interface DevHook {
@@ -105,9 +114,11 @@ export interface DevHook {
    * The Drawn view's objects (read-only; §64): its unit figures, the staged
    * ship's ghost rotation in radians (null if none), and the view's world
    * objects the HUD camera would render (`hudLeaks`, must be 0). All zero/null
-   * in the Standard view.
+   * in the Standard view. `ghosts` counts the ghost containers on the scene's
+   * display list (not the view's own reference), in either view; `unitRotations`
+   * is each unit figure's rotation by id.
    */
-  boardObjects(): { unitDrawings: number; hudLeaks: number; ghostRotation: number | null };
+  boardObjects(): BoardObjects;
   /** How many landscapes this page has baked (§64: pan and zoom must not bake). */
   landscapeBuilds(): number;
   /** The Board's Tables panel: open or not, its tab, and the land table's highlight (§55). Read-only. */
@@ -234,7 +245,7 @@ export function installDevHook(game: Phaser.Game): void {
     boardView: () => mapScene().mapView.viewKind,
     cameraScroll: () => ({ x: mapScene().cameras.main.scrollX, y: mapScene().cameras.main.scrollY }),
     selectedUnitId: () => selectedUnitId(board()),
-    boardObjects: () => mapScene().mapView.drawnInspect() ?? { unitDrawings: 0, hudLeaks: 0, ghostRotation: null },
+    boardObjects: () => boardObjects(mapScene()),
     landscapeBuilds: () => landscapeBuilds(),
   };
   (window as unknown as { __heraklios: DevHook }).__heraklios = hook;
@@ -254,6 +265,12 @@ function selectedUnitId(scene: Phaser.Scene): string | null {
   const b = scene as unknown as Record<string, unknown>;
   if (!('selected' in b)) throw new Error('devHook: BoardScene has no "selected" field any more - update selectedUnitId');
   return (b.selected as { id: string } | null)?.id ?? null;
+}
+
+function boardObjects(scene: BoardInternals): BoardObjects {
+  const ghosts = scene.children.list.filter((o) => o.name === GHOST_SHIP_ID).length;
+  const drawn = scene.mapView.drawnInspect() ?? { unitDrawings: 0, hudLeaks: 0, ghostRotation: null, unitRotations: {} };
+  return { ...drawn, ghosts };
 }
 
 function displayListSorted(scene: Phaser.Scene): boolean {

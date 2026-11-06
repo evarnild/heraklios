@@ -74,7 +74,7 @@ export class DrawnBoardView implements BoardView {
   }
 
   /** Dev-hook reading: the unit figures drawn, and the ghost's real rotation (null if none). */
-  inspect(): { unitDrawings: number; ghostRotation: number | null } {
+  inspect(): { unitDrawings: number; ghostRotation: number | null; unitRotations: Record<string, number> } {
     return this.units.inspect();
   }
 

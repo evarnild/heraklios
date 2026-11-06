@@ -139,11 +139,29 @@ test('in Placement the Drawn view shows the staged ship as a ghost that follows 
   const r1 = (await ghost())!;
   expect(Math.abs(r1 - r0), 'one Turn is one facing (60 degrees)').toBeCloseTo(Math.PI / 3, 5);
   expect((await page.evaluate(() => window.__heraklios.boardObjects())).hudLeaks).toBe(0);
+  const ghosts = () => page.evaluate(() => window.__heraklios.boardObjects().ghosts);
+  expect(await ghosts(), 'one ghost after a Turn, no trail').toBe(1);
+
+  // A toggle with the ship staged: the Standard view shows none, the Drawn view brings it back as it was.
+  await toggle(page, STANDARD, 'standard');
+  expect(await ghosts(), 'no ghost left on the Standard board').toBe(0);
+  await toggle(page, DRAWN, 'drawn');
+  expect(await ghosts(), 'the ghost is back after toggling to Drawn').toBe(1);
+  expect(await ghost(), 'at its pending facing').toBeCloseTo(r1, 5);
 
   const before = await placedCount();
   await clickButton(page, 'Confirm facing');
   await page.waitForFunction((n) => (window.__heraklios.state() as { units: unknown[] }).units.length === n + 1, before);
   await page.waitForFunction(() => window.__heraklios.boardObjects().ghostRotation === null);
   await expectDrawnObjects(page, 'ship confirmed');
+  expect(await ghosts(), 'no ghost after Confirm').toBe(0);
+  // The placed galley keeps the facing the ghost showed; a land unit stays upright.
+  const placed = (await state(page)).units;
+  const rotations = (await page.evaluate(() => window.__heraklios.boardObjects())).unitRotations;
+  const ship = placed[placed.length - 1]!;
+  expect(getUnitType(ship.typeId).domain).toBe('naval');
+  expect(rotations[ship.id], 'the new ship is drawn at the ghost rotation').toBeCloseTo(r1, 5);
+  const land = placed.find((u) => getUnitType(u.typeId).domain !== 'naval')!;
+  expect(rotations[land.id], 'a land unit is drawn upright').toBe(0);
   expect(errors).toEqual([]);
 });

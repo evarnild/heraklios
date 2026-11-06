@@ -172,7 +172,7 @@ export class MapView {
    * ship's ghost rotation, and how many of the view's world objects the HUD
    * camera would render (must be 0). Null in the Standard view.
    */
-  drawnInspect(): { unitDrawings: number; ghostRotation: number | null; hudLeaks: number } | null {
+  drawnInspect(): { unitDrawings: number; ghostRotation: number | null; unitRotations: Record<string, number>; hudLeaks: number } | null {
     if (!(this.boardView instanceof DrawnBoardView)) return null;
     const ui = this.uiCamera;
     const hudLeaks = ui ? this.boardView.mapObjects().filter((o) => (o.cameraFilter & ui.id) === 0).length : 0;

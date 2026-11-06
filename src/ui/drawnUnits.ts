@@ -79,9 +79,11 @@ export class DrawnUnits {
     this.ghost = drawing ? this.make(drawing).setAlpha(GHOST_ALPHA) : null;
   }
 
-  inspect(): { unitDrawings: number; ghostRotation: number | null } {
+  inspect(): { unitDrawings: number; ghostRotation: number | null; unitRotations: Record<string, number> } {
     const fig = this.ghost?.list[1] as Phaser.GameObjects.Graphics | undefined;
-    return { unitDrawings: this.units.size, ghostRotation: fig ? fig.rotation : null };
+    const unitRotations: Record<string, number> = {};
+    for (const [id, u] of this.units) unitRotations[id] = (u.container.list[1] as Phaser.GameObjects.Graphics).rotation;
+    return { unitDrawings: this.units.size, ghostRotation: fig ? fig.rotation : null, unitRotations };
   }
 
   setUnits(units: readonly UnitDrawing[]): void {
@@ -122,7 +124,8 @@ export class DrawnUnits {
         strokeThickness: 3,
       })
       .setOrigin(0.5);
-    const container = scene.add.container(at.x, at.y, [base, fig, badge]).setDepth(10);
+    // Named by id, so the dev hook can count a unit's (or the ghost's) containers on the display list.
+    const container = scene.add.container(at.x, at.y, [base, fig, badge]).setDepth(10).setName(unit.id);
     this.host.ignoreOnUiCamera(container);
     return container;
   }
