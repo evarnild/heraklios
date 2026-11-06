@@ -304,3 +304,12 @@ Mutants, each applied to `src/ui/MapView.ts` by copy and restored by copy, one-l
 - X2 (`this.uiCamera?.ignore(next.mapObjects());` deleted): killed by the same test (hudLeaks > 0) and by the Placement ghost scenario.
 
 Divergence: none from the plan above the Progress marker. `boardObjects()` also carries `ghostRotation`, which the finding did not list.
+
+### 2026-11-06, round 2 rework (no spec or plan change)
+- Commit: see `git log` (the "round 2 rework" commit and this Progress entry).
+- `DrawnUnits.make` names each container by its unit id (the ghost is `GHOST_SHIP_ID`); `inspect()` adds `unitRotations`. The dev hook's `boardObjects()` now also returns `ghosts`, counted from the scene's display list (`children.list` by name), so it works in both views and does not read a view's own reference. Standard reports 0.
+- MEDIUM 1 (S2, S3): after "Confirm facing", `board-view.spec.ts` asserts the new ship's figure rotation equals the ghost's `r1` and a land unit's is 0.
+- MEDIUM 2 (U1, U4, RG): the Placement scenario asserts 1 ghost after a Turn, 0 after toggling to Standard with the ship staged, 1 at rotation `r1` after toggling back to Drawn, 0 after Confirm.
+- LOW 3: the round-1 claim "a toggle mid-staging keeps the ghost" is now proven by the toggle steps above (RG is killed).
+- Mutants (copy backup, one-line change, non-empty diff, restore by copy, empty diff). All killed by `e2e/board-view.spec.ts:103` (the Placement scenario): S2, S3, U1, U4, RG (RG survives vitest, 1279 tests, and is killed only by e2e). X1 and X2 stay killed (`board-view.spec.ts:41` and `:103`).
+- Counts: e2e 20 passed; verify and lint counts are in the final report (lint 21 of 21, cap untouched). Divergence: none.
