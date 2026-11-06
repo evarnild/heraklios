@@ -12,6 +12,6 @@ live_checked:
 merged:
 auto_authorized: 2026-11-06 by-agent    # owner: "/auto 64" (after the escalate stop: diff read)
 auto_round: 3
-auto_stopped: escalate, owner reads the diff
+auto_stopped: live check owed
 follows_up:
 links:
