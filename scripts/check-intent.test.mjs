@@ -237,6 +237,19 @@ describe('check:intent and the size budget, end to end', { timeout: 120_000 }, (
     expect(run().status).toBe(0);
   });
 
+  it('checks a baseline the branch creates (the merge base has none), skipping only the growth rules', () => {
+    newRepo(false);
+    featureBranch({ size: 540, ceiling: 520 }); // creates the baseline, but big.mjs is already over it
+    const over = run('feat/96-grow');
+    expect(over.status, over.stdout).toBe(1);
+    expect(over.stdout).toMatch(/has 540 lines, over its ceiling of 520/);
+    expect(over.stdout).not.toMatch(/without a matching/); // nothing to grow from, so rules 3 and 4 stay quiet
+    sh('checkout', '-q', 'main');
+    sh('branch', '-D', 'feat/96-grow');
+    featureBranch({ size: 520, ceiling: 520 });
+    expect(run('feat/96-grow').status).toBe(0);
+  });
+
   it('measures a budgeted file that is only untracked in working-tree mode', () => {
     newRepo(true);
     featureBranch({ size: 520, ceiling: 520 });
