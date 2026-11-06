@@ -12,6 +12,43 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import globals from 'globals';
 
+// Architecture import boundaries (§61, docs/architecture.md principles 1-4).
+// `no-restricted-imports` options REPLACE rather than merge when two config
+// blocks match one file, so the layer blocks below are disjoint and each
+// carries the shared tooling/server patterns itself. The patterns match the
+// import string as written, so `**/x/**` covers any relative depth.
+const noTooling = {
+  group: ['**/scripts/**', '**/tools/**'],
+  message: 'The game never imports tooling (principle 4).',
+};
+const noMapEditor = {
+  group: ['**/map-editor/**'],
+  message: 'src/map-editor is a top layer beside scenes; nothing imports it (principle 2).',
+};
+const noScenes = {
+  group: ['**/scenes/**'],
+  message: 'Dependencies point one way: scenes -> ui -> engine -> data (principle 2).',
+};
+const noUi = {
+  group: ['**/ui/**'],
+  message: 'Engine and data never import ui (principles 1, 2).',
+};
+const noServer = {
+  group: ['**/server/**'],
+  message: 'The game never imports the save server (principle 3).',
+};
+const noPhaser = {
+  group: ['phaser', 'phaser/**'],
+  message: 'Phaser is presentation only (principle 1).',
+};
+const noEngine = {
+  group: ['**/engine/**'],
+  message: 'Data is the bottom layer (principle 2).',
+};
+const restrict = (...patterns) => ({
+  'no-restricted-imports': ['error', { patterns }],
+});
+
 export default tseslint.config(
   {
     ignores: [
@@ -43,6 +80,52 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
+      ],
+    },
+  },
+  {
+    files: ['src/engine/**/*.ts'],
+    rules: restrict(noPhaser, noUi, noScenes, noMapEditor, noServer, noTooling),
+  },
+  {
+    files: ['src/data/**/*.ts'],
+    rules: restrict(noPhaser, noUi, noScenes, noMapEditor, noServer, noEngine, noTooling),
+  },
+  {
+    files: ['src/ui/**/*.ts'],
+    rules: restrict(noScenes, noMapEditor, noServer, noTooling),
+  },
+  {
+    files: ['src/scenes/**/*.ts'],
+    rules: restrict(noMapEditor, noServer, noTooling),
+  },
+  {
+    // The map editor is plain Canvas 2D, a top layer beside scenes: it may
+    // import ui, engine and data (it reuses ui/hexRender).
+    files: ['src/map-editor/**/*.ts'],
+    rules: restrict(noScenes, noPhaser, noServer, noTooling),
+  },
+  {
+    files: ['src/*.ts'],
+    rules: restrict(noServer, noTooling),
+  },
+  {
+    // The server only stores (principle 3): of the game it may import only
+    // engine/saveGame. Test files build fixtures and are exempt.
+    files: ['server/**/*.ts'],
+    ignores: ['server/**/*.test.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            noPhaser,
+            {
+              regex: '(^|/)src/(?!engine/saveGame([.]ts|[.]js)?$)',
+              message: 'The server may import only src/engine/saveGame (principle 3).',
+            },
+          ],
+        },
       ],
     },
   },
