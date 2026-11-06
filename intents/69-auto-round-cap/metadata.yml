@@ -1,0 +1,19 @@
+# generated-by: heraklios/intent@0.1.5
+id: 69
+slug: auto-round-cap
+type: feature
+status: draft
+title: /auto gets five review rounds and stops early when a run stops converging
+review_tier:
+intent_accepted:
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+auto_authorized:
+auto_round:
+auto_stopped:
+follows_up:
+links:
+  - intents/50-sdlc-auto-mode
+  - intents/61-architecture-guardrails
