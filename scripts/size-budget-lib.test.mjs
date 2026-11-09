@@ -62,6 +62,7 @@ describe('budgetLines', () => {
     ]);
   });
   it('needs a reason, and copes with no plan', () => {
+    expect(budgetLines(plan(String.raw`budget: src\scenes\BoardScene.ts +5: why`))).toEqual([{ path: 'src/scenes/BoardScene.ts', n: 5, reason: 'why' }]);
     expect(budgetLines(plan(`budget: ${F} +5:`))).toEqual([]);
     expect(budgetLines('')).toEqual([]);
     expect(budgetLines(undefined)).toEqual([]);
@@ -172,18 +173,21 @@ describe('checkBudget', () => {
 describe('budgetVerdict', () => {
   const failures = [
     { rule: 1, message: 'over' },
+    { rule: 3, message: 'too much' },
     { rule: 4, message: 'no line' },
   ];
   it('keeps every failure an error for a feature', () => {
     const v = budgetVerdict(failures, 'feature');
-    expect(v.errors).toHaveLength(2);
+    expect(v.errors).toHaveLength(3);
     expect(v.routes).toEqual([]);
   });
-  it('routes rules 3 and 4 for an adjustment or experiment, and keeps the others errors', () => {
+  it('routes rules 3 and 4 (both) for an adjustment or experiment, and keeps the others errors', () => {
     for (const type of ['adjustment', 'experiment']) {
       const v = budgetVerdict(failures, type);
       expect(v.errors).toEqual(['Size budget: over']);
-      expect(v.routes).toHaveLength(1);
+      expect(v.routes).toHaveLength(2);
+      expect(v.routes[0]).toContain('too much');
+      expect(v.routes[1]).toContain('no line');
       expect(v.routes[0]).toContain('Re-declare as a fix or feature');
     }
   });

@@ -55,7 +55,11 @@ In the worktree, one heavy command at a time:
    the tidy-up changed: re-apply it to the moved line by its recorded
    description (restore by copy, never `git checkout --`); each must still be
    killed;
-4. compare the test-case and lint-warning counts with the review's: the test
+4. a tidy-up that shrank a baselined file lowered that file's ceiling in
+   `scripts/size-baseline.json` in the same commit (the agent's reach covers
+   it; `check:intent` rule 5 would fail otherwise). A ceiling that went up is
+   a failure;
+5. compare the test-case and lint-warning counts with the review's: the test
    count must not fall, the warning count must not rise.
 
 ## 4. The reviewer's read

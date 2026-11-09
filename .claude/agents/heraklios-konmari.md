@@ -22,6 +22,11 @@ the diff (`git diff main...HEAD`).
   to change stays apart.
 - Dead code the change left behind, and names or patterns that differ from
   their neighbours in the same file.
+- The size ceiling of a budgeted file your tidy-up shrinks: in the same
+  `§<id> konmari:` commit run `npm run size:baseline -- --write`, so the
+  ratchet (rule 5) passes and `check:intent` stays green. A ceiling may only go
+  down there, never up; if the write would raise one, undo that part of the
+  tidy-up. No other part of `scripts/size-baseline.json` changes.
 - Nothing else. A larger cleanup you notice goes into `konmari.md` as a
   proposed `refactor` intent, and is not done.
 

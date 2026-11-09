@@ -13,7 +13,10 @@ Reach: the lines the intent added or changed, and existing code those lines
 duplicate (two pieces that compute the same thing from the same inputs; reuse an
 existing helper, or fold the new and old helpers into one and update callers).
 Also dead code the change left and names or patterns that differ from their
-neighbours. Nothing else: a larger cleanup goes into konmari.md as a proposed
+neighbours. When a tidy-up shrinks a file listed in scripts/size-baseline.json,
+run npm run size:baseline -- --write in the same "§<id> konmari:" commit so the
+ratchet (rule 5) passes; a ceiling may only go down there, never up (if the
+write would raise one, undo that part of the tidy-up). Nothing else: a larger cleanup goes into konmari.md as a proposed
 refactor intent and is not done.
 
 Behaviour is held: do not change a test assertion or delete a test case (edit a
