@@ -3,11 +3,160 @@
 
 verdict: rework
 tier: reviewed
-reviewed-commit: b4dfa91
-round: 1
+reviewed-commit: 6f15fec
+round: 2
 sampled: no
 run: auto
 live-check: not-needed
+
+**Tier:** Reviewed, set by the path table: `REVIEW-POLICY.md` (merge rule 1 changed), `.claude/skills/**`, `.claude/agents/**`, `.codex/agents/**`.
+
+**Verdict:** `rework`, with 1 HIGH, 1 MEDIUM and 3 LOW.
+- G1, G2 and G3 are "Needs rework:".
+- G4 is "Needs decision:", so the auto run stops for the owner.
+- G5 is "Worth a look".
+- All ten round-1 findings (F1 to F10) are resolved.
+
+G1's fix needs a rebase onto `main`. Neither the coordinator nor a briefed agent may rebase on its own, so that rebase is the owner's to make or to ask for.
+
+How this round ran:
+- The `heraklios-reviewer` agent ran the nine passes of the policy on `main`, and the branch's new pass 10 informally.
+- It ran 82 mutants one at a time: round 1's 50-mutant backlog, the mutants the rework claims to kill, and new ones from the rework's lines.
+- The coordinator re-ran verify, check:intent, both survivors on the full suite and the 23 mutants the rework claims to kill. All results match.
+
+## Passes
+| # | Pass | Result |
+| --- | --- | --- |
+| 1 | Intent and plan match | findings (1): G1. The spec's "re-measured when this merges" (spec.md:222) is not done against current `main`. The rework commits map to F1–F10, with no unplanned scope |
+| 2 | Type check | pass |
+| 3 | Rulebook fidelity | not run: SDLC tooling, no rulebook behaviour |
+| 4 | Tests prove it | findings (2): G2, G3. 80 of 82 mutants killed; the 2 survivors were confirmed on the full suite |
+| 5 | Boundary and conventions | pass: no `src/`, `server/` or `GameState` change |
+| 6 | Numbers in prose | findings (1): G1. The baseline numbers no longer match `main`. Everything else reproduces: `size:baseline` is byte-identical to `scripts/size-baseline.json` on the branch; 69 test files, 1352 tests; 21 warnings |
+| 7 | Documentation | findings (1): G5. F4, F5, F8, F9 and F10 are fixed |
+| 8 | Guardrails and hygiene | pass: 0 errors, 21 warnings, cap still 21; the new rules are errors; no new dependency |
+| 9 | Repository-specific footguns | pass (not applicable) |
+| 10 | Architecture (branch pass, informal) | findings (1): G4. Principles 1–4 hold on `main`'s code, §64 included: 0 `no-restricted-imports` hits over 156 `src/` and `server/` files |
+
+## Type check
+```
+> heraklios@0.1.0 check:intent
+> node scripts/check-intent.mjs
+
+type-check: PASS (intent 61, feature)
+  note:  27 file(s), 1544 line(s) changed outside intents/.
+```
+
+## Findings
+- **HIGH G1** `scripts/size-baseline.json:6-7`: the baseline is stale against current `main`.
+  - **What changed:** after the plan measured at `e8bac8f`, §64 grew `src/scenes/BoardScene.ts` from 3176 to 3179 lines and `src/scenes/PlacementScene.ts` from 564 to 581. The coordinator re-measured both on `main`.
+  - **Effect after the merge:** `checkBudget` on the would-be merge tree (`git merge-tree --write-tree main 6f15fec`) gives two rule-1 failures. Rule 1 measures every budgeted file, so every intent based on the merged `main` would FAIL `check:intent`.
+  - **Why ship won't catch it:** `ship` checks the unrebased branch. In branch mode that measures the branch's own tree and PASSes.
+  - **Needs rework:** spec.md:45 and :222 set the fix. Rebase onto `main`, run `npm run size:baseline -- --write` (still first creation: the merge base has no baseline, so no `budget:` line is needed), and record the numbers in `## Progress`.
+  - **Owner's step:** the rebase is the owner's to make or to ask for. It moves `reviewed-commit`, so a new round follows.
+- **MEDIUM G2** `scripts/size-budget-lib.mjs:139`: the rule-3 routing for a planless type is untested.
+  - **Mutant:** `S-verdict-route-rule4-only` changes `(f.rule === 3 || f.rule === 4)` to `f.rule === 4`. It survives the full suite (1352/1352).
+  - **Effect:** an adjustment that raises a ceiling by more than 50 would FAIL instead of ROUTE (B8/B9).
+  - **Needs rework:** add `{ rule: 3, … }` to the `budgetVerdict` fixture (`size-budget-lib.test.mjs:173-176`), and expect it to route for `adjustment` and `experiment`.
+- **LOW G3** `scripts/size-budget-lib.mjs:68`: path normalisation of `budget:` lines is untested.
+  - **Mutant:** `S-budgetLines-no-norm` changes `path: norm(m[1])` to `path: m[1]`. It survives the full suite.
+  - **Effect:** a plan line with backslash separators would stop matching, and nothing would notice.
+  - **Needs rework:** add a `budgetLines` case with a backslash path that expects `src/scenes/BoardScene.ts`.
+- **LOW G4** `.claude/agents/heraklios-konmari.md:28-35` (and its Codex toml), against `/konmari` B16 and `size-budget-lib.mjs:104` (rule 5): a KonMari tidy-up that shrinks a baselined file is always discarded.
+  - **Why:** rule 5 fails a file that is now shorter than its ceiling. The brief never says to lower the ceiling, and B14's reach leaves out `scripts/size-baseline.json`.
+  - **Effect:** shrinking a large file is KonMari's purpose, yet that tidy-up fails B16's check:intent, and B18 discards it.
+  - **Needs decision:** the gap is in the spec (B14/B16). Pick one:
+    - (a) the agent runs `npm run size:baseline -- --write` in the same tidy commit when a budgeted file shrinks, which widens B14's reach;
+    - (b) the coordinator lowers the ceiling itself after the check, in a commit that `konmari.md` lists.
+- **LOW G5** `docs/architecture.md:94`: principle 9's exception table leaves out `src/engine/turnManager.ts:46` (`shuffleSeatOrder(…, rng = Math.random)`). Worth a look.
+
+### Round-1 findings, round-2 status
+The reviewer re-verified each resolution by reading the code, not by trusting the Progress table.
+
+| Finding | Status |
+| --- | --- |
+| F1 | Resolved, option b. Merge rule 1 is per-commit and accepts `konmari.md` and the commits it lists (`ship-lib.mjs` `konmariCommits`/`commitAccepted`, `ship.mjs` `commitsAfter`/`readKonmari`). Every R- and W- mutant is killed |
+| F2 | Resolved. The forbidden cases exist for every layer importing the server, and for `phaser/src/x`. Dropping `'phaser/**'` is sound |
+| F3 | Resolved. 7 end-to-end cases; all 12 C- mutants killed |
+| F4 | Resolved, option a. `outcome:` sits alone on its line, with separate `reason:` and `## Reverted`. `L-unanchored` is killed |
+| F5 | Resolved. Pass 10 names the judged half of principle 1 |
+| F6 | Resolved, option b. A `src/**/*.ts` catch-all; the catch-all mutants are killed |
+| F7 | Resolved. The dead `e2e/` line is gone; "does not budget e2e" still holds |
+| F8 | Resolved. `CLAUDE.md` lists `npm run size:baseline` |
+| F9 | Resolved. The `konmari.md` record is committed alone |
+| F10 | Resolved. The `sdlc.md` step order is fixed |
+
+## Spec mapping
+- **Delivered:** B1–B11, B13–B20.
+- **With a finding:** B7/B8 (G1), B9 (G2), B12/B16 (G4).
+- **Acceptance criteria met:** AC1–AC9.
+- **Owed:** AC10, the first `/auto` run after the merge.
+
+## Mutants (pass 4)
+82 run, one at a time, by the reviewer. Each mutant was decided against its own test file; the 2 survivors were confirmed against the full suite. 80 killed, 2 survived.
+
+| File | Run | Killed | Survived |
+| --- | --- | --- | --- |
+| `eslint.config.js` | 12 | 12 | 0 |
+| `scripts/size-budget-lib.mjs` | 35 | 33 | 2 (`S-budgetLines-no-norm`, `S-verdict-route-rule4-only`) |
+| `scripts/check-intent.mjs` | 12 | 12 | 0 |
+| `scripts/intent-check-lib.mjs` | 5 | 5 | 0 |
+| `scripts/ship-lib.mjs` | 15 | 15 | 0 |
+| `scripts/ship.mjs` | 3 | 3 | 0 |
+
+`S-isBudgeted-drop-e2e` was not run: F7 removed its target line. The mutant definitions and per-mutant logs are in the reviewer's scratchpad, `harness.mjs`, `mutants.mjs` and `results.txt`.
+
+## Not checked
+- **AC10:** KonMari end to end on a real intent. It is owed to the first `/auto` run after the merge.
+- **`npm run lint` on a merged checkout:** not run. What was checked instead: `main` has 21 warnings on the same files as the branch, and the branch config gives 0 import-rule hits on `main`'s code.
+- **Behavioural lines with no mutant:**
+  - `scripts/size-budget.mjs`, the CLI. It is untested; the reviewer hand-checked that its output is byte-identical.
+  - in `check-intent.mjs`, the `existsSync` guard and the `tryGit` catch;
+  - in `ship.mjs`, `readKonmari`'s fallback to `main` and `commitsAfter`'s `--root`;
+  - in `ship-lib.mjs`, the `.toLowerCase()` calls.
+- **Codex `workspace-write`:** whether it allows commits in a worktree.
+- **Process gaps in the skills:**
+  - `/auto` has no resume row for a session that closes mid-KonMari;
+  - it is unclear where `## KonMari check` sections go once rounds move into history.
+- **`npm run e2e`:** not run. No `src/scenes`, `src/ui`, `src/main.ts` or `e2e/` path changed.
+
+## Live check
+Not needed. No rule-1 path or `.claude/settings.json` changed, and no Not-checked item needs a browser, a hook or the dev server.
+
+## Verified myself vs. taken on trust
+- **Coordinator, re-run:**
+  - `npm run verify` in the worktree at `6f15fec`: exit 0; 69 test files, 1352 tests passed; lint 0 errors, 21 warnings (cap 21).
+  - `npm run check:intent`: exit 0, PASS; 27 files, 1544 lines.
+  - Lengths on `main`: `wc -l` gives 3179 for `BoardScene.ts` and 581 for `PlacementScene.ts`, against the branch's ceilings of 3176 and 564. This confirms G1.
+  - Full suite: `S-verdict-route-rule4-only` SURVIVED 1352/1352, and `S-budgetLines-no-norm` SURVIVED 1352/1352. Both match the reviewer.
+  - The 23 mutants the round-1 rework claims to kill, each against its own test file. All were KILLED, by the tests the reviewer named:
+    - E-data, E-ui, E-scenes and E-mapeditor `-drop-noServer`;
+    - E-catchall-drop-noServer, E-catchall-drop-noTooling, E-catchall-glob-rootonly and E-noPhaser-drop-pattern;
+    - R-merge-accepted, R-konmari-md-in-listed, R-listed-may-touch-intent, R-listed-any-hash, R-drop-reverted-section, R-own-files-drop-konmari and L-unanchored;
+    - W-wiring-konmariText and W-wiring-merge-flag;
+    - C-plan-not-read, C-routes-not-joined, C-errors-not-joined, C-skip-or, C-untracked and C-batch-mergebase.
+  - `git status --short` in the worktree was clean afterwards.
+  - `npm run sdlc:scan -- --sample-due auto --exclude 61`: sampled: no.
+- **Reviewer:**
+  - verify and check:intent, with the same numbers as above;
+  - `eslint .` on `main`: 21 warnings, on the same files as the branch;
+  - `checkBudget` on merge-tree `e320658`;
+  - import rules over `main`'s 156 files: 0 hits;
+  - the 82 mutants;
+  - each F1–F10 resolution read in the code.
+- **Taken on trust:**
+  - round 1's other killed mutants;
+  - the spec's measurements at `e776128` and `e8bac8f`.
+
+# Round 1 (history)
+
+- verdict: rework
+- tier: reviewed
+- reviewed-commit: b4dfa91
+- round: 1
+- sampled: no
+- run: auto
+- live-check: not-needed
 
 **Tier:** Reviewed, set by the path table: `REVIEW-POLICY.md`, `.claude/skills/**` and `.claude/agents/**`.
 
