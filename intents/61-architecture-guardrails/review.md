@@ -3,11 +3,136 @@
 
 verdict: rework
 tier: reviewed
-reviewed-commit: 6f15fec
-round: 2
+reviewed-commit: bb23b25
+round: 3
 sampled: no
 run: auto
 live-check: not-needed
+
+**Tier:** Reviewed, set by the path table: `REVIEW-POLICY.md` (merge rule 1 changed), `.claude/skills/**`, `.claude/agents/**`, `.codex/agents/**`.
+
+**Verdict:** `rework`, with 4 LOW findings, all in text.
+- H1 is "Needs decision:", a spec amendment that is the owner's.
+- H2 and H3 are "Needs rework:".
+- H4 is the owner's, if they want it: a dated number above the plan's Progress marker.
+
+Status of earlier findings:
+- G1, G2, G3 and G5 are resolved.
+- G4 (option a) is resolved in the code and in the agent's brief. The texts that judge the tidy-up (H1, H2) still describe the old reach.
+
+Round 3 is the last round of this `/auto` run, so the run stops, out of rounds. The intent continues by hand.
+
+**Rebase:**
+- The owner approved it ("/auto 61 G4 a, rebase ok"), and the branch is 0 behind `main`.
+- `git range-diff 5365535..6f15fec main..bb23b25` shows commits 1–21 as patch-identical.
+- The rebase changed no reviewed content.
+
+## Passes
+| # | Pass | Result |
+| --- | --- | --- |
+| 1 | Intent and plan match | findings (1): H1. Spec B14's reach does not include lowering a ceiling; the agent and skill texts now do |
+| 2 | Type check | pass |
+| 3 | Rulebook fidelity | not run: SDLC tooling, no rulebook behaviour |
+| 4 | Tests prove it | pass: both round-2 survivors are now killed, plus one new mirror mutant. Data mutants on the G1 ceilings are caught by `check:intent` |
+| 5 | Boundary and conventions | pass: the branch diff touches no `src/`, `server/`, `e2e/` or `GameState` |
+| 6 | Numbers in prose | findings (2): H3, H4. The baseline is byte-identical to `size:baseline`, and `wc -l` matches all six ceilings. 79 test files, 1408 tests and 21 warnings all reproduce |
+| 7 | Documentation | pass: G5 is fixed |
+| 8 | Guardrails and hygiene | pass: 0 errors, 21 warnings, cap 21 |
+| 9 | Repository-specific footguns | pass (not applicable) |
+| 10 | Architecture (branch pass, informal) | findings (1): H2. The import rules give 0 errors on the rebased tree, §64's code included |
+
+## Type check
+```
+> heraklios@0.1.0 check:intent
+> node scripts/check-intent.mjs
+
+type-check: PASS (intent 61, feature)
+  note:  27 file(s), 1561 line(s) changed outside intents/.
+```
+
+## Findings
+- **LOW H1** `spec.md:138-142` (B14), against `.claude/agents/heraklios-konmari.md:25-29`, `.codex/agents/heraklios-konmari.toml:16-19` and `.claude/skills/konmari/SKILL.md:58-61`: the spec's reach and the agent's reach disagree.
+  - **What:** under G4 (a), the agent may lower a shrunk file's ceiling in `scripts/size-baseline.json`. B14 lists only the intent's lines and the code they duplicate.
+  - **Effect:** B18 discards any tidy-up whose reach goes "beyond B14", so by the spec's letter every ceiling-lowering tidy-up is out of reach.
+  - **Needs decision:** this is a spec amendment, and it is the owner's. Either add a third bullet to B14: "the ceiling of a budgeted file the tidy-up shrinks, lowered in `scripts/size-baseline.json` in the same `§<id> konmari:` commit (never raised)". Or confirm that the agent text deliberately goes further than the spec.
+- **LOW H2** `.claude/skills/konmari/SKILL.md:66-70` (§4, the reviewer's read), `:91-92` (§6, the discard condition) and `REVIEW-POLICY.md:205-206` (pass 10): these three texts still define the reach as "the diff's lines and what they duplicate".
+  - **Effect:** the KonMari check would judge a baseline edit out of reach and discard the tidy-up. That brings back G4's effect by another route.
+  - **Needs rework:** owner decision G4 (a) determines this fix. Extend the reach phrase in all three places with "and lowering the ceiling of a budgeted file it shrank". It goes together with H1.
+- **LOW H3** `plan.md` `## Progress`: 13 commit hashes cited there are from before the rebase and are no longer on the branch.
+  - **Also:** the round-2 Progress entry claims a second killing test for `S-budgetLines-no-norm`. Both the reviewer's run and the coordinator's full-suite run show one: "budgetLines > needs a reason, and copes with no plan".
+  - **Needs rework:** add one Progress line mapping old hashes to new ones, from the range-diff: 7274846→c88fe1c, b998bb3→a22620b, 2bba34c→cec7167, abc8cee→164eb5d, 3e94898→5d65b3d, 442a00b→2d560a2, e1ac30c→3b843c3, acbb91b→2db968b, 144b7e3→dcb20a5, 88a8eea→8a144a7, c970e37→c92ff90, d520189→6aafddb, be104cc→090e8ee, d3980f9→1da1c0f. Then drop the "and the routing test" claim. The review headers are history and stay.
+- **LOW H4** `plan.md:98`, above Progress: it quotes BoardScene at 3176 and PlacementScene at 564, "at `e8bac8f`".
+  - **Status:** accurate as dated, and superseded by the Progress G1 row (3179 and 581). `spec.md:37/43` carries the same dated numbers.
+  - An agent may not edit this line. Updating it is a plan amendment, if the owner wants it. Worth a look.
+
+### Round-2 findings, round-3 status
+| Finding | Status |
+| --- | --- |
+| G1 (HIGH) | Resolved. The branch is rebased and 0 behind. The baseline is re-measured (BoardScene 3179, PlacementScene 581), and `size:baseline` output is byte-identical. Reverting either ceiling makes `check:intent` FAIL |
+| G2 (MEDIUM) | Resolved. `S-verdict-route-rule4-only` is KILLED by "budgetVerdict > routes rules 3 and 4 (both) for an adjustment or experiment, and keeps the others errors" |
+| G3 (LOW) | Resolved. `S-budgetLines-no-norm` is KILLED by "budgetLines > needs a reason, and copes with no plan" |
+| G4 (LOW, owner: option a) | Resolved in code and agent text; the judging texts are still open (H1, H2). Probed end to end in a throwaway clone. Shrinking BoardScene alone FAILs rule 5, and with `size:baseline --write` it PASSes. Raising the ceiling FAILs rules 5 and 4. `checkPreconditions` accepts a listed commit that touches the baseline and refuses an unlisted one |
+| G5 (LOW) | Resolved. `docs/architecture.md:94` lists `turnManager.ts` |
+
+## Spec mapping
+- **Delivered:** B1–B11 and B13–B20.
+- **With a finding:** B14 and B18 (H1, H2).
+- **Acceptance criteria met:** AC1–AC9.
+- **Owed:** AC10, the first `/auto` run after the merge.
+
+## Mutants (pass 4)
+Run by the reviewer, one at a time. No script code line changed since round 2, and the rebase changed none either.
+1. `size-budget-lib.mjs:139`: `(f.rule === 3 || f.rule === 4)` → `f.rule === 4`, KILLED by the `budgetVerdict` routing test.
+2. `size-budget-lib.mjs:68`: `path: norm(m[1])` → `path: m[1]`, KILLED by "budgetLines > needs a reason, and copes with no plan".
+3. `size-budget-lib.mjs:139`: → `f.rule === 3` (the mirror), KILLED by the `budgetVerdict` routing test.
+4. D1, `size-baseline.json`: BoardScene 3179 → 3176. `check:intent` FAILs (rule 1).
+5. D2, `size-baseline.json`: PlacementScene 581 → 564. `check:intent` FAILs (rule 1).
+
+No survivors.
+
+## Not checked
+- **AC10:** KonMari end to end on a real intent. It is owed to the first `/auto` run after the merge.
+- **The full suite against D1/D2:** not run. No test reads the real baseline; `check:intent` is its gate.
+- **Carried over from round 2, unchanged code:**
+  - `scripts/size-budget.mjs`, the CLI, has no test. Its output was hand-checked byte-identical.
+  - `check-intent.mjs`: the `existsSync` guard and the `tryGit` catch.
+  - `ship.mjs`: `readKonmari`'s fallback and `commitsAfter`'s `--root`.
+  - `ship-lib.mjs`: the `.toLowerCase()` calls.
+- **Codex `workspace-write`:** whether it allows commits in a worktree.
+- **`/auto`:** no resume row for a session that closes mid-KonMari.
+- **`npm run e2e`:** not run. The branch diff touches no `src/scenes`, `src/ui`, `src/main.ts` or `e2e/`.
+
+## Live check
+Not needed. No rule-1 path or `.claude/settings.json` changed, and no Not-checked item needs a browser, a hook or the dev server.
+
+## Verified myself vs. taken on trust
+- **Coordinator, re-run:**
+  - `npm run verify` in the worktree at `bb23b25`: exit 0; 79 test files, 1408 tests passed; lint 0 errors, 21 warnings (cap 21).
+  - `npm run check:intent`: exit 0, PASS; 27 files, 1561 lines.
+  - Full suite: `S-verdict-route-rule4-only` KILLED (1 failed / 1407 passed) by "budgetVerdict > routes rules 3 and 4 (both) for an adjustment or experiment, and keeps the others errors".
+  - Full suite: `S-budgetLines-no-norm` KILLED (1 failed / 1407 passed) by "budgetLines > needs a reason, and copes with no plan".
+  - D1 and D2: with each ceiling put back to its old value in turn (backup by copy, restore by copy), `check:intent` FAILs both times.
+  - `git status --short` was clean afterwards.
+  - `npm run sdlc:scan -- --sample-due auto --exclude 61`: sampled: no.
+- **Reviewer:**
+  - the range-diff; verify and check:intent (same numbers);
+  - the baseline byte-identity and the `wc -l` counts;
+  - the G4 throwaway-clone probe and the `ship-lib` probe;
+  - mutants 1–5;
+  - hash reachability for H3.
+- **Taken on trust:**
+  - round 2's 80 killed mutants on lines that are byte-identical since then;
+  - the spec's measurements at `e776128`.
+
+# Round 2 (history)
+
+- verdict: rework
+- tier: reviewed
+- reviewed-commit: 6f15fec
+- round: 2
+- sampled: no
+- run: auto
+- live-check: not-needed
 
 **Tier:** Reviewed, set by the path table: `REVIEW-POLICY.md` (merge rule 1 changed), `.claude/skills/**`, `.claude/agents/**`, `.codex/agents/**`.
 
