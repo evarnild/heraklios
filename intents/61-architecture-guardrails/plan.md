@@ -312,3 +312,21 @@ Mutants (backup by copy, literal replace, diff non-empty, run the test file name
 - Killed by ship.test.mjs ("accepts the listed tidy commit and its own konmari.md commit, and refuses an unlisted one"): R-wiring-konmariText, R-wiring-merge-flag (survived the first run; the integration test now builds a listed side branch and a merge commit).
 - Killed by check-intent.test.mjs: C-planText ("passes the same growth when the ceiling is raised with a budget: line"), C-routes-dropped ("routes an over-budget adjustment"), C-errors-dropped (4 cases), C-skip-or ("checks a baseline the branch creates", added after it survived), C-untracked ("measures a budgeted file that is only untracked"), C-batch-branch-path (the branch-mode growth cases).
 - The 50 mutants the reviewer's run lost to the memory reaper (27 `S-*` on `size-budget-lib.mjs`, `K-*`, and the rest) were not re-run here; they are not part of this rework's findings.
+
+### Round 2 rework (2026-11-09)
+
+Commits: `eb4b439` (all fixes), plus this entry's commit. Owner's decision G4 (a) ("/auto 61 G4 a, rebase ok"): KonMari's reach includes lowering a shrunk file's ceiling in scripts/size-baseline.json; spec.md B14 not amended (owner's). The branch was rebased onto `main` (`9093d21`) by the coordinator.
+
+| Finding | Resolution |
+| --- | --- |
+| G1 (HIGH) | `npm run size:baseline -- --write` on the rebased tree. New ceilings: combat 1111, drift 667, fuzzHarness 1350, heuristicAgent 1065, `src/scenes/BoardScene.ts` 3179 (was 3176), `src/scenes/PlacementScene.ts` 581 (was 564). Still first creation, so no `budget:` line. Stale above this section and left alone: the measurement list at plan.md "The size baseline" (line 98, "at `e8bac8f`": BoardScene 3176, PlacementScene 564), and the Progress phase-5 row ("the six files of the plan, same numbers"). |
+| G2 (MEDIUM) | `budgetVerdict` fixture gains `{ rule: 3 }`; the planless test expects both rules 3 and 4 routed (2 routes) for adjustment and experiment, and 3 errors for a feature. |
+| G3 (LOW) | `budgetLines` case with `src\scenes\BoardScene.ts` expecting `src/scenes/BoardScene.ts`. |
+| G4 (LOW, option a) | `heraklios-konmari.md`, its Codex toml and `/konmari` (step 3, item 4: a ceiling that went up is a failure) say that a tidy-up that shrinks a baselined file runs `npm run size:baseline -- --write` in the same `§<id> konmari:` commit, and that a ceiling may only go down. No code change needed: `commitAccepted` already accepts a listed commit touching files outside the intent folder, and check:intent passes a lowered ceiling (rule 5 satisfied; growth <= 0 skips rules 3/4). |
+| G5 (LOW) | `docs/architecture.md` principle 9 exception table gains `src/engine/turnManager.ts` `shuffleSeatOrder(…, rng = Math.random)`. |
+
+Counts: `npm run verify` green, 79 test files, 1408 tests (main grew since round 1; size-budget-lib.test.mjs 41 tests, no new `it`, assertions added); lint 0 errors, 21 warnings, cap 21. `npm run check:intent`: PASS (intent 61, feature).
+
+Mutants (backup by copy, one-line sed, changed asserted, run `scripts/size-budget-lib.test.mjs`, restore by copy):
+- `(f.rule === 3 || f.rule === 4)` to `f.rule === 4` (was S-verdict-route-rule4-only): killed by "routes rules 3 and 4 (both) for an adjustment or experiment...".
+- `path: norm(m[1])` to `path: m[1]` (was S-budgetLines-no-norm): killed by "needs a reason, and copes with no plan" (the backslash case) and the routing test.
