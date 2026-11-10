@@ -2,7 +2,7 @@
 id: 63
 slug: minimatch-advisory
 type: fix
-status: accepted
+status: in-review
 title: npm audit clears the minimatch advisory in the lint toolchain
 review_tier:
 intent_accepted: 2026-11-05 by-agent    # owner: "accept 63"
@@ -11,8 +11,8 @@ plan_approved: 2026-11-10 by-agent    # auto: owner "/auto 63" (auto_authorized 
 live_checked:
 merged:
 auto_authorized: 2026-11-10 by-agent    # owner: "/auto 63"
-auto_round:
-auto_stopped:
+auto_round: 1
+auto_stopped: ready for /ship
 follows_up:
 links:
   - intents/56-vite-vitest-upgrade
