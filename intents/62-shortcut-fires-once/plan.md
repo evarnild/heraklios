@@ -158,3 +158,21 @@ Re-read on `main` at `5d08c27` (Phaser 3.90.0, `node_modules/phaser/package.json
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-11-10 — all four subtasks (commit 3439396)
+
+- **Shipped:** `src/ui/onceEach.ts` (+ 4 tests), `src/ui/shortcutKeys.ts` (`bindUndoRedoKeys`, `onKeyOnce`), `BoardScene` and `PlacementScene` call them instead of the inline handlers (Z, Y, ESC, SPACE, ENTER on the Board), `e2e/undo-shortcuts.spec.ts` (2 scenarios: Board, Placement; each covers Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y and a bare Z that changes nothing).
+- **Failing first, on main's code** (dispatched events in one `page.evaluate` reproduce it; no Playwright keyboard fallback needed): Board `one Ctrl+Z, one undo` expected 1 `Undone:` line, received 2; Placement `one Ctrl+Z takes back one unit` expected 1 unit placed, received 0 (two placements all undone by one press).
+- **After:** both pass. `npm run e2e`: 22 passed / 22 (one earlier run had `save-load.spec.ts` fail once under load with a movementLeft diff; it passed alone twice and in the next full run, and it uses no shortcut).
+- **Baseline:** `BoardScene.ts` 3179 -> 3173, `PlacementScene.ts` 581 -> 575.
+- **Tests:** vitest 80 files / 1412 tests passed (adds `onceEach.test.ts`). Lint 21 warnings (cap unchanged). `check:intent`: type-check PASS.
+- **Mutant:** `onceEach` never records seen events: 2 of its 4 tests fail (same object twice, interleaved). Restored by copy.
+- **Space:** not covered in e2e; no existing test-mode shortcut reaches a drift pause. Dropping `onKeyOnce` around Space survives e2e (Not checked). The `onceEach` unit tests cover the guard.
+- **Divergence:** the scenario was committed together with the fix in one commit (as the plan allows), not separately.
+
+### Round 1 rework (2026-11-10)
+
+- **Finding -> resolution:** MEDIUM surviving mutant M8 (`shortcutKeys.ts` Y handler without the ctrl/meta check). `e2e/undo-shortcuts.spec.ts` now sends a bare Y right after the first Ctrl+Z, while the redo stack is non-empty: Board asserts the `Redone:` count stays 0, Placement asserts `placed()` unchanged.
+- **M8 re-run:** one-line change applied (`git diff --quiet` exit 1), `npx playwright test e2e/undo-shortcuts.spec.ts`: 2 failed, killed by both "one undo or redo shortcut in Placement undoes or redoes one placement (seed 1)" ("a bare Y redoes nothing", expected 1 received 2) and the Board scenario. Restored by copy; tree clean of mutant.
+- **LOW (Space/Enter, M10/M15):** skipped, no seeded drift pause is trivially reachable.
+- **Counts:** vitest 80 files / 1412 tests; lint 21 warnings (cap unchanged); `npm run e2e` 22 passed / 22; `check:intent` type-check FAIL only for the owed, unrecorded live check (owner's gate), no other error.
