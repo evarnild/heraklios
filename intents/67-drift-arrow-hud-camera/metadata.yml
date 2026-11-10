@@ -11,8 +11,8 @@ plan_approved: 2026-11-10 by-agent    # auto: owner "accept 67 /auto 67" (auto_a
 live_checked:
 merged:
 auto_authorized: 2026-11-10 by-agent    # owner: "/auto 67 a"
-auto_round: 1
-auto_stopped: decision needed
+auto_round: 2
+auto_stopped:
 follows_up:
 links:
   - intents/65-board-view-seam
