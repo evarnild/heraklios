@@ -33,6 +33,7 @@ interface BoardInternals extends Phaser.Scene {
   mapView: {
     toScreen(h: Hex): Point;
     viewKind: 'standard' | 'drawn';
+    cameraStrays(): { type: string; depth: number }[];
     drawnInspect(): { unitDrawings: number; ghostRotation: number | null; unitRotations: Record<string, number>; hudLeaks: number } | null;
   };
 }
@@ -119,6 +120,13 @@ export interface DevHook {
    * is each unit figure's rotation by id.
    */
   boardObjects(): BoardObjects;
+  /**
+   * Display-list objects both cameras would render (read-only; §67), each as
+   * its type and depth. Must be empty in either view: a world object the view
+   * forgot to list in `mapObjects()` shows here, which `boardObjects().hudLeaks`
+   * (it checks only the listed ones) cannot see.
+   */
+  hudStrays(): { type: string; depth: number }[];
   /** How many landscapes this page has baked (§64: pan and zoom must not bake). */
   landscapeBuilds(): number;
   /** The Board's Tables panel: open or not, its tab, and the land table's highlight (§55). Read-only. */
@@ -246,6 +254,7 @@ export function installDevHook(game: Phaser.Game): void {
     cameraScroll: () => ({ x: mapScene().cameras.main.scrollX, y: mapScene().cameras.main.scrollY }),
     selectedUnitId: () => selectedUnitId(board()),
     boardObjects: () => boardObjects(mapScene()),
+    hudStrays: () => mapScene().mapView.cameraStrays(),
     landscapeBuilds: () => landscapeBuilds(),
   };
   (window as unknown as { __heraklios: DevHook }).__heraklios = hook;

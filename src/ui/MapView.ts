@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { cameraStrays, type CameraObject, type CameraStray } from './cameraStrays';
 import type { HexCoord } from '../data/map';
 import { HEX_SIZE, hexToPixel } from './hexRender';
 import { allHexes } from './mapBounds';
@@ -177,6 +178,13 @@ export class MapView {
     const ui = this.uiCamera;
     const hudLeaks = ui ? this.boardView.mapObjects().filter((o) => (o.cameraFilter & ui.id) === 0).length : 0;
     return { ...this.boardView.inspect(), hudLeaks };
+  }
+
+  /** Dev-hook reader (read-only; §67): the display-list objects both cameras would render. */
+  cameraStrays(): CameraStray[] {
+    const ui = this.uiCamera;
+    if (!ui) return [];
+    return cameraStrays(this.scene.children.list as unknown as CameraObject[], this.scene.cameras.main.id, ui.id);
   }
 
   /** The map hex under a pointer, through the main camera's current scroll and zoom. */

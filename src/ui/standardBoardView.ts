@@ -87,9 +87,10 @@ export class StandardBoardView implements BoardView {
   }
 
   /** The objects the surface keeps off the fixed HUD camera when it is
-   * pinned: exactly what the pre-split `pinUIObjects` listed (the drift
-   * arrow and the lazily made labels were never in it; the labels are
-   * ignored by the HUD camera only when made after the pin). */
+   * pinned: the terrain, overlays, rings, rivers, facings, the drift arrow
+   * and the unit markers. (§67: the drift arrow was once left out, so both
+   * cameras drew it.) The lazily made labels are not here: they are ignored
+   * by the HUD camera only when made after the pin, through `ignoreOnUiCamera`. */
   mapObjects(): Phaser.GameObjects.GameObject[] {
     return [
       ...this.terrainPolys,
@@ -97,6 +98,7 @@ export class StandardBoardView implements BoardView {
       this.ringGraphics,
       this.riverGraphics,
       this.facingGraphics,
+      this.driftArrowGraphics,
       ...[...this.markers.values()].map((m) => m.marker),
     ];
   }
