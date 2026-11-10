@@ -7,7 +7,7 @@ title: One Ctrl+Z or Ctrl+Y press undoes or redoes one step, even on a slow fram
 review_tier:
 intent_accepted: 2026-11-10 by-agent    # owner: "accept 62 and /auto 62"
 spec_accepted:
-plan_approved:
+plan_approved: 2026-11-10 by-agent    # auto: owner "accept 62 and /auto 62" (auto_authorized 2026-11-10)
 live_checked:
 merged:
 auto_authorized: 2026-11-10 by-agent    # owner: "accept 62 and /auto 62"
