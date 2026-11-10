@@ -138,6 +138,7 @@ Written against `main` at `e776128`.
 - **B14. Reach.** The agent may change:
   - the lines the intent added or changed;
   - existing code that those lines duplicate. For example, it may reuse an existing helper instead of a new copy, or fold the new and old helpers into one, updating their callers.
+  - the ceiling of a budgeted file the tidy-up shrinks, lowered in `scripts/size-baseline.json` in the same `§<id> konmari:` commit (never raised).
 
   It doesn't restructure code the intent didn't touch. A larger cleanup it notices goes into the record as a proposed `refactor` intent, and is not done.
 - **B15. Behaviour is held.**

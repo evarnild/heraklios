@@ -203,7 +203,8 @@ Each pass reports `pass`, `findings`, or `not run` (with why).
     trade-off, a new exception or a new layer is **"Needs decision:"**, and
     belongs in `docs/architecture.md` (principle 17). When the intent has a
     `konmari.md`, check it too: its commits stay within the KonMari reach
-    (the diff's lines and what they duplicate), change no test assertion and
+    (the diff's lines and what they duplicate, and lowering the ceiling of a
+    budgeted file it shrank), change no test assertion and
     add no dependency; its `outcome:` matches the commits; what it left is
     recorded. Report the pass as `not run` if `docs/architecture.md` is
     missing.

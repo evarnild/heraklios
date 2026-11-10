@@ -66,7 +66,8 @@ In the worktree, one heavy command at a time:
 
 Delegate to `heraklios-reviewer` a read of **only the KonMari commits**
 (`git log base..HEAD`, `git diff base..HEAD`): do they stay within the reach
-(the diff's lines and what they duplicate), change no test assertion or case,
+(the diff's lines and what they duplicate, and lowering the ceiling of a
+budgeted file it shrank), change no test assertion or case,
 add no dependency or `eslint-disable`, and respect principles 5 to 12 of
 `docs/architecture.md`?
 
@@ -89,7 +90,8 @@ and must never delete the record.
 ## 6. A failed check discards, never blocks (B18)
 
 If any item in step 3 fails, or the reviewer's read finds a behaviour change
-or a reach beyond the diff and its duplicates:
+or a reach beyond the diff, its duplicates and the lowered ceilings of
+budgeted files it shrank:
 
 - `git revert` the KonMari tidy-up commits (new commits; no rewritten history;
   never the record's own commit);

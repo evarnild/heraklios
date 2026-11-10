@@ -95,7 +95,7 @@ Re-read on `main` at `e8bac8f`.
   - `intents/README.md:87`: `## Who edits what`. `:154`: the implementer bullet. `:160`: the reviewer bullet.
   - `CLAUDE.md:193`: `## Architecture`, the module map, which gets one pointer line.
 - **The size baseline:**
-  - Non-test files over 500 lines, measured with `wc -l` at `e8bac8f`: `src/scenes/BoardScene.ts` 3176, `src/engine/fuzzHarness.ts` 1350, `src/engine/combat.ts` 1111, `src/engine/heuristicAgent.ts` 1065, `src/engine/drift.ts` 667, `src/scenes/PlacementScene.ts` 564.
+  - Non-test files over 500 lines, measured with `wc -l` at `e8bac8f`: `src/scenes/BoardScene.ts` 3176, `src/engine/fuzzHarness.ts` 1350, `src/engine/combat.ts` 1111, `src/engine/heuristicAgent.ts` 1065, `src/engine/drift.ts` 667, `src/scenes/PlacementScene.ts` 564. Re-measured after the rebase onto `085e66f` (§64 merged): `BoardScene.ts` 3179 and `PlacementScene.ts` 581, the others unchanged; `scripts/size-baseline.json` holds these.
   - `src/data/map.ts` (1401) is excluded (B7).
   - No file under `server/`, `scripts/` or `tools/` is a non-test file over 500 lines. The longest, `scripts/ship.mjs`, has 444.
 
@@ -329,4 +329,15 @@ Counts: `npm run verify` green, 79 test files, 1408 tests (main grew since round
 
 Mutants (backup by copy, one-line sed, changed asserted, run `scripts/size-budget-lib.test.mjs`, restore by copy):
 - `(f.rule === 3 || f.rule === 4)` to `f.rule === 4` (was S-verdict-route-rule4-only): killed by "routes rules 3 and 4 (both) for an adjustment or experiment...".
-- `path: norm(m[1])` to `path: m[1]` (was S-budgetLines-no-norm): killed by "needs a reason, and copes with no plan" (the backslash case) and the routing test.
+- `path: norm(m[1])` to `path: m[1]` (was S-budgetLines-no-norm): killed by "needs a reason, and copes with no plan" (the backslash case). (Corrected 2026-11-10: only that test fails, 1 of 1408 on the full suite; the routing test does not.)
+
+### Owner's amendments after round 3 (2026-11-10)
+
+Owner: "Amend b14 as suggested and fix h1-h4". Made by the coordinator.
+
+| Finding | Resolution |
+| --- | --- |
+| H1 | `spec.md` B14 gains a third bullet: the ceiling of a budgeted file the tidy-up shrinks, lowered in `scripts/size-baseline.json` in the same `§<id> konmari:` commit (never raised). This is the spec amendment for the owner's G4 (a). |
+| H2 | The reach phrase in `/konmari` §4 (the reviewer's read), §6 (the discard condition) and `REVIEW-POLICY.md` pass 10 now includes lowering the ceiling of a budgeted file the tidy-up shrank. |
+| H3 | Hashes cited above are from before the rebase onto `085e66f`. Old → new: 7274846→c88fe1c, b998bb3→a22620b, 2bba34c→cec7167, abc8cee→164eb5d, 3e94898→5d65b3d, 442a00b→2d560a2, e1ac30c→3b843c3, acbb91b→2db968b, 144b7e3→dcb20a5, 88a8eea→8a144a7, c970e37→c92ff90, d520189→6aafddb, be104cc→090e8ee, d3980f9→1da1c0f (from `git range-diff`). The round-2 entry's second killing test is corrected in place. |
+| H4 | The "size baseline" measurement line (above Progress) keeps its dated `e8bac8f` numbers and adds the post-rebase ones (`BoardScene.ts` 3179, `PlacementScene.ts` 581). |
