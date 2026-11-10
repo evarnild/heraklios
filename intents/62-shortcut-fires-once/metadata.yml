@@ -2,7 +2,7 @@
 id: 62
 slug: shortcut-fires-once
 type: fix
-status: accepted
+status: in-review
 title: One Ctrl+Z or Ctrl+Y press undoes or redoes one step, even on a slow frame
 review_tier:
 intent_accepted: 2026-11-10 by-agent    # owner: "accept 62 and /auto 62"
