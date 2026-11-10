@@ -18,6 +18,7 @@ import type { LandCombatHighlight } from '../engine/ruleTables';
 import type { RulesTab } from './rulesPanel';
 import { GHOST_SHIP_ID } from './boardView';
 import { landscapeBuilds } from './landscape/paintLandscape';
+import type { CameraScan } from './cameraStrays';
 
 type Hex = { q: number; r: number };
 type Point = { x: number; y: number };
@@ -33,7 +34,7 @@ interface BoardInternals extends Phaser.Scene {
   mapView: {
     toScreen(h: Hex): Point;
     viewKind: 'standard' | 'drawn';
-    cameraStrays(): { type: string; depth: number }[];
+    cameraStrays(): CameraScan;
     drawnInspect(): { unitDrawings: number; ghostRotation: number | null; unitRotations: Record<string, number>; hudLeaks: number } | null;
   };
 }
@@ -122,11 +123,14 @@ export interface DevHook {
   boardObjects(): BoardObjects;
   /**
    * Display-list objects both cameras would render (read-only; §67), each as
-   * its type and depth. Must be empty in either view: a world object the view
+   * its type and depth (`strays`), with how many objects it `examined` and how
+   * many only the HUD camera renders (`hudOnly`, a positive control: a reader
+   * that looked at nothing reports none). `strays` must be empty in either
+   * view: a world object the view
    * forgot to list in `mapObjects()` shows here, which `boardObjects().hudLeaks`
    * (it checks only the listed ones) cannot see.
    */
-  hudStrays(): { type: string; depth: number }[];
+  hudStrays(): CameraScan;
   /** How many landscapes this page has baked (§64: pan and zoom must not bake). */
   landscapeBuilds(): number;
   /** The Board's Tables panel: open or not, its tab, and the land table's highlight (§55). Read-only. */

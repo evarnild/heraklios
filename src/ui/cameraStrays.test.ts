@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cameraStrays } from './cameraStrays';
+import { cameraStrays, scanCameras } from './cameraStrays';
 
 const MAIN = 1;
 const UI = 2;
@@ -25,5 +25,18 @@ describe('cameraStrays', () => {
   it('ignores bits of other cameras', () => {
     expect(cameraStrays([obj(4)], MAIN, UI)).toHaveLength(1);
     expect(cameraStrays([obj(4 | UI)], MAIN, UI)).toEqual([]);
+  });
+});
+
+describe('scanCameras', () => {
+  it('counts examined objects, HUD-only objects and strays', () => {
+    const list = [obj(UI), obj(MAIN), obj(MAIN), obj(0), obj(MAIN | UI)];
+    const scan = scanCameras(list, MAIN, UI);
+    expect(scan.examined).toBe(5);
+    expect(scan.hudOnly).toBe(2);
+    expect(scan.strays).toHaveLength(1);
+  });
+  it('reports zeros for an empty list', () => {
+    expect(scanCameras([], MAIN, UI)).toEqual({ examined: 0, hudOnly: 0, strays: [] });
   });
 });

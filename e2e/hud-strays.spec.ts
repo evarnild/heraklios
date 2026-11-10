@@ -6,6 +6,17 @@ import { MENU_TEST, activeUnitOfType, clickButton, clickHex, startFromMenu, wait
 
 const DRAWN = '🗺 Drawn view';
 
+type Scan = { examined: number; hudOnly: number; strays: { type: string; depth: number }[] };
+
+// The scan must have really looked at the HUD (hudOnly > 0: objects only the
+// HUD camera renders) and past it (examined > hudOnly), or an empty `strays`
+// proves nothing: a reader that examines nothing also reports none.
+function expectScan(scan: Scan, label: string) {
+  expect(scan.strays, label).toEqual([]);
+  expect(scan.hudOnly, `${label}: HUD objects seen`).toBeGreaterThan(0);
+  expect(scan.examined, `${label}: examined beyond HUD`).toBeGreaterThan(scan.hudOnly);
+}
+
 test('no display-list object is rendered by both cameras, in either view', async ({ page }) => {
   const errors = await startFromMenu(page, MENU_TEST, 'test', 1);
   const mover = await activeUnitOfType(page, 'fantassins');
@@ -13,11 +24,11 @@ test('no display-list object is rendered by both cameras, in either view', async
   await waitIdle(page);
 
   expect(await page.evaluate(() => window.__heraklios.boardView())).toBe('standard');
-  expect(await page.evaluate(() => window.__heraklios.hudStrays()), 'Standard view').toEqual([]);
+  expectScan(await page.evaluate(() => window.__heraklios.hudStrays()), 'Standard view');
 
   await clickButton(page, DRAWN);
   await page.waitForFunction(() => window.__heraklios.boardView() === 'drawn');
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
-  expect(await page.evaluate(() => window.__heraklios.hudStrays()), 'Drawn view').toEqual([]);
+  expectScan(await page.evaluate(() => window.__heraklios.hudStrays()), 'Drawn view');
   expect(errors).toEqual([]);
 });

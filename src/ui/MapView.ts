@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { cameraStrays, type CameraObject, type CameraStray } from './cameraStrays';
+import { scanCameras, type CameraObject, type CameraScan } from './cameraStrays';
 import type { HexCoord } from '../data/map';
 import { HEX_SIZE, hexToPixel } from './hexRender';
 import { allHexes } from './mapBounds';
@@ -181,10 +181,10 @@ export class MapView {
   }
 
   /** Dev-hook reader (read-only; §67): the display-list objects both cameras would render. */
-  cameraStrays(): CameraStray[] {
+  cameraStrays(): CameraScan {
     const ui = this.uiCamera;
-    if (!ui) return [];
-    return cameraStrays(this.scene.children.list as unknown as CameraObject[], this.scene.cameras.main.id, ui.id);
+    if (!ui) return { examined: 0, hudOnly: 0, strays: [] };
+    return scanCameras(this.scene.children.list as unknown as CameraObject[], this.scene.cameras.main.id, ui.id);
   }
 
   /** The map hex under a pointer, through the main camera's current scroll and zoom. */
