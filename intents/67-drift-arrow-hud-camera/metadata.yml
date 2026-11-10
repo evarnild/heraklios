@@ -12,7 +12,7 @@ live_checked: 2026-11-10 by-agent    # owner: "live check passed /auto 67"
 merged:
 auto_authorized: 2026-11-10 by-agent    # owner: "live check passed /auto 67"
 auto_round: 2
-auto_stopped:
+auto_stopped: ready for /ship
 follows_up:
 links:
   - intents/65-board-view-seam
