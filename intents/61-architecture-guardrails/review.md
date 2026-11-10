@@ -1,13 +1,90 @@
 <!-- generated-by: heraklios/review@0.1.5 -->
 # §61 review — The SDLC keeps the architecture good with written principles, import rules, a size budget, a review pass and a KonMari tidy-up step
 
-verdict: rework
+verdict: escalate
 tier: reviewed
-reviewed-commit: bb23b25
-round: 3
+reviewed-commit: 8818973
+round: 4
 sampled: no
-run: auto
+run: manual
 live-check: not-needed
+
+**Tier:** Reviewed, set by the path table: `REVIEW-POLICY.md`, `.claude/skills/**`, `.claude/agents/**`, `.codex/agents/**`.
+
+**Verdict:** `escalate`. There are no findings. Because the tier is Reviewed, the owner reads the diff before `/ship 61`.
+
+**What this round covers:**
+- The `/auto` run stopped out of rounds after round 3. This manual round reviews the owner's amendments in `8818973` ("Amend b14 as suggested and fix h1-h4").
+- Since round 3 (`bb23b25`), only text changed: `spec.md`, `plan.md`, `.claude/skills/konmari/SKILL.md` and `REVIEW-POLICY.md`. No script, test, config or data file changed (`git diff bb23b25..HEAD -- '*.mjs' '*.js' '*.ts' '*.json'` is empty).
+
+## Passes
+| # | Pass | Result |
+| --- | --- | --- |
+| 1 | Intent and plan match | pass. B14 now includes lowering a shrunk file's ceiling, matching the agent, its Codex toml and `/konmari` step 3 (H1). The reach in the judging texts matches too (H2) |
+| 2 | Type check | pass |
+| 3 | Rulebook fidelity | not run: SDLC tooling, no rulebook behaviour |
+| 4 | Tests prove it | pass: no behavioural line changed since round 3, so no new mutants. Round 3 had no survivors |
+| 5 | Boundary and conventions | pass: no `src/`, `server/` or `GameState` change on the branch |
+| 6 | Numbers in prose | pass. The H3 hash map matches round 3's `git range-diff`, and the corrected killing-test claim matches the round-3 full-suite run. The H4 numbers (3179, 581) match `scripts/size-baseline.json` |
+| 7 | Documentation | pass |
+| 8 | Guardrails and hygiene | pass: 0 errors, 21 warnings, cap 21 |
+| 9 | Repository-specific footguns | pass (not applicable) |
+
+## Type check
+```
+type-check: PASS (intent 61, feature)
+  note:  27 file(s), 1564 line(s) changed outside intents/.
+```
+
+## Findings
+None.
+
+### Round-3 findings, round-4 status
+| Finding | Status |
+| --- | --- |
+| H1 (LOW, Needs decision) | Resolved by the owner. `spec.md` B14 has the third bullet: the ceiling of a budgeted file the tidy-up shrinks, lowered in `scripts/size-baseline.json` in the same `§<id> konmari:` commit, never raised |
+| H2 (LOW) | Resolved. `/konmari` §4 and §6 and `REVIEW-POLICY.md` pass 10 now include "lowering the ceiling of a budgeted file it shrank". No other text keeps the old reach phrase: a grep across `.claude`, `.codex`, `docs`, `sdlc.md` and `REVIEW-POLICY.md` found none |
+| H3 (LOW) | Resolved. A Progress entry maps the 14 pre-rebase hashes to their new ones, and the round-2 killing-test claim is corrected in place |
+| H4 (LOW) | Resolved by the owner. `plan.md:98` keeps the dated `e8bac8f` numbers and adds the post-rebase ones |
+
+## Not checked
+- **AC10:** KonMari end to end on a real intent. It is owed to the first `/auto` run after the merge.
+- **Carried over from rounds 2 and 3, unchanged code:**
+  - `scripts/size-budget.mjs`, the CLI, has no test.
+  - `check-intent.mjs`: the `existsSync` guard and the `tryGit` catch.
+  - `ship.mjs`: `readKonmari`'s fallback and `commitsAfter`'s `--root`.
+  - `ship-lib.mjs`: the `.toLowerCase()` calls.
+- **Codex `workspace-write`:** whether it allows commits in a worktree.
+- **`/auto`:** no resume row for a session that closes mid-KonMari.
+- **This round's own limits:**
+  - Not delegated to `heraklios-reviewer`. The coordinator, who also wrote `8818973`, reviewed it itself, so this text change has had no independent read. The owner's diff read covers that.
+  - `npm run e2e` was not run: the branch touches no `src/scenes`, `src/ui`, `src/main.ts` or `e2e/`.
+
+## Live check
+Not needed. No rule-1 path or `.claude/settings.json` changed, and no Not-checked item needs a browser, a hook or the dev server.
+
+## Verified myself vs. taken on trust
+- **Verified myself, in the worktree at `8818973`:**
+  - `npm run verify`: exit 0; 79 test files, 1408 tests passed; lint 0 errors, 21 warnings (cap 21).
+  - `npm run check:intent`: exit 0, PASS (output above).
+  - The branch is 0 behind `main`.
+  - No code, config or data changed since `bb23b25`.
+  - A grep for the reach texts across the agent, Codex toml, skills, `docs/architecture.md`, `sdlc.md` and `REVIEW-POLICY.md`.
+  - `npm run sdlc:scan -- --sample-due manual --exclude 61`: sampled: no.
+  - `npm run ship -- 61 --dry-run`: the only stop was the committed round-3 verdict (`rework`), which this report replaces.
+- **Taken on trust:**
+  - rounds 2 and 3's mutation results on unchanged lines (round 3: no survivors);
+  - round 3's range-diff, the source of the H3 hash map.
+
+# Round 3 (history)
+
+- verdict: rework
+- tier: reviewed
+- reviewed-commit: bb23b25
+- round: 3
+- sampled: no
+- run: auto
+- live-check: not-needed
 
 **Tier:** Reviewed, set by the path table: `REVIEW-POLICY.md` (merge rule 1 changed), `.claude/skills/**`, `.claude/agents/**`, `.codex/agents/**`.
 
