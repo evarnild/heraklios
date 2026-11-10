@@ -145,3 +145,47 @@ Re-read on `main` at `bd19695`, and from the npm registry on 2026-11-10.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### Phase 1 — 2026-11-10 — override forced and proved
+
+Commit: `28b31ae` "§63: force minimatch 11.0.1 under typescript-estree (npm overrides)"
+(plus the Progress/status commit that follows it). Changed: `package.json`
+(`overrides`), `package-lock.json`. No `src/`, `server/` or test file touched.
+
+**Registry re-check (2026-11-10, at build time):** unchanged from the plan.
+`@typescript-eslint/typescript-estree` `latest` is 8.72.2; 8.72.1 and 8.72.2
+both declare `minimatch ^10.2.2` (so does `latest`); the newest estree is
+8.72.3-alpha.6 (canary). `minimatch` 11.0.1 (2026-10-27) is still the newest 11.x
+at least 14 days old (11.0.2 is 2026-10-28, 11.0.3 10-28, 11.0.4 11-02,
+11.0.5 11-05). Pin kept at 11.0.1; no divergence.
+
+| | Before (main + plan, `2422251`) | After (`28b31ae`) |
+|---|---|---|
+| `npm audit` totals | `{"info":0,"low":0,"moderate":7,"high":0,"critical":0,"total":7}`; entries: `@typescript-eslint/eslint-plugin`, `parser`, `type-utils`, `typescript-estree`, `utils`, `minimatch`, `typescript-eslint`; via GHSA-g3hv-75wg-m249, range `>=7.0.0 <11.0.1` | `{"info":0,"low":0,"moderate":0,"high":0,"critical":0,"total":0}`; "found 0 vulnerabilities" |
+| `npm ls minimatch` (eslint branch) | `eslint@9.39.5` > `minimatch@3.1.5` (deduped under `@eslint/config-array@0.21.2` and `@eslint/eslintrc@3.3.7`) | identical, `minimatch@3.1.5` |
+| `npm ls minimatch` (typescript-eslint branch) | `typescript-eslint@8.71.1` > `@typescript-eslint/typescript-estree@8.71.1` > `minimatch@10.2.6` | same path > `minimatch@11.0.1 overridden` |
+| eslint `file:line:col ruleId`, sorted | 21 entries, sha256 `ca567db026009da9179ba200a5f7187b78354751b613a769d8a10f0150e024ac` | 21 entries, same sha256; `cmp` byte-identical |
+| `npm run lint` | `21 problems (0 errors, 21 warnings)` | `21 problems (0 errors, 21 warnings)` (cap 21 untouched) |
+| `npm run verify` | green; Test Files 79 passed (79), Tests 1408 passed (1408) | green; Test Files 79 passed (79), Tests 1408 passed (1408) |
+
+Clean install (subtask 4): `node_modules` deleted, `npm ci` gave "added 278
+packages, and audited 279 packages in 10s ... found 0 vulnerabilities"; then
+`npm run verify` green (79 files, 1408 tests, 21 warnings), eslint list again
+sha256 `ca567db0...24ac` with 21 entries, `npm ls minimatch` still 11.0.1
+under estree.
+
+**Why the override:** no typescript-eslint release depends on
+minimatch >=11.0.1; 8.72.1 and 8.72.2 declare `^10.2.2`, and no 10.x is
+outside the advisory range. Scoped to typescript-estree so eslint's own
+`minimatch@3.1.5` is untouched. Lint (non-type-checked config) never reaches
+estree's one minimatch call (`allowDefaultProject` under a project service).
+
+**Remove when:** a typescript-eslint release declares `minimatch >=11.0.1`.
+Then drop the `overrides` block and bump typescript-eslint instead.
+
+**Divergences / notes:** (1) The lockfile diff also drops `"peer": true` from
+`node_modules/picomatch`, npm's own metadata normalisation on `npm install`;
+it changes no version. (2) Two new transitive dev dependencies appear, as the
+plan predicted: `@isaacs/nonrecursive-glob-match@1.1.0` and
+`brace-expansion ^5.0.12` (already present). (3) Mutation check
+(remove the override, expect 7 entries) is left to the reviewer per the plan.
