@@ -69,6 +69,10 @@ test('one undo or redo shortcut on the Board undoes or redoes one step (seed 1)'
   await burst(page, { ctrl: true, letter: 'Z' });
   expect(await count(page, 'Undone:'), 'one Ctrl+Z, one undo').toBe(1);
 
+  // A bare Y with a redo available is not a shortcut either.
+  await burst(page, { letter: 'Y' });
+  expect(await count(page, 'Redone:'), 'a bare Y redoes nothing').toBe(0);
+
   await burst(page, { ctrl: true, shift: true, letter: 'Z' });
   expect(await count(page, 'Redone:'), 'one Ctrl+Shift+Z, one redo').toBe(1);
 
@@ -111,6 +115,8 @@ test('one undo or redo shortcut in Placement undoes or redoes one placement (see
   expect(await placed(), 'a bare Z changes nothing').toBe(base + 2);
   await burst(page, { ctrl: true, letter: 'Z' });
   expect(await placed(), 'one Ctrl+Z takes back one unit').toBe(base + 1);
+  await burst(page, { letter: 'Y' });
+  expect(await placed(), 'a bare Y redoes nothing').toBe(base + 1);
   await burst(page, { ctrl: true, shift: true, letter: 'Z' });
   expect(await placed(), 'one Ctrl+Shift+Z puts one back').toBe(base + 2);
   await burst(page, { ctrl: true, letter: 'Z' });
