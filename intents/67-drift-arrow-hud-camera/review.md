@@ -1,13 +1,125 @@
 <!-- generated-by: heraklios/review@0.2.0 -->
 # §67 review — The elephant drift arrow is drawn once, by the map camera only
 
-verdict: rework
+verdict: attest
 tier: attested
-reviewed-commit: 11b7f26
-round: 1
+reviewed-commit: 08ffabb
+round: 2
 sampled: no
 run: auto
 live-check: owed
+
+**Tier:** Attested, set by the path table (`src/ui/**`, `e2e/**`). No `review_tier` is set, and no finding raises the tier.
+
+**Verdict:** `attest`. No finding needs rework.
+- Round 1's MEDIUM is resolved by the owner's option (a) ("/auto 67 a").
+  - `hudStrays()` now returns `{ examined, hudOnly, strays }` from a pure `scanCameras` in `src/ui/cameraStrays.ts`.
+  - The e2e asserts all three, in both views.
+  - W3, W4 and W5 now fail on "Standard view: HUD objects seen".
+- There are 2 LOW findings ("Worth a look").
+- The live check is still owed, and it is the owner's to clear.
+
+**How this round ran:**
+- The `heraklios-reviewer` agent ran the ten passes and 13 mutants.
+- The coordinator re-ran verify, check:intent, the full e2e suite, the three mutants the rework claims to kill, and the one survivor. Every result matches.
+
+## Passes
+| # | Pass | Result |
+| --- | --- | --- |
+| 1 | Intent and plan match | pass. The rework is the minimum for option (a): one pure function and its type, a changed return type passed through `MapView` and `devHook`, two unit tests and one e2e helper |
+| 2 | Type check | pass. FAIL only on the owed live check (below) |
+| 3 | Rulebook fidelity | not run: presentation only, no rule behaviour changed |
+| 4 | Tests prove it | pass. All 7 `scanCameras` mutants are killed by the full vitest suite. W1, W3, W4, W5 and W6 are killed by the e2e. W7 survives, but it is equivalent for the stray check (LOW 1) |
+| 5 | Boundary and conventions | pass. `scanCameras` is pure and unit-tested, `MapView` applies it, and `devHook.hudStrays` only reads. No `GameState`, save or undo change |
+| 6 | Numbers in prose | findings (1, LOW): the plan above Progress is stale (LOW 2). Every number in the rework Progress entry reproduced |
+| 7 | Documentation | pass. `DevHook.hudStrays`'s doc comment describes the new shape |
+| 8 | Guardrails and hygiene | pass: lint 21, cap 21, no new dependency |
+| 9 | Repository-specific footguns | pass. No `src/engine` or `src/data` change |
+| 10 | Architecture | pass. `scanCameras` reuses `cameraStrays` for `strays`, so there is no duplication |
+
+**Assertions weakened:** none. `strays` must still be `[]` in both views; the two count assertions are additions.
+
+## Type check
+```
+type-check: FAIL (intent 67, fix)
+  error: A live check is owed and not recorded. Do the steps in intents/67-drift-arrow-hud-camera/review.md → ## Live check, then set live_checked: <date> in intents/67-drift-arrow-hud-camera/metadata.yml.
+  note:  6 file(s), 144 line(s) changed outside intents/.
+```
+The only error is the owed live check. It clears when the owner records `live_checked` (review skill, step 1's exception).
+
+## Findings
+- **LOW** `e2e/hud-strays.spec.ts:16`, `src/ui/cameraStrays.ts:30`: `examined > hudOnly` is a weaker check than its comment suggests.
+  - It kills only a reader that sees nothing but HUD objects (W6: expected > 42, received 42).
+  - With the camera ids swapped (W7), `hudOnly` counts the world objects instead, and every assertion still passes. The stray rule is symmetric in the two ids, so `strays` is unchanged: the positive control is only mislabelled under that mutant.
+  - A sharper control would be `hudOnly < examined / 2`, or a known HUD count. Worth a look.
+- **LOW** `intents/67-drift-arrow-hud-camera/plan.md`, Subtask 2 and Tests, above Progress: the plan describes the round-1 shape.
+  - Subtask 2 says the reader "returns `[]` before the pin", and Tests expects the empty-list mutant to fail only "on main's code". Neither is true any more.
+  - Round 1's stale "both" prediction also still stands.
+  - The rework Progress entry records all of it. Any edit is above Progress, so it is the owner's. Worth a look.
+
+### Round-1 findings, round-2 status
+| Finding | Status |
+| --- | --- |
+| MEDIUM: W3, W4 and W5 survive | Resolved by option (a), `f1a4c23`. All three are now killed |
+| LOW: the stale "both" prediction in the plan | Open, left by the owner (folded into LOW 2) |
+
+## KonMari check
+Not run. The step runs only when `plan_approved` falls after §61's merge date (`8190d41`, 2026-11-10; `/auto` step 5a). §67's `plan_approved` is 2026-11-10, which is on that date, not after.
+
+## Not checked
+- **A real drift:** no test or run drove one. That the arrow appears once and moves with the map is inferred from the camera filter. That is the live check.
+- **The Drawn view's control on its own:** every mutant failed first at the Standard view's assertions.
+- **Placement:** it also pins a `StandardBoardView`, but `hud-strays` runs on the Board only.
+- **Objects made during prompts or drifts:** `hudStrays()` is never called while a prompt, an attack report or a drift is open.
+- **The Drawn view after its own selections and drift overlays,** and a view swapped back to Standard: there is one check per view.
+- **Screen-level rendering:** no screenshot was taken.
+
+## Live check
+- **owed:** rule 1 (`src/ui/`), plus the Not-checked item "a real drift".
+- **steps:**
+  1. In `C:/Users/eric/src/heraklios-wt/67-drift-arrow-hud-camera`, run `npm run dev -- --port 5267 --strictPort --host 127.0.0.1` and open http://127.0.0.1:5267/.
+  2. Menu → "Combat test mode (units face to face, 2 hexes)". Both seats are human. The elephants stand at (17,3) and (17,5).
+  3. Pan and zoom the map well away from where it started.
+  4. With the first player, move the elephant at (17,3) onto (17,4).
+  5. In combat, attack the enemy elephant with that elephant alone. 8 against 5 is the 1-1 column, where every result is a retreat. An elephant drifts instead of retreating, so **every such attack starts a drift**, and it pauses with "▶ Continue".
+  6. Before pressing Continue, pan and zoom again.
+- **you should see:** one arrowhead, on the drifting elephant's hex, panning and scaling with the map. No second arrowhead appears over the left panel or anywhere else. Optionally, repeat in the Drawn view.
+- **fallback:** if the second player moves first, use their elephant at (17,5). Test mode lets you Undo and retry.
+
+## Verified myself vs. taken on trust
+- **Coordinator, re-run (worktree at `08ffabb`):**
+  - `npm run verify`: exit 0; 81 test files, 1420 tests passed; 0 errors, 21 warnings, cap 21.
+  - `npm run check:intent`: exit 1. The only error is the owed live check (output above).
+  - `npm run e2e`: exit 0, 23 passed. Port 5232 was free beforehand.
+  - **W3**, the empty list in `MapView.cameraStrays`: KILLED, on "Standard view: HUD objects seen". It matches.
+  - **W4**, `boardView.mapObjects()` in place of `children.list`: KILLED, on the same assertion. It matches.
+  - **W5**, `hudStrays` returning an empty scan: KILLED, on the same assertion. It matches.
+  - **W7**, the camera ids swapped: SURVIVED (1 passed). It matches; it is equivalent for the stray check (LOW 1).
+  - Each mutant was backed up by copy, its change asserted, and the file restored by copy. `git status --short` was clean after each.
+  - `npm run sdlc:scan -- --sample-due auto --exclude 67`: "nth attested auto change = 7, every 3, sampled: no".
+- **Reviewer:**
+  - `git diff 11b7f26..08ffabb`, read in full;
+  - verify, check:intent and e2e, with the same numbers;
+  - **mutants:**
+    - S1–S7 on `scanCameras`, all killed by "scanCameras > counts examined objects, HUD-only objects and strays" (S5 also by "reports zeros for an empty list");
+    - W1, the failing-first: killed, with strays `[{ depth: 12, type: "Graphics" }]`;
+    - W3, W4 and W5: killed;
+    - W6: killed, on "examined beyond HUD";
+    - W7: survived;
+  - every rework Progress claim reproduced.
+- **Taken on trust:**
+  - round 1's Phaser source reading and its inventory of 1,347 objects. W6's "42" matches the 42 HUD objects round 1 counted;
+  - "no stray in the Drawn view", from the passing spec.
+
+# Round 1 (history)
+
+- verdict: rework
+- tier: attested
+- reviewed-commit: 11b7f26
+- round: 1
+- sampled: no
+- run: auto
+- live-check: owed
 
 **Tier:** Attested, set by the path table (`src/ui/**`, `e2e/**`). No `review_tier` is set, and no finding raises the tier.
 
