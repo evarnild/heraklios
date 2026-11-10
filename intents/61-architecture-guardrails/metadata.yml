@@ -2,14 +2,14 @@
 id: 61
 slug: architecture-guardrails
 type: feature
-status: in-review
+status: done
 title: The SDLC keeps the architecture good with written principles, import rules, a size budget, a review pass and a KonMari tidy-up step
 review_tier:
 intent_accepted: 2026-11-06 by-agent    # owner: "Yes" (to accepting the merged §61)
 spec_accepted: 2026-11-06 by-agent    # owner: "yes to 61 spec"
 plan_approved: 2026-11-06 by-agent    # auto: owner "/auto 61" (auto_authorized 2026-11-06)
 live_checked:
-merged:
+merged: 8190d41    # 2026-11-10, merged by Claude on the owner's explicit request in chat
 auto_authorized: 2026-11-09 by-agent    # owner: "/auto 61 G4 a, rebase ok"
 auto_round: 3
 auto_stopped: out of rounds, open findings below
