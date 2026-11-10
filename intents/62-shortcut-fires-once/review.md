@@ -1,13 +1,130 @@
 <!-- generated-by: heraklios/review@0.2.0 -->
 # §62 review — One Ctrl+Z or Ctrl+Y press undoes or redoes one step, even on a slow frame
 
-verdict: rework
+verdict: attest
 tier: attested
-reviewed-commit: 5100c7d
-round: 1
-sampled: no
+reviewed-commit: 0292a8c
+round: 2
+sampled: yes
 run: auto
 live-check: owed
+
+**Tier:** Attested, set by the path table (`src/scenes/**`, `src/ui/**`, `e2e/**`). No `review_tier` is set, and no finding raises the tier.
+
+**Verdict:** `attest`.
+- Round 1's MEDIUM (surviving mutant M8) is resolved by `af0ccd6`.
+- Round 1's LOW (no test covers Space or Enter) stays open and acceptable.
+- There are no new findings.
+
+`check:intent` fails only on the owed live check. That is the owner's to clear, not rework.
+
+**Sampled:** this is the 6th attested auto-run change, so a full read of the diff is due after the merge (`REVIEW-POLICY.md`, "Against rubber-stamping").
+
+**What changed since round 1** (`git diff 5100c7d..0292a8c`):
+- `e2e/undo-shortcuts.spec.ts` gains 6 lines and loses none: a bare-Y burst after the first Ctrl+Z, while the redo stack is not empty.
+  - On the Board, `count('Redone:')` must stay 0.
+  - In Placement, `placed()` must stay `base + 1`.
+- The intent files: the Progress entry below the marker, `auto_round`, and round 1's report.
+
+No `src/` file changed, and no existing assertion was weakened.
+
+## Passes
+| # | Pass | Result |
+| --- | --- | --- |
+| 1 | Intent and plan match | pass. The rework does exactly what round 1 asked; Progress was appended below the marker only |
+| 2 | Type check | pass for type and scope. The only error is the owed live check |
+| 3 | Rulebook fidelity | not run: no game rule changed (input handling only) |
+| 4 | Tests prove it | pass. M8 is now killed in both scenarios. M10 and M15 still survive, which is round 1's LOW, allowed by the plan |
+| 5 | Boundary and conventions | pass (no `src/` change since round 1) |
+| 6 | Numbers in prose | pass. The rework entry's numbers and its M8 result reproduce |
+| 7 | Documentation | pass |
+| 8 | Guardrails and hygiene | pass: lint 21, cap 21, no new dependency |
+| 9 | Repository-specific footguns | pass (none apply) |
+| 10 | Architecture | pass (unchanged since round 1) |
+
+## Type check
+```
+type-check: FAIL (intent 62, fix)
+  error: A live check is owed and not recorded. Do the steps in intents/62-shortcut-fires-once/review.md → ## Live check, then set live_checked: <date> in intents/62-shortcut-fires-once/metadata.yml.
+  note:  7 file(s), 245 line(s) changed outside intents/.
+```
+The only error is the owed live check. It clears when the owner records `live_checked` (review skill, step 1's exception).
+
+## Findings
+None new.
+
+### Round-1 findings, round-2 status
+| Finding | Status |
+| --- | --- |
+| MEDIUM `src/ui/shortcutKeys.ts:22`, M8 survives | Resolved by `af0ccd6`. M8 is now killed in both scenarios, by "a bare Y redoes nothing" |
+| LOW `src/scenes/BoardScene.ts:826-827`, `src/ui/shortcutKeys.ts:29`: no test covers Space or Enter | Open and acceptable. M10 and M15 still survive. The plan permits it; the `onceEach` guard is unit-tested; `onKeyOnce`'s registration is covered through Escape (M11); and the live check has an optional Space step |
+
+## KonMari check
+Not run. The step runs only when `plan_approved` falls after §61's merge date (`8190d41`, 2026-11-10; `/auto` step 5a). §62's `plan_approved` is 2026-11-10, which is on that date, not after.
+
+## Not checked
+- **Space and Enter on a real drift pause:** no scenario reaches one (M10 and M15 survive).
+- **Real hardware keys and auto-repeat:** the e2e burst is synthetic. That real key events arrive as distinct objects comes from the DOM spec and Phaser's source.
+- **Cmd (metaKey) forms:** no test presses Cmd+Z or Cmd+Y.
+- **How native DOM events interleave in a real browser:** not observed.
+
+## Live check
+- **owed:** rule 1, because the diff touches `src/scenes/**` and `src/ui/**`. The smoke suite cannot stand in: this is a behaviour fix, and no scenario covers Space or Enter.
+- **steps:**
+  1. In `C:/Users/eric/src/heraklios-wt/62-shortcut-fires-once`, run `npm run dev -- --port 5262 --strictPort --host 127.0.0.1` and open http://127.0.0.1:5262/.
+  2. **Board:** Menu → "Combat test mode (units face to face, 2 hexes)" → End phase to reach combat.
+     - Select a unit, then click an enemy target.
+     - Press Ctrl+Z once, then Ctrl+Shift+Z once, then Ctrl+Z, then Ctrl+Y.
+     - With an undo available, press Z alone. After a Ctrl+Z, with a redo available, press Y alone.
+     - Open the Tables panel and press Escape.
+  3. **Placement:** Menu → 2 players → "Use default army" and "Confirm army" for both seats → Placement.
+     - Place two units.
+     - Press Ctrl+Z once, then Y alone, then Ctrl+Shift+Z, then Ctrl+Z, then Ctrl+Y.
+  4. **Optional:** if an elephant drift pause comes up, press Space once.
+- **you should see:**
+  - **Board:**
+    - each Ctrl+Z adds exactly one "Undone: …" line, and the selection steps back once;
+    - each Ctrl+Shift+Z or Ctrl+Y adds exactly one "Redone: …";
+    - no "Nothing to undo/redo." appears;
+    - a bare Z or a bare Y changes nothing;
+    - Escape closes the Tables panel.
+  - **Placement:**
+    - each Ctrl+Z takes exactly one unit off, and each redo puts exactly one back;
+    - a bare Y puts nothing back.
+  - **Optional drift step:** one Space press continues the drift exactly one step.
+
+## Verified myself vs. taken on trust
+- **Coordinator, re-run (worktree at `0292a8c`):**
+  - `npm run verify`: exit 0; 80 test files, 1412 tests passed; 0 errors, 21 warnings, cap 21.
+  - `npm run check:intent`: exit 1. The only error is the owed live check (output above).
+  - `npm run e2e`: exit 0, 22 passed. Port 5232 was free beforehand.
+  - **M8**, against `e2e/undo-shortcuts.spec.ts`: KILLED, 2 failed.
+    - On the Board: "a bare Y redoes nothing", expected 0, received 1.
+    - In Placement: "a bare Y redoes nothing", expected 1, received 2.
+    - This matches the reviewer and the implementer.
+  - **M10**, against `undo-shortcuts` and `rules-panel`: SURVIVED (3 passed). It matches.
+  - **M15**, against the full e2e suite: SURVIVED (22 passed). It matches.
+  - Each mutant was backed up by copy, its change asserted, and the file restored by copy. `git status --short` was clean after each.
+  - `npm run sdlc:scan -- --sample-due auto --exclude 62`: "nth attested auto change = 6, every 3, sampled: yes".
+- **Reviewer:**
+  - the rework diff, which is additions only;
+  - verify, check:intent and e2e, with the same numbers;
+  - M8 killed, with the same messages.
+- **Taken on trust from round 1:** these lines are unchanged since `5100c7d`.
+  - the 13 other killed mutants;
+  - the failing-first run against `main`'s scene code;
+  - the Phaser source reading;
+  - the size baseline.
+
+# Round 1 (history)
+
+- verdict: rework
+- tier: attested
+- reviewed-commit: 5100c7d
+- round: 1
+- sampled: no
+- run: auto
+- live-check: owed
 
 **Tier:** Attested, set by the path table (`src/scenes/**`, `src/ui/**`, `e2e/**`). No `review_tier` is set, and no finding raises the tier.
 
