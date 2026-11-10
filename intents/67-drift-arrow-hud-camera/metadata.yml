@@ -12,7 +12,7 @@ live_checked:
 merged:
 auto_authorized: 2026-11-10 by-agent    # owner: "accept 67 /auto 67"
 auto_round: 1
-auto_stopped:
+auto_stopped: decision needed
 follows_up:
 links:
   - intents/65-board-view-seam
