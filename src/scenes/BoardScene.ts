@@ -87,6 +87,7 @@ import {
   type ShipTypeId,
 } from '../data/navalRamming';
 import { BOARDING_RATIO_COLUMNS } from '../data/navalBoarding';
+import { bindUndoRedoKeys, onKeyOnce } from '../ui/shortcutKeys';
 
 /** Width of the left-hand HUD panel (buttons, phase status, combat log),
  * reserved outside the map's own viewport — see `MapView`'s `leftPanelWidth`. */
@@ -820,17 +821,10 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       .setVisible(false);
     this.driftContinueBtn.on('pointerdown', () => this.resolveDriftContinue());
 
-    this.input.keyboard?.on('keydown-Z', (event: KeyboardEvent) => {
-      if (!event.ctrlKey && !event.metaKey) return;
-      if (event.shiftKey) this.redo();
-      else this.undo();
-    });
-    this.input.keyboard?.on('keydown-Y', (event: KeyboardEvent) => {
-      if (event.ctrlKey || event.metaKey) this.redo();
-    });
-    this.input.keyboard?.on('keydown-ESC', () => this.rulesPanel?.close());
-    this.input.keyboard?.on('keydown-SPACE', () => this.resolveDriftContinue());
-    this.input.keyboard?.on('keydown-ENTER', () => this.resolveDriftContinue());
+    bindUndoRedoKeys(this.input.keyboard, { undo: () => this.undo(), redo: () => this.redo() });
+    onKeyOnce(this.input.keyboard, 'keydown-ESC', () => this.rulesPanel?.close());
+    onKeyOnce(this.input.keyboard, 'keydown-SPACE', () => this.resolveDriftContinue());
+    onKeyOnce(this.input.keyboard, 'keydown-ENTER', () => this.resolveDriftContinue());
 
     this.statusText = this.add
       .text(16, 118, '', {

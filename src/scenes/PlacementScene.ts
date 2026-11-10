@@ -17,6 +17,7 @@ import { MAP_TERRAIN, hexKey } from '../data/map';
 import type { HexCoord } from '../data/map';
 import { createViewToggle } from '../ui/viewToggle';
 import type { FacingShip } from '../ui/boardView';
+import { bindUndoRedoKeys } from '../ui/shortcutKeys';
 
 interface QueueItem {
   typeId: string;
@@ -263,14 +264,7 @@ export class PlacementScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
     this.cancelShipBtn.on('pointerdown', () => this.cancelPendingShip());
 
-    this.input.keyboard?.on('keydown-Z', (event: KeyboardEvent) => {
-      if (!event.ctrlKey && !event.metaKey) return;
-      if (event.shiftKey) this.redo();
-      else this.undo();
-    });
-    this.input.keyboard?.on('keydown-Y', (event: KeyboardEvent) => {
-      if (event.ctrlKey || event.metaKey) this.redo();
-    });
+    bindUndoRedoKeys(this.input.keyboard, { undo: () => this.undo(), redo: () => this.redo() });
 
     const viewToggle = createViewToggle(this, 20, height - 136, this.mapView);
 
