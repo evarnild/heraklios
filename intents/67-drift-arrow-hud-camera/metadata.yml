@@ -2,7 +2,7 @@
 id: 67
 slug: drift-arrow-hud-camera
 type: fix
-status: accepted
+status: in-review
 title: The elephant drift arrow is drawn once, by the map camera only
 review_tier:
 intent_accepted: 2026-11-10 by-agent    # owner: "accept 67 /auto 67"

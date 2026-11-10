@@ -141,3 +141,12 @@ Re-read on `main` at `3eb809c` (§65 and §64 merged).
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-11-10 - implemented (one phase)
+
+Commit: `§67: cameraStrays helper, hudStrays dev hook, failing e2e, fix drift arrow camera`, then this entry.
+
+- Shipped: `src/ui/cameraStrays.ts` (+ test, 6 cases), `MapView.cameraStrays()`, `__heraklios.hudStrays()`, `e2e/hud-strays.spec.ts`, and the fix (`driftArrowGraphics` in `StandardBoardView.mapObjects()`, stale comment rewritten).
+- Failing first (spec run before the fix, Standard view): `Error: Standard view ... Expected Array [] / Received Array [ { depth: 12, type: "Graphics" } ]`. That is the only stray found; the Drawn view had none, no other stray in either view.
+- Tests: `npm run verify` green, 81 files / 1418 tests; lint 21 warnings (cap unchanged). Full `npm run e2e`: 23/23 passed, including `hud-strays.spec.ts`.
+- Diverged: nothing. The spec and fix landed in one commit (the failing run was done on the unfixed tree before the fix edit). Live check is still owed.
