@@ -3,6 +3,8 @@ import {
   checkPreconditions,
   commitMessage,
   isBookkept,
+  konmariCommits,
+  konmariLine,
   markLiveChecked,
   markMerged,
   mergeMessage,
@@ -14,7 +16,10 @@ const dir = 'intents/9-thing';
 const good = {
   reviewHeader: { verdict: 'escalate', 'reviewed-commit': 'abc1234' },
   isAncestor: true,
-  changedFiles: [`${dir}/review.md`, `${dir}/metadata.yml`],
+  commits: [
+    { hash: 'aaaaaaa1', files: [`${dir}/review.md`] },
+    { hash: 'aaaaaaa2', files: [`${dir}/metadata.yml`] },
+  ],
   intentDir: dir,
   checkIntent: { verdict: 'PASS', reasonStated: false },
 };
@@ -38,13 +43,71 @@ describe('checkPreconditions', () => {
   });
 
   it('allows only review.md and metadata.yml of the intent after the reviewed commit', () => {
-    expect(checkPreconditions({ ...good, changedFiles: [] }).ok).toBe(true);
-    const third = checkPreconditions({ ...good, changedFiles: [...good.changedFiles, 'src/x.ts'] });
+    expect(checkPreconditions({ ...good, commits: [] }).ok).toBe(true);
+    const third = checkPreconditions({ ...good, commits: [...good.commits, { hash: 'bbbbbbb1', files: ['src/x.ts'] }] });
     expect(third).toMatchObject({ ok: false, failed: 'unreviewed-changes' });
     expect(third.message).toContain('src/x.ts');
     // another intent's metadata.yml is not this intent's
-    const other = checkPreconditions({ ...good, changedFiles: ['intents/8-other/metadata.yml'] });
+    const other = checkPreconditions({ ...good, commits: [{ hash: 'bbbbbbb2', files: ['intents/8-other/metadata.yml'] }] });
     expect(other.failed).toBe('unreviewed-changes');
+  });
+
+  describe('KonMari commits after the review (§61 F1)', () => {
+    const tidy = { hash: 'c0ffee01234567', files: ['src/engine/a.ts', 'src/engine/a.test.ts'] };
+    const revert = { hash: 'dec0de98765432', files: ['src/engine/a.ts'] };
+    const record = { hash: 'aaaaaaa3', files: [`${dir}/konmari.md`] };
+    const list = (...rows) => `# §9 KonMari record\n\noutcome: kept\nbase: abc1234\n\n## Tidied\n${rows.join('\n')}\n\n## Looked at and left\n- x\n`;
+    const withRevert = `${list('- c0ffee0 — src/engine/a.ts — merged helpers')}\n## Reverted\n- \`dec0de9\` — revert of c0ffee0\n`;
+    const run = (over) => checkPreconditions({ ...good, ...over });
+
+    it('kept: the listed tidy commit and konmari.md pass', () => {
+      const r = run({ commits: [...good.commits, tidy, record], konmariText: list('- c0ffee0 — src/engine/a.ts — merged helpers') });
+      expect(r).toEqual({ ok: true });
+    });
+
+    it('discarded: the tidy commits, their reverts and konmari.md pass', () => {
+      const r = run({ commits: [...good.commits, tidy, record, revert, record], konmariText: withRevert });
+      expect(r).toEqual({ ok: true });
+    });
+
+    it('nothing to tidy: konmari.md alone passes, with or without a record text', () => {
+      expect(run({ commits: [...good.commits, record], konmariText: 'outcome: nothing to tidy\n' })).toEqual({ ok: true });
+      expect(run({ commits: [record] }).ok).toBe(true);
+    });
+
+    it('an unlisted extra commit still fails, listed ones around it notwithstanding', () => {
+      const extra = { hash: 'badbad01', files: ['src/engine/b.ts'] };
+      const r = run({ commits: [tidy, extra, record], konmariText: list('- c0ffee0 — src/engine/a.ts — x') });
+      expect(r).toMatchObject({ ok: false, failed: 'unreviewed-changes' });
+      expect(r.message).toContain('badbad0');
+      expect(r.message).not.toContain('c0ffee0');
+    });
+
+    it('a tidy commit with no konmari.md at all fails', () => {
+      expect(run({ commits: [tidy] })).toMatchObject({ ok: false, failed: 'unreviewed-changes' });
+    });
+
+    it('a listed commit may not touch the intent folder besides konmari.md', () => {
+      const sneaky = { hash: 'c0ffee01234567', files: ['src/engine/a.ts', `${dir}/plan.md`] };
+      const r = run({ commits: [sneaky], konmariText: list('- c0ffee0 — src/engine/a.ts — x') });
+      expect(r).toMatchObject({ ok: false, failed: 'unreviewed-changes' });
+      expect(r.message).toContain(`${dir}/plan.md`);
+      const withRecord = { hash: 'c0ffee01234567', files: ['src/engine/a.ts', `${dir}/konmari.md`] };
+      expect(run({ commits: [withRecord], konmariText: list('- c0ffee0 — x') }).ok).toBe(true);
+    });
+
+    it('a merge commit is never accepted, even listed', () => {
+      const merge = { hash: 'c0ffee01234567', files: [], merge: true };
+      expect(run({ commits: [merge], konmariText: list('- c0ffee0 — x') }).ok).toBe(false);
+    });
+
+    it('lists hashes only from bullets under Tidied and Reverted', () => {
+      const prose = '# r\n\nSee c0ffee0 in prose.\n\n## Looked at and left\n- c0ffee0 — left alone\n';
+      expect(run({ commits: [tidy], konmariText: prose }).ok).toBe(false);
+      expect(konmariCommits(withRevert)).toEqual(['c0ffee0', 'dec0de9']);
+      expect(konmariCommits(null)).toEqual([]);
+      expect(konmariCommits('## Tidied\n- nothing\n- abc — short\n')).toEqual([]);
+    });
   });
 
   it('fails a check:intent FAIL', () => {
@@ -200,5 +263,39 @@ describe('merge message', () => {
     );
     expect(mergeMessage(9, 'Thing')).toBe('Merge §9: Thing\n');
     expect(commitMessage('s', ['  ', ''])).toBe('s\n');
+  });
+});
+
+describe('konmariLine (§61 AC9)', () => {
+  const line = (over) => konmariLine({ type: 'feature', metadata: {}, konmariText: null, ...over });
+  const record = (outcome) => `# §9 KonMari record\n\noutcome: ${outcome}\nbase: abc1234\n`;
+
+  it.each(['kept', 'discarded', 'nothing to tidy'])('reports %s from the record', (outcome) => {
+    expect(line({ konmariText: record(outcome) })).toBe(`konmari: ${outcome}`);
+  });
+
+  it('reports skipped when metadata says skip, even with a record', () => {
+    expect(line({ metadata: { konmari: 'skip' } })).toBe('konmari: skipped');
+    expect(line({ metadata: { konmari: 'skip' }, konmariText: record('kept') })).toBe('konmari: skipped');
+  });
+
+  it('a reason line below the outcome does not confuse it', () => {
+    const text = `${record('discarded')}reason: verify failed, outcome: kept was wrong\n`;
+    expect(line({ konmariText: text })).toBe('konmari: discarded');
+    expect(line({ konmariText: 'outcome: discarded — verify failed\n' })).toBe('konmari: not run');
+    expect(line({ konmariText: 'reason: outcome: kept\n' })).toBe('konmari: not run');
+  });
+
+  it('reports not run with no record, or an outcome it does not know', () => {
+    expect(line({})).toBe('konmari: not run');
+    expect(line({ konmariText: record('maybe') })).toBe('konmari: not run');
+    expect(line({ konmariText: 'the word outcome: kept in prose, mid-line' })).toBe('konmari: not run');
+  });
+
+  it('works for fix and refactor, and gives an adjustment or experiment no line', () => {
+    expect(line({ type: 'fix' })).toBe('konmari: not run');
+    expect(line({ type: 'refactor', konmariText: record('kept') })).toBe('konmari: kept');
+    expect(line({ type: 'adjustment' })).toBeNull();
+    expect(line({ type: 'experiment', konmariText: record('kept') })).toBeNull();
   });
 });

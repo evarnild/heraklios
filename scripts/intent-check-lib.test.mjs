@@ -488,3 +488,22 @@ describe('auto fields (spec §50 B1, B3, B12)', () => {
     expect(parseMetadata('auto_stopped: cut # here\n').auto_stopped).toBe('cut');
   });
 });
+
+describe('konmari key (§61 AC8)', () => {
+  const withKonmari = (value) => checkChange(base({ metadata: meta({ konmari: value }) }));
+
+  it.each([['skip'], [[]]])('accepts %j', (value) => {
+    expect(withKonmari(value).errors).toEqual([]);
+  });
+
+  it('accepts a metadata.yml with no konmari key and one that skips with a comment', () => {
+    expect(checkChange(base()).errors).toEqual([]);
+    const parsed = parseMetadata('id: 27\ntype: fix\nkonmari: skip   # owner: not worth it\n');
+    expect(parsed.konmari).toBe('skip');
+    expect(checkChange(base({ metadata: { ...meta(), ...parsed } })).errors).toEqual([]);
+  });
+
+  it.each(['maybe', 'Skip', 'no', 'true', '2026-11-06'])('rejects %j', (value) => {
+    expect(withKonmari(value).errors.join('\n')).toMatch(/konmari must be empty or "skip"/);
+  });
+});

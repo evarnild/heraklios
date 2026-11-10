@@ -3,7 +3,7 @@ name: review
 description: Run heraklios's review policy against a branch and write the review report (intents/<id>-<slug>/review.md) with passes, findings, a Not-checked section and an attest/escalate/rework verdict. Use before merging any heraklios branch into main, or to re-review after rework. Invoke as /review [branch].
 metadata:
   owner: evarnild
-  version: 0.1.5
+  version: 0.2.0
   scope: repository
   status: experimental
   review-tier: reviewed
@@ -15,7 +15,7 @@ metadata:
 policy first, every time — it changes, and the version you remember may not
 be current.
 
-Stamp: `<!-- generated-by: heraklios/review@0.1.5 -->` as the first line of
+Stamp: `<!-- generated-by: heraklios/review@0.2.0 -->` as the first line of
 `review.md`.
 
 ## 0. Orient
@@ -61,7 +61,7 @@ Never lower a tier.
 
 ## 3. Run the passes
 
-Run all nine from `REVIEW-POLICY.md`, in order. For each, record
+Run all ten from `REVIEW-POLICY.md`, in order. For each, record
 `pass`, `findings (n)`, or `not run — <why>`. Pass 4 (mutations) is the
 expensive one and the one that has mattered most here: one mutation per
 changed behavioural line, full suite each time, back up and restore files

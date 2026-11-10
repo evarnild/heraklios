@@ -26,6 +26,7 @@ import {
   checkPreconditions,
   commitMessage,
   isBookkept,
+  konmariLine,
   markLiveChecked,
   markMerged,
   mergeMessage,
@@ -180,12 +181,23 @@ function readReview(root, branch, dir) {
   }
 }
 
+/** The commits after `rc` on `branch`, oldest first, each with the files it changes (a merge commit is flagged: never accepted). */
+function commitsAfter(root, rc, branch) {
+  const lines = git(root, 'log', '--reverse', '--format=%H %P', `${rc}..${branch}`).split(/\r?\n/).filter(Boolean);
+  return lines.map((line) => {
+    const [hash, ...parents] = line.split(' ');
+    if (parents.length > 1) return { hash, files: [], merge: true };
+    const files = git(root, 'diff-tree', '--root', '-r', '--no-commit-id', '--name-only', hash).split(/\r?\n/).filter(Boolean);
+    return { hash, files };
+  });
+}
+
 function preconditionInputs(root, loc) {
   const review = readReview(root, loc.branch, loc.dir);
   const rc = review.header?.['reviewed-commit'];
   const isAncestor = !!rc && gitOk(root, 'merge-base', '--is-ancestor', rc, loc.branch);
-  const changedFiles = isAncestor ? git(root, 'diff', '--name-only', rc, loc.branch).split(/\r?\n/).filter(Boolean) : [];
-  return { reviewHeader: review.header, isAncestor, changedFiles, intentDir: loc.dir, reviewText: review.text };
+  const commits = isAncestor ? commitsAfter(root, rc, loc.branch) : [];
+  return { reviewHeader: review.header, isAncestor, commits, konmariText: readKonmari(root, loc), intentDir: loc.dir, reviewText: review.text };
 }
 
 function runCheckIntent(root, branch, reviewText) {
@@ -332,9 +344,24 @@ function cleanup(root, id, loc) {
 const log = [];
 const say = (status, id, text) => log.push(`  ${status.padEnd(8)} ${id.padEnd(13)} ${text}`);
 
+/** The intent's konmari.md from its branch (or main once the branch is gone), or null. */
+function readKonmari(root, loc) {
+  for (const ref of loc.branchExists ? [loc.branch] : ['main']) {
+    try {
+      return git(root, 'show', `${ref}:${loc.dir}/konmari.md`);
+    } catch {
+      // no record on that ref
+    }
+  }
+  return null;
+}
+
 function dryRun(root, loc, steps) {
   say('note', 'fetch', 'a dry run does not fetch: origin/main is as last fetched');
   for (const s of steps) say(s.status === 'done' || s.status === 'n/a' ? s.status : 'would', s.id, s.label);
+  // The KonMari step informs and never blocks (§61 B19).
+  const konmari = konmariLine({ type: loc.metadata.type, metadata: loc.metadata, konmariText: readKonmari(root, loc) });
+  if (konmari) say('note', 'konmari', konmari.replace(/^konmari: /, ''));
   if (loc.state.merged) return;
   // check:intent would fail only because the live check is not recorded yet; the run records it first.
   const pending = loc.state.liveCheckRequested && !loc.state.liveCheckRecorded;

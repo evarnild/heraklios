@@ -214,6 +214,7 @@ export function checkChange({ branch, metadata, intentDir, intentFiles, diff, re
   }
 
   checkAuto(metadata, intentDir, errors);
+  checkKonmari(metadata, intentDir, errors);
   checkLiveCheck({ review, metadata, intentDir }, errors);
   checkShape(declared, diff, routes, notes);
   return { errors, routes, notes, type: declared, id };
@@ -341,4 +342,15 @@ export function formatResult(r) {
   for (const x of r.routes) out.push(`  route: ${x}`);
   for (const n of r.notes) out.push(`  note:  ${n}`);
   return { verdict, text: out.join('\n') };
+}
+
+/**
+ * `konmari:` (§61 B19) is empty, or `skip` to skip the KonMari tidy-up step
+ * for this intent. It is the owner's choice, not a gate: nothing waits on it.
+ * Any other value is a mistake that would silently run (or not run) the step.
+ */
+function checkKonmari(metadata, intentDir, errors) {
+  const v = metadata.konmari;
+  if (v === undefined || v === 'skip' || (Array.isArray(v) && v.length === 0)) return;
+  errors.push(`${intentDir}/metadata.yml: konmari must be empty or "skip"; got ${JSON.stringify(v)}.`);
 }

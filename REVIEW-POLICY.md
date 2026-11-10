@@ -132,10 +132,16 @@ Asked to merge, it first checks, and refuses naming the one that failed:
    <branch>:intents/<id>-<slug>/review.md`, never a copy on disk) is
    `attest` or `escalate`; its `reviewed-commit` is an ancestor of the
    branch (`git merge-base --is-ancestor`), so a rebase since the review
-   means a new round; and nothing but that intent's `review.md` or
-   `metadata.yml` differs between the two (`git diff --name-only
-   <reviewed-commit> <branch>`): recording the review and the live check
-   happens on top of the reviewed commit, anything else is unreviewed;
+   means a new round; and every commit after it touches only that
+   intent's `review.md`, `metadata.yml` or `konmari.md` (`git log
+   <reviewed-commit>..<branch>` with each commit's files): recording the
+   review and the live check happens on top of the reviewed commit, anything
+   else is unreviewed. The one exception is the KonMari step (§61): a commit
+   whose hash `konmari.md` lists under `## Tidied` or `## Reverted` (the
+   `§<id> konmari:` tidy-up commits and, for a `discarded` outcome, their
+   `git revert` commits) is also accepted, provided it touches nothing else
+   inside the intent's folder than `konmari.md`. A merge commit, or any
+   other commit, still blocks;
 2. `npm run check:intent <branch>` reports PASS, or ROUTE with the reason
    already stated in `review.md`;
 3. no live check is owed without `live_checked:` recorded (`check:intent`
@@ -151,7 +157,8 @@ Each pass reports `pass`, `findings`, or `not run` (with why).
 
 1. **Intent and plan match.** The diff does what `intent.md`'s outcome and
    `plan.md`'s subtasks say, nothing more. Unplanned scope is a finding.
-   Refactoring mixed into a feature is a finding (guidelines §1.5).
+   Refactoring mixed into a feature is a finding (guidelines §1.5), except the
+   commits listed in the intent's `konmari.md` (pass 10).
 2. **Type check.** `npm run check:intent` — paste its output. `ROUTE` needs a
    stated reason or a re-declared type.
 3. **Rulebook fidelity.** Every rule behaviour checked against
@@ -169,7 +176,8 @@ Each pass reports `pass`, `findings`, or `not run` (with why).
    in `src/engine`/`src/data` with tests; `GameState` mutations push history
    first; die rolls and phase changes stay undo boundaries; `GameState` shape
    changes update `saveGame.ts` + `saveStorage.ts` + `SAVE_VERSION`; every
-   ambiguous-rule interpretation has a code comment.
+   ambiguous-rule interpretation has a code comment. The layer and import
+   boundaries beyond these conventions are pass 10's.
 6. **Numbers in prose.** Every measurement in the intent's `plan.md`, `plan-history.md`,
    `README.md`, intent artefacts and test comments is reproducible.
 7. **Documentation.** `README.md` documents new behaviour in its existing
@@ -183,6 +191,23 @@ Each pass reports `pass`, `findings`, or `not run` (with why).
    AI tiers: headless and AI-vs-AI play stay byte-identical where the change
    is meant to be presentation-only. Map editor: generated `map.ts` was
    regenerated, not hand-edited.
+10. **Architecture** (`docs/architecture.md`). Judge the principles marked
+    *Judged* there (5 to 12 and 15 to 17, and the judged half of 1: no
+    browser APIs in `src/engine` or `src/data`) against the plan's "Where this
+    goes" section and the diff. Don't restate the principles; cite them by
+    number. Principle 14 (dependencies) stays in pass 8, and the *Enforced*
+    ones (1 to 4, 13) are failures of `npm run lint` and `check:intent`, not
+    of this pass. A plan without "Where this goes" (written before §61) is
+    judged on the diff alone. Finding kinds: a wrong layer, a misplaced
+    module, or duplication of existing code is **"Needs rework:"**; a real
+    trade-off, a new exception or a new layer is **"Needs decision:"**, and
+    belongs in `docs/architecture.md` (principle 17). When the intent has a
+    `konmari.md`, check it too: its commits stay within the KonMari reach
+    (the diff's lines and what they duplicate, and lowering the ceiling of a
+    budgeted file it shrank), change no test assertion and
+    add no dependency; its `outcome:` matches the commits; what it left is
+    recorded. Report the pass as `not run` if `docs/architecture.md` is
+    missing.
 
 **Finding vs nit.** A finding is something that is wrong, unproven, or will
 mislead the next person: a rule deviation, a surviving mutant, a stale

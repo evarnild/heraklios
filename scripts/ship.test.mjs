@@ -664,3 +664,44 @@ describe('npm run ship: leftovers and what a commit may hold', { timeout: 90_000
     expect(read('intents', '49-t49', 'metadata.yml')).toContain('status: in-review');
   });
 });
+
+describe('npm run ship: KonMari commits after the review (§61 F1)', { timeout: 90_000 }, () => {
+  const commitFile = (p, rel, text, message) => {
+    mkdirSync(dirname(join(p, rel)), { recursive: true });
+    writeFileSync(join(p, rel), text);
+    git(p, 'add', '.');
+    git(p, 'commit', '-q', '-m', message);
+    return git(p, 'rev-parse', '--short', 'HEAD');
+  };
+
+  it('accepts the listed tidy commit and its own konmari.md commit, and refuses an unlisted one', () => {
+    let tidy;
+    const w = makeIntent(61, {
+      afterReview: (p) => {
+        tidy = commitFile(p, 'docs/tidied.md', 'tidied\n', '§61 konmari: unify');
+        commitFile(p, 'intents/61-t61/konmari.md', `# §61 KonMari record\n\noutcome: kept\nbase: abc1234\n\n## Tidied\n- ${tidy} — docs/tidied.md — unified\n`, '§61: konmari record');
+      },
+    });
+    const kept = ship(['61', '--dry-run']);
+    expect(kept.status, out(kept)).toBe(0);
+    expect(kept.stdout).toMatch(/ok\s+preconditions/);
+    expect(kept.stdout).toMatch(/note\s+konmari\s+kept/);
+    // a merge commit is never accepted, even when everything it brings in is listed
+    git(w.path, 'checkout', '-q', '-b', 'side', 'HEAD~2');
+    const sideHash = commitFile(w.path, 'docs/side.md', 'side\n', '§61 konmari: side');
+    git(w.path, 'checkout', '-q', w.branch);
+    const record = join(w.path, 'intents', '61-t61', 'konmari.md');
+    writeFileSync(record, `${readFileSync(record, 'utf8')}- ${sideHash} — docs/side.md — side\n`);
+    git(w.path, 'commit', '-q', '-am', '§61: konmari record, side listed');
+    git(w.path, 'merge', '-q', '--no-ff', 'side', '-m', 'merge side');
+    const merged = ship(['61', '--dry-run']);
+    expect(merged.stdout).toMatch(/WOULD STOP\s+preconditions\s+unreviewed-changes/);
+    expect(merged.stdout).not.toContain(sideHash);
+    git(w.path, 'reset', '-q', '--hard', 'HEAD~1');
+    commitFile(w.path, 'docs/unlisted.md', 'not listed\n', 'unlisted');
+    const stray = ship(['61', '--dry-run']);
+    expect(stray.stdout).toMatch(/WOULD STOP\s+preconditions\s+unreviewed-changes/);
+    expect(stray.stdout).toContain('docs/unlisted.md');
+    expect(stray.stdout).not.toContain('docs/tidied.md');
+  });
+});

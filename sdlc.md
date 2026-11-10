@@ -54,9 +54,30 @@ Run `/review` from the coordinator. It runs `npm run verify`,
 `review.md` with a verdict:
 
 - **rework** — fix, then `/review` again;
-- **attest** or **escalate** — go to step 6.
+- **attest** or **escalate** — go to the KonMari step (5a), then to your
+  diff read, the live check or the ship (step 6).
 
-The report also says `live-check: owed` or `not-needed`. It's owed for
+**5a. KonMari: tidy the change before the live check** (feature, fix and
+refactor)
+
+- Once a review reaches **attest** or **escalate**, `/konmari <id>` (which
+  `/auto` runs for you) sends a fresh Opus agent, `heraklios-konmari`, over the
+  intent's own change. It removes duplication, inside the diff and with code
+  the diff duplicates, takes out dead code, and makes names and patterns match
+  their neighbours. Behaviour doesn't change, and it adds no dependency.
+- It is not a review round and never a stop. The coordinator re-runs
+  `npm run verify`, `check:intent`, e2e when the paths call for it, and every
+  mutant review killed on a file the tidy-up changed; the reviewer reads only
+  the tidy-up commits. If any of that fails the tidy-up is reverted
+  (`outcome: discarded`) and the run goes on.
+- The result is `intents/<id>-<slug>/konmari.md` and a `## KonMari check`
+  section in `review.md`. Your diff read and the live check then cover the
+  tidied code.
+- `konmari: skip` in `metadata.yml` (your words in a comment) skips it for one
+  intent. It is not a gate. `npm run ship -- <id> --dry-run` reports `konmari:
+  kept | discarded | nothing to tidy | skipped | not run`, and never blocks.
+
+The review report also says `live-check: owed` or `not-needed`. It's owed for
 changes to scenes, UI, the map editor, `src/main.ts`, `index.html`,
 `map-editor.html`, `vite.config.ts` or `.claude/settings.json`, and for
 anything else only a live run can show. The one exception: when the
@@ -90,8 +111,9 @@ removal — each only when you ask for it, for that change, in the current
 conversation. `/ship <id>` does all of it in order and stops at the first
 step that fails (`/ship <id> --dry-run`, or "can §N ship?", only reports);
 say in the same message that you ran the live check if you did. Run it from
-the main checkout, on `main`. It first checks that nothing but the review and the
-metadata changed after the reviewed commit, that `check:intent` passes,
+the main checkout, on `main`. It first checks that nothing but the review, the
+metadata and, for the KonMari step, `konmari.md` and the commits it lists
+changed after the reviewed commit, that `check:intent` passes,
 and that any owed live check is recorded, and refuses if not
 (`REVIEW-POLICY.md` → "Merging").
 
@@ -112,6 +134,9 @@ to 5 without a prompt between them, and ends at step 6's door:
   "Needs rework:" (mechanical) goes back to the implementer; one marked
   "Needs decision:" stops the run. At most three review rounds, counting
   rounds after a failed live check.
+- **It tidies before the stop.** An `attest` or `escalate` verdict first runs
+  the KonMari step (5a) for intents whose `plan_approved` is after §61's
+  merge, so you read, and live-check, the tidied code.
 - **It stops** for your questions, a decision, an `escalate` verdict (you
   read the diff; your next `/auto <id>` goes on to the live check or the
   ship, with no new round), a spec or plan amendment, running out of rounds,

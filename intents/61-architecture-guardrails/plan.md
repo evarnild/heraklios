@@ -95,7 +95,7 @@ Re-read on `main` at `e8bac8f`.
   - `intents/README.md:87`: `## Who edits what`. `:154`: the implementer bullet. `:160`: the reviewer bullet.
   - `CLAUDE.md:193`: `## Architecture`, the module map, which gets one pointer line.
 - **The size baseline:**
-  - Non-test files over 500 lines, measured with `wc -l` at `e8bac8f`: `src/scenes/BoardScene.ts` 3176, `src/engine/fuzzHarness.ts` 1350, `src/engine/combat.ts` 1111, `src/engine/heuristicAgent.ts` 1065, `src/engine/drift.ts` 667, `src/scenes/PlacementScene.ts` 564.
+  - Non-test files over 500 lines, measured with `wc -l` at `e8bac8f`: `src/scenes/BoardScene.ts` 3176, `src/engine/fuzzHarness.ts` 1350, `src/engine/combat.ts` 1111, `src/engine/heuristicAgent.ts` 1065, `src/engine/drift.ts` 667, `src/scenes/PlacementScene.ts` 564. Re-measured after the rebase onto `085e66f` (§64 merged): `BoardScene.ts` 3179 and `PlacementScene.ts` 581, the others unchanged; `scripts/size-baseline.json` holds these.
   - `src/data/map.ts` (1401) is excluded (B7).
   - No file under `server/`, `scripts/` or `tools/` is a non-test file over 500 lines. The longest, `scripts/ship.mjs`, has 444.
 
@@ -241,3 +241,103 @@ Skill and agent text has no unit test. Review pass 7 reads it, and greps check `
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-11-06 — all nine subtasks (implementer)
+
+Commits on `feat/61-architecture-guardrails`:
+
+| # | Commit | What shipped |
+| --- | --- | --- |
+| 1 | `7274846` | `docs/architecture.md`: the 17 principles with Enforced/Judged, the five recorded exceptions, the physical-lines note; one pointer line in `CLAUDE.md` |
+| 2 | `b998bb3` | `no-restricted-imports` as errors in `eslint.config.js`: disjoint blocks for `src/engine`, `src/data`, `src/ui`, `src/scenes`, `src/map-editor`, `src/*.ts`, and the server's non-test files (regex allowing only `src/engine/saveGame`) |
+| 3 | `2bba34c` | `scripts/architecture-rules.test.mjs`: 47 cases through `new ESLint({ cwd })`, `../` and `../../` depths, the allowed map-editor, server and server-test imports |
+| 4 | `abc8cee` | `scripts/size-budget-lib.mjs` and its test: `countLines`, `isBudgeted`, `baselineFrom`, `budgetLines`, `checkBudget` (B8 rules 1 to 5, null base = first creation) |
+| 5 | `3e94898` | `scripts/size-budget.mjs` and `npm run size:baseline`; `scripts/size-baseline.json` (the six files of the plan, same numbers); `check:intent` calls the budget (branch mode reads `git cat-file --batch`); `budgetVerdict` routes rules 3/4 for an adjustment or experiment; `parseCatFileBatch` |
+| 6 | `442a00b` | `## Where this goes` in the plan template; `/build-plan` 0.2.0; `REVIEW-POLICY.md` pass 10 (pass 1 exempts `konmari.md` commits, pass 5 points to it); `/review` 0.2.0 and both reviewer agents say "ten" |
+| 7 | `e1ac30c` | `heraklios-konmari` (`model: opus`) and its Codex toml; `/konmari` 0.1.0 |
+| 8 | `acbb91b` | `/auto` 0.2.0 (step 5a, the step-10 brief, the `plan_approved`-after-merge cut-off); `konmari:` checked by `intent-check-lib` and in the metadata template; `konmariLine` in `ship-lib` and a `note` in `ship.mjs` `dryRun()`; `sdlc.md` and `intents/README.md` |
+
+9 (close): no player-facing change, so no `README.md` edit; `status: in-review`.
+
+Counts: `npm run verify` green, 69 test files, 1325 tests (was 67 and 1223 at
+subtask 1; +47 rule cases, +41 size-budget, +14 in intent-check/ship lib);
+lint 0 errors, 21 warnings, cap unchanged at 21 (checked after subtask 2:
+no import rule fired on today's code). `npm run check:intent`: PASS.
+
+Mutants checked by hand (restored by copy): removing the server `ignores`
+fails the two server-test cases; adding `noUi` to the map-editor block fails
+the `../ui/hexRender` case; `>=` in rule 1, `ALLOWANCE = 51` and dropping the
+section filter in `budgetLines` each fail tests. A baseline edited to 3100
+makes `check:intent` FAIL on `BoardScene.ts`.
+
+Divergences and notes:
+- No `budget:` lines were needed (first creation, as planned).
+- `merged:` in `metadata.yml` holds a commit hash, not a date, so `/auto`'s
+  cut-off compares `plan_approved` with the date of the merge commit named
+  there (`git log -1 --format=%cs`); no `merged:` yet means the step doesn't run.
+- The size budget skips itself when neither the branch nor the merge base has
+  `scripts/size-baseline.json` (a branch that predates §61).
+- `REVIEW-POLICY.md` had no "nine" to change; the "nine" text was in the
+  review skill and the two reviewer agents.
+- `check:intent`'s `review.md` parsing doesn't count passes; nothing to change.
+- `npm run ship -- 61 --dry-run` could not be run from the worktree (it
+  refuses); the `konmari:` line is covered by `konmariLine`'s unit tests only,
+  and the coordinator's dry-run at review shows it.
+- **AC10 is not met here.** It is owed to the first `/auto` run after this
+  merge (the KonMari step end to end on one real intent), to be recorded as a
+  Not-checked item in this intent's review.
+
+### Round 1 rework (2026-11-06)
+
+Commits: `88a8eea`, `c970e37`, `d520189`, `be104cc` (plus this entry's commit). Owner's decisions: "/auto 61 1b 2a 3b".
+
+| Finding | Resolution |
+| --- | --- |
+| F1 (HIGH, option b) | `REVIEW-POLICY.md` Merging rule 1 and `checkPreconditions` now take `commits: [{hash, files, merge?}]` (was `changedFiles`) and `konmariText`. A post-review commit passes when it touches only that intent's `review.md`, `metadata.yml` or `konmari.md`, or its hash is listed in `konmari.md` (bullets under `## Tidied` and `## Reverted`, `konmariCommits()`) and it touches nothing else inside the intent's folder. A merge commit never passes. `ship.mjs` reads the commits (`commitsAfter`) and `konmari.md` from the branch tip. Pinned: a listed commit that also edits `plan.md` or `spec.md` fails. `/konmari` 5-6, `/auto` 5a and `sdlc.md` updated. |
+| F2 | Forbidden cases for data/ui/scenes/map-editor/`src/main.ts` importing the server, and `phaser/src/x` from the engine. The `E-noPhaser-drop-subpath` mutant was equivalent: the gitignore-style matcher makes `'phaser'` cover `phaser/src/x`, so the redundant `'phaser/**'` entry is removed (comment in `eslint.config.js`). |
+| F3 | `check-intent.test.mjs`: 7 end-to-end cases on a sandbox repo with a baseline on `main`: growth past the ceiling fails in branch and working-tree mode; the same growth with a raised ceiling and a `budget:` line passes; a raised ceiling without a line (and a line outside "Where this goes") fails; an over-budget adjustment routes (exit 2); no baseline on either side skips; a baseline created by the branch is still checked (rule 1); an untracked over-limit file fails in working-tree mode. |
+| F4 (a) | `konmari.md` has `outcome:` alone on its line and a separate `reason:` line when discarded, plus a `## Reverted` section; stated in the agent, its Codex toml and `/konmari` 6. `konmariLine` is unchanged; a test shows a `reason:` line (even one containing "outcome: kept") doesn't confuse it. |
+| F5 | Pass 10 now lists the judged half of principle 1 (no browser APIs in `src/engine`/`src/data`). |
+| F6 (b) | A catch-all block `src/**/*.ts` (noServer, noTooling) placed before the layer blocks, which replace it for their files and carry the same patterns; the `src/*.ts` block is gone. Cases: `src/newdir/x.ts` importing scripts, tools or server fails, importing engine passes. `docs/architecture.md` principle 4 says so. |
+| F7 | The dead `e2e/` exclusion in `size-budget-lib.mjs` is removed. |
+| F8 | `CLAUDE.md` Commands lists `npm run size:baseline`. |
+| F9 | The agent, its toml, `/konmari` 5 and `/auto` 5a say `konmari.md` is committed alone (`§<id>: konmari record`), apart from the tidy commits. |
+| F10 | `sdlc.md` step 5 sends attest/escalate to 5a, and 5a sits before the live-check paragraph. |
+
+Counts: `npm run verify` green, 69 test files, 1352 tests (was 1325; +10 architecture-rules, +9 ship-lib, +1 ship, +7 check-intent); lint 0 errors, 21 warnings, cap unchanged at 21. `npm run check:intent`: PASS. No `budget:` lines needed.
+
+Mutants (backup by copy, literal replace, diff non-empty, run the test file named, restore by copy, diff empty each time; the file-level run, not the full suite, since each target has one test file):
+- Killed by architecture-rules.test.mjs, the case named after it: E-data-drop-noServer ("src/data/x.ts importing ../../server/saveApi"), E-ui-drop-noServer, E-scenes-drop-noServer, E-mapeditor-drop-noServer (the same case per layer), E-srcroot-catchall-drop-noServer ("src/main.ts importing ../server/saveApi" and "src/newdir/x.ts ... server"), E-noPhaser-drop-pattern (35 cases), E-catchall-glob-rootonly ("src/newdir/x.ts ... scripts"), E-catchall-drop-noTooling (src/main.ts and src/newdir cases).
+- Killed by ship-lib.test.mjs: R-merge-accepted ("a merge commit is never accepted, even listed"), R-konmari-md-in-listed and R-listed-may-touch-intent ("a listed commit may not touch the intent folder besides konmari.md"), R-listed-any-hash ("an unlisted extra commit still fails" and 3 more), R-drop-reverted-section ("discarded: ... reverts ... pass"), R-own-files-drop-konmari ("kept: ..." and 2 more), L-konmariLine-unanchored ("a reason line below the outcome does not confuse it").
+- Killed by ship.test.mjs ("accepts the listed tidy commit and its own konmari.md commit, and refuses an unlisted one"): R-wiring-konmariText, R-wiring-merge-flag (survived the first run; the integration test now builds a listed side branch and a merge commit).
+- Killed by check-intent.test.mjs: C-planText ("passes the same growth when the ceiling is raised with a budget: line"), C-routes-dropped ("routes an over-budget adjustment"), C-errors-dropped (4 cases), C-skip-or ("checks a baseline the branch creates", added after it survived), C-untracked ("measures a budgeted file that is only untracked"), C-batch-branch-path (the branch-mode growth cases).
+- The 50 mutants the reviewer's run lost to the memory reaper (27 `S-*` on `size-budget-lib.mjs`, `K-*`, and the rest) were not re-run here; they are not part of this rework's findings.
+
+### Round 2 rework (2026-11-09)
+
+Commits: `eb4b439` (all fixes), plus this entry's commit. Owner's decision G4 (a) ("/auto 61 G4 a, rebase ok"): KonMari's reach includes lowering a shrunk file's ceiling in scripts/size-baseline.json; spec.md B14 not amended (owner's). The branch was rebased onto `main` (`9093d21`) by the coordinator.
+
+| Finding | Resolution |
+| --- | --- |
+| G1 (HIGH) | `npm run size:baseline -- --write` on the rebased tree. New ceilings: combat 1111, drift 667, fuzzHarness 1350, heuristicAgent 1065, `src/scenes/BoardScene.ts` 3179 (was 3176), `src/scenes/PlacementScene.ts` 581 (was 564). Still first creation, so no `budget:` line. Stale above this section and left alone: the measurement list at plan.md "The size baseline" (line 98, "at `e8bac8f`": BoardScene 3176, PlacementScene 564), and the Progress phase-5 row ("the six files of the plan, same numbers"). |
+| G2 (MEDIUM) | `budgetVerdict` fixture gains `{ rule: 3 }`; the planless test expects both rules 3 and 4 routed (2 routes) for adjustment and experiment, and 3 errors for a feature. |
+| G3 (LOW) | `budgetLines` case with `src\scenes\BoardScene.ts` expecting `src/scenes/BoardScene.ts`. |
+| G4 (LOW, option a) | `heraklios-konmari.md`, its Codex toml and `/konmari` (step 3, item 4: a ceiling that went up is a failure) say that a tidy-up that shrinks a baselined file runs `npm run size:baseline -- --write` in the same `§<id> konmari:` commit, and that a ceiling may only go down. No code change needed: `commitAccepted` already accepts a listed commit touching files outside the intent folder, and check:intent passes a lowered ceiling (rule 5 satisfied; growth <= 0 skips rules 3/4). |
+| G5 (LOW) | `docs/architecture.md` principle 9 exception table gains `src/engine/turnManager.ts` `shuffleSeatOrder(…, rng = Math.random)`. |
+
+Counts: `npm run verify` green, 79 test files, 1408 tests (main grew since round 1; size-budget-lib.test.mjs 41 tests, no new `it`, assertions added); lint 0 errors, 21 warnings, cap 21. `npm run check:intent`: PASS (intent 61, feature).
+
+Mutants (backup by copy, one-line sed, changed asserted, run `scripts/size-budget-lib.test.mjs`, restore by copy):
+- `(f.rule === 3 || f.rule === 4)` to `f.rule === 4` (was S-verdict-route-rule4-only): killed by "routes rules 3 and 4 (both) for an adjustment or experiment...".
+- `path: norm(m[1])` to `path: m[1]` (was S-budgetLines-no-norm): killed by "needs a reason, and copes with no plan" (the backslash case). (Corrected 2026-11-10: only that test fails, 1 of 1408 on the full suite; the routing test does not.)
+
+### Owner's amendments after round 3 (2026-11-10)
+
+Owner: "Amend b14 as suggested and fix h1-h4". Made by the coordinator.
+
+| Finding | Resolution |
+| --- | --- |
+| H1 | `spec.md` B14 gains a third bullet: the ceiling of a budgeted file the tidy-up shrinks, lowered in `scripts/size-baseline.json` in the same `§<id> konmari:` commit (never raised). This is the spec amendment for the owner's G4 (a). |
+| H2 | The reach phrase in `/konmari` §4 (the reviewer's read), §6 (the discard condition) and `REVIEW-POLICY.md` pass 10 now includes lowering the ceiling of a budgeted file the tidy-up shrank. |
+| H3 | Hashes cited above are from before the rebase onto `085e66f`. Old → new: 7274846→c88fe1c, b998bb3→a22620b, 2bba34c→cec7167, abc8cee→164eb5d, 3e94898→5d65b3d, 442a00b→2d560a2, e1ac30c→3b843c3, acbb91b→2db968b, 144b7e3→dcb20a5, 88a8eea→8a144a7, c970e37→c92ff90, d520189→6aafddb, be104cc→090e8ee, d3980f9→1da1c0f (from `git range-diff`). The round-2 entry's second killing test is corrected in place. |
+| H4 | The "size baseline" measurement line (above Progress) keeps its dated `e8bac8f` numbers and adds the post-rebase ones (`BoardScene.ts` 3179, `PlacementScene.ts` 581). |

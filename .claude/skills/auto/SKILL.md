@@ -3,7 +3,7 @@ name: auto
 description: Carry one accepted heraklios intent from acceptance to a merge-ready branch without a prompt between the steps, stopping only for the owner's questions and decisions, the feature's spec acceptance, the live check and the ship. Use only when the owner types /auto <id> in the coordinator session. Invoke as /auto <id>.
 metadata:
   owner: evarnild
-  version: 0.1.0
+  version: 0.2.0
   scope: repository
   status: experimental
   review-tier: reviewed
@@ -176,7 +176,8 @@ table marks "no new round" does not come through here):
    including `## Type check` with the pasted `npm run check:intent` output and
    the `## Verified myself vs. taken on trust` heading, with `run: auto`.
    Commit it on the branch.
-5. Act on the verdict:
+5. Act on the verdict. For `attest` and `escalate`, **first run the KonMari
+   step (5a)**, then act:
    - **`escalate`**: always stop, `auto_stopped: escalate, owner reads the
      diff`. The Reviewed tier needs the owner's diff read. The owner's next
      `/auto <id>` means "diff read" and goes on to the live-check or ship
@@ -188,6 +189,37 @@ table marks "no new round" does not come through here):
      `n+1` at item 1. A single "Needs decision:" finding stops the run.
    - **`attest`**: `live-check: owed` goes to the live-check stop (step 7);
      `live-check: not-needed` goes to the ship stop (step 8).
+
+### 5a. The KonMari step (§61)
+
+Before the stop or the ship stop that an `attest` or `escalate` verdict
+leads to, run `.claude/skills/konmari/SKILL.md`'s steps 1 to 6 (read the
+skill; do not work from memory), so that the owner's diff read and the live
+check both cover the tidied code.
+
+- **Which runs.** Only an intent whose `plan_approved` date is later than
+  the date of the merge commit named by `merged:` in
+  `intents/61-architecture-guardrails/metadata.yml` (§61's merge; `git log -1
+  --format=%cs <hash>`). If that file has no `merged:` yet, or the intent's
+  `plan_approved` is on or before that date, skip the step: the run started under
+  the old rules. It also never runs for an adjustment or experiment, nor with
+  `konmari: skip` in `metadata.yml`.
+- **Once, then again only after a later round.** Run it once per run. If a
+  later round (after a live-check defect, step 7) reaches `attest` or
+  `escalate` again, run it once more, covering only the commits since the last
+  KonMari.
+- **Not a round.** It doesn't change `auto_round` or use one of the three
+  rounds. It writes `intents/<id>-<slug>/konmari.md` and a `## KonMari check`
+  section in the round's `review.md`; commit them on the branch, `konmari.md`
+  in its own commit apart from the `§<id> konmari:` tidy-up commits. `reviewed-commit`
+  stays put: `npm run ship` accepts the commits `konmari.md` lists (tidy-ups
+  and, for a discard, their reverts) and the record's own commit after it, and
+  blocks any other.
+- **Never a stop.** A failed check discards the tidy-up (`git revert`,
+  `outcome: discarded`) and the run goes on to the stop or the ship stop as if
+  nothing had been tidied. The step's heavy commands run one at a time, and
+  the step 6 re-check applies to anything it commits before you act.
+- **Safety.** Step 10's rules go into the `heraklios-konmari` brief.
 
 ## 6. The coordinator's re-check (B6)
 
@@ -294,7 +326,8 @@ Put these in the brief of each agent you launch, and keep them yourself:
 - restore mutants by copy, never `git checkout --`, and finish with `git
   status --short` clean;
 - never kill a process the run didn't start;
-- the implementer sets `status: in-review` and appends to `## Progress` only.
+- the implementer sets `status: in-review` and appends to `## Progress` only;
+- `heraklios-konmari` (step 5a) additionally: never edits `spec.md`, `plan.md`, a gate, an `auto_*` field or `konmari:`; changes only the diff's lines and the code they duplicate; changes no test assertion; adds no dependency.
 
 ## 11. Counting (B14)
 

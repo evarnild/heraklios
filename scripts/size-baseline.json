@@ -1,0 +1,8 @@
+{
+  "src/engine/combat.ts": 1111,
+  "src/engine/drift.ts": 667,
+  "src/engine/fuzzHarness.ts": 1350,
+  "src/engine/heuristicAgent.ts": 1065,
+  "src/scenes/BoardScene.ts": 3179,
+  "src/scenes/PlacementScene.ts": 581
+}

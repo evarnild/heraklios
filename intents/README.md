@@ -158,6 +158,17 @@ type needs were recorded.
   gates its type needs are not recorded yet, it may draft the missing
   `spec.md` (`/spec`) or `plan.md` (`/build-plan`) with the skills, then stops for you to accept it.
 - **The reviewer / `/review`** writes `review.md` and nothing else here.
+- **The KonMari agent** (`heraklios-konmari`, Opus, launched by `/konmari` or
+  `/auto`) writes `konmari.md` and tidies code: only the lines the intent
+  added or changed and existing code they duplicate, with no test assertion
+  changed or case deleted, no dependency and no `eslint-disable` added.
+  It commits as `§<id> konmari:`, never edits `spec.md`, `plan.md`, a gate, an
+  `auto_*` field or `konmari:`, and never ships or merges. The coordinator
+  appends `## KonMari check` to `review.md` and reverts the commits if the
+  check fails.
+- **`konmari:`** in `metadata.yml` is empty, or `skip` (the owner's choice,
+  with their words in a comment) to skip the tidy-up for one intent. It is not
+  a gate; `check:intent` rejects any other value.
 
 ## Drafting an artefact
 
