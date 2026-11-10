@@ -150,3 +150,12 @@ Commit: `§67: cameraStrays helper, hudStrays dev hook, failing e2e, fix drift a
 - Failing first (spec run before the fix, Standard view): `Error: Standard view ... Expected Array [] / Received Array [ { depth: 12, type: "Graphics" } ]`. That is the only stray found; the Drawn view had none, no other stray in either view.
 - Tests: `npm run verify` green, 81 files / 1418 tests; lint 21 warnings (cap unchanged). Full `npm run e2e`: 23/23 passed, including `hud-strays.spec.ts`.
 - Diverged: nothing. The spec and fix landed in one commit (the failing run was done on the unfixed tree before the fix edit). Live check is still owed.
+
+### Round 1 rework (2026-11-10)
+
+Commits: `f1a4c23` (reader + spec + unit tests), then this entry.
+
+- Owner's decision MEDIUM (a) ("/auto 67 a"): the reader reports a positive control; plan Tests section not amended above Progress. The round-1 LOW (stale "both" prediction in the plan) is above Progress and left as is.
+- Finding -> resolution: `hudStrays()` now returns `{ examined, hudOnly, strays }` (new pure `scanCameras` in `src/ui/cameraStrays.ts`, 2 new unit tests; `MapView.cameraStrays` applies it, `devHook` only reads). `hudOnly` = objects the main camera ignores and the HUD camera renders. The spec asserts `strays` is `[]`, `hudOnly > 0` and `examined > hudOnly`, in both views.
+- Mutants (copy backup, `git diff --quiet` exit 1, restore by copy, status clean after each): W3 (`[]` instead of `children.list`), W4 (`boardView.mapObjects()` instead of the list) and W5 (`hudStrays: () => ({examined:0,hudOnly:0,strays:[]})`) each fail at `Standard view: HUD objects seen  Expected: > 0  Received: 0`. Failing-first re-check (drop `driftArrowGraphics` from `StandardBoardView.mapObjects()`): fails at `Standard view` with strays `[{depth: 12, type: "Graphics"}]`.
+- Counts: verify green, 81 test files / 1420 tests; lint 21 warnings (cap unchanged); e2e 23/23; check:intent FAIL only for the owed live check (no other error), as before the rework.
