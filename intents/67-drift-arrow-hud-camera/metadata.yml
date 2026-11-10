@@ -10,7 +10,7 @@ spec_accepted:
 plan_approved: 2026-11-10 by-agent    # auto: owner "accept 67 /auto 67" (auto_authorized 2026-11-10)
 live_checked:
 merged:
-auto_authorized: 2026-11-10 by-agent    # owner: "/auto 67 a"
+auto_authorized: 2026-11-10 by-agent    # owner: "live check passed /auto 67"
 auto_round: 2
 auto_stopped: live check owed
 follows_up:
