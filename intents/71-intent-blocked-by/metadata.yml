@@ -13,7 +13,7 @@ merged:
 konmari:
 auto_authorized: 2026-11-21 by-agent    # owner: "/auto 71" (after the escalate stop: diff read)
 auto_round: 3
-auto_stopped:
+auto_stopped: ready for /ship
 follows_up:
 links:
   - intents/50-sdlc-auto-mode
