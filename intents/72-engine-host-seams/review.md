@@ -1,13 +1,169 @@
 <!-- generated-by: heraklios/review@0.2.0 -->
 # §72 review — The engine can run a whole game for a host other than the Phaser scenes
 
-verdict: rework
+verdict: attest
 tier: attested
-reviewed-commit: d9f0c6f03791fbd8806b96795794d39aaa9f4337
-round: 1
-sampled: no
+reviewed-commit: 974904da47e2fcbd977da82f3a651934ef52eb3d
+round: 2
+sampled: yes
 run: auto
 live-check: owed
+
+**Tier.** Attested by the path table, as in round 1.
+- The rework (`7f4842f`) touches only test files,
+  `src/engine/deploymentSnapshotCases.ts` and Progress. `974904d` changes only
+  `auto_round`.
+- No Reviewed path was edited. No finding raises the tier.
+
+**Sampling.** `npm run sdlc:scan -- --sample-due auto --exclude 72`:
+`sample-due auto: nth attested auto change = 9, every 3, sampled: yes`.
+A full diff read is due after the merge.
+
+## Passes
+| # | Pass | Result |
+| --- | --- | --- |
+| 1 | Intent and plan match | pass — each round 1 ask is met; the rework Progress entry is accurate |
+| 2 | Type check | pass (`tsc -b` in verify) |
+| 3 | Rulebook fidelity | holds from round 1 — the rework changes no rule logic |
+| 4 | Tests prove the rule | pass, 1 LOW — the four round 1 survivors and five message mutants are killed; D9 still survives, equivalent in effect |
+| 5 | Boundary and conventions | holds from round 1 |
+| 6 | Numbers in prose | pass — "forces 4, 4, 2 against 5" matches `units.ts:40,66` and `exchangeSacrificeForce`; the minimal subsets are {a,b}, {a,c}, {b,c} |
+| 7 | Documentation | holds from round 1 |
+| 8 | Guardrails and hygiene | pass — lint 0 errors, 19 warnings, cap 19; no `eslint-disable`, no dependency |
+| 9 | Repository footguns | holds from round 1 |
+| 10 | Architecture | pass — no non-test module under `src/` imports `node:`; `zoneSnapshot` takes `sha256` as a parameter |
+
+## Type check
+```
+> heraklios@0.1.0 check:intent
+> node scripts/check-intent.mjs
+
+type-check: FAIL (intent 72, feature)
+  error: A live check is owed and not recorded. Do the steps in intents/72-engine-host-seams/review.md → ## Live check, then set live_checked: <date> in intents/72-engine-host-seams/metadata.yml.
+  note:  29 file(s), 6301 line(s) changed outside intents/.
+```
+The only error is the owed live check. It is the owner's to clear, not a
+rework item.
+
+## Findings
+None needs rework or a decision.
+- **LOW** `src/engine/host.test.ts:299`: the test's `landAttack` line in its
+  `legalActions` check passes even with the bug.
+  - With seed 13, the attack destroys `def`. With `attackedThisPhase` emptied,
+    no `landAttack` for `att` is offered anyway, because no enemy is left to
+    attack.
+  - H4a is killed by the `save()` equality instead. Together with GS10, that
+    still proves the behaviour. The `board` line at `:300` does matter.
+  - Worth a look: add `alive('def')` to the seed filter at `:284`.
+- **LOW** `src/engine/sessionAgents.test.ts:47-52`: comment slips.
+  - "Choose {a, c}: the second listed subset." appears twice (`:51`, `:52`).
+  - The comment at `:47-48` speaks of {b,c}, but the test chooses {a,c}. The
+    test itself is right.
+  - Worth a look.
+- D9-drop (`deployment.ts:368` → `void 0;`) still survives. It is the
+  equivalence round 1 recorded: the `TypeError` "rng is not a function" matches
+  `/rng/`. No action.
+
+**Round 1 findings, resolution.**
+- **CR21 resolved.** "offers no advance into a defender hex that is occupied
+  again".
+  - The reviewer replayed it through a real DR attack, and it gives the same
+    sequence: one `pushTarget` question, a forced push, and only the advance
+    offer at (10,5).
+- **SA2 resolved.** "the I3 sacrifice mapping": the second listed subset, and a
+  non-minimal superset, each with the destroyed units asserted.
+- **H4 resolved, both lists.** H4a fails `[]` vs `['att']` and H4b fails `[]` vs
+  `['ship']`. See the LOW above.
+- **SA4 resolved.** It asserts that the retreat is forced, and that the
+  rejection surfaces.
+- **`node:crypto` resolved.** The fixtures are unchanged since `eef4065`.
+- **Bare `toThrow()` resolved.** GS11-drop is now killed too.
+
+## Not checked
+- Round 1 mutants that were neither survivors nor named in the rework were not
+  re-run. Their source files have been byte-identical since round 1, apart from
+  `deploymentSnapshotCases.ts`, and tests were only added.
+- Bundling for a non-Node host (§70's path), beyond an import grep.
+- Placement in a browser: the live check.
+
+## Live check
+- owed: rule 1 — `src/scenes/PlacementScene.ts`, `src/ui/aiSetup.ts` and
+  `src/ui/mapBounds.ts` changed, and A4 changes Placement ids. The smoke suite
+  cannot stand in: Placement's unit creation is new code.
+- steps:
+  1. In `C:/Users/eric/src/heraklios-wt/72-engine-host-seams`, run
+     `npm run dev -- --port 5272 --strictPort --host 127.0.0.1` and open
+     http://127.0.0.1:5272/.
+  2. For comparison, from `C:/Users/eric/src/heraklios` run
+     `npm run dev -- --port 5273 --strictPort --host 127.0.0.1`.
+  3. On both: 2 players, seat 0 Human, seat 1 a computer tier. For seat 0,
+     choose "Use default army", then "Confirm army".
+  4. In Placement (Standard view), note the edge. The green band is the same
+     3-hex strip on both ports. Toggle the Drawn view: the same hexes stay
+     highlighted.
+  5. Place land units. A click outside the band, or cavalry on marsh or steep
+     flank, does nothing.
+  6. Undo, then redo.
+  7. At the ships, the highlight jumps to the bay. Stage a ship, turn it with
+     each Turn button and confirm: the facing you chose is kept. Stage a second
+     ship and Cancel it.
+  8. Click "Done placing". The computer seat deploys with no screen of its own,
+     and the Board opens with both armies.
+  9. Play into the first combat.
+  10. Optional (A4): repeat with two Human seats. The second seat places
+      normally.
+- you should see:
+  - the same legal hexes and refusals as on `main`, in both views;
+  - Undo and Redo working;
+  - combat prompts that behave as on `main`.
+
+## Verified myself vs. taken on trust
+- **Coordinator, re-run:** `npm run verify` at `974904d`: exit 0; lint 0
+  errors, 19 warnings (cap 19); 95 test files, 1664 passed, 2 skipped. Matches.
+- **Coordinator, re-run:** `npm run check:intent`: FAIL, and the owed live check
+  is the only error (pasted above). Matches.
+- **Coordinator, re-run:** `npm run e2e`: 27 passed in 46.7s.
+- **Coordinator, re-run:** the reviewer's twelve mutants. Each was backed up by
+  copy, applied once, run against the full `vitest run --bail 1` suite, and
+  restored by copy.
+  - KILLED:
+    - CR21: "offers no advance into a defender hex that is occupied again";
+    - SA2: "maps the second listed subset to that subset";
+    - H4a and H4b: "brings back the attacked and rammed lists, so nobody acts
+      twice";
+    - SA4: "makes settleWithAgent reject";
+    - M-GS8msg, M-GS11msg and M-GS7msg: the `gameSession.test.ts` checks;
+    - M-D9msg: `deployment.test.ts` "needs an rng";
+    - GS11: "rejects an answer with no question open";
+    - M-GS9msg: `gameSession.test.ts` "needs an rng".
+  - D9 SURVIVED, as expected (equivalent).
+  - All twelve match the reviewer.
+  - The first batch was stopped by Claude Code for low memory while GS11 was
+    applied to `gameSession.ts`. The coordinator checked the backup against
+    `HEAD`, restored the file by copy and removed the backup. The remaining
+    three ran in the foreground on the owner's "rerun 72".
+  - `git status --short` is clean.
+- **Reviewer:**
+  - the rework diff, read in full;
+  - CR21 replayed as a real game sequence;
+  - the H4 `legalActions` check probed with each list emptied;
+  - SA2's forces checked against `units.ts`;
+  - the fixtures unchanged since `eef4065`;
+  - no `node:` import in non-test `src/` modules.
+- **Taken on trust:**
+  - passes 3, 5, 7 and 9, which hold from round 1;
+  - the round 1 kills of the mutants not re-run;
+  - Placement in a browser, which is the owner's live check.
+
+# Round 1 (history)
+
+- verdict: rework
+- tier: attested
+- reviewed-commit: d9f0c6f03791fbd8806b96795794d39aaa9f4337
+- round: 1
+- sampled: no
+- run: auto
+- live-check: owed
 
 **Tier: Attested, by the path table** (`src/engine/**`, `src/ui/**`,
 `src/scenes/**`, tests, `scripts/size-baseline.json`, and the lowered
@@ -26,7 +182,7 @@ regenerated from `main`'s own code and match. Four mutants survive on real
 behaviour that no test pins. Each fix is a mechanical test, and there is no
 "Needs decision:" finding.
 
-## Passes
+### Passes
 | # | Pass | Result |
 | --- | --- | --- |
 | 1 | Intent and plan match | pass — all seven Progress divergences accepted (below) |
@@ -56,7 +212,7 @@ behaviour that no test pins. Each fix is a mechanical test, and there is no
 - **The host config.** It matches the plan's Assumptions. `HostDeployError`
   carries the `DeployError` as data.
 
-## Type check
+### Type check
 ```
 > heraklios@0.1.0 check:intent
 > node scripts/check-intent.mjs
@@ -65,7 +221,7 @@ type-check: PASS (intent 72, feature)
   note:  28 file(s), 6130 line(s) changed outside intents/.
 ```
 
-## Findings
+### Findings
 - **MEDIUM** `src/engine/combatResolution.ts:360` — mutant CR21 survives:
   removing `if (unitAt(game, step.hex)) return null;`.
   - The guard stops an advance offer onto a hex that is occupied again.
@@ -107,7 +263,7 @@ type-check: PASS (intent 72, feature)
   since a `TypeError` is still thrown before any change. Worth a look: match
   `/no question is open/` and `/rng/`.
 
-## Not checked
+### Not checked
 - **Mutants not run (one per behaviour was chosen):**
   - the `stepDrift` direction die;
   - `sameAnswer`, and `minimalSacrifices`' `n > 20` guard;
@@ -132,7 +288,7 @@ type-check: PASS (intent 72, feature)
 - The implementer's one-off `save-load.spec.ts` failure: it did not recur for
   the reviewer or the coordinator, so it was not compared with `main`.
 
-## Live check
+### Live check
 - **Owed:** by rule 1. `src/scenes/PlacementScene.ts`, `src/ui/aiSetup.ts` and
   `src/ui/mapBounds.ts` changed, and A4 changes Placement ids. The smoke suite
   cannot stand in, because Placement's unit creation is new code.
@@ -164,7 +320,7 @@ type-check: PASS (intent 72, feature)
   - Undo and Redo working;
   - a combat whose retreat or advance prompts behave as on `main`.
 
-## Verified myself vs. taken on trust
+### Verified myself vs. taken on trust
 - **Coordinator, re-run:** `npm run verify` at `d9f0c6f`: exit 0; lint 0
   errors, 19 warnings (cap 19); 94 test files, 1659 passed, 2 skipped (the gated
   writers). Matches.
