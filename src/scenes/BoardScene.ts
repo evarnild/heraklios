@@ -770,7 +770,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       .setInteractive({ useHandCursor: true });
     this.abandonBtn.on('pointerdown', () => this.confirmAbandon());
     const viewX = this.abandonBtn.x + this.abandonBtn.width + 8;
-    const speed = createSpeedToggle(this, viewX + 112, height - 136, this.mapView.viewKind);
+    const speed = createSpeedToggle(this, viewX, height - 168, this.mapView.viewKind);
     const viewToggle = createViewToggle(this, viewX, height - 136, this.mapView, speed.sync);
 
     // Mode C (plan.md §9.2.1): irreversible, so it goes through the same
