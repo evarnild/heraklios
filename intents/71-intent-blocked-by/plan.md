@@ -282,3 +282,65 @@ Re-read on `main` at `7e2033c`. Source files at
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-11-21 — implementation (subtasks 1-7)
+
+Commits: `75ef51a` blockers-lib, `39ac69b` check:intent, `97988bb` spawn,
+`423caa6` queue plus orchestrator guard, `b48c00f` orchestrator display and
+Auto resume, `8e64d38` skills, `056f032` docs (and the status flip in the
+commit after it).
+
+Shipped: B1-B18 as in the spec. `npm run verify` green at every commit: 83
+test files, 1470 tests at the end (1436 before this work), 21 lint warnings,
+cap 21 unchanged. `npm run check:intent` on this branch: PASS.
+
+- **AC1** `scripts/blockers-lib.test.mjs`, 16 tests, every source case in Vitest.
+- **AC2** `scripts/intent-check-blockers.test.mjs` (new, 7 tests) and three
+  end-to-end cases in `scripts/check-intent.test.mjs`, including the branch
+  whose copy of the blocker says `merged:` while `main`'s does not. Mutant:
+  dropping `blockers` from the `checkChange` call in `check-intent.mjs` makes
+  the three end-to-end cases fail (restored by copy).
+- **AC3** `queue-lib.test.mjs` (7 cases) and `queue.test.mjs` (2 git-seam cases).
+- **AC4** `spawn-intent.test.mjs` (7 cases): each refusal asserts the message,
+  exit 1, no worktree directory and no branch; a cleared blocker spawns.
+- **AC5** `state.mjs` builds rows from every key except `problems` and puts
+  `problems` on the state, in the same commit as the `queue --json` change
+  (`423caa6`). Tests: `server.test.mjs` (no stray rows, `problems` on the
+  state, a row's `blocked`), `orchestrator-lib.test.mjs` (`autoLaunch` for
+  `blocked by 3` / `blocked by 13` / `blocked_by record broken`, `blockedRow`).
+- **AC6** `npm run queue` output on this branch is identical to `main`'s (no
+  intent declares `blocked_by`). `npm run check:intent -- <branch>` from this
+  worktree, before and after the change:
+  - `feat/66-board-animations`: before `FAIL` (size budget: BoardScene.ts has
+    3195 lines, over its ceiling of 3173; 25 files changed); after `FAIL`
+    (size budget: the branch raises BoardScene.ts from 3173 to 3177 without a
+    budget line; 30 files changed). Same verdict; the message differs only
+    because §66's branch moved between the two runs (more commits). No
+    `blocked_by` line appears in either.
+  - `exp/70-unity-front-end-probe`: before `PASS` (13 files); after `PASS`
+    (67 files; the branch moved).
+- **No backfill (I2):** no `blocked_by` records were added to any existing
+  intent, and the source's `blockers-backfill.test.mjs` is not ported. §64 and
+  §65 are merged, so a record would be cleared at once.
+
+Differences from the source (`3041c48`), beyond I1-I3 and B13-B16:
+- `refuseIfBlocked` takes the lowest open and lowest unknown blocker through
+  one small `lowest(state)` helper instead of two copies of the sort (same
+  behaviour; keeps the function short).
+- `queueData`'s `flat` is indented properly (the source left it misindented).
+- The source's tests named their cases with its own spec numbers (`B3:`, `B5:`,
+  `F3:`); those prefixes are dropped, as they mean something else here.
+- The `checkBlockers` tests live in a new file, not in
+  `intent-check-lib.test.mjs` (plan, Assumptions). One extra case checks the
+  message without a reason and each broken-record kind alone.
+- The skills' wording is the source's with `heraklios-implementer` and
+  heraklios's step numbers; the `/intent` item is folded into heraklios's
+  step 3 sentence. The `CLAUDE.md` and `sdlc.md` lines are heraklios's own,
+  as the plan said, plus a short paragraph in `README.md`'s orchestrator
+  section (there is no "Known simplifications" item for this).
+- The orchestrator's `blockedRow` reuses queue-lib's `blockedText`; the split
+  of `blocked_by_open` into direct and further is by membership in the row's
+  own `blocked_by` (the JSON does not mark where the direct ids end).
+
+Not run: the live check (owed to the owner, plan Validation) and `npm run e2e`
+(not needed: no `src/` or `e2e/` change).

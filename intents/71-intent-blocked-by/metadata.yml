@@ -2,7 +2,7 @@
 id: 71
 slug: intent-blocked-by
 type: feature
-status: accepted
+status: in-review
 title: Record which intents must merge before another can be built (blocked_by)
 review_tier:
 intent_accepted: 2026-11-21 by-agent    # owner: "yes, then /auto 71"
