@@ -4159,3 +4159,45 @@ existing test target for this string format, consistent with `CLAUDE.md`'s
 engine-tested/scenes-untested convention, so tsc/vitest-clean plus a careful
 manual diff read was the available verification (no browser session was
 available in either pass).
+
+## 70. Probe: can a Unity front end drive the existing TypeScript rules engine?
+
+Experiment, `intents/70-unity-front-end-probe/` (intent, and `result.md` with
+the full measurements). The branch `exp/70-unity-front-end-probe` holds the
+throwaway Unity project in `unity-probe/`; it is kept for reference and never
+merged, as the intent said. Live check by the owner on 2026-11-21: the scene
+was opened in the Unity editor and played.
+
+### 70.1 Outcome
+
+**Go, with conditions, using ClearScript V8 (not Jint).** The unchanged
+engine, bundled into one JS file, ran inside a Unity 6 (6000.6.10f1) Windows
+player:
+- **Parity:** seeded `playRandomGame` replays (seeds 7, 42, 2026) gave the
+  same SHA-256 of stats, trace and final state under Node and in all five
+  host/runtime combinations: Jint, V8 and a Node sidecar under .NET 11, plus
+  Jint and V8 in the Unity player.
+- **Speed in the Unity player** (`legalActions` with JSON parse; `applyAction`):
+  - V8: 2-6 ms and under 1 ms with 10 units; 10-18 ms and under 1 ms with 54
+    units.
+  - Jint: 45-167 ms with 10 units; 1.3-1.6 s with 54 units, which is too slow.
+- **Builds:** a Windows desktop build works today (142 MB with V8). macOS and
+  Linux need ClearScript's native packages (not tested). Mobile and WebGL have
+  no V8 route. Nothing in the engine route blocks a 3D board.
+
+The conditions: add engine seams first, so a host can play a whole game without
+scene code:
+- a supported host entry;
+- a deploy-armies-into-`GameState` function;
+- a JSON pending-question/answer protocol for retreat, push, advance, exchange,
+  drift, ram and boarding.
+
+Beyond that:
+- run engine calls off the main thread, never `legalActions` per frame;
+- scope the front end to desktop;
+- ship V8's native binaries per platform, with the replay hash as a CI gate;
+- keep Unity as a second front end beside Phaser.
+
+**Follow-up:** §72 ("The engine can run a whole game for a host other than
+the Phaser scenes") is the seams step. The Unity shell and a playable board
+come after it, as their own intents.
