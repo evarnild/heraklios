@@ -1,13 +1,133 @@
 <!-- generated-by: heraklios/review@0.2.0 -->
 # §71 review — Record which intents must merge before another can be built (blocked_by)
 
-verdict: rework
+verdict: escalate
 tier: reviewed
-reviewed-commit: c30aaf62eafc879a0a269b039ca5a7b310e84b04
-round: 2
+reviewed-commit: aaf650df6d396d71f0db2c6572b73990b6f7c7f8
+round: 3
 sampled: no
 run: auto
 live-check: owed
+
+Tier is Reviewed by the path table (`.claude/skills/**`). Every round 2 finding
+is resolved, and no finding needs rework. A Reviewed-tier change with nothing
+to rework is `escalate`: the owner reads the diff. `sampled: no`: the verdict
+is not `attest`.
+
+## Passes
+| # | Pass | Result |
+| --- | --- | --- |
+| 1 | Intent and plan match (rework diff `c30aaf6..aaf650d`) | pass — only `scripts/queue-lib.test.mjs` (+16), `scripts/spawn-intent.test.mjs` (+7), a Progress entry below the marker, `auto_round: 3` |
+| 2 | Type check | the only error is the owed live check (pasted below) |
+| 3 | Rulebook fidelity | pass — no game rule involved |
+| 4 | Tests prove behaviour | pass — S03, Q03, Q04, Q06 killed; Q05, Q09, O06 equivalent (round 2) |
+| 5 | Boundary and conventions | pass — only tests and intent files changed |
+| 6 | Numbers in prose | pass — "83 test files, 1481 tests (1478 + 3)" and the cap reproduce |
+| 7 | Documentation | pass — unchanged since round 1 |
+| 8 | Guardrails and hygiene | pass — lint 0 errors, 21 warnings, cap 21; no new dependency |
+| 9 | Repository footguns | pass — none apply |
+| 10 | Architecture | pass — the rework adds no module or import |
+
+## Type check
+```
+> heraklios@0.1.0 check:intent
+> node scripts/check-intent.mjs
+
+type-check: FAIL (intent 71, feature)
+  error: A live check is owed and not recorded. Do the steps in intents/71-intent-blocked-by/review.md → ## Live check, then set live_checked: <date> in intents/71-intent-blocked-by/metadata.yml.
+  note:  28 file(s), 897 line(s) changed outside intents/.
+```
+The only error is the owed live check, the owner's to clear. It is not a
+rework item.
+
+## Findings
+None needs rework.
+- **LOW** (nit) `scripts/spawn-intent.test.mjs:341` — the S03 test leaves
+  `intents/57-draft/` uncommitted in its sandbox repository. It is the last
+  case in its describe block, so nothing inherits it today. No action.
+- **LOW** (info) — `main` is one commit past the branch's merge base
+  (`6af725c`, §70's `result.md` only). No conflict; `/ship` merges with
+  `--no-ff`.
+
+**Round 2 findings, resolution.**
+- S03 (MEDIUM) resolved: "a blocker that only the main checkout working tree
+  has is open, not unknown (spec B4)".
+- Q03 and Q04 resolved: "without mainMerged, a main-sourced merged: clears
+  the blocker and a branch-sourced one does not".
+- Q06 resolved: "lists problems in ascending numeric id order whatever the
+  entry order".
+- The U01 sentence was added to Progress, and it is accurate.
+- Q05, Q09 and O06 remain equivalent.
+
+## Not checked
+- The orchestrator page (row text and hover, the `#problems` section, Spawn's
+  refusal, Auto's confirm): no test renders it — the live check.
+- Whether `check-intent.mjs`'s `onSomeBranch` should also count the main
+  checkout's working tree (B4). check:intent and spawn word an uncommitted
+  draft blocker differently, but both refuse it. Carried over from round 2.
+- No mutants on `tools/orchestrator/public/app.js` (no harness for the page).
+- This round ran only the four named mutants. The other 78 rest on round 2's
+  complete run at `c30aaf6`; the rework changed no production file.
+- e2e: not needed — no `src/`, `e2e/` or `src/main.ts` change.
+
+## Live check
+- owed: rule 3 — the orchestrator page renders the blocked text, the problems
+  line, Spawn's refusal and Auto's confirm, and no test renders them.
+- steps: the orchestrator runs only from a main checkout on `main`, and the
+  queue lists only intents committed on `main`, so use a throwaway clone:
+  1. In PowerShell: `git clone C:/Users/eric/src/heraklios $env:TEMP\h71`, then
+     in it `git checkout -B main origin/feat/71-intent-blocked-by` and `npm ci`.
+  2. In the clone, commit on `main` three scratch intents, each with full
+     metadata (`id`, `slug`, `type: fix`, `status: accepted`):
+     `intents/97-scratch-blocked/metadata.yml` with `auto_stopped: blocked by
+     66` and `blocked_by:` / `  - 66    scratch reason`;
+     `intents/98-scratch-a/metadata.yml` with `blocked_by:` / `  - 99    a`;
+     `intents/99-scratch-b/metadata.yml` with `blocked_by:` / `  - 98    b`.
+     If §66 is merged by then, block §97 on another intent that is open on `main`.
+  3. `npm run orchestrator -- --port 5298`, open http://127.0.0.1:5298/.
+- you should see:
+  1. a red line above the lists: `blocked_by cycle: §98 -> §99 -> §98.`;
+  2. §97's row shows `blocked by §66` under its title; hovering shows
+     `§66: scratch reason`;
+  3. Spawn on §97, confirmed, shows `§97 is blocked by §66 (scratch reason),
+     not merged into main. Ship §66 first.`, and no `fix/97-…` branch or
+     worktree folder exists afterwards;
+  4. Auto on §97 shows a confirm saying the run spawns only if every blocker
+     is merged into main or the record is fixed, and otherwise stops again —
+     cancel it;
+  5. a real intent (e.g. §70) shows no blocked text.
+  Afterwards stop the orchestrator and delete the clone.
+
+## Verified myself vs. taken on trust
+- **Coordinator, re-run:** `npm run verify` at `aaf650d`: exit 0; lint 0
+  errors, 21 warnings (cap 21); 83 test files, 1481 tests passed. Matches.
+- **Coordinator, re-run:** `npm run check:intent`: FAIL with only the owed
+  live check (pasted above). Matches.
+- **Coordinator, re-run:** the four mutants the rework claims, each backed up
+  by copy, applied once, full `vitest run --bail 1`, restored by copy:
+  - S03: KILLED by spawn-intent "a blocker that only the main checkout working
+    tree has is open, not unknown (spec B4)";
+  - Q03 and Q04: KILLED by queue-lib "without mainMerged, a main-sourced
+    merged: clears the blocker and a branch-sourced one does not";
+  - Q06: KILLED by queue-lib "lists problems in ascending numeric id order
+    whatever the entry order".
+
+  `git status --short` was clean after. All four match the reviewer.
+- Reviewer: the rework diff read in full; orientation (16 ahead and 1 behind
+  `main`; nothing pushed, `git ls-remote` has no `feat/71-intent-blocked-by`);
+  the same four mutants run without bail, with the same results.
+- Taken on trust: verify at intermediate commits; the page rendering (the live
+  check).
+
+# Round 2 (history)
+
+- verdict: rework
+- tier: reviewed
+- reviewed-commit: c30aaf62eafc879a0a269b039ca5a7b310e84b04
+- round: 2
+- sampled: no
+- run: auto
+- live-check: owed
 
 Tier is Reviewed by the path table (`.claude/skills/**`). `sampled: no`: the
 verdict is not `attest`.
@@ -19,7 +139,7 @@ run was stopped again for low memory with 20 mutants left; the coordinator ran
 all of them, so this round's mutation pass is complete: 82 of 82 planned
 mutants have a result.
 
-## Passes
+### Passes
 | # | Pass | Result |
 | --- | --- | --- |
 | 1 | Intent and plan match (rework diff `ba0099b..c30aaf6`) | pass — test files, a Progress entry below the marker, `auto_round: 2` |
@@ -33,7 +153,7 @@ mutants have a result.
 | 9 | Repository footguns | pass — none apply |
 | 10 | Architecture | pass — the rework adds no module or import |
 
-## Type check
+### Type check
 ```
 > heraklios@0.1.0 check:intent
 > node scripts/check-intent.mjs
@@ -45,7 +165,7 @@ type-check: FAIL (intent 71, feature)
 The only error is the owed live check, which is the owner's to clear
 (`REVIEW-POLICY.md` → "Live checks", "Enforced"). It is not a rework item.
 
-## Findings
+### Findings
 - **MEDIUM** `scripts/session-io.mjs:107` (`readBlockers`, its `exists`
   check) — mutant S03 survives: dropping `findIntentDir(root, blockerId) !==
   null ||` makes a blocker that exists only as a folder in the main checkout's
@@ -86,7 +206,7 @@ does. The Progress numbers, the `B3:` test name and the JSDoc difference are
 resolved. The plan's live-check steps stay as they are (above the marker),
 and this report's Live check replaces them.
 
-## Not checked
+### Not checked
 - The orchestrator page (row text and hover, the `#problems` section, Spawn's
   refusal, Auto's confirm): no test renders it — the live check.
 - Whether `check-intent.mjs`'s `onSomeBranch` should also count the main
@@ -96,7 +216,7 @@ and this report's Live check replaces them.
 - No mutants on `tools/orchestrator/public/app.js` (no test harness for the page).
 - e2e: not needed — no `src/`, `e2e/` or `src/main.ts` change.
 
-## Live check
+### Live check
 - owed: rule 3 — the orchestrator page renders the blocked text, the problems
   line, Spawn's refusal and Auto's confirm, and no test renders them.
 - steps: the orchestrator runs only from a main checkout on `main`, and the
@@ -124,7 +244,7 @@ and this report's Live check replaces them.
   5. a real intent (e.g. §70) shows no blocked text.
   Afterwards stop the orchestrator and delete the clone.
 
-## Verified myself vs. taken on trust
+### Verified myself vs. taken on trust
 - **Coordinator, re-run:** `npm run verify` at `c30aaf6`: exit 0; lint 0
   errors, 21 warnings (cap 21); 83 test files, 1478 tests passed. Matches the
   reviewer and the implementer.
