@@ -18,6 +18,7 @@ import type { LandCombatHighlight } from '../engine/ruleTables';
 import type { RulesTab } from './rulesPanel';
 import { GHOST_SHIP_ID } from './boardView';
 import { landscapeBuilds } from './landscape/paintLandscape';
+import { animationSpeed, type AnimationSpeed } from './animationSpeed';
 import type { CameraScan } from './cameraStrays';
 
 type Hex = { q: number; r: number };
@@ -108,6 +109,10 @@ export interface DevHook {
   displayListSorted(): boolean;
   /** Which board view the surface is showing (§64). */
   boardView(): 'standard' | 'drawn';
+  /** The remembered animation speed (§66). */
+  animationSpeed(): AnimationSpeed;
+  /** A unit's figure on the canvas, where it is drawn right now (mid-slide included; §66), or null. */
+  unitCanvas(unitId: string): Point | null;
   /** The main camera's scroll (§64: a view toggle must not move it). */
   cameraScroll(): Point;
   /** The id of the Board's selected unit, or null (§64: a view toggle keeps the selection). */
@@ -255,6 +260,7 @@ export function installDevHook(game: Phaser.Game): void {
     displayListSorted: () => displayListSorted(mapScene()),
     rulesPanel: () => rulesPanelSnapshot(board()),
     boardView: () => mapScene().mapView.viewKind,
+    animationSpeed: () => animationSpeed(), unitCanvas: (unitId) => unitCanvas(mapScene(), unitId),
     cameraScroll: () => ({ x: mapScene().cameras.main.scrollX, y: mapScene().cameras.main.scrollY }),
     selectedUnitId: () => selectedUnitId(board()),
     boardObjects: () => boardObjects(mapScene()),
@@ -354,6 +360,12 @@ function fixedToCanvas(cam: Phaser.Cameras.Scene2D.Camera, p: Point): Point | nu
 }
 
 /** A world point through the camera's scroll and zoom; null if off-viewport. */
+/** A unit figure's canvas position where it is drawn right now (§66). */
+function unitCanvas(scene: BoardInternals, unitId: string): Point | null {
+  const obj = scene.children.getByName(unitId) as Phaser.GameObjects.Container | null;
+  return obj ? worldToCanvas(scene.cameras.main, { x: obj.x, y: obj.y }) : null;
+}
+
 function worldToCanvas(cam: Phaser.Cameras.Scene2D.Camera, w: Point): Point | null {
   // getWorldPoint is affine; invert it from three samples (as in the §30 probe).
   const o = cam.getWorldPoint(0, 0);
