@@ -3,7 +3,7 @@ import { messages } from './i18n';
 import { animationSpeed, nextAnimationSpeed, setAnimationSpeed } from './animationSpeed';
 import type { AnimationSpeed } from './animationSpeed';
 import type { BoardViewKind } from './boardViewPreference';
-import { createViewToggle } from './viewToggle';
+import { createViewToggle, hudToggleButton } from './viewToggle';
 import type { ViewSwitchable } from './viewToggle';
 
 /** The label names the current speed (spec B13). */
@@ -25,15 +25,7 @@ export function createSpeedToggle(
   y: number,
   viewKind: BoardViewKind,
 ): { button: Phaser.GameObjects.Text; sync(kind: BoardViewKind): void } {
-  const button = scene.add
-    .text(x, y, speedToggleLabel(animationSpeed()), {
-      fontSize: '12px',
-      color: '#fff',
-      backgroundColor: '#2f4a5a',
-      padding: { x: 8, y: 4 },
-    })
-    .setScrollFactor(0)
-    .setDepth(30);
+  const button = hudToggleButton(scene, x, y, speedToggleLabel(animationSpeed()));
   button.on('pointerdown', () => {
     const next = nextAnimationSpeed(animationSpeed());
     setAnimationSpeed(next);

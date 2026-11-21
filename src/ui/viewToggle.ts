@@ -15,6 +15,19 @@ export function viewToggleLabel(current: BoardViewKind): string {
   return current === 'drawn' ? t.switchToStandard : t.switchToDrawn;
 }
 
+/** The look the HUD's view and speed buttons share: depth 30, scroll factor 0. */
+export function hudToggleButton(scene: Phaser.Scene, x: number, y: number, label: string): Phaser.GameObjects.Text {
+  return scene.add
+    .text(x, y, label, {
+      fontSize: '12px',
+      color: '#fff',
+      backgroundColor: '#2f4a5a',
+      padding: { x: 8, y: 4 },
+    })
+    .setScrollFactor(0)
+    .setDepth(30);
+}
+
 /**
  * The Board's and Placement's view toggle: a HUD button (depth 30, scroll
  * factor 0) that flips between the Standard and Drawn views at any moment and
@@ -27,16 +40,7 @@ export function createViewToggle(
   view: ViewSwitchable,
   onChange?: (kind: BoardViewKind) => void,
 ): Phaser.GameObjects.Text {
-  const button = scene.add
-    .text(x, y, viewToggleLabel(view.viewKind), {
-      fontSize: '12px',
-      color: '#fff',
-      backgroundColor: '#2f4a5a',
-      padding: { x: 8, y: 4 },
-    })
-    .setScrollFactor(0)
-    .setDepth(30)
-    .setInteractive({ useHandCursor: true });
+  const button = hudToggleButton(scene, x, y, viewToggleLabel(view.viewKind)).setInteractive({ useHandCursor: true });
   button.on('pointerdown', () => {
     const next: BoardViewKind = view.viewKind === 'drawn' ? 'standard' : 'drawn';
     setBoardViewKind(next);
