@@ -12,7 +12,7 @@ live_checked: 2026-11-21 by-agent    # owner: "66 live checked"
 merged:
 auto_authorized: 2026-11-21 by-agent    # owner: "/auto 66 (a)"
 auto_round: 3
-auto_stopped:
+auto_stopped: ready for /ship
 follows_up:
 links:
   - intents/64-vector-view
