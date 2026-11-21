@@ -7,7 +7,7 @@ title: Hovering a unit shows its characteristics; the Drawn view's number badge 
 review_tier:
 intent_accepted: 2026-11-21 by-agent    # owner: "/auto 74", answering "say yes to accept it, or /auto 74 to accept it and carry it through"
 spec_accepted: 2026-11-21 by-agent    # owner: "spec accepted"
-plan_approved:
+plan_approved: 2026-11-21 by-agent    # auto: owner "/auto 74" (auto_authorized 2026-11-21)
 live_checked:
 merged:
 konmari:
