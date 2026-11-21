@@ -224,6 +224,9 @@ describe('GET /api/state (spec B3)', () => {
     expect(body.intents.map((i) => i.id)).toEqual([29, 52, 51]);
     expect(body.intents.every((i) => typeof i.id === 'number' && i.group !== 'problems')).toBe(true);
     expect(body.problems).toEqual(lines);
+    const blocked = { ...QUEUE, queued: [{ ...QUEUE.queued[0], blocked_by: [{ id: 52, reason: 'needs it' }], blocked_by_open: [52, 7] }] };
+    const row = payload(await setup({ answer: scriptsAnswer(blocked) }).handle(get('/api/state'))).intents.find((i) => i.id === 29);
+    expect(row.blocked).toEqual({ text: 'blocked by §52 (§7)', reasons: ['§52: needs it'] });
     const without = payload(await setup().handle(get('/api/state')));
     expect(without.problems).toEqual([]);
   });

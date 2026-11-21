@@ -6,7 +6,7 @@
 import { join } from 'node:path';
 import { parseAuto, parseMetadata, parseReviewHeader } from '../../scripts/intent-check-lib.mjs';
 import { branchFor } from '../../scripts/session-lib.mjs';
-import { autoLaunch, nextStep, waitingOnOwner } from './orchestrator-lib.mjs';
+import { autoLaunch, blockedRow, nextStep, waitingOnOwner } from './orchestrator-lib.mjs';
 
 const TERMINAL = new Set(['done', 'abandoned', 'deferred']);
 
@@ -93,7 +93,7 @@ export async function loadState(deps) {
         : await readOpenIntent(deps, intent, location, wt?.branch ?? branchFor(intent));
       const next = nextStep({ ...read, worktree });
       const autoStopped = parseAuto(read.metadata).stopped;
-      return { ...intent, next, worktree, location, session, review: read.reviewHeader?.verdict ?? null, autoStopped, autoLaunch: autoLaunch(autoStopped, intent.id) };
+      return { ...intent, next, worktree, location, session, review: read.reviewHeader?.verdict ?? null, autoStopped, autoLaunch: autoLaunch(autoStopped, intent.id), blocked: blockedRow(intent) };
     }),
   );
   return { root, intents: waitingOnOwner(intents), worktrees, problems };

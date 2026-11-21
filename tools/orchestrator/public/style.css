@@ -18,3 +18,5 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #8881; padding
 .line.error { color: #c33; }
 .pending { border: 1px solid #c80; padding: 0.5rem; margin: 0.5rem 0; }
 .state { font-weight: normal; font-size: 0.85rem; padding: 0 0.4rem; border: 1px solid #8886; }
+.blocked { font-size: 0.8rem; color: #a60; cursor: help; }
+#problems .problem { margin: 0.25rem 0; color: #c33; font-family: ui-monospace, monospace; font-size: 0.85rem; }
