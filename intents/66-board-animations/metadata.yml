@@ -11,8 +11,8 @@ plan_approved: 2026-11-21 by-agent    # auto: owner "/auto 66" (auto_authorized 
 live_checked:
 merged:
 auto_authorized: 2026-11-21 by-agent    # owner: "/auto 66"
-auto_round:
-auto_stopped: spec or plan amendment needed
+auto_round: 1
+auto_stopped:
 follows_up:
 links:
   - intents/64-vector-view
