@@ -190,7 +190,7 @@ Re-read on `main` at `a5c3a90`.
   the button touch Phaser. Dependencies stay `scenes → ui → engine`
   (principle 2). No new layer, no new dependency.
 - **Budget lines:**
-  - `budget: src/scenes/BoardScene.ts +45: §66 passes a cue with each committed action, snaps on undo/redo/restore, waits on the view in the AI driver, and places the speed button; the logic is in engine/actionCue.ts and ui/ modules`
+  - budget: src/scenes/BoardScene.ts +4: §66 passes a cue with each committed action, snaps on undo/redo/restore and places the speed button; the logic is in engine/actionCue.ts and ui/ modules
 
 ## Subtasks
 
