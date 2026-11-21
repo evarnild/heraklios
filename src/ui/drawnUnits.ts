@@ -112,7 +112,7 @@ export class DrawnUnits {
   }
 
   inspect(): { unitDrawings: number; ghostRotation: number | null; unitRotations: Record<string, number> } {
-    const fig = this.ghost?.list[1] as Phaser.GameObjects.Graphics | undefined;
+    const fig = this.ghost ? figureOf(this.ghost) : undefined;
     const unitRotations: Record<string, number> = {};
     for (const [id, u] of this.units) unitRotations[id] = figureOf(u.container).rotation;
     return { unitDrawings: this.units.size, ghostRotation: fig ? fig.rotation : null, unitRotations };

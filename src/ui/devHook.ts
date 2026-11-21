@@ -359,13 +359,13 @@ function fixedToCanvas(cam: Phaser.Cameras.Scene2D.Camera, p: Point): Point | nu
   return inside(cam, { x: cam.x + p.x, y: cam.y + p.y });
 }
 
-/** A world point through the camera's scroll and zoom; null if off-viewport. */
 /** A unit figure's canvas position where it is drawn right now (§66). */
 function unitCanvas(scene: BoardInternals, unitId: string): Point | null {
   const obj = scene.children.getByName(unitId) as Phaser.GameObjects.Container | null;
   return obj ? worldToCanvas(scene.cameras.main, { x: obj.x, y: obj.y }) : null;
 }
 
+/** A world point through the camera's scroll and zoom; null if off-viewport. */
 function worldToCanvas(cam: Phaser.Cameras.Scene2D.Camera, w: Point): Point | null {
   // getWorldPoint is affine; invert it from three samples (as in the §30 probe).
   const o = cam.getWorldPoint(0, 0);
