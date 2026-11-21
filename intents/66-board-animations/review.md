@@ -1,13 +1,172 @@
 <!-- generated-by: heraklios/review@0.2.0 -->
 # §66 review — The vector view animates moves, combats and drifts
 
-verdict: rework
+verdict: attest
 tier: attested
-reviewed-commit: 6da8981aa6de77a30d7ea82d6408e9de190c3351
-round: 2
+reviewed-commit: 9b2142a7b8d1eab8d4c79c63d568b97724bf4475
+round: 3
 sampled: no
 run: auto
 live-check: owed
+
+Tier is Attested by the path table (`src/ui/**`, `src/scenes/**`,
+`src/engine/**`); nothing is CRITICAL or HIGH, and no finding needs rework.
+`sampled: no` — `npm run sdlc:scan -- --sample-due auto --exclude 66`:
+`sample-due auto: nth attested auto change = 8, every 3, sampled: no`.
+
+## Passes
+| # | Pass | Result |
+| --- | --- | --- |
+| 1 | Intent and plan match | pass — the rework diff `6da8981..9b2142a` holds only the round 2 fixes: 4 planner tests, the watchdog switched to `planDuration`, one README sentence, Progress, `auto_round: 3` |
+| 2 | Type check | the only error is the owed live check (pasted below) |
+| 3 | Rulebook fidelity | pass — digital-only; the rework touches no rule |
+| 4 | Tests prove the rule | pass — P8, P11, P13, P14 killed; the watchdog call has no test that can reach it (below) |
+| 5 | Boundary and conventions | pass — the rework touches only `src/ui`; Placement's two `setUnits` still pass `'snap'` (`PlacementScene.ts:330`, `:567`) |
+| 6 | Numbers in prose | pass — Progress figures (87 files, 1467 tests; e2e 27 in about 46 s) reproduce; the 830 in the new test matches `animationSpeed.ts:35` and the README |
+| 7 | Documentation | pass — README:598 says "Placement never animates." (nit: the line is not wrapped like its paragraph) |
+| 8 | Guardrails and hygiene | pass — lint 0 errors, 21 warnings, cap 21 |
+| 9 | Footguns | pass — nothing pushed; `main` (`6af725c`) has moved since the branch point but touches no file the branch changes |
+| 10 | Architecture | pass — `drawnAnimator.ts:128` calls `planDuration(this.queue)`; round 2's duplication is gone |
+
+## Type check
+```
+> heraklios@0.1.0 check:intent
+> node scripts/check-intent.mjs
+
+type-check: FAIL (intent 66, feature)
+  error: A live check is owed and not recorded. Do the steps in intents/66-board-animations/review.md → ## Live check, then set live_checked: <date> in intents/66-board-animations/metadata.yml.
+  note:  32 file(s), 2248 line(s) changed outside intents/.
+```
+The only error is the owed live check, the owner's to clear.
+
+## Findings
+None needs rework. Two nits:
+- **LOW** `README.md:598` — "Placement never animates." was added to an
+  existing line, which is now longer than the rest of its wrapped paragraph.
+  Cosmetic.
+- **LOW** — the optional Placement e2e scenario was not added, and the
+  reason given in Progress is weak: a small scenario is feasible (Placement in
+  the Drawn view at Normal, place, Undo, `busy()` stays `[]`; dropping `'snap'`
+  would make it fail). It was optional, and live check step 2 covers exactly
+  this. Worth a look as a later harness item.
+
+**Round 2 findings, resolution.**
+- P14 (moves played before the clash) is resolved. "the clash plays before
+  the moves (step 0 lunge, step 1 slide)" kills it.
+- P13 (`planDuration` as one maximum, plus the duplicated formula) is
+  resolved. "a plan of several steps lasts the sum of its step maxima…"
+  asserts 830, and the watchdog now calls `planDuration`.
+- P8 is resolved: "a clash by a unit that is not drawn plays no lunge".
+- P11 is resolved: "a shake for a unit that is gone plays the fade only".
+- The README nit is resolved.
+- The optional Placement e2e was not added; see the second nit above.
+
+**The watchdog's `planDuration` call** (`drawnAnimator.ts:128`) has no
+reachable mutant:
+- no unit test imports the Phaser-bound `drawnAnimator`;
+- the e2e cannot tell `planDuration(this.queue)` from `0`, because the watchdog
+  would still fire after 1000 ms, beyond the Normal test's 540 ms move;
+- the Slow test cuts its move short.
+
+The call is a plain pass-through to `planDuration`, and P13's kill proves that
+function.
+
+## Not checked
+- Phaser-side mutants (`drawnAnimator.ts` including the watchdog,
+  `drawnMotions.ts`, `drawnUnits.ts`, `drawnBoardView.ts`, `speedToggle.ts`,
+  Placement's `'snap'` arguments): e2e and the live check only.
+- The Placement snap in a browser: no automated test (live check step 2).
+- The speed button against a long French End-game label, and every visual item
+  of AC9: live-check items.
+- The AC8 "before" e2e time remains the implementer's figure.
+
+## Live check
+- owed: rule 1 (`src/scenes/**`, `src/ui/**`), new visual behaviour, AC9; it
+  also covers the Placement snap, which no test proves.
+- steps:
+  1. In `C:/Users/eric/src/heraklios-wt/66-board-animations` run
+     `npm run dev -- --port 5266 --strictPort --host 127.0.0.1`, open
+     http://127.0.0.1:5266.
+  2. **Placement first.**
+     - From the Menu, start a normal game (not the test-mode shortcut) so
+       Placement shows, and click "🗺 Drawn view" there.
+     - Make sure the speed is Normal: clear `heraklios.animationSpeed` in
+       devtools if needed. The speed button is on the Board only.
+     - Place two units, then press Undo and Ctrl+Z.
+     - Place a ship and rotate it.
+     - Finish the player.
+  3. **The Board.** Start "Test mode (2 players, armies ready)" and click
+     "🗺 Drawn view". The "⏩ Speed: Normal" button sits one row above the view
+     toggle and overlaps nothing.
+  4. **Each action, at Normal and then at Slow.** Click or press a key during
+     each one:
+     - a long land move (3+ hexes);
+     - a cavalry charge;
+     - a ship move with turns, then Turn;
+     - a swap;
+     - a land attack ending in a retreat and an advance, and one ending in an
+       exchange;
+     - a ram;
+     - a boarding;
+     - an elephant drift with a trample, on your turn and in a computer turn;
+     - a full computer turn.
+  5. Switch the language to French and look at the speed button against
+     "⚑ Finir la partie".
+  6. Switch to the Standard view, make a move, and do a drift with a trample.
+- you should see:
+  - **Placement:** an undo removes the unit at once, with no fade. Placed
+    units and ships appear and rotate at once. The handoff to the next player
+    has no fade-out.
+  - **Movement:** units slide hex by hex along their path, and a charge goes
+    in a straight line. Ships turn in place, then slide. Swapped units cross.
+  - **Combat:** attackers lunge and return before the result. Eliminated
+    units fade. Retreats and advances slide in commit order.
+  - **Ram and boarding:** a ram lunges, then the target fades on a hit or
+    shakes on a miss. A boarding clashes, then a sunk ship fades and a damaged
+    survivor shakes.
+  - **Drift:** the elephant moves one hex per beat, and its arrow appears
+    after the slide. A trample's result is drawn on the trample's own beat, in
+    both views (decision (a)).
+  - **Timing:** the computer waits for each animation, and Slow takes twice
+    as long. Any click or key snaps every unit to its final hex, then acts.
+  - **Speed button:** it is hidden in the Standard view, which never animates.
+    The speed survives a reload.
+
+## Verified myself vs. taken on trust
+- **Coordinator, re-run:** `npm run verify` at `9b2142a`: exit 0; lint 0
+  errors, 21 warnings (cap 21); 87 test files, 1467 tests passed. Matches.
+- **Coordinator, re-run:** `npm run check:intent`: FAIL with only the owed
+  live check (pasted above). Matches.
+- **Coordinator, re-run:** `npm run e2e`: 27 passed in 47.4s. Matches
+  (the reviewer's run took 46.6s).
+- **Coordinator, re-run:** the four mutants the rework claims to kill. Each
+  file was backed up by copy, the mutant applied once, the full
+  `vitest run --bail 1` run, and the file restored by copy:
+  - P8: KILLED by "a clash by a unit that is not drawn plays no lunge";
+  - P11: KILLED by "a shake for a unit that is gone plays the fade only";
+  - P13: KILLED by "a plan of several steps lasts the sum of its step maxima";
+  - P14: KILLED by "the clash plays before the moves (step 0 lunge, step 1
+    slide)".
+
+  `git status --short` was clean after the run. All four match the reviewer.
+- **Reviewer:** read the rework diff in full, checked orientation (HEAD
+  `9b2142a`, nothing pushed), ran the same four mutants on the full suite
+  without bail with the same results, ran `sdlc:scan --sample-due auto`, and
+  checked the Live check's labels, storage key and Placement toggle against
+  the code.
+- **Taken on trust:** earlier rounds' kills of all other mutants (this round
+  touches none of their lines); the AC8 "before" e2e time; all visual
+  behaviour (the live check).
+
+# Round 2 (history)
+
+- verdict: rework
+- tier: attested
+- reviewed-commit: 6da8981aa6de77a30d7ea82d6408e9de190c3351
+- round: 2
+- sampled: no
+- run: auto
+- live-check: owed
 
 Tier is Attested by the path table; nothing is CRITICAL or HIGH. Every round 1
 finding is resolved, and every mutant round 1 named is now killed. The verdict
@@ -16,7 +175,7 @@ and four of them survive, all in `src/ui/animationPlan.ts`. That gives three LOW
 findings, all mechanical; none needs a decision. `sampled: no`: the verdict is
 not `attest`.
 
-## Passes
+### Passes
 | # | Pass | Result |
 | --- | --- | --- |
 | 1 | Intent and plan match | pass — the rework diff `9ecfc06..6da8981` holds only the round 1 fixes |
@@ -30,7 +189,7 @@ not `attest`.
 | 9 | Footguns | pass — `drift.ts` untouched; the `onCombat` render is presentation only; the size baseline went down |
 | 10 | Architecture | findings (folded into P13) — `drawnAnimator.ts:127` repeats `planDuration`'s formula inline |
 
-## Type check
+### Type check
 ```
 > heraklios@0.1.0 check:intent
 > node scripts/check-intent.mjs
@@ -42,7 +201,7 @@ type-check: FAIL (intent 66, feature)
 The only error is the owed live check, the owner's to clear. It is not a rework
 item.
 
-## Findings
+### Findings
 - **LOW** `src/ui/animationPlan.ts:114` — mutant P14 survives: playing the
   moves before the clash (`steps.unshift`) passes. The planner's documented
   order is "the clash, then the moves, then fades and shakes" (its docstring,
@@ -80,7 +239,7 @@ item.
 - **Stale Progress (LOW):** resolved. A new entry below the marker corrects the
   "+45" and "still FAILS" notes.
 
-## Not checked
+### Not checked
 - Phaser-side mutants (`drawnAnimator.ts`, `drawnMotions.ts`, `drawnUnits.ts`,
   `drawnBoardView.ts`, `speedToggle.ts`, and Placement's `'snap'` arguments):
   e2e and the live check only.
@@ -89,7 +248,7 @@ item.
   of AC9: live-check items.
 - The AC8 "before" e2e time remains the implementer's figure.
 
-## Live check
+### Live check
 - owed: rule 1 (`src/scenes/**`, `src/ui/**`), new visual behaviour, AC9; it
   also covers the Placement snap, which no test proves.
 - steps:
@@ -133,7 +292,7 @@ item.
   - **Speed button:** it is hidden in the Standard view, which never animates,
     and the speed survives a reload.
 
-## Verified myself vs. taken on trust
+### Verified myself vs. taken on trust
 - **Coordinator, re-run:** `npm run verify` at `6da8981`: exit 0; lint 0 errors, 21 warnings (cap 21); 87 test files, 1463 tests passed. Matches.
 - **Coordinator, re-run:** `npm run check:intent`: FAIL with only the owed live check (pasted above). Matches.
 - **Coordinator, re-run:** `npm run e2e`: 27 passed in 46.4s. Pass count matches (reviewer 49.8s).
