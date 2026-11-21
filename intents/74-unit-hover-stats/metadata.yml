@@ -6,14 +6,14 @@ status: accepted
 title: Hovering a unit shows its characteristics; the Drawn view's number badge goes
 review_tier:
 intent_accepted: 2026-11-21 by-agent    # owner: "/auto 74", answering "say yes to accept it, or /auto 74 to accept it and carry it through"
-spec_accepted:
+spec_accepted: 2026-11-21 by-agent    # owner: "spec accepted"
 plan_approved:
 live_checked:
 merged:
 konmari:
 auto_authorized: 2026-11-21 by-agent    # owner: "/auto 74" (second)
 auto_round:
-auto_stopped: spec drafted, waiting for spec_accepted
+auto_stopped:
 follows_up:
 links:
   - intents/64-vector-view
