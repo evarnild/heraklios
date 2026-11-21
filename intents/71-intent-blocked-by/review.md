@@ -119,6 +119,12 @@ None needs rework.
 - Taken on trust: verify at intermediate commits; the page rendering (the live
   check).
 
+## KonMari check
+- outcome: nothing to tidy (, base ); the only commit is the record, , which touches only .
+- **Coordinator, re-run:**  outside  is empty, so no code changed. The verify, check:intent and mutant results above, run at , still hold for HEAD:  changes only this .
+- No killed mutant's target file changed, so none needs re-running. No size-baseline change. The test count (1481) and the lint warnings (21) are unchanged.
+- Reviewer's read of the KonMari commits: not delegated. There are no tidy-up commits to read, only the record, which holds no code. The record says the ported files were left as they are for fidelity to product-advice-agent , and that no refactor intent is proposed.
+
 # Round 2 (history)
 
 - verdict: rework
