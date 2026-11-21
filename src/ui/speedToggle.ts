@@ -3,6 +3,8 @@ import { messages } from './i18n';
 import { animationSpeed, nextAnimationSpeed, setAnimationSpeed } from './animationSpeed';
 import type { AnimationSpeed } from './animationSpeed';
 import type { BoardViewKind } from './boardViewPreference';
+import { createViewToggle } from './viewToggle';
+import type { ViewSwitchable } from './viewToggle';
 
 /** The label names the current speed (spec B13). */
 export function speedToggleLabel(speed: AnimationSpeed): string {
@@ -45,4 +47,18 @@ export function createSpeedToggle(
   };
   sync(viewKind);
   return { button, sync };
+}
+
+/**
+ * The Board's view toggle and speed button (§66), the speed button one row up
+ * and hidden outside the Drawn view; both for the caller's `pinUIObjects`.
+ */
+export function createViewControls(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  view: ViewSwitchable,
+): Phaser.GameObjects.Text[] {
+  const speed = createSpeedToggle(scene, x, y - 32, view.viewKind);
+  return [createViewToggle(scene, x, y, view, speed.sync), speed.button];
 }

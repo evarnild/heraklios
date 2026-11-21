@@ -345,11 +345,22 @@ Tests: 86 files, 1455 tests (from 83 / 1427 at the first commit's baseline
 of the branch: +8 cue, +8 speed, +12 planner, +5 path, +1 snapshot, rest are
 counted in those files). `npm run verify` green, lint 21 warnings = the cap
 (no new warning; `devHook.installDevHook` was kept under 80 lines by a helper).
-`BoardScene.ts` 3173 -> 3195 (budget line +45).
+`BoardScene.ts` 3173 -> 3177 (+4), well inside the +45 the plan allows; the cue
+keeping lives in `ui/cueKeeper.ts` (`CueKeeper`: `apply` = `applyAction` plus the
+cue, `driftMove`/`driftClash`, `take`), not in the scene. `check:intent` still
+FAILS on this, and it needs a plan amendment, not code: the plan's budget line is
+wrapped in backticks (`` `budget: src/scenes/BoardScene.ts +45: ...` ``), and
+`scripts/size-budget-lib.mjs`'s `BUDGET_RE` (`^[\s>*-]*budget:`) does not accept a
+leading backtick, so the line is never read and any ceiling raise is refused. I
+set `scripts/size-baseline.json` to 3177 (the measured size); the amended line
+must read `budget: src/scenes/BoardScene.ts +4: <reason>` (no backticks) and the
+checker wants it to match the growth exactly (it also refuses a ceiling above
+the measured size).
 
 e2e: before 23 passed in 1m21.6s (measured while I was also running vitest and
 editing the worktree, so it is a pessimistic baseline); after 27 passed (23 +
-the 4 new scenarios) in 1m10.5s on an idle machine. Every other scenario runs
+the 4 new scenarios) in 1m10.5s and, on the final code, 1m24.2s: run-to-run
+noise is about 15 s on this machine, so the suite did not grow beyond it (AC8). Every other scenario runs
 at Off through `storageState` in `playwright.config.ts`.
 
 Divergences from the plan, none of design:
@@ -359,6 +370,9 @@ Divergences from the plan, none of design:
 - `onCombat` now also calls `renderAllUnits()` (the plan said it only logs): the
   trample's clash cue would otherwise be overwritten by the next beat's
   `onDriftMoved` cue before any render. The result shows after the clash, as B4.
+- `applyWithCue` is `CueKeeper.apply` (a class in `ui/`), so the scene only holds
+  `private readonly cues`; the AI driver's wait on the view is inside `pause`
+  (its one caller) rather than a new line in `runAiSeats`.
 - The speed button sits above the view toggle (same x, one row up), not beside
   it: the Standard-view label is wider than the Drawn-view one and overlapped a
   button placed beside it.

@@ -29,7 +29,6 @@ import {
 } from '../engine/turnManager';
 import { formatRemainingClock } from '../engine/gameEndSettings';
 import { applyAction, legalActions, type Action } from '../engine/actions';
-import { completeCue, cueBeforeAction, driftClashCue, driftMoveCue, type ActionCue } from '../engine/actionCue';
 import type { PlayerAgent, ActionObserver, DrivingAgent } from '../engine/agent';
 import { createSeatAgent, isAiSeat } from '../engine/seatControl';
 import { colorName, edgeName, phaseName, seatControlName, unitName } from '../ui/i18n/names';
@@ -80,8 +79,8 @@ import { createLogPanel, type LogPanel } from '../ui/logPanel';
 import { LogHistory, logPanelBounds, type LogContext } from '../ui/logHistory';
 import type { HexCoord } from '../data/map';
 import { RATIO_COLUMNS } from '../data/combatTable';
-import { createViewToggle } from '../ui/viewToggle';
-import { createSpeedToggle } from '../ui/speedToggle';
+import { createViewControls } from '../ui/speedToggle';
+import { CueKeeper } from '../ui/cueKeeper';
 import {
   rammingSuccessRange,
   fullRammingSuccessRange,
@@ -305,7 +304,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         },
         onDriftMoved: (drifting, hex) => {
           this.driftArrowElephant = drifting;
-          this.pendingCue = driftMoveCue(drifting.id, hex);
+          this.cues.driftMove(drifting.id, hex);
         },
         onNarrate: (event) => {
           const line = formatDriftEvent(event);
@@ -314,8 +313,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         onRender: () => this.renderAllUnits(),
         onStep: this.driftOnStepHook(),
         onCombat: (detail, outcome, drifting, occupant, hex) => {
-          this.pendingCue = driftClashCue(drifting.id, hex);
-          this.renderAllUnits(); // the trample's result shows after its clash (§66)
+          this.cues.driftClash(drifting.id, hex);
           this.appendLine(messages().log.tramples(nameOf(drifting), nameOf(occupant), hex.q, hex.r));
           this.appendLine(
             this.formatCombatOutcome(
@@ -769,9 +767,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       .setDepth(30)
       .setInteractive({ useHandCursor: true });
     this.abandonBtn.on('pointerdown', () => this.confirmAbandon());
-    const viewX = this.abandonBtn.x + this.abandonBtn.width + 8;
-    const speed = createSpeedToggle(this, viewX, height - 168, this.mapView.viewKind);
-    const viewToggle = createViewToggle(this, viewX, height - 136, this.mapView, speed.sync);
+    const viewButtons = createViewControls(this, this.abandonBtn.x + this.abandonBtn.width + 8, height - 136, this.mapView);
 
     // Mode C (plan.md §9.2.1): irreversible, so it goes through the same
     // confirm dialog as Abandon — but unlike Abandon it does NOT end the game
@@ -878,8 +874,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       saveLoadBtn,
       this.tablesBtn,
       this.abandonBtn,
-      viewToggle,
-      speed.button,
+      ...viewButtons,
       this.endGameBtn,
       this.pauseBtn,
       this.statusText,
@@ -909,18 +904,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.rammedThisTurn.clear();
   }
 
-  /** §66: the cue of the action just applied, kept for the render that shows it. */
-  private pendingCue: ActionCue | null = null;
-
-  /** `applyAction` that also remembers the action's cue (path, clash, shake) for the next `renderAllUnits`. */
-  private applyWithCue: typeof applyAction = ((state: GameState, action: Action, rng?: () => number) => {
-    const cue = cueBeforeAction(state, action);
-    const result = applyAction(state, action, rng);
-    this.pendingCue = cue && completeCue(cue, result);
-    return result;
-  }) as typeof applyAction;
-
-  /** `snap` (undo, redo, load) draws at once, finishing any animation (§66 B7). */
+  private readonly cues = new CueKeeper(() => this.renderAllUnits()); // §66: the cue of the action just applied
   private renderAllUnits(snap = false): void {
     const ships: { hex: HexCoord; facing: number; playerIndex: number }[] = [];
     const drawings: UnitDrawing[] = [];
@@ -932,8 +916,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         ships.push({ hex: u.position, facing: u.facing, playerIndex: u.owner });
       }
     }
-    this.mapView.setUnits(drawings, snap ? 'snap' : this.pendingCue);
-    this.pendingCue = null;
+    this.mapView.setUnits(drawings, snap ? 'snap' : this.cues.take()); // snap: undo, redo, load (B7)
     this.mapView.setFacingIndicators(ships);
     // The elephant drift-direction arrow (plan.md §21) — read from scene
     // state rather than passed in, so EVERY render (not just the ones an
@@ -1565,7 +1548,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         const movedName = nameOf(this.selected);
         this.recordAction(messages().actions.move(movedName));
         const action: Action = { kind: 'landMove', unitId: this.selected.id, to: hex };
-        const result = this.applyWithCue(state, action);
+        const result = this.cues.apply(state, action);
         this.reportAction(action);
         if (result.charged) this.log(messages().log.charges(movedName));
         this.renderAllUnits();
@@ -1603,7 +1586,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     const [nameA, nameB] = [nameOf(selected), nameOf(other)];
     this.recordAction(messages().actions.swap(nameA, nameB));
     const action: Action = { kind: 'landSwap', unitId: selected.id, otherId: other.id };
-    this.applyWithCue(state, action);
+    this.cues.apply(state, action);
     this.reportAction(action);
     this.log(messages().log.swap(nameA, nameB));
     this.renderAllUnits();
@@ -1755,7 +1738,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     }
     this.recordAction(messages().actions.turn(nameOf(ship)));
     const action: Action = { kind: 'navalRotate', unitId: ship.id, direction };
-    this.applyWithCue(this.state(), action);
+    this.cues.apply(this.state(), action);
     this.reportAction(action);
     this.renderAllUnits();
     this.refreshNavalMovementControls(ship);
@@ -1818,7 +1801,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       const action: Action = { kind: 'navalMove', unitId: ship.id, to: hex, facing: ship.facing };
       if (contact) {
         this.recordAction(messages().actions.moveIntoContact(nameOf(ship)));
-        this.applyWithCue(state, action);
+        this.cues.apply(state, action);
         this.reportAction(action);
         this.renderAllUnits();
         this.promptRam(ship, contact.target, contact.bonus);
@@ -1827,7 +1810,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       const dest = reachableNavalHexes(state, ship).get(hexKey(hex));
       if (!dest) return;
       this.recordAction(messages().actions.move(nameOf(ship)));
-      this.applyWithCue(state, action);
+      this.cues.apply(state, action);
       this.reportAction(action);
       this.renderAllUnits();
       this.refreshNavalMovementControls(ship);
@@ -1842,7 +1825,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     if (!resolved) return;
     this.recordAction(messages().actions.move(nameOf(ship)));
     const action: Action = { kind: 'navalMove', unitId: ship.id, to: resolved.to, facing: resolved.facing };
-    this.applyWithCue(state, action);
+    this.cues.apply(state, action);
     this.reportAction(action);
     this.renderAllUnits();
     this.refreshNavalMovementControls(ship);
@@ -1931,7 +1914,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // case — so what's left here IS that unused amount).
     const unusedMovement = attacker.movementLeft;
     const action: Action = { kind: 'ram', unitId: attacker.id };
-    const result = this.applyWithCue(this.state(), action, this.diceRng);
+    const result = this.cues.apply(this.state(), action, this.diceRng);
     this.reportAction(action);
     this.rammedThisTurn.add(attacker.id);
     const effectiveRange = rammingSuccessRange(attackerType, defenderType, result.bonus);
@@ -2569,7 +2552,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         .map((id) => state.units.find((u) => u.id === id))
         .filter((u): u is Unit => u !== undefined);
       for (const id of action.attackerIds) this.attackedThisPhase.add(id);
-      const { detail, outcome, attackers: attackersFromThisCombat, defenderOriginalHexes } = this.applyWithCue(
+      const { detail, outcome, attackers: attackersFromThisCombat, defenderOriginalHexes } = this.cues.apply(
         state,
         action,
         this.diceRng,
@@ -2877,7 +2860,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // this scene would risk silently desyncing from whatever the engine
     // actually resolved against (see plan.md §11.5's engine/presentation
     // boundary).
-    const { dieRoll, result, attackForce, defenseForce, columnIndex } = this.applyWithCue(
+    const { dieRoll, result, attackForce, defenseForce, columnIndex } = this.cues.apply(
       this.state(),
       action,
       this.diceRng,
@@ -3049,7 +3032,6 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       });
       const action = agent.chooseNextAction(state, legal);
       await this.applyAiAction(action);
-      await this.mapView.animationsSettled(); // §66 B11: the action's animation, then the delay below
       if (token !== this.aiRunToken) return;
       // AFTER the action, not before. The pause exists so the player can read
       // what just happened, and `log` REPLACES the panel rather than
@@ -3076,12 +3058,12 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     }
   }
 
-  /** `setTimeout` rather than Phaser's `time.delayedCall`: a scene timer is
-   * destroyed on shutdown and would leave this promise pending forever, which
+  /** Waits for the action's animation to settle (§66 B11), then `ms`: `setTimeout`
+   * rather than Phaser's `time.delayedCall`: a scene timer is destroyed on shutdown and would leave this promise pending forever, which
    * would strand the driver loop mid-turn instead of letting it reach its
    * next `aiRunToken` check and exit cleanly. */
   private pause(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return this.mapView.animationsSettled().then(() => new Promise((resolve) => setTimeout(resolve, ms)));
   }
 
   /**
@@ -3102,7 +3084,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       case 'landMove':
       case 'navalMove': {
         const unit = findUnit(action.unitId);
-        this.applyWithCue(state, action, this.diceRng);
+        this.cues.apply(state, action, this.diceRng);
         this.reportAction(action);
         this.renderAllUnits();
         if (unit) this.log(messages().log.computerMoves(seatName, nameOf(unit), action.to.q, action.to.r));
@@ -3112,7 +3094,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       // §59: computer seats choose swaps (at any difficulty) when the option is on.
       case 'landSwap': {
         const [a, b] = [findUnit(action.unitId), findUnit(action.otherId)];
-        this.applyWithCue(state, action, this.diceRng);
+        this.cues.apply(state, action, this.diceRng);
         this.reportAction(action);
         this.renderAllUnits();
         if (a && b) this.log(messages().log.computerSwaps(seatName, nameOf(a), nameOf(b)));
@@ -3121,7 +3103,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
 
       case 'navalRotate': {
         const unit = findUnit(action.unitId);
-        this.applyWithCue(state, action, this.diceRng);
+        this.cues.apply(state, action, this.diceRng);
         this.reportAction(action);
         this.renderAllUnits();
         if (unit) this.log(messages().log.computerTurns(seatName, nameOf(unit)));
