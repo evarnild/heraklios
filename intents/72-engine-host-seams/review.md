@@ -155,6 +155,41 @@ None needs rework or a decision.
   - the round 1 kills of the mutants not re-run;
   - Placement in a browser, which is the owner's live check.
 
+## KonMari check
+- **outcome:** kept (`konmari.md`, base `6f132bd`). One tidy-up, `f89046d`:
+  `sessionAgents.ts` reuses `combatResolution.ts`'s `unitById` instead of its
+  own copy, `unitsOf`. The record is `94e33f4`.
+- **Coordinator, re-run:** `npm run verify` at `94e33f4`: exit 0. Lint 0 errors,
+  19 warnings (cap 19). 95 files, 1664 passed, 2 skipped. The counts are not
+  lower than the review's.
+- **Coordinator, re-run:** `npm run check:intent`: FAIL, with the owed live
+  check as the only error, as in the review.
+- **Coordinator:** `npm run e2e` was not re-run, because the tidy-up touched only
+  `src/engine/combatResolution.ts` and `src/engine/sessionAgents.ts`.
+- **Coordinator, re-run:** every caught mutant whose target file the tidy-up
+  changed, 29 in all. Each file was backed up by copy, the mutant applied once,
+  the full `vitest run --bail 1` run, and the file restored by copy. All 29 were
+  KILLED:
+  - CR1-CR4, CR6-CR25 and SA1-SA4;
+  - CR3, CR11, CR13, CR24 and CR25, with their two-line patterns converted to
+    this worktree's LF line endings;
+  - SA5', re-derived on `unitById`.
+
+  CR11's failure was confirmed by hand: `gameSession.test.ts` "DR with a single
+  retreat hex asks nothing… through onForced" and `harnessPinned.test.ts`
+  random-default/seed2. `git status --short` was clean after the run.
+- **Size baseline:** unchanged. Neither file is budgeted.
+- **Fixtures:** `src/engine/fixtures/` and `harnessPinned.test.ts` are unchanged.
+- **Reviewer's read of `6f132bd..94e33f4`:** no finding.
+  - Within reach: `unitsOf` and `unitById` are both §72 lines, and
+    `actionCue.ts`'s older `unitById` was left alone.
+  - No test, dependency or `eslint-disable` change.
+  - The agent-call order and arguments in `askAgent` are identical. The only
+    visible change is the missing-unit message prefix, and nothing reads it.
+  - Principles 5-12 hold: there is no cycle, and `sessionAgents` is still the
+    only bridge to `PlayerAgent`.
+  - `outcome: kept` matches the commits.
+
 # Round 1 (history)
 
 - verdict: rework
