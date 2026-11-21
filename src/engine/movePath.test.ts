@@ -169,6 +169,22 @@ describe('navalMovePath (AC2)', () => {
     expect(checked).toBeGreaterThan(100);
   });
 
+  it('with two contacts at one hex and no pinned facing, ends on the cheaper one', () => {
+    // H is one step ahead of S (facing 0). From H, facing 0 points at E1 (cost 1), facing 1 at E2 (cost 2).
+    const S = { q: 28, r: 6 };
+    const H = hexAdd(S, DIRECTIONS[0]!);
+    const base = { owner: 1 as Unit['owner'], facing: 0, movementLeft: 0, defendedThisPhase: false, charged: false, destroyed: false, typeId: 'biremes' };
+    const ship: Unit = { ...base, owner: 0, id: 's', typeId: 'galeres', position: S, movementLeft: 6 };
+    const e1: Unit = { ...base, id: 'e1', position: hexAdd(H, DIRECTIONS[0]!) };
+    const e2: Unit = { ...base, id: 'e2', position: hexAdd(H, DIRECTIONS[1]!) };
+    const state = createInitialState([], 'multi-defender');
+    state.units = [ship, e1, e2];
+    const atH = findRammingContacts(state, ship).filter((c) => hexKey(c.hex) === hexKey(H));
+    expect(atH.map((c) => c.cost).sort()).toEqual([1, 2]);
+    const path = navalMovePath(state, ship, H)!;
+    expect(path).toEqual([{ hex: H, facing: 0 }]);
+  });
+
   it('prefers a ramming contact at the hex over the cheapest plain state', () => {
     let sawContact = false;
     for (const { state, ship } of navalCases()) {

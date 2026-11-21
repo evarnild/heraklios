@@ -313,7 +313,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         onRender: () => this.renderAllUnits(),
         onStep: this.driftOnStepHook(),
         onCombat: (detail, outcome, drifting, occupant, hex) => {
-          this.cues.driftClash(drifting.id, hex);
+          this.cues.driftClash(drifting.id, hex); // INTERPRETATION (§66, owner decision (a) 2026-11-21): renders now, so the trample's result is drawn at its own beat in BOTH views (Standard used to wait for the next continue: the stale frame drift.ts:614-620 calls a bug); departs from spec B17, accepted
           this.appendLine(messages().log.tramples(nameOf(drifting), nameOf(occupant), hex.q, hex.r));
           this.appendLine(
             this.formatCombatOutcome(

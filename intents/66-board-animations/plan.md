@@ -384,3 +384,39 @@ Divergences from the plan, none of design:
 - A watchdog (2x the queued length + 1 s) finishes a queue that never drains,
   such as a hidden tab pausing Phaser's clock; the animator also ends on the
   scene's `shutdown`.
+
+### 2026-11-21 — round 1 rework
+
+Corrections to the notes above: the budget line is now `+4` by the owner's
+amendment `c57684c`, so `check:intent` passes (the "still FAILS" note in the
+first entry is stale). `scripts/size-baseline.json` BoardScene stays 3177;
+PlacementScene dropped 575 -> 574 (the new `'snap'` argument merged two lines).
+
+Owner decision (a), 2026-11-21 ("/auto 66 (a)"): `onCombat` keeps its earlier
+trample render (`cues.driftClash`) in both views. The result of a trample is
+now drawn at its own beat in the Standard view too; before it showed only
+after the next continue, the stale frame `drift.ts:614-620` calls a bug. A
+departure from spec B17, accepted. Recorded as an interpretation comment at the
+hook in `BoardScene.ts`; spec.md is not edited.
+
+Changes: Placement (`drawPlacedUnits`, and the `setUnits([])` on handoff) now
+passes `'snap'`, so it never animates in the Drawn view (B13). No pure seam
+exists for it (the choice is inside `DrawnUnits`, which needs Phaser), so it has
+no unit test; the `e2e` Placement scenarios run at Off and do not cover it.
+
+New tests and the mutant each kills (proved: back up by copy, mutate, run the
+file, restore by copy, `git status --short` clean):
+- `src/ui/cueKeeper.test.ts` (5 tests): K1 (`take` keeps the cue, drop
+  `this.pending = null`) KILLED by "take returns the cue once and then nothing";
+  K2 (cue derived after the apply, swapped order; also a null cue) KILLED by
+  "apply derives the cue from the state before the action" and the ram test;
+  K3 (no `this.render()` in `driftClash`) KILLED by "driftClash renders while its
+  clash cue is still pending".
+- `movePath.test.ts` "two contacts at one hex ... cheaper one": M7 (contact
+  sort reversed) KILLED.
+- `actionCue.test.ts` "a boarding that sinks the loser shakes nobody": C11
+  (shaking a ship that sank) KILLED.
+- `movementSearch.test.ts` "reachableHexes for a ship matches the naval search
+  costs" (separate from the snapshot): E2 (naval branch of `reachableHexes`,
+  cost + 1) KILLED.
+Not run: P1-P15, S1-S6, C14, C15 (optional; scope here is the listed tests).

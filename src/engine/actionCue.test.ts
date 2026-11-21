@@ -134,6 +134,21 @@ describe('cueBeforeAction (AC3)', () => {
     expect(shaken.size).toBeGreaterThan(0);
   });
 
+  it('a boarding that sinks the loser shakes nobody (the sunk ship fades instead)', () => {
+    const a = unit({ id: 'a', typeId: 'biremes', position: SEA, equipmentPoints: 1 });
+    const d = unit({ id: 'd', typeId: 'biremes', owner: 1, position: { q: SEA.q + 1, r: SEA.r }, equipmentPoints: 1 });
+    const state = stateOf([a, d]);
+    const cue = cueBeforeAction(state, { kind: 'board', attackerId: 'a', defenderId: 'd' })!;
+    let sunk = 0;
+    for (let i = 0; i < 6; i++) {
+      const result = applyAction(structuredClone(state), { kind: 'board', attackerId: 'a', defenderId: 'd' }, () => i / 6 + 0.01);
+      if (!result.attacker.destroyed && !result.defender.destroyed) continue;
+      sunk++;
+      expect(completeCue(cue, result).shakes).toEqual([]);
+    }
+    expect(sunk).toBeGreaterThan(0);
+  });
+
   it('a drift beat slides one hex; a trample is a clash at the occupant hex', () => {
     expect(driftMoveCue('e', { q: 3, r: 4 }).moves).toEqual([{ unitId: 'e', steps: [{ hex: { q: 3, r: 4 } }] }]);
     expect(driftClashCue('e', { q: 3, r: 4 }).clashes).toEqual([{ unitId: 'e', toward: { q: 3, r: 4 }, kind: 'clash' }]);
