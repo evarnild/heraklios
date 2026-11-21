@@ -6,13 +6,13 @@ status: accepted
 title: The vector view animates moves, combats and drifts
 review_tier:
 intent_accepted: 2026-11-05 by-agent    # owner: "accept 64 and 66 spec"
-spec_accepted:
+spec_accepted: 2026-11-21 by-agent    # owner: "spec accepted"
 plan_approved:
 live_checked:
 merged:
 auto_authorized: 2026-11-21 by-agent    # owner: "/auto 66"
 auto_round:
-auto_stopped: spec drafted, waiting for spec_accepted
+auto_stopped:
 follows_up:
 links:
   - intents/64-vector-view
