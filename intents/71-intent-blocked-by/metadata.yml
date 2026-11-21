@@ -1,0 +1,22 @@
+# generated-by: heraklios/intent@0.1.5
+id: 71
+slug: intent-blocked-by
+type: feature
+status: accepted
+title: Record which intents must merge before another can be built (blocked_by)
+review_tier:
+intent_accepted: 2026-11-21 by-agent    # owner: "yes, then /auto 71"
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+konmari:
+auto_authorized:
+auto_round:
+auto_stopped:
+follows_up:
+links:
+  - intents/50-sdlc-auto-mode
+  - intents/52-orchestrator-ui
+  - intents/64-vector-view
+  - intents/66-board-animations
