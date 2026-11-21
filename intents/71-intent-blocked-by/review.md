@@ -120,10 +120,14 @@ None needs rework.
   check).
 
 ## KonMari check
-- outcome: nothing to tidy (, base ); the only commit is the record, , which touches only .
-- **Coordinator, re-run:**  outside  is empty, so no code changed. The verify, check:intent and mutant results above, run at , still hold for HEAD:  changes only this .
+- outcome: nothing to tidy (`konmari.md`, base `8c4b53b`). The only commit
+  is the record, `f5b924f`, which touches only `konmari.md`.
+- **Coordinator, re-run:** `git diff 8c4b53b HEAD` outside `konmari.md` is
+  empty, so no code changed. The verify, check:intent and mutant results above,
+  run at `aaf650d`, still hold for HEAD: `aaf650d..8c4b53b` changes only this
+  `review.md`.
 - No killed mutant's target file changed, so none needs re-running. No size-baseline change. The test count (1481) and the lint warnings (21) are unchanged.
-- Reviewer's read of the KonMari commits: not delegated. There are no tidy-up commits to read, only the record, which holds no code. The record says the ported files were left as they are for fidelity to product-advice-agent , and that no refactor intent is proposed.
+- Reviewer's read of the KonMari commits: not delegated. There are no tidy-up commits to read, only the record, which holds no code. The record says the ported files were left as they are for fidelity to product-advice-agent `3041c48`, and that no refactor intent is proposed.
 
 # Round 2 (history)
 
