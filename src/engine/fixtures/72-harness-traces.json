@@ -1,0 +1,2521 @@
+{
+ "games": {
+  "random-default/seed1": {
+   "length": 136,
+   "sha256": "0bc2b010476fcead025bbeb721d117af5d8f52f4b5deb493764f409a637435fa",
+   "stats": {
+    "seed": 1,
+    "gameOver": true,
+    "winnerIds": [
+     0
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 136,
+    "actionsByKind": {
+     "landMove": 79,
+     "navalMove": 21,
+     "endPhase": 28,
+     "landAttack": 4,
+     "navalRotate": 4
+    },
+    "landAttacksResolved": 4,
+    "combatResultCounts": {
+     "DR": 2,
+     "DE": 1,
+     "AR": 1
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 1,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 50,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-default/seed2": {
+   "length": 143,
+   "sha256": "65e96eac016cc66c27ac7fe0cc70d439b0254882067e42c872e288282d9d179a",
+   "stats": {
+    "seed": 2,
+    "gameOver": true,
+    "winnerIds": [
+     0
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 143,
+    "actionsByKind": {
+     "navalMove": 21,
+     "navalRotate": 7,
+     "landMove": 82,
+     "endPhase": 28,
+     "landAttack": 5
+    },
+    "landAttacksResolved": 5,
+    "combatResultCounts": {
+     "DR": 2,
+     "AR": 2,
+     "DE": 1
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 1,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 50,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-default/seed3": {
+   "length": 134,
+   "sha256": "26323eb437df08e4176027cee851c34db4239fb10ad68109af9c4685224e056e",
+   "stats": {
+    "seed": 3,
+    "gameOver": true,
+    "winnerIds": [
+     0
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 134,
+    "actionsByKind": {
+     "navalMove": 20,
+     "landMove": 77,
+     "endPhase": 28,
+     "landAttack": 3,
+     "navalRotate": 5,
+     "board": 1
+    },
+    "landAttacksResolved": 3,
+    "combatResultCounts": {
+     "AR": 2,
+     "DE": 1
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 1,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 50,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-default/seed4": {
+   "length": 149,
+   "sha256": "8f6333da0cfecadb5ff30780eab7e4a9fae172e3ca5462e94768f523755492b6",
+   "stats": {
+    "seed": 4,
+    "gameOver": true,
+    "winnerIds": [
+     0,
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 149,
+    "actionsByKind": {
+     "navalMove": 24,
+     "landMove": 84,
+     "endPhase": 28,
+     "landAttack": 8,
+     "navalRotate": 5
+    },
+    "landAttacksResolved": 8,
+    "combatResultCounts": {
+     "DR": 4,
+     "AR": 4
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 1,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 50,
+     "1": 50
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-default/seed5": {
+   "length": 131,
+   "sha256": "7cd6d7a8ac83d49cf1c673b7181f54278535a60fce48d2cbdb81dc2ace2eb91f",
+   "stats": {
+    "seed": 5,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 131,
+    "actionsByKind": {
+     "navalMove": 22,
+     "landMove": 72,
+     "endPhase": 28,
+     "landAttack": 6,
+     "navalRotate": 3
+    },
+    "landAttacksResolved": 6,
+    "combatResultCounts": {
+     "DR": 2,
+     "AR": 3,
+     "AE": 1
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 2,
+    "driftCombatsResolved": 2,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 25,
+     "1": 50
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-default/seed6": {
+   "length": 122,
+   "sha256": "e93e79e3680b91d542660d319bda2c2892cf5dbff1d6e664ef562ce94a6663ad",
+   "stats": {
+    "seed": 6,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 122,
+    "actionsByKind": {
+     "landMove": 66,
+     "navalMove": 21,
+     "endPhase": 28,
+     "landAttack": 4,
+     "navalRotate": 2,
+     "ram": 1
+    },
+    "landAttacksResolved": 4,
+    "combatResultCounts": {
+     "DE": 1,
+     "DR": 2,
+     "AE": 1
+    },
+    "ramsResolved": 1,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 40,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-default/seed7": {
+   "length": 122,
+   "sha256": "026882d1fad75984af2b4b4a8bdbe148f5b3c3bac67ddf0b2cb92cd9d7ee98b9",
+   "stats": {
+    "seed": 7,
+    "gameOver": true,
+    "winnerIds": [
+     0
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 122,
+    "actionsByKind": {
+     "navalMove": 18,
+     "landMove": 70,
+     "endPhase": 28,
+     "landAttack": 4,
+     "navalRotate": 2
+    },
+    "landAttacksResolved": 4,
+    "combatResultCounts": {
+     "DR": 2,
+     "AR": 1,
+     "AE": 1
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 1,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 50,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-default/seed8": {
+   "length": 112,
+   "sha256": "bcf5c8a55537c14b5a24732cf27629dc2ec6e904b5a0f57a78abdd6ee86555f1",
+   "stats": {
+    "seed": 8,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 112,
+    "actionsByKind": {
+     "navalMove": 21,
+     "landMove": 53,
+     "navalRotate": 8,
+     "endPhase": 28,
+     "landAttack": 2
+    },
+    "landAttacksResolved": 2,
+    "combatResultCounts": {
+     "AR": 2
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 1,
+    "driftCombatsResolved": 1,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 25,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-default/seed9": {
+   "length": 128,
+   "sha256": "ba7c3050fcb00e2d626fda57c8b133d2efc1c2804b8db291d0ac98cdbd9f22d0",
+   "stats": {
+    "seed": 9,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 128,
+    "actionsByKind": {
+     "navalMove": 25,
+     "landMove": 69,
+     "endPhase": 28,
+     "landAttack": 2,
+     "landSwap": 1,
+     "navalRotate": 3
+    },
+    "landAttacksResolved": 2,
+    "combatResultCounts": {
+     "AR": 1,
+     "DR": 1
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 2,
+    "driftCombatsResolved": 4,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 35,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-default/seed10": {
+   "length": 115,
+   "sha256": "90b60da2615b9f62a5dcf31d7c5cea44277970369494395baf5d15a8dff0376d",
+   "stats": {
+    "seed": 10,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 115,
+    "actionsByKind": {
+     "landMove": 55,
+     "navalMove": 24,
+     "endPhase": 28,
+     "landAttack": 5,
+     "navalRotate": 3
+    },
+    "landAttacksResolved": 5,
+    "combatResultCounts": {
+     "AR": 3,
+     "EX": 1,
+     "DR": 1
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 25,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-default/seed11": {
+   "length": 135,
+   "sha256": "dde184ccf14ca298852b025ecf54216a25d825d12721ba68c25c40085db45cd6",
+   "stats": {
+    "seed": 11,
+    "gameOver": true,
+    "winnerIds": [
+     0
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 135,
+    "actionsByKind": {
+     "navalRotate": 7,
+     "navalMove": 20,
+     "landMove": 74,
+     "endPhase": 28,
+     "landAttack": 6
+    },
+    "landAttacksResolved": 6,
+    "combatResultCounts": {
+     "DR": 3,
+     "AR": 2,
+     "DE": 1
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 1,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 50,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-default/seed12": {
+   "length": 126,
+   "sha256": "aa527e596fa554f01a10a28f1a0840ce69ee51d9bcf0d4fb70f2ed82204b74ca",
+   "stats": {
+    "seed": 12,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 126,
+    "actionsByKind": {
+     "landMove": 73,
+     "navalMove": 17,
+     "navalRotate": 4,
+     "endPhase": 28,
+     "landAttack": 2,
+     "landSwap": 1,
+     "board": 1
+    },
+    "landAttacksResolved": 2,
+    "combatResultCounts": {
+     "DR": 2
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 1,
+    "driftsResolved": 2,
+    "driftCombatsResolved": 3,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 40,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-default/seed13": {
+   "length": 136,
+   "sha256": "e388025ec36348a471211d169b6060f5bc4edd14e2a0078ca7dd41759c6f52ae",
+   "stats": {
+    "seed": 13,
+    "gameOver": true,
+    "winnerIds": [
+     0,
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 136,
+    "actionsByKind": {
+     "navalMove": 17,
+     "landMove": 81,
+     "endPhase": 28,
+     "landAttack": 5,
+     "navalRotate": 5
+    },
+    "landAttacksResolved": 5,
+    "combatResultCounts": {
+     "DR": 3,
+     "AR": 2
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 1,
+    "driftCombatsResolved": 1,
+    "pushesResolved": 1,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 50,
+     "1": 50
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-default/seed14": {
+   "length": 127,
+   "sha256": "84cdcdd8ca30bac1c73f37f231623b451c6ef9b0afcd057c8d0cd85ce648928f",
+   "stats": {
+    "seed": 14,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 127,
+    "actionsByKind": {
+     "navalMove": 20,
+     "landMove": 74,
+     "navalRotate": 2,
+     "endPhase": 28,
+     "landAttack": 2,
+     "ram": 1
+    },
+    "landAttacksResolved": 2,
+    "combatResultCounts": {
+     "DE": 1,
+     "AR": 1
+    },
+    "ramsResolved": 1,
+    "ramHits": 1,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 40,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-default/seed15": {
+   "length": 123,
+   "sha256": "74e3e7ef0b4b0fd14535388221112ab481f80ba3df69227d07353348306412ec",
+   "stats": {
+    "seed": 15,
+    "gameOver": true,
+    "winnerIds": [
+     0
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 123,
+    "actionsByKind": {
+     "landMove": 63,
+     "navalRotate": 8,
+     "navalMove": 23,
+     "endPhase": 28,
+     "landAttack": 1
+    },
+    "landAttacksResolved": 1,
+    "combatResultCounts": {
+     "AR": 1
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 1,
+    "driftCombatsResolved": 3,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 50,
+     "1": 35
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-default/seed16": {
+   "length": 116,
+   "sha256": "4011bddd847debfcc2fe2d9835c60fd2d944d33b41cd309d540c291e57e6989f",
+   "stats": {
+    "seed": 16,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 116,
+    "actionsByKind": {
+     "navalMove": 23,
+     "landMove": 55,
+     "endPhase": 28,
+     "landAttack": 5,
+     "navalRotate": 5
+    },
+    "landAttacksResolved": 5,
+    "combatResultCounts": {
+     "EX": 1,
+     "DR": 3,
+     "AR": 1
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 25,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-default/seed17": {
+   "length": 136,
+   "sha256": "bead82473283fbd7c3556c6bebe62525d42200a35f7b095830abf590c623230a",
+   "stats": {
+    "seed": 17,
+    "gameOver": true,
+    "winnerIds": [
+     0,
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 136,
+    "actionsByKind": {
+     "navalMove": 17,
+     "landMove": 83,
+     "endPhase": 28,
+     "landAttack": 5,
+     "navalRotate": 3
+    },
+    "landAttacksResolved": 5,
+    "combatResultCounts": {
+     "AR": 3,
+     "DR": 2
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 50,
+     "1": 50
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-default/seed18": {
+   "length": 135,
+   "sha256": "6d6453e74929495ec21d79253eb52b3026ddd003908826030598b841fd405eed",
+   "stats": {
+    "seed": 18,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 135,
+    "actionsByKind": {
+     "landMove": 79,
+     "navalMove": 21,
+     "endPhase": 28,
+     "landAttack": 3,
+     "navalRotate": 4
+    },
+    "landAttacksResolved": 3,
+    "combatResultCounts": {
+     "DR": 2,
+     "AE": 1
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 1,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 40,
+     "1": 50
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-default/seed19": {
+   "length": 140,
+   "sha256": "b6b60343138601504ddd3458657259685c9dcefa1d0e5104bf2f622293549396",
+   "stats": {
+    "seed": 19,
+    "gameOver": true,
+    "winnerIds": [
+     0,
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 140,
+    "actionsByKind": {
+     "navalMove": 24,
+     "landMove": 80,
+     "endPhase": 28,
+     "landAttack": 4,
+     "navalRotate": 4
+    },
+    "landAttacksResolved": 4,
+    "combatResultCounts": {
+     "DR": 4
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 1,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 50,
+     "1": 50
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-default/seed20": {
+   "length": 140,
+   "sha256": "4e3281ef2bb19a29daab7dec41fb77621e8ae91d25f20743c42b9d091066849f",
+   "stats": {
+    "seed": 20,
+    "gameOver": true,
+    "winnerIds": [
+     0,
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 140,
+    "actionsByKind": {
+     "navalMove": 24,
+     "landMove": 82,
+     "endPhase": 28,
+     "landAttack": 4,
+     "navalRotate": 2
+    },
+    "landAttacksResolved": 4,
+    "combatResultCounts": {
+     "DR": 4
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 1,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 50,
+     "1": 50
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-default/seed21": {
+   "length": 134,
+   "sha256": "af63d40eb71182564c215f17e76fa0870537891e43d9e30fda6d8595e1e3e02f",
+   "stats": {
+    "seed": 21,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 134,
+    "actionsByKind": {
+     "landMove": 76,
+     "navalMove": 21,
+     "navalRotate": 3,
+     "endPhase": 28,
+     "landAttack": 6
+    },
+    "landAttacksResolved": 6,
+    "combatResultCounts": {
+     "AR": 4,
+     "DR": 1,
+     "EX": 1
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 3,
+    "driftCombatsResolved": 1,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 35,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-default/seed22": {
+   "length": 128,
+   "sha256": "2d5b36f9e8165cc4ffcfb26062cd6d02bf5468429731fb5c4471f1a8c74ccfe8",
+   "stats": {
+    "seed": 22,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 128,
+    "actionsByKind": {
+     "landMove": 68,
+     "navalMove": 24,
+     "endPhase": 28,
+     "landAttack": 4,
+     "board": 1,
+     "navalRotate": 3
+    },
+    "landAttacksResolved": 4,
+    "combatResultCounts": {
+     "EX": 1,
+     "DR": 3
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 1,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 40,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-default/seed23": {
+   "length": 144,
+   "sha256": "f8da5adc61cedcbe7686d610c1608b46fd2a56d25078029d9f2a8c655196f779",
+   "stats": {
+    "seed": 23,
+    "gameOver": true,
+    "winnerIds": [
+     0
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 144,
+    "actionsByKind": {
+     "landMove": 87,
+     "navalMove": 20,
+     "endPhase": 28,
+     "landAttack": 5,
+     "navalRotate": 4
+    },
+    "landAttacksResolved": 5,
+    "combatResultCounts": {
+     "DR": 3,
+     "AR": 2
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 3,
+    "driftCombatsResolved": 2,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 50,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-default/seed24": {
+   "length": 121,
+   "sha256": "df0b5268b0318850afb3ca06212ab8813a4b9c1c423e8ce22bc96567acd91960",
+   "stats": {
+    "seed": 24,
+    "gameOver": true,
+    "winnerIds": [
+     0
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 121,
+    "actionsByKind": {
+     "navalMove": 18,
+     "landMove": 69,
+     "endPhase": 28,
+     "landAttack": 2,
+     "navalRotate": 4
+    },
+    "landAttacksResolved": 2,
+    "combatResultCounts": {
+     "DR": 1,
+     "DE": 1
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 50,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-default/seed25": {
+   "length": 143,
+   "sha256": "813c7ecf3c1936a2cb09431645960a8ccd7a61908cfcf12091b42fe8d9f9aef5",
+   "stats": {
+    "seed": 25,
+    "gameOver": true,
+    "winnerIds": [
+     0,
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 143,
+    "actionsByKind": {
+     "navalMove": 17,
+     "landMove": 85,
+     "endPhase": 28,
+     "landAttack": 6,
+     "navalRotate": 7
+    },
+    "landAttacksResolved": 6,
+    "combatResultCounts": {
+     "DR": 5,
+     "AR": 1
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 1,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 50,
+     "1": 50
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-default/seed26": {
+   "length": 143,
+   "sha256": "ec31f577e413c6b2ab1144e1b97a22e245499559e1e0705ed12887c9fb061036",
+   "stats": {
+    "seed": 26,
+    "gameOver": true,
+    "winnerIds": [
+     0
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 143,
+    "actionsByKind": {
+     "landMove": 81,
+     "navalMove": 23,
+     "endPhase": 28,
+     "landAttack": 5,
+     "navalRotate": 6
+    },
+    "landAttacksResolved": 5,
+    "combatResultCounts": {
+     "DR": 1,
+     "AR": 3,
+     "DE": 1
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 50,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-default/seed27": {
+   "length": 102,
+   "sha256": "8aa0877d2cfbce7eb6de5f41f9a6f4207008a7858a5eebc3a07720c1ffc5ee2c",
+   "stats": {
+    "seed": 27,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 102,
+    "actionsByKind": {
+     "landMove": 44,
+     "navalMove": 19,
+     "endPhase": 28,
+     "landAttack": 5,
+     "navalRotate": 6
+    },
+    "landAttacksResolved": 5,
+    "combatResultCounts": {
+     "EX": 1,
+     "DR": 3,
+     "AE": 1
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 30,
+     "1": 35
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-default/seed28": {
+   "length": 150,
+   "sha256": "b0a0a6c7b6c1cdd16e6b3714f1e3ff5f2498c982e1fe9d78af4cac5eb6155f74",
+   "stats": {
+    "seed": 28,
+    "gameOver": true,
+    "winnerIds": [
+     0,
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 150,
+    "actionsByKind": {
+     "landMove": 86,
+     "navalMove": 20,
+     "navalRotate": 9,
+     "endPhase": 28,
+     "landAttack": 7
+    },
+    "landAttacksResolved": 7,
+    "combatResultCounts": {
+     "DR": 4,
+     "DE": 1,
+     "AR": 1,
+     "AE": 1
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 1,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 45,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-default/seed29": {
+   "length": 110,
+   "sha256": "23ebfd46d16b34fa75317e723ee3de22b991c61c79e44048a733e4ca1f983f91",
+   "stats": {
+    "seed": 29,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 110,
+    "actionsByKind": {
+     "landMove": 53,
+     "navalMove": 25,
+     "endPhase": 28,
+     "landAttack": 3,
+     "navalRotate": 1
+    },
+    "landAttacksResolved": 3,
+    "combatResultCounts": {
+     "DR": 1,
+     "EX": 1,
+     "AR": 1
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 40,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-default/seed30": {
+   "length": 143,
+   "sha256": "88b04088b3fd32e77acbbed3799c372ac01b7f6869e0dd9090778d44000049eb",
+   "stats": {
+    "seed": 30,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 143,
+    "actionsByKind": {
+     "navalMove": 21,
+     "landMove": 86,
+     "endPhase": 28,
+     "landAttack": 5,
+     "navalRotate": 3
+    },
+    "landAttacksResolved": 5,
+    "combatResultCounts": {
+     "DR": 1,
+     "AR": 2,
+     "AE": 2
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 40,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-push/seed1": {
+   "length": 128,
+   "sha256": "ce046385e2eac52a11118a217a14474d3dce683ff727d71a6184ec32894f66aa",
+   "stats": {
+    "seed": 1,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 128,
+    "actionsByKind": {
+     "endPhase": 28,
+     "landMove": 99,
+     "landSwap": 1
+    },
+    "landAttacksResolved": 0,
+    "combatResultCounts": {},
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 5,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-push/seed2": {
+   "length": 3,
+   "sha256": "7419d565f1a8ffe172e58940ab88dfc84bca882acefbeff5013511917f2f4d0b",
+   "stats": {
+    "seed": 2,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": false,
+    "turnsReached": 1,
+    "totalActions": 3,
+    "actionsByKind": {
+     "endPhase": 2,
+     "landAttack": 1
+    },
+    "landAttacksResolved": 1,
+    "combatResultCounts": {
+     "AR": 1
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 0,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-push/seed3": {
+   "length": 137,
+   "sha256": "dc0748b0dc0b0c03b63589645028390e6e3ccbf1d7eeb07f9c6452d8262ad7d0",
+   "stats": {
+    "seed": 3,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 137,
+    "actionsByKind": {
+     "endPhase": 28,
+     "landAttack": 2,
+     "landMove": 106,
+     "landSwap": 1
+    },
+    "landAttacksResolved": 2,
+    "combatResultCounts": {
+     "DR": 2
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 5,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-push/seed4": {
+   "length": 140,
+   "sha256": "1c4ac94432c56a028da6dbc8eb25c204c9f6ea0eb7db78a036814ba7bef83baf",
+   "stats": {
+    "seed": 4,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 140,
+    "actionsByKind": {
+     "endPhase": 28,
+     "landAttack": 3,
+     "landSwap": 2,
+     "landMove": 107
+    },
+    "landAttacksResolved": 3,
+    "combatResultCounts": {
+     "DR": 2,
+     "AR": 1
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 5,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-push/seed5": {
+   "length": 123,
+   "sha256": "2b5d1aaf733ac04a02e29c2c5f152b2d2d56aac2a5b1aafc5b777a11586fa4b2",
+   "stats": {
+    "seed": 5,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 123,
+    "actionsByKind": {
+     "endPhase": 28,
+     "landAttack": 1,
+     "landMove": 93,
+     "landSwap": 1
+    },
+    "landAttacksResolved": 1,
+    "combatResultCounts": {
+     "DR": 1
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 5,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-elephant/seed1": {
+   "length": 132,
+   "sha256": "8d31ac16add1851f31241ed5a7b091b6d875fe24f5e07f5b62b4d2a201407a0f",
+   "stats": {
+    "seed": 1,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 132,
+    "actionsByKind": {
+     "endPhase": 28,
+     "landMove": 103,
+     "landSwap": 1
+    },
+    "landAttacksResolved": 0,
+    "combatResultCounts": {},
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 10,
+     "1": 50
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-elephant/seed2": {
+   "length": 3,
+   "sha256": "7419d565f1a8ffe172e58940ab88dfc84bca882acefbeff5013511917f2f4d0b",
+   "stats": {
+    "seed": 2,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": false,
+    "turnsReached": 1,
+    "totalActions": 3,
+    "actionsByKind": {
+     "endPhase": 2,
+     "landAttack": 1
+    },
+    "landAttacksResolved": 1,
+    "combatResultCounts": {
+     "EX": 1
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 0,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-elephant/seed3": {
+   "length": 108,
+   "sha256": "dcefad883eaa838c0a4985d288a2df7f161845cc84f76543db92122545ff9ee3",
+   "stats": {
+    "seed": 3,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 108,
+    "actionsByKind": {
+     "endPhase": 28,
+     "landAttack": 2,
+     "landMove": 77,
+     "landSwap": 1
+    },
+    "landAttacksResolved": 2,
+    "combatResultCounts": {
+     "DE": 1,
+     "DR": 1
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 1,
+    "driftCombatsResolved": 1,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 10,
+     "1": 40
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-elephant/seed4": {
+   "length": 125,
+   "sha256": "11ef47826f5963875d96e16d99cac6dd5064102d82eebe44b9a517ee0e2fe128",
+   "stats": {
+    "seed": 4,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 125,
+    "actionsByKind": {
+     "endPhase": 28,
+     "landAttack": 1,
+     "landMove": 96
+    },
+    "landAttacksResolved": 1,
+    "combatResultCounts": {
+     "DE": 1
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 10,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-elephant/seed5": {
+   "length": 128,
+   "sha256": "f18c0e15ff67c1b9f8ff1cb578207068a7e6769a0c1ec757b03080e4edf89849",
+   "stats": {
+    "seed": 5,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 128,
+    "actionsByKind": {
+     "endPhase": 28,
+     "landAttack": 3,
+     "landMove": 96,
+     "landSwap": 1
+    },
+    "landAttacksResolved": 3,
+    "combatResultCounts": {
+     "DE": 1,
+     "AE": 1,
+     "AR": 1
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 1,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 10,
+     "1": 40
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "ev-vs-ev/seed1": {
+   "length": 73,
+   "sha256": "fe8bc745a4e5dcebb14553634a899bd7212abaf9dd380eac00555b1b82075102",
+   "stats": {
+    "seed": 1,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 73,
+    "actionsByKind": {
+     "navalMove": 1,
+     "ram": 1,
+     "landMove": 35,
+     "endPhase": 28,
+     "landAttack": 8
+    },
+    "landAttacksResolved": 8,
+    "combatResultCounts": {
+     "AR": 3,
+     "DE": 2,
+     "EX": 1,
+     "DR": 2
+    },
+    "ramsResolved": 1,
+    "ramHits": 1,
+    "boardingsResolved": 0,
+    "driftsResolved": 1,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 4,
+    "finalArmyValues": {
+     "0": 10,
+     "1": 35
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "ev-vs-ev/seed2": {
+   "length": 62,
+   "sha256": "bbc203aa83e57620639c65e607fe7d437d9f7c284ab88846b555f3dae36a59c8",
+   "stats": {
+    "seed": 2,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 62,
+    "actionsByKind": {
+     "navalMove": 2,
+     "ram": 2,
+     "landMove": 19,
+     "endPhase": 28,
+     "landAttack": 9,
+     "landSwap": 2
+    },
+    "landAttacksResolved": 9,
+    "combatResultCounts": {
+     "DR": 8,
+     "DE": 1
+    },
+    "ramsResolved": 2,
+    "ramHits": 1,
+    "boardingsResolved": 0,
+    "driftsResolved": 1,
+    "driftCombatsResolved": 1,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 3,
+    "finalArmyValues": {
+     "0": 25,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "ev-vs-ev/seed3": {
+   "length": 36,
+   "sha256": "56d5cc3c0abeeb56478a7c37aa1c27115760e2e59434630da2efcafa455fe8b4",
+   "stats": {
+    "seed": 3,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 36,
+    "actionsByKind": {
+     "ram": 2,
+     "landMove": 2,
+     "endPhase": 28,
+     "landAttack": 3,
+     "navalMove": 1
+    },
+    "landAttacksResolved": 3,
+    "combatResultCounts": {
+     "DR": 1,
+     "DE": 2
+    },
+    "ramsResolved": 2,
+    "ramHits": 1,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 30,
+     "1": 35
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "ev-vs-ev/seed4": {
+   "length": 75,
+   "sha256": "ad513eba9068ac1159e38d9a942eba3596f0b5be30d86b5f75132c45f3838f13",
+   "stats": {
+    "seed": 4,
+    "gameOver": true,
+    "winnerIds": [
+     0
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 75,
+    "actionsByKind": {
+     "ram": 1,
+     "landMove": 35,
+     "endPhase": 28,
+     "landAttack": 11
+    },
+    "landAttacksResolved": 11,
+    "combatResultCounts": {
+     "DR": 4,
+     "AR": 5,
+     "DE": 1,
+     "EX": 1
+    },
+    "ramsResolved": 1,
+    "ramHits": 1,
+    "boardingsResolved": 0,
+    "driftsResolved": 1,
+    "driftCombatsResolved": 1,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 4,
+    "finalArmyValues": {
+     "0": 35,
+     "1": 10
+    }
+   },
+   "exchangeChoices": 1
+  },
+  "ev-vs-ev/seed5": {
+   "length": 56,
+   "sha256": "717dd69d992820024340fafbb70582641578b717e631f8c7c8a8d051cf15ff4d",
+   "stats": {
+    "seed": 5,
+    "gameOver": true,
+    "winnerIds": [
+     0
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 56,
+    "actionsByKind": {
+     "ram": 1,
+     "landMove": 16,
+     "endPhase": 28,
+     "landAttack": 10,
+     "landSwap": 1
+    },
+    "landAttacksResolved": 10,
+    "combatResultCounts": {
+     "DR": 8,
+     "DE": 1,
+     "AR": 1
+    },
+    "ramsResolved": 1,
+    "ramHits": 1,
+    "boardingsResolved": 0,
+    "driftsResolved": 2,
+    "driftCombatsResolved": 3,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 3,
+    "finalArmyValues": {
+     "0": 35,
+     "1": 25
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "ev-vs-ev/seed6": {
+   "length": 57,
+   "sha256": "04792860df5358647d6a533ec32d7f36e186dd3aa955c28be4ec445659419d4c",
+   "stats": {
+    "seed": 6,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 57,
+    "actionsByKind": {
+     "navalMove": 1,
+     "ram": 1,
+     "landMove": 21,
+     "endPhase": 28,
+     "landAttack": 6
+    },
+    "landAttacksResolved": 6,
+    "combatResultCounts": {
+     "AR": 1,
+     "DR": 4,
+     "EX": 1
+    },
+    "ramsResolved": 1,
+    "ramHits": 1,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 2,
+    "finalArmyValues": {
+     "0": 10,
+     "1": 35
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "ev-vs-random/seed1": {
+   "length": 86,
+   "sha256": "7658de48c09fcc8776945f1ecd1c7877bcf00be98f9049cd8170a589704e1571",
+   "stats": {
+    "seed": 1,
+    "gameOver": true,
+    "winnerIds": [
+     0
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 86,
+    "actionsByKind": {
+     "navalMove": 1,
+     "ram": 1,
+     "landMove": 52,
+     "endPhase": 28,
+     "landAttack": 4
+    },
+    "landAttacksResolved": 4,
+    "combatResultCounts": {
+     "AR": 1,
+     "DR": 2,
+     "DE": 1
+    },
+    "ramsResolved": 1,
+    "ramHits": 1,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 3,
+    "finalArmyValues": {
+     "0": 50,
+     "1": 10
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "ev-vs-random/seed2": {
+   "length": 94,
+   "sha256": "8fde4649e4f9acb744952c4949023d3285394c2a5e5c62210db487e1b293563a",
+   "stats": {
+    "seed": 2,
+    "gameOver": true,
+    "winnerIds": [
+     0
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 94,
+    "actionsByKind": {
+     "navalMove": 6,
+     "ram": 2,
+     "landMove": 53,
+     "endPhase": 28,
+     "landAttack": 3,
+     "navalRotate": 2
+    },
+    "landAttacksResolved": 3,
+    "combatResultCounts": {
+     "DR": 1,
+     "AR": 2
+    },
+    "ramsResolved": 2,
+    "ramHits": 1,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 50,
+     "1": 35
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-push-found/seed17": {
+   "length": 118,
+   "sha256": "f0877dd5ffbe095dd808e2dc08495293523997094383f58b5f05eea228332d1d",
+   "stats": {
+    "seed": 17,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 118,
+    "actionsByKind": {
+     "endPhase": 28,
+     "landAttack": 2,
+     "landMove": 88
+    },
+    "landAttacksResolved": 2,
+    "combatResultCounts": {
+     "DR": 1,
+     "AR": 1
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 1,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 5,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-push-found/seed19": {
+   "length": 128,
+   "sha256": "e5127760a3f7a01286db5bfa1fa187277ac974ac51a5f782e0e7812aa305e428",
+   "stats": {
+    "seed": 19,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 128,
+    "actionsByKind": {
+     "endPhase": 28,
+     "landAttack": 1,
+     "landMove": 99
+    },
+    "landAttacksResolved": 1,
+    "combatResultCounts": {
+     "DR": 1
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 1,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 5,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-push-found/seed22": {
+   "length": 136,
+   "sha256": "e51cb75830a63d45f21b84a889626db54210daf7148deb9e16dc30368250efa2",
+   "stats": {
+    "seed": 22,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 136,
+    "actionsByKind": {
+     "endPhase": 28,
+     "landAttack": 1,
+     "landMove": 104,
+     "landSwap": 3
+    },
+    "landAttacksResolved": 1,
+    "combatResultCounts": {
+     "DR": 1
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 1,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 5,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-push-found/seed29": {
+   "length": 124,
+   "sha256": "271b3664dfac78f3fb562d40bdc4860f241d975e542f100b51e6c4e1545759e6",
+   "stats": {
+    "seed": 29,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 124,
+    "actionsByKind": {
+     "endPhase": 28,
+     "landAttack": 3,
+     "landMove": 92,
+     "landSwap": 1
+    },
+    "landAttacksResolved": 3,
+    "combatResultCounts": {
+     "DR": 1,
+     "AR": 2
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 1,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 5,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-push-found/seed50": {
+   "length": 140,
+   "sha256": "306cee52c9e2dfdc2378286eb0ccdad9e7c01b2df75adae274984a161d798876",
+   "stats": {
+    "seed": 50,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 140,
+    "actionsByKind": {
+     "endPhase": 28,
+     "landAttack": 4,
+     "landMove": 107,
+     "landSwap": 1
+    },
+    "landAttacksResolved": 4,
+    "combatResultCounts": {
+     "DR": 3,
+     "AR": 1
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 1,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 5,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "random-default-found/seed76": {
+   "length": 131,
+   "sha256": "49ba06419be99f4eccc003d6295ec895a334d7437ef45f6fc34beba6d4bbeae5",
+   "stats": {
+    "seed": 76,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 131,
+    "actionsByKind": {
+     "landMove": 70,
+     "navalMove": 20,
+     "endPhase": 28,
+     "landAttack": 6,
+     "navalRotate": 6,
+     "board": 1
+    },
+    "landAttacksResolved": 6,
+    "combatResultCounts": {
+     "AR": 4,
+     "DE": 1,
+     "DR": 1
+    },
+    "ramsResolved": 0,
+    "ramHits": 0,
+    "boardingsResolved": 1,
+    "driftsResolved": 1,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 1,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 35,
+     "1": 45
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "ev-vs-ev-found/seed8": {
+   "length": 56,
+   "sha256": "7cca6006fce3c1fb1e78a8f911c8295249daf06930f57e9827c5c43871f02d98",
+   "stats": {
+    "seed": 8,
+    "gameOver": true,
+    "winnerIds": [
+     0
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 56,
+    "actionsByKind": {
+     "ram": 1,
+     "landMove": 20,
+     "endPhase": 28,
+     "landAttack": 7
+    },
+    "landAttacksResolved": 7,
+    "combatResultCounts": {
+     "DR": 2,
+     "AR": 4,
+     "EX": 1
+    },
+    "ramsResolved": 1,
+    "ramHits": 1,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 2,
+    "finalArmyValues": {
+     "0": 40,
+     "1": 25
+    }
+   },
+   "exchangeChoices": 1
+  },
+  "ev-vs-ev-found/seed9": {
+   "length": 51,
+   "sha256": "20a209e6df73f265d49bc91023e16c548193661d95309d8bec4fd6576d2f0c97",
+   "stats": {
+    "seed": 9,
+    "gameOver": true,
+    "winnerIds": [
+     0
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 51,
+    "actionsByKind": {
+     "navalMove": 1,
+     "ram": 1,
+     "landMove": 12,
+     "endPhase": 28,
+     "landAttack": 8,
+     "landSwap": 1
+    },
+    "landAttacksResolved": 8,
+    "combatResultCounts": {
+     "DR": 6,
+     "DE": 1,
+     "EX": 1
+    },
+    "ramsResolved": 1,
+    "ramHits": 1,
+    "boardingsResolved": 0,
+    "driftsResolved": 1,
+    "driftCombatsResolved": 1,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 1,
+    "finalArmyValues": {
+     "0": 40,
+     "1": 15
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "ev-vs-ev-found/seed10": {
+   "length": 35,
+   "sha256": "e016ff57e731fc41ae11fedc7c414bd9c9417db9c057b0a83da08af9fce315ae",
+   "stats": {
+    "seed": 10,
+    "gameOver": true,
+    "winnerIds": [
+     0
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 35,
+    "actionsByKind": {
+     "navalMove": 1,
+     "ram": 1,
+     "landMove": 2,
+     "endPhase": 28,
+     "landAttack": 3
+    },
+    "landAttacksResolved": 3,
+    "combatResultCounts": {
+     "DR": 1,
+     "EX": 2
+    },
+    "ramsResolved": 1,
+    "ramHits": 1,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 30,
+     "1": 15
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "ev-vs-ev-found/seed12": {
+   "length": 53,
+   "sha256": "f100ba3615c4e3e85c80a5e3dd9d386b229a6f6efccf3a3b2faf767deb0a7abb",
+   "stats": {
+    "seed": 12,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 53,
+    "actionsByKind": {
+     "navalMove": 1,
+     "ram": 1,
+     "landMove": 18,
+     "endPhase": 28,
+     "landAttack": 5
+    },
+    "landAttacksResolved": 5,
+    "combatResultCounts": {
+     "AR": 1,
+     "EX": 1,
+     "DR": 3
+    },
+    "ramsResolved": 1,
+    "ramHits": 1,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 2,
+    "finalArmyValues": {
+     "0": 25,
+     "1": 35
+    }
+   },
+   "exchangeChoices": 1
+  },
+  "ev-vs-ev-found/seed14": {
+   "length": 64,
+   "sha256": "5f5b04d04b5c0ce7e1349518e28195a27f7f9a06379ef4702097b95c7bfb61d0",
+   "stats": {
+    "seed": 14,
+    "gameOver": true,
+    "winnerIds": [
+     0
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 64,
+    "actionsByKind": {
+     "navalMove": 1,
+     "ram": 1,
+     "landMove": 22,
+     "endPhase": 28,
+     "landAttack": 11,
+     "landSwap": 1
+    },
+    "landAttacksResolved": 11,
+    "combatResultCounts": {
+     "AR": 3,
+     "DE": 1,
+     "EX": 1,
+     "DR": 6
+    },
+    "ramsResolved": 1,
+    "ramHits": 1,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 1,
+    "multiAttackerAttacks": 3,
+    "finalArmyValues": {
+     "0": 40,
+     "1": 25
+    }
+   },
+   "exchangeChoices": 1
+  },
+  "ev-vs-ev-found/seed15": {
+   "length": 54,
+   "sha256": "b9277cfd329816920dc4d3025c149b58e400b03430650191a456feb4af773145",
+   "stats": {
+    "seed": 15,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 54,
+    "actionsByKind": {
+     "navalMove": 2,
+     "ram": 2,
+     "landMove": 14,
+     "endPhase": 28,
+     "landAttack": 8
+    },
+    "landAttacksResolved": 8,
+    "combatResultCounts": {
+     "DR": 6,
+     "EX": 1,
+     "DE": 1
+    },
+    "ramsResolved": 2,
+    "ramHits": 1,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 1,
+    "finalArmyValues": {
+     "0": 5,
+     "1": 35
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "ev-vs-ev-found/seed17": {
+   "length": 37,
+   "sha256": "eb705ea5c95cf52a402de5f95fd7f051de4d09c085193b7f8b688ff9e8aa20bf",
+   "stats": {
+    "seed": 17,
+    "gameOver": true,
+    "winnerIds": [
+     0
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 37,
+    "actionsByKind": {
+     "ram": 1,
+     "landMove": 4,
+     "endPhase": 28,
+     "landAttack": 4
+    },
+    "landAttacksResolved": 4,
+    "combatResultCounts": {
+     "DR": 2,
+     "DE": 1,
+     "EX": 1
+    },
+    "ramsResolved": 1,
+    "ramHits": 1,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 40,
+     "1": 15
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "ev-vs-ev-found/seed20": {
+   "length": 41,
+   "sha256": "10b27960fc98b95dff27719169ee7c3bed877061d455b5d798b0f348942abd42",
+   "stats": {
+    "seed": 20,
+    "gameOver": true,
+    "winnerIds": [
+     0
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 41,
+    "actionsByKind": {
+     "navalMove": 1,
+     "ram": 1,
+     "landMove": 5,
+     "endPhase": 28,
+     "landAttack": 6
+    },
+    "landAttacksResolved": 6,
+    "combatResultCounts": {
+     "AR": 1,
+     "DE": 1,
+     "EX": 1,
+     "DR": 3
+    },
+    "ramsResolved": 1,
+    "ramHits": 1,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 1,
+    "multiAttackerAttacks": 3,
+    "finalArmyValues": {
+     "0": 40,
+     "1": 25
+    }
+   },
+   "exchangeChoices": 1
+  },
+  "ev-vs-ev-found/seed22": {
+   "length": 35,
+   "sha256": "e016ff57e731fc41ae11fedc7c414bd9c9417db9c057b0a83da08af9fce315ae",
+   "stats": {
+    "seed": 22,
+    "gameOver": true,
+    "winnerIds": [
+     0
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 35,
+    "actionsByKind": {
+     "navalMove": 1,
+     "ram": 1,
+     "landMove": 2,
+     "endPhase": 28,
+     "landAttack": 3
+    },
+    "landAttacksResolved": 3,
+    "combatResultCounts": {
+     "DR": 1,
+     "EX": 2
+    },
+    "ramsResolved": 1,
+    "ramHits": 1,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 30,
+     "1": 15
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "ev-vs-ev-found/seed24": {
+   "length": 31,
+   "sha256": "bc788ce5f7b3ca6e6dbdc79b51017af880660eef35ccc63f54d18098af4b5dbf",
+   "stats": {
+    "seed": 24,
+    "gameOver": true,
+    "winnerIds": [
+     0
+    ],
+    "endedByTimeLimit": false,
+    "turnsReached": 4,
+    "totalActions": 31,
+    "actionsByKind": {
+     "navalMove": 3,
+     "ram": 3,
+     "landMove": 6,
+     "endPhase": 14,
+     "landAttack": 5
+    },
+    "landAttacksResolved": 5,
+    "combatResultCounts": {
+     "DR": 3,
+     "DE": 1,
+     "EX": 1
+    },
+    "ramsResolved": 3,
+    "ramHits": 1,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 1,
+    "finalArmyValues": {
+     "0": 40,
+     "1": 0
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "ev-vs-ev-found/seed25": {
+   "length": 37,
+   "sha256": "0847c6bd2e1c36810f0e89b12fa62bf7a0212e9f253541a952efaf99fa29c159",
+   "stats": {
+    "seed": 25,
+    "gameOver": true,
+    "winnerIds": [
+     1
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 37,
+    "actionsByKind": {
+     "ram": 2,
+     "landMove": 3,
+     "endPhase": 28,
+     "landAttack": 3,
+     "navalMove": 1
+    },
+    "landAttacksResolved": 3,
+    "combatResultCounts": {
+     "DR": 1,
+     "EX": 2
+    },
+    "ramsResolved": 2,
+    "ramHits": 1,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 20,
+     "1": 25
+    }
+   },
+   "exchangeChoices": 0
+  },
+  "ev-vs-ev-found/seed26": {
+   "length": 46,
+   "sha256": "48fe67549c6ae6167aa0fee557f7410668b0b35267f4ccbaae3c52f9cb960c96",
+   "stats": {
+    "seed": 26,
+    "gameOver": true,
+    "winnerIds": [
+     0
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 46,
+    "actionsByKind": {
+     "navalMove": 1,
+     "ram": 1,
+     "landMove": 10,
+     "endPhase": 28,
+     "landAttack": 6
+    },
+    "landAttacksResolved": 6,
+    "combatResultCounts": {
+     "DR": 4,
+     "DE": 1,
+     "EX": 1
+    },
+    "ramsResolved": 1,
+    "ramHits": 1,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 0,
+    "finalArmyValues": {
+     "0": 40,
+     "1": 15
+    }
+   },
+   "exchangeChoices": 0
+  }
+ }
+}
