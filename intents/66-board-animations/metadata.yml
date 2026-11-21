@@ -2,14 +2,14 @@
 id: 66
 slug: board-animations
 type: feature
-status: in-review
+status: done
 title: The vector view animates moves, combats and drifts
 review_tier:
 intent_accepted: 2026-11-05 by-agent    # owner: "accept 64 and 66 spec"
 spec_accepted: 2026-11-21 by-agent    # owner: "spec accepted"
 plan_approved: 2026-11-21 by-agent    # auto: owner "/auto 66" (auto_authorized 2026-11-21)
 live_checked: 2026-11-21 by-agent    # owner: "66 live checked"
-merged:
+merged: f32a5b7    # 2026-11-21, merged by Claude on the owner's explicit request in chat
 auto_authorized: 2026-11-21 by-agent    # owner: "/auto 66 (a)"
 auto_round: 3
 auto_stopped: ready for /ship
