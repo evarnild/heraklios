@@ -13,7 +13,7 @@ merged:
 konmari:
 auto_authorized: 2026-11-21 by-agent    # owner: "/auto 74" (second)
 auto_round: 1
-auto_stopped:
+auto_stopped: decision needed
 follows_up:
 links:
   - intents/64-vector-view
