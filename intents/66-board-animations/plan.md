@@ -321,3 +321,52 @@ Re-read on `main` at `a5c3a90`.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-11-21 — all eight subtasks
+
+Commits: `107f249` (pre-change snapshot of the searches, before any edit),
+`9be04ea` (subtask 1: paths), `1c45c56` (2 and 3: cues, speed), `669c25f` (4:
+planner), `2cacabb` (5: animator and BoardView seam), `14e7426` (6: scene
+wiring and speed button), `c497698` (7: e2e), and the README/Progress commit
+(8).
+
+Shipped: B1-B17 as specified. `reachableHexes` and `reachableNavalStates` now
+share internal `searchLand`/`searchNaval` that also record predecessors; their
+returns are pinned by a fingerprint snapshot taken in `107f249`, before the
+edit (`movementSearch.test.ts`, `movementCases.ts`, 3 armies x 6 walked
+seeds). `movePath.ts` gives `landMovePath` (charge line when `evaluateCharge`
+is non-null) and `navalMovePath`/`navalStatePath`; `actionCue.ts` the cues;
+`animationSpeed.ts`, `animationPlan.ts`, `drawnMotions.ts`, `drawnAnimator.ts`,
+`speedToggle.ts` the UI side. The window capture listeners (pointerdown,
+keydown) do run before Phaser's handlers: the e2e Slow scenario clicks another
+unit mid-move and the mover is on its final hex when the selection lands.
+
+Tests: 86 files, 1455 tests (from 83 / 1427 at the first commit's baseline
+of the branch: +8 cue, +8 speed, +12 planner, +5 path, +1 snapshot, rest are
+counted in those files). `npm run verify` green, lint 21 warnings = the cap
+(no new warning; `devHook.installDevHook` was kept under 80 lines by a helper).
+`BoardScene.ts` 3173 -> 3195 (budget line +45).
+
+e2e: before 23 passed in 1m21.6s (measured while I was also running vitest and
+editing the worktree, so it is a pessimistic baseline); after 27 passed (23 +
+the 4 new scenarios) in 1m10.5s on an idle machine. Every other scenario runs
+at Off through `storageState` in `playwright.config.ts`.
+
+Divergences from the plan, none of design:
+- `driftCue(event)` became `driftMoveCue(elephantId, hex)` and
+  `driftClashCue(elephantId, hex)`: the drift hooks the scene uses
+  (`onDriftMoved`, `onCombat`) pass those arguments, not a `DriftEvent`.
+- `onCombat` now also calls `renderAllUnits()` (the plan said it only logs): the
+  trample's clash cue would otherwise be overwritten by the next beat's
+  `onDriftMoved` cue before any render. The result shows after the clash, as B4.
+- The speed button sits above the view toggle (same x, one row up), not beside
+  it: the Standard-view label is wider than the Drawn-view one and overlapped a
+  button placed beside it.
+- `createViewToggle` gained an optional `onChange` callback so the speed button
+  hides in the Standard view.
+- `devHook` gained `animationSpeed()` and `unitCanvas(id)`; `idle()` was left
+  counting tweens only (each animation step is one counter tween and the next
+  step starts in the same callback, so there is no gap).
+- A watchdog (2x the queued length + 1 s) finishes a queue that never drains,
+  such as a hidden tab pausing Phaser's clock; the animator also ends on the
+  scene's `shutdown`.

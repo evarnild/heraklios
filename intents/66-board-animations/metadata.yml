@@ -2,7 +2,7 @@
 id: 66
 slug: board-animations
 type: feature
-status: accepted
+status: in-review
 title: The vector view animates moves, combats and drifts
 review_tier:
 intent_accepted: 2026-11-05 by-agent    # owner: "accept 64 and 66 spec"

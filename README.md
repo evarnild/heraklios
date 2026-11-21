@@ -554,6 +554,51 @@ chose; with nothing remembered, or storage unavailable, the view is
 Standard. Clicks, hover and the tooltip behave the same in both views: the
 hex under the cursor is the one the board's own geometry says it is.
 
+#### Animations in the Drawn view
+
+In the Drawn view the units move and fight on screen instead of jumping. The
+game does not wait for it: every action changes the game exactly when it
+always did, at every speed, so rules, log, saves, undo and the computer's
+choices are the same whether you watch or not. Highlights, labels and the
+movement-points readout show the new state at once; only the unit figures
+take their time.
+
+- **A move** slides the unit hex by hex along the path its cost was worked out
+  on; a cavalry charge slides along its straight line. A ship turns in place
+  at each rotation and slides at each forward step, and the Turn button turns
+  the figure 60°. A swap slides the two units across each other together.
+- **A land attack** is a clash: each attacker lunges part-way toward the
+  nearest defender it fights (with several defenders, the nearest hex, ties by
+  defender order) and back, then the result shows: an eliminated unit fades
+  out, and a retreat, push, advance or exchange sacrifice each animate when
+  it is committed, in the order the game commits them.
+- **A ram** lunges into the target's hex side and back; a hit makes the target
+  fade, a miss makes it shake. **A boarding** is a clash between the two
+  ships; a ship whose equipment reaches zero fades and a ship that lost
+  equipment and survives shakes; an undecided boarding shows no result.
+- **An elephant's drift** animates each beat as it is committed: a hex entered
+  is a one-hex slide, a trample a clash at the occupant's hex then its result,
+  a dead elephant fades. The drift arrow appears once the slide has ended.
+- **Computer turns** animate too: after each action the computer waits until
+  its animation has finished, then its usual pause (at Off, the pause alone).
+- **Cutting it short.** Any click anywhere on the page or any key press
+  finishes every animation at once, the whole queue, and then does what the
+  click or key would have done. Undo, redo, loading a game and switching view
+  draw the new state at once, with no animation. A computer turn is not
+  interrupted by a click; only its animations are finished.
+- **Speed.** A button above the view toggle (shown in the Drawn view only)
+  steps **Speed: Normal**, **Slow**, **Off** and back. At Normal a hex step
+  takes 180 ms, a 60° turn 120 ms, a clash 350 ms, a ram 400 ms, a fade
+  300 ms and a shake 200 ms; Slow is exactly twice that, and Off is no
+  animation (the figure jumps). A change of speed applies from the next
+  animation. It is remembered in the browser (`heraklios.animationSpeed`, like
+  the view), is not part of a save, and is Normal when nothing valid is
+  remembered or storage is unavailable.
+
+The Standard view never animates and has no speed button. The movement
+paths and the clash and shake cues are engine functions (`movePath.ts`,
+`actionCue.ts`); the Drawn view only plays them.
+
 In a dev server only, the Menu has a **Figure gallery (dev)** button next to
 the combat test mode: four players, each with all 14 unit types, to compare
 the figures and bases side by side.
