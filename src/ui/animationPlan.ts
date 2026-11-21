@@ -1,5 +1,6 @@
 import type { HexCoord } from '../data/map';
 import type { ActionCue } from '../engine/actionCue';
+import { facingRotationCost, hexEquals } from '../engine/hex';
 import { reconcileUnits } from './boardView';
 import type { UnitDrawing } from './boardView';
 import { durationsFor } from './animationSpeed';
@@ -25,15 +26,6 @@ export interface AnimationStep {
   motions: Motion[];
 }
 
-function facingTurns(from: number, to: number): number {
-  const d = (((to - from) % 6) + 6) % 6;
-  return Math.min(d, 6 - d);
-}
-
-function samePlace(a: HexCoord, b: HexCoord): boolean {
-  return a.q === b.q && a.r === b.r;
-}
-
 /** The slides and turns of one unit's cued path, ending where it is drawn next, or null when the cue does not fit. */
 function cuedMotions(
   cue: ActionCue,
@@ -44,15 +36,15 @@ function cuedMotions(
 ): Motion[] | null {
   const move = cue.moves.find((m) => m.unitId === target.id);
   const last = move?.steps[move.steps.length - 1];
-  if (!move || !last || !samePlace(last.hex, target.position)) return null;
+  if (!move || !last || !hexEquals(last.hex, target.position)) return null;
   const out: Motion[] = [];
   let hex = old.position;
   let facing = old.facing;
   for (const step of move.steps) {
     if (step.facing !== undefined && facing !== undefined && step.facing !== facing) {
-      out.push({ kind: 'turn', unitId: target.id, toFacing: step.facing, ms: turnMs * facingTurns(facing, step.facing) });
+      out.push({ kind: 'turn', unitId: target.id, toFacing: step.facing, ms: turnMs * facingRotationCost(facing, step.facing) });
     }
-    if (!samePlace(step.hex, hex)) out.push({ kind: 'slide', unitId: target.id, to: step.hex, ms: hexMs });
+    if (!hexEquals(step.hex, hex)) out.push({ kind: 'slide', unitId: target.id, to: step.hex, ms: hexMs });
     hex = step.hex;
     facing = step.facing ?? facing;
   }
@@ -62,9 +54,9 @@ function cuedMotions(
 /** The default for a unit that changed with no cue (a retreat, push or advance): straight to the new hex, then a turn. */
 function defaultMotions(old: UnitDrawing, target: UnitDrawing, hexMs: number, turnMs: number): Motion[] {
   const out: Motion[] = [];
-  if (!samePlace(old.position, target.position)) out.push({ kind: 'slide', unitId: target.id, to: target.position, ms: hexMs });
+  if (!hexEquals(old.position, target.position)) out.push({ kind: 'slide', unitId: target.id, to: target.position, ms: hexMs });
   if (old.facing !== undefined && target.facing !== undefined && old.facing !== target.facing) {
-    out.push({ kind: 'turn', unitId: target.id, toFacing: target.facing, ms: turnMs * facingTurns(old.facing, target.facing) });
+    out.push({ kind: 'turn', unitId: target.id, toFacing: target.facing, ms: turnMs * facingRotationCost(old.facing, target.facing) });
   }
   return out;
 }
