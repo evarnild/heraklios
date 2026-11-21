@@ -285,7 +285,7 @@ export function applyAction(
 ): ActionResult {
   switch (action.kind) {
     case 'endPhase': {
-      advancePhase(state);
+      advancePhase(state, rng);
       // Refill the new active player's movement/charge state, same as a
       // human's Movement phase beginning (see turnManager.ts's doc comment
       // on why this is a separate call rather than folded into

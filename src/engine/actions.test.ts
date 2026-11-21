@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { legalActions, applyAction, type Action } from './actions';
 import { reachableHexes } from './movement';
+import { createSeededRng } from './rng';
 import { createInitialState } from './turnManager';
 import { DIRECTIONS } from './hex';
 import { currentAttack, type GameState, type Player, type Unit } from './state';
@@ -382,6 +383,52 @@ describe('applyAction — board', () => {
 });
 
 describe('applyAction — endPhase', () => {
+  // §72 (B14): `endPhase` passes its rng on to the seat-order reshuffle. Kills
+  // dropping that pass-through (the two runs would then differ, on Math.random).
+  describe('with randomizedTurnOrder', () => {
+    function playRounds(rng: (() => number) | undefined): number[][] {
+      const players: Player[] = [0, 1, 2, 3].map((id) => ({
+        id: id as 0 | 1 | 2 | 3,
+        name: `P${id}`,
+        edge: (['W', 'E', 'N', 'S'] as const)[id]!,
+        purchasePoints: 400,
+        eliminated: false,
+      }));
+      const state = createInitialState(players, 'multi-defender', true);
+      state.units = [0, 1, 2, 3].map((id) =>
+        makeUnit({ id: `u${id}`, typeId: 'fantassins', owner: id as 0 | 1 | 2 | 3, position: { q: id, r: 0 } }),
+      );
+      const orders: number[][] = [];
+      let turn = state.turnNumber;
+      for (let i = 0; i < 40; i++) {
+        applyAction(state, { kind: 'endPhase' }, rng);
+        if (state.turnNumber !== turn) {
+          turn = state.turnNumber;
+          orders.push([...state.seatOrder]);
+        }
+      }
+      return orders;
+    }
+
+    it('gives the same seat orders for the same seeded rng', () => {
+      const first = playRounds(createSeededRng(9));
+      const second = playRounds(createSeededRng(9));
+      expect(first.length).toBeGreaterThan(3);
+      expect(first).toEqual(second);
+      expect(new Set(first.map((o) => o.join(','))).size).toBeGreaterThan(1); // it really shuffles
+    });
+
+    it('still uses Math.random when no rng is passed', () => {
+      const spy = vi.spyOn(Math, 'random');
+      try {
+        playRounds(undefined);
+        expect(spy).toHaveBeenCalled();
+      } finally {
+        spy.mockRestore();
+      }
+    });
+  });
+
   it('delegates to advancePhase — a movement phase becomes combat, resetting defendedThisPhase', () => {
     const unit = makeUnit({ typeId: 'fantassins', position: { q: 0, r: 0 }, owner: 0 });
     unit.defendedThisPhase = true;

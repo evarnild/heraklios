@@ -53,7 +53,7 @@ export function shuffleSeatOrder(seatOrder: readonly PlayerId[], rng: () => numb
 }
 
 /** Advances to the next phase/player, checking end conditions after each combat phase. */
-export function advancePhase(state: GameState): void {
+export function advancePhase(state: GameState, rng: () => number = Math.random): void {
   if (state.gameOver) return;
 
   if (state.phase === 'movement') {
@@ -114,7 +114,7 @@ export function advancePhase(state: GameState): void {
     // player who was about to go — this house rule is meant to vary who
     // starts each turn, not to break "everyone acts once per round."
     if (state.randomizedTurnOrder) {
-      state.seatOrder = shuffleSeatOrder(state.seatOrder);
+      state.seatOrder = shuffleSeatOrder(state.seatOrder, rng);
       // Recompute the seat to activate: the loop above found an index into
       // the OLD seatOrder, which is meaningless after reshuffling. Walk the
       // new order from its start for the first surviving (non-eliminated)
