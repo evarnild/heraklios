@@ -181,6 +181,15 @@ async function hexPoint(page: Page, hex: Hex): Promise<{ x: number; y: number }>
   return pt!;
 }
 
+/** Moves the pointer onto `hex`'s centre (a hover, no click). */
+export async function hoverHex(page: Page, hex: Hex): Promise<void> {
+  const pt = await hexPoint(page, hex);
+  const box = await page.locator('canvas').boundingBox();
+  if (!box) throw new Error('No canvas on the page');
+  await page.mouse.move(box.x + pt.x, box.y + pt.y);
+  await frames(page);
+}
+
 /** A 24×24 screenshot around a hex's centre (§30's small-region check). */
 export async function hexShot(page: Page, hex: Hex): Promise<Buffer> {
   const pt = await hexPoint(page, hex);

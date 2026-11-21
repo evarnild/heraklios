@@ -420,6 +420,11 @@ ${unitLines}` : '');
     this.hoverTooltip.setVisible(true);
   }
 
+  /** The visible hover tooltip's text, or null (the dev hook's reader, §74). */
+  tooltipText(): string | null {
+    return this.hoverTooltip?.visible ? this.hoverTooltip.text : null;
+  }
+
   private hideHexTooltip(): void {
     this.hoverTooltip?.setVisible(false);
   }
