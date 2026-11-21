@@ -1,0 +1,21 @@
+# generated-by: heraklios/intent@0.1.5
+id: 74
+slug: unit-hover-stats
+type: feature
+status: accepted
+title: Hovering a unit shows its characteristics; the Drawn view's number badge goes
+review_tier:
+intent_accepted: 2026-11-21 by-agent    # owner: "/auto 74", answering "say yes to accept it, or /auto 74 to accept it and carry it through"
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+konmari:
+auto_authorized:
+auto_round:
+auto_stopped:
+follows_up:
+links:
+  - intents/64-vector-view
+  - intents/66-board-animations
+blocked_by:
