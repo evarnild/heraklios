@@ -182,6 +182,22 @@ describe('blocked_by in the queue', () => {
     expect(data.problems).toEqual([]);
   });
 
+  it('without mainMerged, a main-sourced merged: clears the blocker and a branch-sourced one does not', () => {
+    const waits = entry(14, 'accepted', { blocked_by: ['13    x'] });
+    const onMain = entry(13, 'done', { merged: 'abc1234' }, 0, 'main');
+    const onBranch = entry(13, 'in-review', { merged: 'abc1234' }, null, 'branch');
+    expect(lineOf(formatQueue([onMain, waits]), 14)).not.toContain('blocked by');
+    expect(lineOf(formatQueue([onBranch, waits]), 14)).toContain('blocked by §13');
+  });
+
+  it('lists problems in ascending numeric id order whatever the entry order', () => {
+    const data = queueData([entry(100, 'accepted', { blocked_by: ['x    a'] }), entry(13, 'accepted', { blocked_by: ['x    b'] })]);
+    expect(data.problems).toEqual([
+      '§13: blocked_by item "x    b": "x" is not an intent id (digits).',
+      '§100: blocked_by item "x    a": "x" is not an intent id (digits).',
+    ]);
+  });
+
   it('metadata without the field prints as before', () => {
     expect(formatQueue([entry(1, 'accepted')])).not.toContain('blocked');
   });

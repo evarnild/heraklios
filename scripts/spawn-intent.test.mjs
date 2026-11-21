@@ -337,4 +337,11 @@ describe('npm run spawn and blocked_by', { timeout: 60_000 }, () => {
     const r = refused(56, 'waits-twin', '§56 is blocked by §55 (on two branches)');
     expect(r.stderr).not.toContain('broken');
   });
+
+  it('a blocker that only the main checkout working tree has is open, not unknown (spec B4)', () => {
+    writeIntent(repo, 57, 'draft'); // uncommitted: on no branch and not on main
+    commitOnMain(58, 'waits-draft', 'blocked_by:\n  - 57    draft\n');
+    const r = refused(58, 'waits-draft', '§58 is blocked by §57 (draft), not merged into main');
+    expect(r.stderr).not.toContain('broken');
+  });
 });

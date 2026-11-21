@@ -377,3 +377,24 @@ Notes:
 - Another difference from the source: `checkChange`'s JSDoc gains a
   `@param input.blockers` line (`intent-check-lib.mjs`, around line 164).
 - The `B3:` prefix is dropped from the spawn test name (spawn-intent.test.mjs).
+
+### 2026-11-21 — rework, round 2
+
+Commits: the rework commit that follows `adceb6f` (see `git log`). `npm run
+verify` green: 83 test files, 1482 tests (1478 + 4 new), 21 lint warnings,
+cap 21 unchanged.
+
+New tests and the mutant each kills (proved by copy, mutate, run the test
+file, restore by copy; one failure each, `git status --short` showed only the
+test files afterwards):
+
+| Test | Mutant it kills |
+| --- | --- |
+| `spawn-intent.test.mjs`: `intents/57-draft/` only uncommitted in the main checkout, a committed intent blocked by it: refused as open, not "broken" (spec B4) | S03: `findIntentDir(root, blockerId) !== null \|\|` removed from `exists` in `session-io.mjs` |
+| `queue-lib.test.mjs`: entries without `mainMerged`, a main-sourced `merged:` clears the blocker | Q04: fallback reduced to `e.mainMerged` |
+| the same test: a branch-sourced `merged:` does not clear it | Q03: fallback reads `isMerged(e.metadata)` regardless of source |
+| `queue-lib.test.mjs`: problem lines in ascending numeric id order (§13 before §100, entries given §100 first) | Q06: entries not sorted before the problems loop |
+
+Note on U01's fixture (round 1): `mainMerged` is the only way the queue sees
+main's `merged:` once a branch copy is picked, which is why that test uses a
+non-terminal status on main with a branch shown.
