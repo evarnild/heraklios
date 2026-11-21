@@ -6,14 +6,14 @@ status: accepted
 title: The engine can run a whole game for a host other than the Phaser scenes
 review_tier:
 intent_accepted: 2026-11-21 by-agent    # owner: "/auto 72", answering "say yes to accept it, or /auto 72 to accept it and carry it"
-spec_accepted:
+spec_accepted: 2026-11-21 by-agent    # owner: "yes"
 plan_approved:
 live_checked:
 merged:
 konmari:
 auto_authorized: 2026-11-21 by-agent    # owner: "/auto 72"
 auto_round:
-auto_stopped: spec drafted, waiting for spec_accepted
+auto_stopped:
 follows_up:
 links:
   - intents/70-unity-front-end-probe
