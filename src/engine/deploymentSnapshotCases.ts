@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import type { HexCoord } from '../data/map';
 import { defaultArmySelection, type ArmySelection } from './army';
 import { createSeededRng } from './rng';
@@ -26,10 +25,9 @@ export interface ZoneFunctions {
   legalNavalDeploymentHexes(edge: Edge, enemies: readonly HexCoord[], minGap?: number): HexCoord[];
 }
 
-const sha256 = (text: string): string => createHash('sha256').update(text).digest('hex');
-
 /** Everything the zone functions return for the pinned cases, as plain JSON. */
-export function zoneSnapshot(fns: ZoneFunctions): unknown {
+/** `sha256` is passed in so this module needs no Node built-in and stays bundle-safe. */
+export function zoneSnapshot(fns: ZoneFunctions, sha256: (text: string) => string): unknown {
   const all = fns.allHexes();
   const byEdge: Record<string, unknown> = {};
   for (const edge of EDGES) {

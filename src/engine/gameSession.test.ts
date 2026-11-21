@@ -263,6 +263,39 @@ describe('question sequences (B4, B5)', () => {
     return { a, b, c, d, attacker: enemies[0]!, state };
   }
 
+  // a and b are both defenders, queued in that order. a is boxed in and pushes
+  // b, so a takes b's original hex before b's own advance offer comes; that
+  // hex is occupied again, so no advance is offered into it. Kills removing
+  // the occupancy guard (an attacker next to it would be offered a hex a unit
+  // already stands on).
+  it('offers no advance into a defender hex that is occupied again', () => {
+    const { a, b, state } = pushPosition();
+    const e0 = state.units.find((u) => u.id === 'e0')!; // (11,4), next to both a and b
+    const session = newSession(state);
+    const pending = newPending(
+      [e0.id],
+      stepsForItems(
+        [
+          { kind: 'retreat', unitId: 'a', originalHex: { q: 10, r: 5 } },
+          { kind: 'retreat', unitId: 'b', originalHex: { q: 11, r: 5 } },
+        ],
+        'defender',
+      ),
+    );
+    sessionBeginResolution(session, pending, scripted([]));
+    const advances: Question[] = [];
+    while (session.pending) {
+      const question = sessionQuestion(session)!;
+      const answers = sessionLegalActions(session) as AnswerAction[];
+      if (question.kind === 'advance') advances.push(question);
+      const choice = question.kind === 'pushTarget' ? answers.find((x) => x.kind === 'answerPushTarget' && x.unitId === 'b')! : answers.at(-1)!;
+      sessionApply(session, choice, scripted([]));
+    }
+    expect(a.position).toEqual({ q: 11, r: 5 }); // a took b's hex
+    expect(b.position).not.toEqual({ q: 11, r: 5 });
+    expect(advances.map((q) => (q as { vacatedHex: HexCoord }).vacatedHex)).toEqual([{ q: 10, r: 5 }]);
+  });
+
   it('a push asks which friend to push, resolves the chain, then offers the advance', () => {
     const { a, b, c, attacker, state } = pushPosition();
     const cOptions = legalRetreatHexes(state, c);
@@ -472,25 +505,25 @@ describe('checks (B3, A3)', () => {
 
   // Each rejected call must leave the state and the session exactly as they
   // were: kills checking after mutating.
-  const rejects = (session: GameSession, action: SessionAction) => {
+  const rejects = (session: GameSession, action: SessionAction, message: RegExp) => {
     const before = structuredClone(session);
-    expect(() => sessionApply(session, action, scripted([1, 1, 1]))).toThrow();
+    expect(() => sessionApply(session, action, scripted([1, 1, 1]))).toThrow(message);
     expect(session).toEqual(before);
   };
 
   it('rejects a turn action while a question is open', () => {
-    rejects(withOpenQuestion(), { kind: 'endPhase' });
+    rejects(withOpenQuestion(), { kind: 'endPhase' }, /question is open/);
   });
 
   it('rejects an answer with no question open', () => {
     const session = newSession(gameWith([unit('a', 'fantassins', 10, 5)]));
-    rejects(session, { kind: 'answerAdvance', unitId: null });
+    rejects(session, { kind: 'answerAdvance', unitId: null }, /no question is open/);
   });
 
   it('rejects an answer that is not one of the open question\'s', () => {
     const session = withOpenQuestion();
-    rejects(session, { kind: 'answerRetreat', hex: { q: 500, r: 500 } });
-    rejects(session, { kind: 'answerAdvance', unitId: null });
+    rejects(session, { kind: 'answerRetreat', hex: { q: 500, r: 500 } }, /not one of/);
+    rejects(session, { kind: 'answerAdvance', unitId: null }, /not one of/);
   });
 
   it('applies a combined attack that legalActions never lists (A3)', () => {

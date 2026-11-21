@@ -247,3 +247,56 @@ describe('placements in the config', () => {
     expect((thrown as HostDeployError).seat).toBe(0);
   });
 });
+
+describe('load restores the context (H4)', () => {
+  const SEA = { q: 28, r: 6 };
+  const piece = (id: string, owner: 0 | 1, typeId: string, q: number, r: number, movementLeft = 0) => ({
+    id, owner, typeId, position: { q, r }, movementLeft, facing: 0, defendedThisPhase: false, charged: false, destroyed: false,
+  });
+
+  /** Movement phase: a ship ready to ram, a land attacker next to a defender. */
+  function savedAtStart(): string {
+    const state = buildFuzzGameState();
+    state.units = [
+      piece('ship', 0, 'galeres', SEA.q, SEA.r, 8),
+      piece('foe', 1, 'quintiremes', SEA.q + 1, SEA.r),
+      piece('att', 0, 'phalanges', 11, 5),
+      piece('def', 1, 'archers', 10, 5),
+    ];
+    state.roundLimit = null;
+    return JSON.stringify(
+      buildSavedGame({
+        savedAt: 'x', playerCount: 2, playerNames: ['P0', 'P1'], edges: ['W', 'E'], armySelections: [{}, {}],
+        combatMode: 'multi-defender', seatControls: ['human', 'human'], testMode: false,
+        gameState: state, attackedThisPhase: [], rammedThisTurn: [],
+      }),
+    );
+  }
+
+  /** Rams, ends the phase, attacks and settles; null when the dice sank something. */
+  function played(seed: number): Host | null {
+    const host = load(savedAtStart(), seed);
+    host.apply({ kind: 'ram', unitId: 'ship' });
+    host.apply({ kind: 'endPhase' });
+    host.apply({ kind: 'landAttack', attackerIds: ['att'], defenderIds: ['def'] });
+    while (host.question()) host.apply(host.legalActions()[0]!);
+    const alive = (id: string) => !host.state().units.find((u) => u.id === id)!.destroyed;
+    return alive('att') && alive('ship') && alive('foe') ? host : null;
+  }
+
+  it('brings back the attacked and rammed lists, so nobody acts twice', () => {
+    let host: Host | null = null;
+    for (let seed = 1; seed <= 60 && !host; seed++) host = played(seed);
+    expect(host, 'a seed leaves the attacker and both ships alive').not.toBeNull();
+    const saved = host!.save();
+    expect(saved.attackedThisPhase).toEqual(['att']);
+    expect(saved.rammedThisTurn).toEqual(['ship']);
+
+    const back = load(JSON.stringify(saved), 9);
+    expect(back.save().attackedThisPhase).toEqual(['att']);
+    expect(back.save().rammedThisTurn).toEqual(['ship']);
+    const legal = back.legalActions();
+    expect(legal.some((a) => a.kind === 'landAttack' && a.attackerIds.includes('att'))).toBe(false);
+    expect(legal.some((a) => a.kind === 'board' && a.attackerId === 'ship')).toBe(false);
+  });
+});

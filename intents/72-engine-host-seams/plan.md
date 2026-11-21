@@ -824,3 +824,43 @@ Divergences from the plan:
   sequencing, built on `resolveElephantDrift` and `engine/retreat.ts`, so it
   stays a real comparison now that the harness's own wrappers use the session.
 - The live check (AC7) is still owed to the owner.
+
+### 2026-11-21 - rework, round 1 (implementer)
+
+Review `b36f69e` asked for tests for four surviving mutants and two LOW items.
+No source file under `src/` changed except the hashing move below. Each mutant
+was proved killed by backing the file up by copy, applying it, running the
+test file, restoring by copy, and checking `git status --short` showed only
+test files.
+
+New tests, each with the mutant it kills:
+- `gameSession.test.ts` "offers no advance into a defender hex that is occupied
+  again" (CR21). The sequence: defenders a and b are both queued, a is boxed in
+  and pushes b, so a takes b's original hex before b's own advance offer; an
+  attacker stands next to that hex. The test asserts the only advance question
+  is for a's hex. Kills removing `if (unitAt(game, step.hex)) return null;`
+  in `combatResolution.ts`. (Pushing a defender into a sibling defender's hex is
+  real, so no other sequence was needed; the items are queued with
+  `stepsForItems` as `pendingFromAttack` would build them.)
+- `sessionAgents.test.ts` "maps the second listed subset to that subset" and
+  "maps a non-minimal superset to the first listed subset it contains" (SA2).
+  Forces 4, 4, 2 against 5 list {a,b}, {a,c}, {b,c}; a stub agent returns {a,c},
+  then all three; the destroyed units are {a,c} and {a,b}. Kills `.every` ->
+  `.some` in `sacrificeAnswer`.
+- `sessionAgents.test.ts` "makes settleWithAgent reject" (SA4). The agent's
+  `chooseRetreat` rejects on a one-option (forced) retreat. Kills removing
+  `await Promise.all(kept)`.
+- `host.test.ts` "brings back the attacked and rammed lists, so nobody acts
+  twice" (H4). A ram, `endPhase`, then a land attack are played through the
+  host, saved and loaded: both lists come back equal, and `legalActions()`
+  offers neither the attacker nor a `board` for the ship that rammed. Kills
+  `load` restoring `attackedThisPhase: []` and, separately,
+  `rammedThisTurn: []`.
+- `gameSession.test.ts` `rejects` now matches `/question is open/`,
+  `/no question is open/` and `/not one of/` (kills changing those messages);
+  `deployment.test.ts` already matched `/rng/` and now kills changing its
+  message.
+
+LOW: `deploymentSnapshotCases.ts` no longer imports `node:crypto`; `zoneSnapshot`
+takes the hash function, and the two tests that call it pass a `node:crypto`
+one. The fixtures are unchanged.

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { MAP_TERRAIN, hexKey } from '../data/map';
 import { canEnterTerrain } from '../data/terrain';
@@ -19,6 +20,7 @@ import { createSeededRng } from './rng';
 import { createInitialState } from './turnManager';
 import { maxEquipmentPointsForType, unitCategory, type GameState, type Player, type PlayerId } from './state';
 
+const sha256 = (text: string): string => createHash('sha256').update(text).digest('hex');
 const json = (value: unknown): unknown => JSON.parse(JSON.stringify(value));
 
 function stateFor(...edges: Array<'N' | 'S' | 'E' | 'W'>): GameState {
@@ -37,7 +39,7 @@ describe('the deployment zones (B9)', () => {
   // fixture was written from `ui/mapBounds.ts` before the rules moved.
   it('return what ui/mapBounds returned before the move, for every edge and case', () => {
     expect(
-      json(zoneSnapshot({ allHexes, deploymentBand, navalDeploymentBand, legalDeploymentHexes, legalNavalDeploymentHexes })),
+      json(zoneSnapshot({ allHexes, deploymentBand, navalDeploymentBand, legalDeploymentHexes, legalNavalDeploymentHexes }, sha256)),
     ).toEqual(zoneFixture);
   });
 });
