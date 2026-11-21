@@ -73,16 +73,33 @@ function sharesAnyProjector(a: ReadonlySet<string>, b: ReadonlySet<string>): boo
  * remain fully impassable, exactly as before.
  */
 export function reachableHexes(state: GameState, unit: Unit): Map<string, number> {
-  const category = unitCategory(unit.typeId);
-  if (category === 'naval') {
+  if (unitCategory(unit.typeId) === 'naval') {
     const naval = reachableNavalHexes(state, unit);
     return new Map(Array.from(naval, ([key, { cost }]) => [key, cost]));
   }
+  return searchLand(state, unit).reachable;
+}
+
+/** What a land search found: the destinations and costs `reachableHexes`
+ * returns, and the predecessor of each hex it reached (§66: the path a move
+ * takes is read back from `parents`; the search itself is unchanged). */
+export interface LandSearch {
+  /** hexKey -> cost, only legal landing hexes. */
+  reachable: Map<string, number>;
+  /** hexKey -> the hexKey it was entered from (the start has none). Includes
+   * traversed friendly-occupied hexes, which `reachable` omits. */
+  parents: Map<string, string>;
+}
+
+/** The search behind `reachableHexes`, for a land (non-naval) unit. */
+export function searchLand(state: GameState, unit: Unit): LandSearch {
+  const category = unitCategory(unit.typeId);
   const isGalley = unit.typeId === 'galeres';
   const enemyZoc = hexesUnderZoc(state, unit.owner);
   const startKey = hexKey(unit.position);
 
   const costSoFar = new Map<string, number>([[startKey, 0]]);
+  const parents = new Map<string, string>();
   // Hexes reached above that are occupied (necessarily by a friendly unit —
   // an enemy-occupied hex is never entered into `costSoFar` at all) and so
   // must be stripped from the returned destination map at the end, even
@@ -132,6 +149,7 @@ export function reachableHexes(state: GameState, unit: Unit): Map<string, number
       const existing = costSoFar.get(nextKey);
       if (existing === undefined || newCost < existing) {
         costSoFar.set(nextKey, newCost);
+        parents.set(nextKey, currentKey);
         frontier.push(next);
         // Occupancy is a property of the hex, not of the path taken to
         // reach it, so this is idempotent across re-discoveries of `next`.
@@ -142,7 +160,7 @@ export function reachableHexes(state: GameState, unit: Unit): Map<string, number
 
   costSoFar.delete(startKey);
   for (const key of occupiedKeys) costSoFar.delete(key);
-  return costSoFar;
+  return { reachable: costSoFar, parents };
 }
 
 /**
@@ -254,7 +272,7 @@ export function terrainMoveCost(hex: HexCoord): number {
  * if the two hexes aren't collinear along one of the 6 hex directions (or
  * are the same hex).
  */
-function straightLineDirection(from: HexCoord, to: HexCoord): HexCoord | undefined {
+export function straightLineDirection(from: HexCoord, to: HexCoord): HexCoord | undefined {
   const distance = hexDistance(from, to);
   if (distance === 0) return undefined;
   return DIRECTIONS.find((dir) => hexEquals(hexAdd(from, { q: dir.q * distance, r: dir.r * distance }), to));

@@ -30,6 +30,12 @@ export default defineConfig({
     viewport: { width: 1100, height: 750 },
     browserName: 'chromium',
     trace: 'retain-on-failure',
+    // §66: every scenario runs with the Drawn view's animations Off, so the
+    // suite is as fast as before; the animation scenario sets its own speed.
+    storageState: {
+      cookies: [],
+      origins: [{ origin: `http://${HOST}:${PORT}`, localStorage: [{ name: 'heraklios.animationSpeed', value: 'off' }] }],
+    },
   },
   webServer: {
     command: `npx vite --port ${PORT} --strictPort --host ${HOST}`,

@@ -327,8 +327,7 @@ export class PlacementScene extends Phaser.Scene {
         owner: u.owner,
         position: u.position,
         facing: getUnitType(u.typeId).domain === 'naval' ? u.facing : undefined,
-      })),
-    );
+      })), 'snap'); // Placement never animates (§66 B13)
   }
 
   /** Rebuilds the marker/arrow overlay from state after a restore. Only this
@@ -565,7 +564,7 @@ export class PlacementScene extends Phaser.Scene {
   private finishPlayer(): void {
     this.cancelPendingShip();
     const nextIndex = this.playerIndex + 1;
-    this.mapView.setUnits([]);
+    this.mapView.setUnits([], 'snap');
     if (nextIndex < session.playerCount) {
       this.scene.start('Placement', { playerIndex: nextIndex });
     } else {

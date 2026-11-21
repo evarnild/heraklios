@@ -55,9 +55,27 @@ export interface NavalState {
  * genuinely reachable STOPPING states.
  */
 export function reachableNavalStates(state: GameState, unit: Unit): Map<string, NavalState> {
+  return searchNaval(state, unit).best;
+}
+
+/** What the naval search found: the states `reachableNavalStates` returns,
+ * and the state each was reached from (§66: read back as a ship's path). */
+export interface NavalSearch {
+  best: Map<string, NavalState>;
+  /** stateKey -> the stateKey it was reached from (the start has none). */
+  parents: Map<string, string>;
+}
+
+/** `stateKey` for callers that walk `NavalSearch.parents`. */
+export function navalStateKey(hex: HexCoord, facing: number): string {
+  return stateKey(hex, facing);
+}
+
+export function searchNaval(state: GameState, unit: Unit): NavalSearch {
   const isGalley = unit.typeId === 'galeres';
   const start: NavalState = { hex: unit.position, facing: unit.facing, cost: 0 };
   const best = new Map<string, NavalState>([[stateKey(start.hex, start.facing), start]]);
+  const parents = new Map<string, string>();
   const queue: NavalState[] = [start];
 
   while (queue.length > 0) {
@@ -85,12 +103,13 @@ export function reachableNavalStates(state: GameState, unit: Unit): Map<string, 
       const existing = best.get(key);
       if (!existing || candidate.cost < existing.cost) {
         best.set(key, candidate);
+        parents.set(key, stateKey(current.hex, current.facing));
         queue.push(candidate);
       }
     }
   }
 
-  return best;
+  return { best, parents };
 }
 
 /**

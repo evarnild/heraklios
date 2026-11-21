@@ -190,7 +190,7 @@ Re-read on `main` at `a5c3a90`.
   the button touch Phaser. Dependencies stay `scenes → ui → engine`
   (principle 2). No new layer, no new dependency.
 - **Budget lines:**
-  - `budget: src/scenes/BoardScene.ts +45: §66 passes a cue with each committed action, snaps on undo/redo/restore, waits on the view in the AI driver, and places the speed button; the logic is in engine/actionCue.ts and ui/ modules`
+  - budget: src/scenes/BoardScene.ts +4: §66 passes a cue with each committed action, snaps on undo/redo/restore and places the speed button; the logic is in engine/actionCue.ts and ui/ modules
 
 ## Subtasks
 
@@ -321,3 +321,125 @@ Re-read on `main` at `a5c3a90`.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-11-21 — all eight subtasks
+
+Commits: `107f249` (pre-change snapshot of the searches, before any edit),
+`9be04ea` (subtask 1: paths), `1c45c56` (2 and 3: cues, speed), `669c25f` (4:
+planner), `2cacabb` (5: animator and BoardView seam), `14e7426` (6: scene
+wiring and speed button), `c497698` (7: e2e), and the README/Progress commit
+(8).
+
+Shipped: B1-B17 as specified. `reachableHexes` and `reachableNavalStates` now
+share internal `searchLand`/`searchNaval` that also record predecessors; their
+returns are pinned by a fingerprint snapshot taken in `107f249`, before the
+edit (`movementSearch.test.ts`, `movementCases.ts`, 3 armies x 6 walked
+seeds). `movePath.ts` gives `landMovePath` (charge line when `evaluateCharge`
+is non-null) and `navalMovePath`/`navalStatePath`; `actionCue.ts` the cues;
+`animationSpeed.ts`, `animationPlan.ts`, `drawnMotions.ts`, `drawnAnimator.ts`,
+`speedToggle.ts` the UI side. The window capture listeners (pointerdown,
+keydown) do run before Phaser's handlers: the e2e Slow scenario clicks another
+unit mid-move and the mover is on its final hex when the selection lands.
+
+Tests: 86 files, 1455 tests (from 83 / 1427 at the first commit's baseline
+of the branch: +8 cue, +8 speed, +12 planner, +5 path, +1 snapshot, rest are
+counted in those files). `npm run verify` green, lint 21 warnings = the cap
+(no new warning; `devHook.installDevHook` was kept under 80 lines by a helper).
+`BoardScene.ts` 3173 -> 3177 (+4), well inside the +45 the plan allows; the cue
+keeping lives in `ui/cueKeeper.ts` (`CueKeeper`: `apply` = `applyAction` plus the
+cue, `driftMove`/`driftClash`, `take`), not in the scene. `check:intent` still
+FAILS on this, and it needs a plan amendment, not code: the plan's budget line is
+wrapped in backticks (`` `budget: src/scenes/BoardScene.ts +45: ...` ``), and
+`scripts/size-budget-lib.mjs`'s `BUDGET_RE` (`^[\s>*-]*budget:`) does not accept a
+leading backtick, so the line is never read and any ceiling raise is refused. I
+set `scripts/size-baseline.json` to 3177 (the measured size); the amended line
+must read `budget: src/scenes/BoardScene.ts +4: <reason>` (no backticks) and the
+checker wants it to match the growth exactly (it also refuses a ceiling above
+the measured size).
+
+e2e: before 23 passed in 1m21.6s (measured while I was also running vitest and
+editing the worktree, so it is a pessimistic baseline); after 27 passed (23 +
+the 4 new scenarios) in 1m10.5s and, on the final code, 1m24.2s: run-to-run
+noise is about 15 s on this machine, so the suite did not grow beyond it (AC8). Every other scenario runs
+at Off through `storageState` in `playwright.config.ts`.
+
+Divergences from the plan, none of design:
+- `driftCue(event)` became `driftMoveCue(elephantId, hex)` and
+  `driftClashCue(elephantId, hex)`: the drift hooks the scene uses
+  (`onDriftMoved`, `onCombat`) pass those arguments, not a `DriftEvent`.
+- `onCombat` now also calls `renderAllUnits()` (the plan said it only logs): the
+  trample's clash cue would otherwise be overwritten by the next beat's
+  `onDriftMoved` cue before any render. The result shows after the clash, as B4.
+- `applyWithCue` is `CueKeeper.apply` (a class in `ui/`), so the scene only holds
+  `private readonly cues`; the AI driver's wait on the view is inside `pause`
+  (its one caller) rather than a new line in `runAiSeats`.
+- The speed button sits above the view toggle (same x, one row up), not beside
+  it: the Standard-view label is wider than the Drawn-view one and overlapped a
+  button placed beside it.
+- `createViewToggle` gained an optional `onChange` callback so the speed button
+  hides in the Standard view.
+- `devHook` gained `animationSpeed()` and `unitCanvas(id)`; `idle()` was left
+  counting tweens only (each animation step is one counter tween and the next
+  step starts in the same callback, so there is no gap).
+- A watchdog (2x the queued length + 1 s) finishes a queue that never drains,
+  such as a hidden tab pausing Phaser's clock; the animator also ends on the
+  scene's `shutdown`.
+
+### 2026-11-21 — round 1 rework
+
+Corrections to the notes above: the budget line is now `+4` by the owner's
+amendment `c57684c`, so `check:intent` passes (the "still FAILS" note in the
+first entry is stale). `scripts/size-baseline.json` BoardScene stays 3177;
+PlacementScene dropped 575 -> 574 (the new `'snap'` argument merged two lines).
+
+Owner decision (a), 2026-11-21 ("/auto 66 (a)"): `onCombat` keeps its earlier
+trample render (`cues.driftClash`) in both views. The result of a trample is
+now drawn at its own beat in the Standard view too; before it showed only
+after the next continue, the stale frame `drift.ts:614-620` calls a bug. A
+departure from spec B17, accepted. Recorded as an interpretation comment at the
+hook in `BoardScene.ts`; spec.md is not edited.
+
+Changes: Placement (`drawPlacedUnits`, and the `setUnits([])` on handoff) now
+passes `'snap'`, so it never animates in the Drawn view (B13). No pure seam
+exists for it (the choice is inside `DrawnUnits`, which needs Phaser), so it has
+no unit test; the `e2e` Placement scenarios run at Off and do not cover it.
+
+New tests and the mutant each kills (proved: back up by copy, mutate, run the
+file, restore by copy, `git status --short` clean):
+- `src/ui/cueKeeper.test.ts` (5 tests): K1 (`take` keeps the cue, drop
+  `this.pending = null`) KILLED by "take returns the cue once and then nothing";
+  K2 (cue derived after the apply, swapped order; also a null cue) KILLED by
+  "apply derives the cue from the state before the action" and the ram test;
+  K3 (no `this.render()` in `driftClash`) KILLED by "driftClash renders while its
+  clash cue is still pending".
+- `movePath.test.ts` "two contacts at one hex ... cheaper one": M7 (contact
+  sort reversed) KILLED.
+- `actionCue.test.ts` "a boarding that sinks the loser shakes nobody": C11
+  (shaking a ship that sank) KILLED.
+- `movementSearch.test.ts` "reachableHexes for a ship matches the naval search
+  costs" (separate from the snapshot): E2 (naval branch of `reachableHexes`,
+  cost + 1) KILLED.
+Not run: P1-P15, S1-S6, C14, C15 (optional; scope here is the listed tests).
+
+### 2026-11-21 — round 2 rework
+
+Tests only plus two small changes. `drawnAnimator.ts`'s watchdog now calls
+`planDuration(this.queue)` instead of repeating the reduce (P13's second half);
+the README's "Animations in the Drawn view" says Placement never animates.
+Tests: 87 files, 1467 tests (was 1463); `npm run e2e` 27 passed (46 s).
+
+New `animationPlan.test.ts` cases and the mutant each kills (proved by copy,
+mutate, run the file, restore by copy, `git status --short` showing only the
+intended edits):
+- "the clash plays before the moves": P14 (`steps.unshift` for the moves) KILLED.
+- "a plan of several steps lasts the sum of its step maxima" (clash 350 + slide
+  180 + fade 300 = 830): P13 (`planDuration` as one max) KILLED.
+- "a clash by a unit that is not drawn plays no lunge": P8 (clash filter
+  dropped) KILLED.
+- "a shake for a unit that is gone plays the fade only": P11 (shake filter
+  dropped) KILLED.
+Optional item 4 (an e2e scenario showing Placement never animates in the Drawn
+view): not added. `'snap'` is passed inside `DrawnUnits` and no Placement
+action moves a drawn unit between two committed drawings in a way that would
+show a tween only on a regression without a larger scenario; the unit-level
+guard is the round 1 `'snap'` change itself.

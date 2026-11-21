@@ -47,6 +47,7 @@ export const fr: Messages = {
     abandon: 'Abandonner',
     switchToDrawn: '🗺 Vue dessinée',
     switchToStandard: '🗺 Vue standard',
+    animationSpeed: { normal: '⏩ Vitesse : normale', slow: '⏩ Vitesse : lente', off: '⏩ Vitesse : coupée' },
     undo: '↶ Annuler',
     redo: '↷ Rétablir',
     undoWith: (label) => `↶ Annuler : ${label}`,

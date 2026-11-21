@@ -1,5 +1,6 @@
 import type Phaser from 'phaser';
 import type { HexCoord } from '../data/map';
+import type { ActionCue } from '../engine/actionCue';
 
 /**
  * One unit as a view draws it. Units are keyed by `id`, not by hex, so a view
@@ -40,6 +41,15 @@ export function ghostDrawing(ships: readonly FacingShip[]): UnitDrawing | null {
 }
 
 /**
+ * How a `setUnits` reaches the new drawing (§66): `null` is the default (the
+ * Drawn view animates the difference between what it shows and what is wanted,
+ * unit by unit); an `ActionCue` adds what a drawing cannot carry (a path, a
+ * clash, a shake); `'snap'` draws at once after finishing any animation (undo,
+ * redo, load, start). The Standard view ignores it.
+ */
+export type UnitMotion = ActionCue | 'snap' | null;
+
+/**
  * What a scene asks a board view to draw: the drawing half of the old
  * `MapView`. The shared surface (`MapView`: origin, cameras, drag, zoom,
  * hit-testing, hover, tooltip) is not part of it; a second view implements
@@ -47,7 +57,13 @@ export function ghostDrawing(ships: readonly FacingShip[]): UnitDrawing | null {
  */
 export interface BoardView {
   /** Draws exactly these units, reconciled by id (see `reconcileUnits`). */
-  setUnits(units: readonly UnitDrawing[]): void;
+  setUnits(units: readonly UnitDrawing[], motion?: UnitMotion): void;
+
+  /** Brings every unit to its final drawing at once, the whole animation queue
+   * (B9). Optional: a view that does not animate has nothing to finish. */
+  finishAnimations?(): void;
+  /** Resolves when no animation is playing or queued; at once if none (B11). */
+  animationsSettled?(): Promise<void>;
 
   highlightHexes(hexes: HexCoord[], color: number, alpha?: number): void;
   highlightHexGroups(groups: { hexes: HexCoord[]; color: number; alpha?: number }[]): void;

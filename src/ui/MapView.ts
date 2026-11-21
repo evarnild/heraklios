@@ -7,7 +7,7 @@ import { formatHexTooltip } from './hexTooltip';
 import { hexAtPoint } from './hexHitTest';
 import { StandardBoardView } from './standardBoardView';
 import { DrawnBoardView } from './drawnBoardView';
-import type { BoardView, FacingShip, UnitDrawing, ViewHost } from './boardView';
+import type { BoardView, FacingShip, UnitDrawing, UnitMotion, ViewHost } from './boardView';
 import { boardViewKind } from './boardViewPreference';
 import type { BoardViewKind } from './boardViewPreference';
 import { ViewDrawingState } from './viewDrawingState';
@@ -159,6 +159,7 @@ export class MapView {
    * and the new view is brought to what the old one showed (B2). */
   setViewKind(kind: BoardViewKind): void {
     if (kind === this.kind) return;
+    this.boardView.finishAnimations?.();
     const next = this.createView(kind);
     this.drawing.replay(next);
     this.boardView.destroy();
@@ -288,9 +289,15 @@ export class MapView {
     return this.boardView;
   }
 
-  setUnits(units: readonly UnitDrawing[]): void {
+  /** `motion` (§66) tells the Drawn view how to reach the new drawing; see `UnitMotion`. */
+  setUnits(units: readonly UnitDrawing[], motion?: UnitMotion): void {
     this.drawing.setUnits(units);
-    this.boardView.setUnits(units);
+    this.boardView.setUnits(units, motion);
+  }
+
+  /** Resolves when no unit animation is playing or queued. */
+  animationsSettled(): Promise<void> {
+    return this.boardView.animationsSettled?.() ?? Promise.resolve();
   }
 
   highlightHexes(hexes: HexCoord[], color: number, alpha = 0.45): void {

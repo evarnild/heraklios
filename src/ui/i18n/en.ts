@@ -55,6 +55,7 @@ export const en = {
     abandon: 'Abandon',
     switchToDrawn: '🗺 Drawn view',
     switchToStandard: '🗺 Standard view',
+    animationSpeed: { normal: '⏩ Speed: Normal', slow: '⏩ Speed: Slow', off: '⏩ Speed: Off' },
     undo: '↶ Undo',
     redo: '↷ Redo',
     undoWith: (label: string) => `↶ Undo: ${label}`,

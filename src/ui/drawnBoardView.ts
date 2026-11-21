@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import type { HexCoord } from '../data/map';
 import { ghostDrawing } from './boardView';
-import type { BoardView, FacingShip, UnitDrawing, ViewHost } from './boardView';
+import type { BoardView, FacingShip, UnitDrawing, UnitMotion, ViewHost } from './boardView';
 import { DrawnOverlays } from './drawnOverlays';
 import { DrawnUnits } from './drawnUnits';
 import { bakeLandscape } from './landscape/paintLandscape';
@@ -21,10 +21,11 @@ export class DrawnBoardView implements BoardView {
   private landscape: Phaser.GameObjects.RenderTexture;
   private units: DrawnUnits;
   private overlays: DrawnOverlays;
+  private pendingArrow: { hex: HexCoord; facing: number; colorHex: string } | null = null;
 
   constructor(host: ViewHost) {
     this.landscape = bakeLandscape(host.scene, host.toScreen({ q: 0, r: 0 }));
-    this.units = new DrawnUnits(host);
+    this.units = new DrawnUnits(host, () => this.showPendingArrow());
     this.overlays = new DrawnOverlays(host);
   }
 
@@ -34,8 +35,16 @@ export class DrawnBoardView implements BoardView {
     return [this.landscape, ...this.units.objects(), ...this.overlays.objects()];
   }
 
-  setUnits(units: readonly UnitDrawing[]): void {
-    this.units.setUnits(units);
+  setUnits(units: readonly UnitDrawing[], motion?: UnitMotion): void {
+    this.units.setUnits(units, motion);
+  }
+
+  finishAnimations(): void {
+    this.units.finishAnimations();
+  }
+
+  animationsSettled(): Promise<void> {
+    return this.units.animationsSettled();
   }
 
   highlightHexes(hexes: HexCoord[], color: number, alpha = 0.45): void {
@@ -78,12 +87,26 @@ export class DrawnBoardView implements BoardView {
     return this.units.inspect();
   }
 
+  /** The arrow waits for the elephant's slide to end (B4): while an animation
+   * plays it is held and shown when the queue drains. */
   setDriftArrow(hex: HexCoord, facing: number, colorHex: string): void {
+    if (this.units.animating) {
+      this.pendingArrow = { hex, facing, colorHex };
+      return;
+    }
+    this.pendingArrow = null;
     this.overlays.setDriftArrow(hex, facing, colorHex);
   }
 
   clearDriftArrow(): void {
+    this.pendingArrow = null;
     this.overlays.clearDriftArrow();
+  }
+
+  private showPendingArrow(): void {
+    const a = this.pendingArrow;
+    this.pendingArrow = null;
+    if (a) this.overlays.setDriftArrow(a.hex, a.facing, a.colorHex);
   }
 
   setChoiceLabels(labels: readonly { hex: HexCoord; text: string }[]): void {

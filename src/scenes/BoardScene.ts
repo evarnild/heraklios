@@ -65,7 +65,7 @@ import {
 } from '../engine/combat';
 import { resolveElephantDrift } from '../engine/drift';
 import { History } from '../engine/history';
-import { hexAdd, hexKey, DIRECTIONS, facingForDirection } from '../engine/hex';
+import { hexAdd, hexKey, parseHexKey, DIRECTIONS, facingForDirection } from '../engine/hex';
 import {
   unitType,
   currentAttack,
@@ -79,7 +79,8 @@ import { createLogPanel, type LogPanel } from '../ui/logPanel';
 import { LogHistory, logPanelBounds, type LogContext } from '../ui/logHistory';
 import type { HexCoord } from '../data/map';
 import { RATIO_COLUMNS } from '../data/combatTable';
-import { createViewToggle } from '../ui/viewToggle';
+import { createViewControls } from '../ui/speedToggle';
+import { CueKeeper } from '../ui/cueKeeper';
 import {
   rammingSuccessRange,
   fullRammingSuccessRange,
@@ -301,8 +302,9 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
           this.driftArrowFacing = facingForDirection(direction);
           this.renderAllUnits();
         },
-        onDriftMoved: (drifting, _hex) => {
+        onDriftMoved: (drifting, hex) => {
           this.driftArrowElephant = drifting;
+          this.cues.driftMove(drifting.id, hex);
         },
         onNarrate: (event) => {
           const line = formatDriftEvent(event);
@@ -311,6 +313,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         onRender: () => this.renderAllUnits(),
         onStep: this.driftOnStepHook(),
         onCombat: (detail, outcome, drifting, occupant, hex) => {
+          this.cues.driftClash(drifting.id, hex); // INTERPRETATION (§66, owner decision (a) 2026-11-21): renders now, so the trample's result is drawn at its own beat in BOTH views (Standard used to wait for the next continue: the stale frame drift.ts:614-620 calls a bug); departs from spec B17, accepted
           this.appendLine(messages().log.tramples(nameOf(drifting), nameOf(occupant), hex.q, hex.r));
           this.appendLine(
             this.formatCombatOutcome(
@@ -764,7 +767,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       .setDepth(30)
       .setInteractive({ useHandCursor: true });
     this.abandonBtn.on('pointerdown', () => this.confirmAbandon());
-    const viewToggle = createViewToggle(this, this.abandonBtn.x + this.abandonBtn.width + 8, height - 136, this.mapView);
+    const viewButtons = createViewControls(this, this.abandonBtn.x + this.abandonBtn.width + 8, height - 136, this.mapView);
 
     // Mode C (plan.md §9.2.1): irreversible, so it goes through the same
     // confirm dialog as Abandon — but unlike Abandon it does NOT end the game
@@ -871,7 +874,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       saveLoadBtn,
       this.tablesBtn,
       this.abandonBtn,
-      viewToggle,
+      ...viewButtons,
       this.endGameBtn,
       this.pauseBtn,
       this.statusText,
@@ -901,7 +904,8 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.rammedThisTurn.clear();
   }
 
-  private renderAllUnits(): void {
+  private readonly cues = new CueKeeper(() => this.renderAllUnits()); // §66: the cue of the action just applied
+  private renderAllUnits(snap = false): void {
     const ships: { hex: HexCoord; facing: number; playerIndex: number }[] = [];
     const drawings: UnitDrawing[] = [];
     for (const u of this.state().units) {
@@ -912,7 +916,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         ships.push({ hex: u.position, facing: u.facing, playerIndex: u.owner });
       }
     }
-    this.mapView.setUnits(drawings);
+    this.mapView.setUnits(drawings, snap ? 'snap' : this.cues.take()); // snap: undo, redo, load (B7)
     this.mapView.setFacingIndicators(ships);
     // The elephant drift-direction arrow (plan.md §21) — read from scene
     // state rather than passed in, so EVERY render (not just the ones an
@@ -987,7 +991,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.buildSeatAgents();
     this.clearNavalMovementControls();
     this.mapView.clearHighlights();
-    this.renderAllUnits();
+    this.renderAllUnits(true);
     this.refreshStatus();
     this.refreshUndoRedoButtons();
     this.log(messages().log.gameLoaded);
@@ -1241,7 +1245,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.advanceOfferQueue = [];
     this.navalContacts = [];
 
-    this.renderAllUnits();
+    this.renderAllUnits(true);
     this.refreshStatus();
     if (this.selected) {
       this.selectForMovement(this.selected); // re-highlights reachable hexes
@@ -1544,7 +1548,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         const movedName = nameOf(this.selected);
         this.recordAction(messages().actions.move(movedName));
         const action: Action = { kind: 'landMove', unitId: this.selected.id, to: hex };
-        const result = applyAction(state, action);
+        const result = this.cues.apply(state, action);
         this.reportAction(action);
         if (result.charged) this.log(messages().log.charges(movedName));
         this.renderAllUnits();
@@ -1582,7 +1586,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     const [nameA, nameB] = [nameOf(selected), nameOf(other)];
     this.recordAction(messages().actions.swap(nameA, nameB));
     const action: Action = { kind: 'landSwap', unitId: selected.id, otherId: other.id };
-    applyAction(state, action);
+    this.cues.apply(state, action);
     this.reportAction(action);
     this.log(messages().log.swap(nameA, nameB));
     this.renderAllUnits();
@@ -1599,7 +1603,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.clearNavalMovementControls();
     const reachable = reachableHexes(this.state(), unit);
     this.mapView.highlightHexGroups([
-      { hexes: Array.from(reachable.keys()).map(parseKey), color: 0x4aa6ff, alpha: 0.35 },
+      { hexes: Array.from(reachable.keys()).map(parseHexKey), color: 0x4aa6ff, alpha: 0.35 },
       // §54: friends this unit can swap with, in their own colour.
       { hexes: this.swapPartners(unit).map((u) => u.position), color: 0x4ae08a, alpha: 0.55 },
     ]);
@@ -1663,7 +1667,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       (k) => k !== forwardKey && !contactHexKeys.has(k),
     );
     if (autoPathHexes.length > 0) {
-      groups.push({ hexes: autoPathHexes.map(parseKey), color: 0x2ad6c8, alpha: 0.16 });
+      groups.push({ hexes: autoPathHexes.map(parseHexKey), color: 0x2ad6c8, alpha: 0.16 });
     }
     if (reachable.has(forwardKey)) {
       groups.push({
@@ -1674,12 +1678,12 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     }
     const distantContactHexes = Array.from(contactHexKeys).filter((k) => k !== forwardKey || !forwardIsContact);
     if (distantContactHexes.length > 0) {
-      groups.push({ hexes: distantContactHexes.map(parseKey), color: 0xff6a2a, alpha: 0.18 });
+      groups.push({ hexes: distantContactHexes.map(parseHexKey), color: 0xff6a2a, alpha: 0.18 });
     }
     this.mapView.highlightHexGroups(groups);
     this.mapView.setRangeLabels(
       Array.from(reachable.entries()).map(([key, info]) => ({
-        hex: parseKey(key),
+        hex: parseHexKey(key),
         value: ship.movementLeft - info.cost,
       })),
     );
@@ -1734,7 +1738,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     }
     this.recordAction(messages().actions.turn(nameOf(ship)));
     const action: Action = { kind: 'navalRotate', unitId: ship.id, direction };
-    applyAction(this.state(), action);
+    this.cues.apply(this.state(), action);
     this.reportAction(action);
     this.renderAllUnits();
     this.refreshNavalMovementControls(ship);
@@ -1797,7 +1801,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       const action: Action = { kind: 'navalMove', unitId: ship.id, to: hex, facing: ship.facing };
       if (contact) {
         this.recordAction(messages().actions.moveIntoContact(nameOf(ship)));
-        applyAction(state, action);
+        this.cues.apply(state, action);
         this.reportAction(action);
         this.renderAllUnits();
         this.promptRam(ship, contact.target, contact.bonus);
@@ -1806,7 +1810,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       const dest = reachableNavalHexes(state, ship).get(hexKey(hex));
       if (!dest) return;
       this.recordAction(messages().actions.move(nameOf(ship)));
-      applyAction(state, action);
+      this.cues.apply(state, action);
       this.reportAction(action);
       this.renderAllUnits();
       this.refreshNavalMovementControls(ship);
@@ -1821,7 +1825,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     if (!resolved) return;
     this.recordAction(messages().actions.move(nameOf(ship)));
     const action: Action = { kind: 'navalMove', unitId: ship.id, to: resolved.to, facing: resolved.facing };
-    applyAction(state, action);
+    this.cues.apply(state, action);
     this.reportAction(action);
     this.renderAllUnits();
     this.refreshNavalMovementControls(ship);
@@ -1910,7 +1914,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // case — so what's left here IS that unused amount).
     const unusedMovement = attacker.movementLeft;
     const action: Action = { kind: 'ram', unitId: attacker.id };
-    const result = applyAction(this.state(), action, this.diceRng);
+    const result = this.cues.apply(this.state(), action, this.diceRng);
     this.reportAction(action);
     this.rammedThisTurn.add(attacker.id);
     const effectiveRange = rammingSuccessRange(attackerType, defenderType, result.bonus);
@@ -2548,7 +2552,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         .map((id) => state.units.find((u) => u.id === id))
         .filter((u): u is Unit => u !== undefined);
       for (const id of action.attackerIds) this.attackedThisPhase.add(id);
-      const { detail, outcome, attackers: attackersFromThisCombat, defenderOriginalHexes } = applyAction(
+      const { detail, outcome, attackers: attackersFromThisCombat, defenderOriginalHexes } = this.cues.apply(
         state,
         action,
         this.diceRng,
@@ -2856,7 +2860,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // this scene would risk silently desyncing from whatever the engine
     // actually resolved against (see plan.md §11.5's engine/presentation
     // boundary).
-    const { dieRoll, result, attackForce, defenseForce, columnIndex } = applyAction(
+    const { dieRoll, result, attackForce, defenseForce, columnIndex } = this.cues.apply(
       this.state(),
       action,
       this.diceRng,
@@ -3054,12 +3058,12 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     }
   }
 
-  /** `setTimeout` rather than Phaser's `time.delayedCall`: a scene timer is
-   * destroyed on shutdown and would leave this promise pending forever, which
+  /** Waits for the action's animation to settle (§66 B11), then `ms`: `setTimeout`
+   * rather than Phaser's `time.delayedCall`: a scene timer is destroyed on shutdown and would leave this promise pending forever, which
    * would strand the driver loop mid-turn instead of letting it reach its
    * next `aiRunToken` check and exit cleanly. */
   private pause(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return this.mapView.animationsSettled().then(() => new Promise((resolve) => setTimeout(resolve, ms)));
   }
 
   /**
@@ -3080,7 +3084,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       case 'landMove':
       case 'navalMove': {
         const unit = findUnit(action.unitId);
-        applyAction(state, action, this.diceRng);
+        this.cues.apply(state, action, this.diceRng);
         this.reportAction(action);
         this.renderAllUnits();
         if (unit) this.log(messages().log.computerMoves(seatName, nameOf(unit), action.to.q, action.to.r));
@@ -3090,7 +3094,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       // §59: computer seats choose swaps (at any difficulty) when the option is on.
       case 'landSwap': {
         const [a, b] = [findUnit(action.unitId), findUnit(action.otherId)];
-        applyAction(state, action, this.diceRng);
+        this.cues.apply(state, action, this.diceRng);
         this.reportAction(action);
         this.renderAllUnits();
         if (a && b) this.log(messages().log.computerSwaps(seatName, nameOf(a), nameOf(b)));
@@ -3099,7 +3103,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
 
       case 'navalRotate': {
         const unit = findUnit(action.unitId);
-        applyAction(state, action, this.diceRng);
+        this.cues.apply(state, action, this.diceRng);
         this.reportAction(action);
         this.renderAllUnits();
         if (unit) this.log(messages().log.computerTurns(seatName, nameOf(unit)));
@@ -3153,11 +3157,6 @@ function requireAiActionUnit(unit: Unit | undefined, action: Action, id: string)
 /** A unit's type name in the current language. */
 function nameOf(unit: Unit): string {
   return unitName(unit.typeId);
-}
-
-function parseKey(key: string): HexCoord {
-  const [q, r] = key.split(',').map(Number);
-  return { q: q!, r: r! };
 }
 
 /** `A`, `B`, `C`, ... for `chooseAdvance`/`chooseExchangeSacrifice`'s per-unit

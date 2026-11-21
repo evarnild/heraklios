@@ -67,6 +67,12 @@ export function hexKey(hex: HexCoord): string {
   return `${hex.q},${hex.r}`;
 }
 
+/** The hex a `hexKey` names. */
+export function parseHexKey(key: string): HexCoord {
+  const [q, r] = key.split(',').map(Number);
+  return { q: q!, r: r! };
+}
+
 export function hexEquals(a: HexCoord, b: HexCoord): boolean {
   return a.q === b.q && a.r === b.r;
 }
