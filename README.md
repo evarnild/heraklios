@@ -595,7 +595,7 @@ take their time.
   the view), is not part of a save, and is Normal when nothing valid is
   remembered or storage is unavailable.
 
-The Standard view never animates and has no speed button. The movement
+Placement never animates. The Standard view never animates and has no speed button. The movement
 paths and the clash and shake cues are engine functions (`movePath.ts`,
 `actionCue.ts`); the Drawn view only plays them.
 

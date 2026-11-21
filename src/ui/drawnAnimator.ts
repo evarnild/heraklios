@@ -1,4 +1,5 @@
 import type Phaser from 'phaser';
+import { planDuration } from './animationPlan';
 import type { AnimationStep } from './animationPlan';
 import { makeRunner } from './drawnMotions';
 import type { MotionHost, Runner } from './drawnMotions';
@@ -124,8 +125,7 @@ export class DrawnAnimator {
 
   private armWatchdog(): void {
     this.clearWatchdog();
-    const total = this.queue.reduce((sum, s) => sum + Math.max(0, ...s.motions.map((m) => m.ms)), 0);
-    this.watchdog = setTimeout(() => this.finishAll(), total * WATCHDOG_FACTOR + WATCHDOG_EXTRA_MS);
+    this.watchdog = setTimeout(() => this.finishAll(), planDuration(this.queue) * WATCHDOG_FACTOR + WATCHDOG_EXTRA_MS);
   }
 
   private clearWatchdog(): void {

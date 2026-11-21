@@ -98,6 +98,31 @@ describe('planAnimation (AC4)', () => {
     expect(planAnimation(drawn(u('a', 1, 1)), [u('a', 3, 1)], cue, 'off')).toEqual([]);
   });
 
+  it('the clash plays before the moves (step 0 lunge, step 1 slide)', () => {
+    const cue = empty({ clashes: [{ unitId: 'a', toward: { q: 2, r: 1 }, kind: 'clash' }] });
+    const steps = planAnimation(drawn(u('a', 1, 1), u('m', 5, 5)), [u('a', 1, 1), u('m', 6, 5)], cue, 'normal');
+    expect(kinds(steps)).toEqual([['lunge'], ['slide']]);
+  });
+
+  it('a plan of several steps lasts the sum of its step maxima (clash 350 + slide 180 + fade 300)', () => {
+    const cue = empty({ clashes: [{ unitId: 'a', toward: { q: 2, r: 1 }, kind: 'clash' }] });
+    const steps = planAnimation(drawn(u('a', 1, 1), u('m', 5, 5), u('d', 9, 9)), [u('a', 1, 1), u('m', 6, 5)], cue, 'normal');
+    expect(kinds(steps)).toEqual([['lunge'], ['slide'], ['fade']]);
+    expect(planDuration(steps)).toBe(830);
+  });
+
+  it('a clash by a unit that is not drawn plays no lunge', () => {
+    const cue = empty({ clashes: [{ unitId: 'ghost', toward: { q: 2, r: 1 }, kind: 'clash' }] });
+    const both = [u('a', 1, 1)];
+    expect(planAnimation(drawn(...both), both, cue, 'normal')).toEqual([]);
+  });
+
+  it('a shake for a unit that is gone plays the fade only', () => {
+    const cue = empty({ shakes: ['g'] });
+    const steps = planAnimation(drawn(u('a', 1, 1), u('g', 2, 2)), [u('a', 1, 1)], cue, 'normal');
+    expect(steps.map((s) => s.motions.map((m) => m.kind))).toEqual([['fade']]);
+  });
+
   it('every Slow duration is twice Normal', () => {
     const cue = empty({
       clashes: [{ unitId: 'a', toward: { q: 2, r: 1 }, kind: 'clash' }],

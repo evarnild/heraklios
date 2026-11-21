@@ -420,3 +420,26 @@ file, restore by copy, `git status --short` clean):
   costs" (separate from the snapshot): E2 (naval branch of `reachableHexes`,
   cost + 1) KILLED.
 Not run: P1-P15, S1-S6, C14, C15 (optional; scope here is the listed tests).
+
+### 2026-11-21 — round 2 rework
+
+Tests only plus two small changes. `drawnAnimator.ts`'s watchdog now calls
+`planDuration(this.queue)` instead of repeating the reduce (P13's second half);
+the README's "Animations in the Drawn view" says Placement never animates.
+Tests: 87 files, 1467 tests (was 1463); `npm run e2e` 27 passed (46 s).
+
+New `animationPlan.test.ts` cases and the mutant each kills (proved by copy,
+mutate, run the file, restore by copy, `git status --short` showing only the
+intended edits):
+- "the clash plays before the moves": P14 (`steps.unshift` for the moves) KILLED.
+- "a plan of several steps lasts the sum of its step maxima" (clash 350 + slide
+  180 + fade 300 = 830): P13 (`planDuration` as one max) KILLED.
+- "a clash by a unit that is not drawn plays no lunge": P8 (clash filter
+  dropped) KILLED.
+- "a shake for a unit that is gone plays the fade only": P11 (shake filter
+  dropped) KILLED.
+Optional item 4 (an e2e scenario showing Placement never animates in the Drawn
+view): not added. `'snap'` is passed inside `DrawnUnits` and no Placement
+action moves a drawn unit between two committed drawings in a way that would
+show a tween only on a regression without a larger scenario; the unit-level
+guard is the round 1 `'snap'` change itself.
