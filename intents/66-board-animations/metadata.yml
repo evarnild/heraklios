@@ -7,7 +7,7 @@ title: The vector view animates moves, combats and drifts
 review_tier:
 intent_accepted: 2026-11-05 by-agent    # owner: "accept 64 and 66 spec"
 spec_accepted: 2026-11-21 by-agent    # owner: "spec accepted"
-plan_approved:
+plan_approved: 2026-11-21 by-agent    # auto: owner "/auto 66" (auto_authorized 2026-11-21)
 live_checked:
 merged:
 auto_authorized: 2026-11-21 by-agent    # owner: "/auto 66"
