@@ -2,6 +2,7 @@ import type { HexCoord } from '../data/map';
 import type { PlayerAgent } from './agent';
 import {
   questionAnswers,
+  unitById,
   type AnswerAction,
   type Pending,
   type Question,
@@ -18,14 +19,6 @@ import type { GameState, Unit } from './state';
  * the session replaced - the agents and the dice share one seeded rng in the
  * fuzz harness, so any change in that order changes the game.
  */
-
-function unitsOf(state: GameState, ids: readonly string[]): Unit[] {
-  return ids.map((id) => {
-    const unit = state.units.find((u) => u.id === id);
-    if (!unit) throw new Error(`sessionAgents: unit "${id}" no longer exists`);
-    return unit;
-  });
-}
 
 /** Maps an agent's choice of units to the first listed sacrifice it contains
  * (§72 I3): the listed answers are the minimal subsets, and an agent that
@@ -45,22 +38,22 @@ export function askAgent(agent: PlayerAgent, state: GameState, question: Questio
   switch (question.kind) {
     case 'retreat':
       return agent
-        .chooseRetreat(state, unitsOf(state, [question.unitId])[0]!, question.options)
+        .chooseRetreat(state, unitById(state, question.unitId), question.options)
         .then((hex: HexCoord): AnswerAction => ({ kind: 'answerRetreat', hex: { ...hex } }));
     case 'pushTarget':
       return agent
-        .choosePushTarget(state, unitsOf(state, [question.unitId])[0]!, unitsOf(state, question.candidateIds))
+        .choosePushTarget(state, unitById(state, question.unitId), question.candidateIds.map((id) => unitById(state, id)))
         .then((unit): AnswerAction => ({ kind: 'answerPushTarget', unitId: unit.id }));
     case 'advance':
       return agent
-        .chooseAdvance(state, unitsOf(state, question.candidateIds), question.vacatedHex)
+        .chooseAdvance(state, question.candidateIds.map((id) => unitById(state, id)), question.vacatedHex)
         .then((unit): AnswerAction => ({ kind: 'answerAdvance', unitId: unit ? unit.id : null }));
     case 'exchangeSacrifice': {
       // Listed now, not when the reply arrives: a forced sacrifice's reply is
       // awaited later, after the step has already destroyed the units.
       const listed = questionAnswers(state, question);
       return agent
-        .chooseExchangeSacrifice(state, unitsOf(state, question.attackerIds), question.requiredForce)
+        .chooseExchangeSacrifice(state, question.attackerIds.map((id) => unitById(state, id)), question.requiredForce)
         .then((chosen) => sacrificeAnswer(listed, chosen));
     }
   }

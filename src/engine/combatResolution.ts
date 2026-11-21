@@ -156,7 +156,8 @@ export function pendingFromAttack(result: LandAttackResult): Pending | null {
 // Answers
 // ---------------------------------------------------------------------------
 
-function unitById(game: GameState, id: string): Unit {
+/** The unit with this id, destroyed or not; throws when there is none. */
+export function unitById(game: GameState, id: string): Unit {
   const unit = game.units.find((u) => u.id === id);
   if (!unit) throw new Error(`session: unit "${id}" no longer exists`);
   return unit;
