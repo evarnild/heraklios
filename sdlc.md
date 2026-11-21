@@ -44,6 +44,8 @@ number `npm run queue -- --next-id` prints.
   `/spawn` also launches the implementer in the background there, and
   reports back with an offer of `/review`. Otherwise open `claude` in the
   worktree; that session implements. Keep it to about five at once.
+  `spawn` refuses an intent whose `blocked_by` blocker is not merged into
+  `main` (see `intents/README.md`); `/auto` stops for it before spawning.
 
 It ends with `npm run verify` green and `status: in-review`.
 

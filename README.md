@@ -843,6 +843,13 @@ incomplete`) is answered in a coordinator terminal with `/auto <id>` plus the
 answer: the page disables Auto for it, with the reason, and the server refuses
 the launch too. `out of rounds` is refused likewise: the intent continues by hand.
 
+An intent whose `metadata.yml` lists `blocked_by:` intents not yet merged into
+`main` shows `blocked by §a, §b (§c)` under its title, with each reason on
+hover, and the queue's problems (a cycle, a broken record) show in a line above
+the lists. Spawn stays enabled: the script refuses and the page shows its
+message. Auto resumes a `blocked by <n>` or `blocked_by record broken` stop; the
+run spawns only once every blocker is merged or the record is fixed.
+
 It listens on 127.0.0.1 only, checks `Host` on every request and `Origin` on
 every POST (like the save API), runs commands as argument arrays with no
 shell, and writes page text only through `textContent`. It stores nothing:
