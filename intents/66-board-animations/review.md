@@ -158,6 +158,55 @@ function.
   touches none of their lines); the AC8 "before" e2e time; all visual
   behaviour (the live check).
 
+## KonMari check
+- **outcome:** kept (`konmari.md`, base `3d7f12c`). Six tidy-up commits and the
+  record `6404e14`:
+  - `b946a5a` one `parseHexKey` in `hex.ts`;
+  - `0d513f2` `animationPlan` reuses `hexEquals` and `facingRotationCost`;
+  - `be76057` drops the unused `MapView.finishAnimations` and a default;
+  - `567c5fa` one HUD toggle button look;
+  - `d79eb69` one `rememberedChoice` store for the view and the speed;
+  - `c55cfc4` a `devHook` comment and `figureOf`.
+- **Coordinator, re-run:** `npm run verify` at `6404e14`: exit 0. Lint 0
+  errors, 21 warnings (cap 21); 87 files, 1467 tests (the review's count, not
+  lower).
+- **Coordinator, re-run:** `npm run check:intent`: FAIL with only the owed
+  live check, as in the review.
+- **Coordinator, re-run:** `npm run e2e`: 27 passed in 48.4s.
+- **Coordinator, re-run:** every killed mutant whose target file the tidy-up
+  changed. That is 32 mutants, each backed up by copy, applied once, full
+  `vitest run --bail 1`, and restored by copy: all KILLED.
+  - Applied unchanged: M1-M4, M6-M8, M10, M11, P3, P6-P15 and S1-S4.
+  - Re-derived at their moved lines:
+    - M5' and M9': `push` to `unshift` before the path's `reverse` in
+      `movePath.ts`;
+    - P1': `facingRotationCost` in `hex.ts`;
+    - P2', P4' and P5': the `hexEquals` guards in `animationPlan.ts`;
+    - S5' and S6': the in-memory write and the read-once cache in
+      `rememberedChoice.ts`.
+
+  `git status --short` was clean after the run.
+- **Size baseline:** only lowered (`BoardScene.ts` 3177 → 3172). No ceiling
+  rose.
+- **Reviewer's read of the KonMari commits** (`3d7f12c..6404e14`): no finding
+  against them. Every change is within reach: the diff's own lines, or
+  existing code they duplicate (`actions.ts`'s and `BoardScene.ts`'s
+  `parseKey`; `boardViewPreference.ts`'s store; `viewToggle.ts`'s button
+  style). No test assertion or case changed, and no dependency or
+  `eslint-disable` was added. No behaviour changed: `facingRotationCost`
+  equals the removed `facingTurns` for every integer, and `rememberedChoice`
+  keeps both stores' semantics. Principles 5-12 hold.
+- **Raised by that read, about §66's own diff (`2cacabb`), not the tidy-up.**
+  `src/ui/devHook.ts:263` packs two entries
+  (`animationSpeed`, `unitCanvas`) on one line. Split, `installDevHook` is
+  81 lines and lint rises to 22, over the cap. Lint passes, but this sidesteps
+  the 80-line rule. Progress's "kept under 80 lines by a helper"
+  (`plan.md:346-347`) is inaccurate. Needs decision (the owner's, at the
+  live-check stop):
+  - (a) accept the packed line, with this note as the record;
+  - (b) split `installDevHook` into builders, which is existing code beyond
+    §66's change.
+
 # Round 2 (history)
 
 - verdict: rework
