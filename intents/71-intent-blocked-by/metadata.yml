@@ -6,14 +6,14 @@ status: accepted
 title: Record which intents must merge before another can be built (blocked_by)
 review_tier:
 intent_accepted: 2026-11-21 by-agent    # owner: "yes, then /auto 71"
-spec_accepted:
+spec_accepted: 2026-11-21 by-agent    # owner: "yes"
 plan_approved:
 live_checked:
 merged:
 konmari:
 auto_authorized: 2026-11-21 by-agent    # owner: "yes, then /auto 71"
 auto_round:
-auto_stopped: spec drafted, waiting for spec_accepted
+auto_stopped:
 follows_up:
 links:
   - intents/50-sdlc-auto-mode
