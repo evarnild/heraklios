@@ -13,7 +13,7 @@ merged:
 konmari:
 auto_authorized: 2026-11-21 by-agent    # owner: "/auto 72"
 auto_round:
-auto_stopped: spec questions
+auto_stopped: spec drafted, waiting for spec_accepted
 follows_up:
 links:
   - intents/70-unity-front-end-probe
