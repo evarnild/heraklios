@@ -1,5 +1,7 @@
+import { rememberedChoice } from './rememberedChoice';
+
 /** How fast the Drawn view animates, remembered like the board view
- * (`boardViewPreference.ts`): in `localStorage`, with the in-memory value kept
+ * (`rememberedChoice.ts`): in `localStorage`, with the in-memory value kept
  * when storage is unavailable. Not part of a save (§66 B14). */
 export type AnimationSpeed = 'normal' | 'slow' | 'off';
 
@@ -48,32 +50,18 @@ export function durationsFor(speed: AnimationSpeed): StepDurations | null {
   };
 }
 
-function readStored(): string | null {
-  try {
-    return localStorage.getItem(ANIMATION_SPEED_STORAGE_KEY);
-  } catch {
-    return null;
-  }
-}
-
-let current: AnimationSpeed | null = null;
+const stored = rememberedChoice(ANIMATION_SPEED_STORAGE_KEY, resolveAnimationSpeed);
 
 export function animationSpeed(): AnimationSpeed {
-  if (current === null) current = resolveAnimationSpeed(readStored());
-  return current;
+  return stored.get();
 }
 
 /** Sets and remembers the speed. If storage is unavailable the choice still holds for the session. */
 export function setAnimationSpeed(speed: AnimationSpeed): void {
-  current = speed;
-  try {
-    localStorage.setItem(ANIMATION_SPEED_STORAGE_KEY, speed);
-  } catch {
-    // Private mode / blocked storage: the in-memory choice is enough.
-  }
+  stored.set(speed);
 }
 
 /** Forgets the in-memory choice so the next read goes to storage again (tests). */
 export function resetAnimationSpeedForTests(): void {
-  current = null;
+  stored.reset();
 }
