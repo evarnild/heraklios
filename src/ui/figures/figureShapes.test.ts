@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { UNIT_TYPES, getUnitType } from '../../data/units';
-import { baseShape, counterBadge, figureFor } from './figureShapes';
+import { UNIT_TYPES } from '../../data/units';
+import { baseShape, figureFor } from './figureShapes';
 import type { Primitive } from './figureShapes';
 
 /** The largest distance from the origin any part of a primitive reaches. */
@@ -58,27 +58,5 @@ describe('baseShape', () => {
 
   it('wraps owners beyond 3', () => {
     expect(baseShape(4)).toEqual(baseShape(0));
-  });
-});
-
-describe('counterBadge', () => {
-  it('writes the archers as 0 (2) 2 / 1 3', () => {
-    expect(counterBadge(getUnitType('archers'))).toBe('0 (2) 2 / 1 3');
-  });
-
-  it('writes a unit without range with no parentheses', () => {
-    const text = counterBadge(getUnitType('fantassins'));
-    expect(text).toBe('2 / 1 3');
-    expect(text).not.toContain('(');
-  });
-
-  it('follows the stats of all 14 types', () => {
-    for (const t of UNIT_TYPES) {
-      const expected =
-        t.range > 0
-          ? `${t.attack} (${t.rangedAttack}) ${t.range} / ${t.defense} ${t.movement}`
-          : `${t.attack} / ${t.defense} ${t.movement}`;
-      expect(counterBadge(t), t.id).toBe(expected);
-    }
   });
 });

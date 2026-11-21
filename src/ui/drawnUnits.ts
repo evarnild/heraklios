@@ -1,6 +1,5 @@
 import Phaser from 'phaser';
-import { getUnitType } from '../data/units';
-import { baseShape, counterBadge, figureFor } from './figures/figureShapes';
+import { baseShape, figureFor } from './figures/figureShapes';
 import type { Primitive, Tone } from './figures/figureShapes';
 import { HEX_SIZE, PLAYER_COLORS_HEX, facingAngleRad } from './hexRender';
 import { reconcileUnits } from './boardView';
@@ -58,12 +57,11 @@ function drawUnit(base: Phaser.GameObjects.Graphics, fig: Phaser.GameObjects.Gra
   for (const p of figureFor(unit.typeId).primitives) {
     drawPrimitive(fig, p, FIGURE_R, toneColor(p.tone, unit.owner));
   }
-  // A galley's bow points along +x; rotate it to its facing. The base and badge stay upright.
+  // A galley's bow points along +x; rotate it to its facing. The base stays upright.
   fig.setRotation(unit.facing === undefined ? 0 : facingAngleRad(unit.facing));
 }
 
-/** The Drawn view's unit layer: one container per unit id (base, figure and
- * counter badge) at depth 10, reconciled by id like the Standard markers. */
+/** The Drawn view's unit layer: one container per unit id (base and figure) at depth 10, reconciled by id like the Standard markers. */
 export class DrawnUnits {
   private units = new Map<string, { drawing: UnitDrawing; container: Phaser.GameObjects.Container }>();
   /** Containers of units that are fading out: gone from `units`, still drawn until the fade ends. */
@@ -197,17 +195,10 @@ export class DrawnUnits {
     const base = scene.make.graphics({}, false);
     const fig = scene.make.graphics({}, false);
     drawUnit(base, fig, unit);
-    const badge = scene.add
-      .text(0, BASE_R * 0.92, counterBadge(getUnitType(unit.typeId)), {
-        fontSize: '11px',
-        fontStyle: 'bold',
-        color: '#ffffff',
-        stroke: '#20180e',
-        strokeThickness: 3,
-      })
-      .setOrigin(0.5);
+    // I2 (spec §74): the unit's numbers are shown by the hover tooltip, not on the figure, so the
+    // container holds no text object.
     // Named by id, so the dev hook can count a unit's (or the ghost's) containers on the display list.
-    const container = scene.add.container(at.x, at.y, [base, fig, badge]).setDepth(10).setName(unit.id);
+    const container = scene.add.container(at.x, at.y, [base, fig]).setDepth(10).setName(unit.id);
     this.host.ignoreOnUiCamera(container);
     return container;
   }

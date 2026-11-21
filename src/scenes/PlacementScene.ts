@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { MapView, drawFacingArrowhead } from '../ui/MapView';
+import { MapView, drawFacingArrowhead, unitTooltipFor } from '../ui/MapView';
 import { PLAYER_COLORS_HEX } from '../ui/hexRender';
 import { legalDeploymentHexes, legalNavalDeploymentHexes } from '../ui/mapBounds';
 import { session, buildPlayers, resetToMenu } from '../ui/session';
@@ -140,7 +140,7 @@ export class PlacementScene extends Phaser.Scene {
 
     this.mapView = new MapView(this, width, height);
     this.mapView.onHexClick = (hex) => this.handleHexClick(hex);
-
+    this.mapView.unitTooltipAt = (hex) => unitTooltipFor(session.gameState!, hex, { state: false });
     this.infoText = this.add
       .text(20, height - 40, '', {
         fontSize: '15px',

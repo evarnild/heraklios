@@ -4,6 +4,9 @@ import type { HexCoord } from '../data/map';
 import { HEX_SIZE, hexToPixel } from './hexRender';
 import { allHexes } from './mapBounds';
 import { formatHexTooltip } from './hexTooltip';
+
+// Re-exported so a scene wires the hover hook through the import it already has.
+export { unitTooltipFor } from './unitTooltip';
 import { hexAtPoint } from './hexHitTest';
 import { StandardBoardView } from './standardBoardView';
 import { DrawnBoardView } from './drawnBoardView';
@@ -38,6 +41,8 @@ export class MapView {
    * created world objects (unit markers) get excluded from it too. */
   private uiCamera: Phaser.Cameras.Scene2D.Camera | null = null;
   onHexClick: ((hex: HexCoord) => void) | null = null;
+  /** The unit lines of the hover tooltip for a hex (§74), or null: set by the scene, which owns the state. */
+  unitTooltipAt: ((hex: HexCoord) => string | null) | null = null;
   /** True for a screen point where the wheel must not zoom and a press must not start a map drag
    * (the Board's log panel scrolls and its thumb drags there; §49). */
   pointerBlocked: ((x: number, y: number) => boolean) | null = null;
@@ -384,7 +389,9 @@ export class MapView {
    * runs off-screen.
    */
   private showHexTooltip(hex: HexCoord, pointerX: number, pointerY: number): void {
-    const text = formatHexTooltip(hex);
+    const unitLines = this.unitTooltipAt?.(hex);
+    const text = formatHexTooltip(hex) + (unitLines ? `
+${unitLines}` : '');
     if (!this.hoverTooltip) {
       this.hoverTooltip = this.scene.add
         .text(0, 0, text, {

@@ -1,5 +1,3 @@
-import type { UnitType } from '../../data/units';
-
 /**
  * The Drawn view's unit figures as plain data, in unit-local coordinates
  * within a radius of 1 (x to the right, y down). Land figures stand upright;
@@ -219,11 +217,4 @@ export function baseShape(owner: number): Primitive {
     default:
       return poly('body', [-0.7, -0.7], [0.7, -0.7], [0.7, 0.1], [0, 0.95], [-0.7, 0.1]);
   }
-}
-
-/** The print counter's numbers, "attack (rangedAttack) range / defense movement"
- * (`data/units.ts`), the parenthesised part only for a unit with a range. */
-export function counterBadge(type: UnitType): string {
-  const attack = type.range > 0 ? `${type.attack} (${type.rangedAttack}) ${type.range}` : `${type.attack}`;
-  return `${attack} / ${type.defense} ${type.movement}`;
 }
