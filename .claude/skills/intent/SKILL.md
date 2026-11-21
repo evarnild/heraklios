@@ -70,7 +70,11 @@ If the user says "just draft it", fill gaps with your best reading.
    type, `status: draft`, title, `review_tier` from `REVIEW-POLICY.md`'s path
    table for the files the work will likely touch (raise to `reviewed` for a
    feature implementing a new rulebook rule; otherwise leave it empty so the
-   path table decides), links — and for a fix, `follows_up: <id>` naming the
+   path table decides), links (related work only), `blocked_by:` for each
+   hard prerequisite ("cannot be built correctly until that intent is
+   merged"), one per line as `<id>    <reason>` (ask in the question round if
+   the material hints at one; it is not a gate; say in your report what you
+   recorded) — and for a fix, `follows_up: <id>` naming the
    intent whose change introduced the defect when you can tell (check
    `git log -S` / `git blame` on the faulty line). That key, not `links:`, is
    how the scan counts follow-ups per review tier, so only set it for a real
