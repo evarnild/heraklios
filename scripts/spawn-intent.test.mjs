@@ -278,7 +278,7 @@ describe('npm run spawn and blocked_by', { timeout: 60_000 }, () => {
     return r;
   };
 
-  it('B3: a merged: on the blocker branch copy does not clear it', () => {
+  it('a merged: on the blocker branch copy does not clear it', () => {
     commitOnMain(81, 'up', 'merged:\n');
     branchWith('fix/81-up-branch', 81, 'up', 'merged: x\n');
     commitOnMain(80, 'down', 'blocked_by:\n  - 81    needs it\n');
@@ -315,5 +315,26 @@ describe('npm run spawn and blocked_by', { timeout: 60_000 }, () => {
 
   it('--remove is unaffected by blockers', () => {
     expect(run(SPAWN, ['94', '--remove', '--unmerged']).status).toBe(0);
+  });
+
+  it('reads a blocker by its exact id: a merged §50 does not stand in for an open §5', () => {
+    commitOnMain(50, 'merged-other', 'merged: abc1234\n');
+    branchWith('feat/5-only', 5, 'only', '');
+    commitOnMain(51, 'waits-five', 'blocked_by:\n  - 5    needs five\n');
+    refused(51, 'waits-five', '§51 is blocked by §5 (needs five)');
+  });
+
+  it('says "no reason given" for an open blocker without a reason', () => {
+    commitOnMain(53, 'up-noreason', 'merged:\n');
+    commitOnMain(54, 'down-noreason', 'blocked_by:\n  - 53\n');
+    refused(54, 'down-noreason', '§54 is blocked by §53 (no reason given), not merged into main.');
+  });
+
+  it('a blocker found on more than one branch exists: it is open, not unknown', () => {
+    branchWith('fix/55-a', 55, 'twin', '');
+    branchWith('feat/55-b', 55, 'twin', '');
+    commitOnMain(56, 'waits-twin', 'blocked_by:\n  - 55    on two branches\n');
+    const r = refused(56, 'waits-twin', '§56 is blocked by §55 (on two branches)');
+    expect(r.stderr).not.toContain('broken');
   });
 });

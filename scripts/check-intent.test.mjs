@@ -170,6 +170,15 @@ describe('check:intent and blocked_by, end to end', { timeout: 60_000 }, () => {
     expect(r.stdout).not.toContain('on no branch');
   });
 
+  it('reads a blocker by its exact id: another intent whose id starts with it does not stand in', () => {
+    mainIntent('def5678'); // §96 merged on main
+    git('branch', 'feat/9-only', 'main'); // §9 exists only on a branch, so it is open
+    onBranch(['9    needs it']);
+    const r = check(BRANCH);
+    expect(r.status, r.stdout).toBe(1);
+    expect(r.stdout).toContain('§97 is blocked by §9,');
+  });
+
   it("ignores a merged: on the blocker's own branch", () => {
     git('checkout', '-q', '-b', 'feat/96-blocker', 'main');
     writeFileSync(join(repo, 'intents', '96-blocker', 'metadata.yml'), 'id: 96\nslug: blocker\nstatus: done\nmerged: zzz9999\n');

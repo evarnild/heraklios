@@ -344,3 +344,36 @@ Differences from the source (`3041c48`), beyond I1-I3 and B13-B16:
 
 Not run: the live check (owed to the owner, plan Validation) and `npm run e2e`
 (not needed: no `src/` or `e2e/` change).
+
+Correction to the entry above (found in round 1): "1436 before" should read
+1420 before; the spawn tests were 8 cases, not 7.
+
+### 2026-11-21 — rework, round 1
+
+Commits: the rework commit that follows `b2e16ff` (see `git log`). `npm run
+verify` green: 83 test files, 1478 tests (1470 + 8 new), 21 lint warnings,
+cap 21 unchanged. `check:intent` PASS.
+
+New tests and the mutant each kills. Each was proved: back up the file by
+copy, apply the mutant, run the test file (one failure each), restore by copy,
+`git status --short` showed only the test files.
+
+| Test | Mutant it kills |
+| --- | --- |
+| `blockers-lib.test.mjs`: a self reference `018` for self id `18` | B06: self-id compared as strings (`id === String(selfId)`), `blockers-lib.mjs:24` |
+| `blockers-lib.test.mjs`: `findCycles({ 9: ['13'], 13: ['9'] })` starts at `9` | B22: smallest id compared lexically (`b < a`), `:86` |
+| `blockers-lib.test.mjs`: an empty item is skipped without throwing | B03: `if (!m) continue;` removed, `:20` |
+| `check-intent.test.mjs`: §9 only on a branch (open), §96 merged on main: FAIL naming §9 | K02: `${blockerId}-` prefix dropped, `check-intent.mjs:145` |
+| `spawn-intent.test.mjs`: §5 only on a branch, §50 merged on main: refuses naming §5 | S06: same prefix in `session-io.mjs:98` |
+| `spawn-intent.test.mjs`: open blocker without a reason: "(no reason given)" | P07: `open.reason \|\| 'no reason given'` reduced to `open.reason` |
+| `spawn-intent.test.mjs`: a blocker on two branches is open, not unknown | S05: the `catch` in `readBlockers` returning false instead of true |
+| `queue.test.mjs`: `merged:` on main (status not terminal) with a branch shown: not blocked | U01: `mainMerged: isMerged(mainMeta)` removed in `queue.mjs` |
+
+Notes:
+- K02 and S06 need the blocker to be absent from main: with it on main, the
+  blocker's own directory (`9-...`) sorts before `96-...` (`-` before digits),
+  so a prefix match still finds the right one. A blocker that exists only on a
+  branch makes the other intent's directory the only candidate.
+- Another difference from the source: `checkChange`'s JSDoc gains a
+  `@param input.blockers` line (`intent-check-lib.mjs`, around line 164).
+- The `B3:` prefix is dropped from the spawn test name (spawn-intent.test.mjs).

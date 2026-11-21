@@ -189,4 +189,16 @@ describe('npm run queue and blocked_by (git seams)', { timeout: 60_000 }, () => 
     expect(data.inFlight.find((e) => e.id === 72).blocked_by_open).toEqual([73]);
     expect(data.problems.filter((p) => p.includes('on no branch'))).toEqual([]);
   });
+
+  it('main merged: clears a blocker even when its status there is not terminal and a branch is shown', () => {
+    write('intents/74-up/metadata.yml', meta(74, 'up', 'accepted', 'merged: abc1234\n'));
+    write('intents/75-down/metadata.yml', meta(75, 'down', 'accepted', 'blocked_by:\n  - 74    needs it\n'));
+    commit('§74 and §75');
+    git('checkout', '-q', '-b', 'fix/74-up');
+    write('intents/74-up/metadata.yml', meta(74, 'up', 'in-review', ''));
+    commit('§74 on a branch');
+    git('checkout', '-q', 'main');
+    expect(lineOf(queue().stdout, 75)).not.toContain('blocked by');
+    expect(JSON.parse(queue('--json').stdout).inFlight.find((e) => e.id === 75).blocked_by_open).toEqual([]);
+  });
 });

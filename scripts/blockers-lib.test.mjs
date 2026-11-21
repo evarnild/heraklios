@@ -33,6 +33,16 @@ describe('parseBlockers', () => {
       'blocked_by item "18    me": an intent cannot block itself.',
     ]);
   });
+  it('a self reference with leading zeros is still a self reference', () => {
+    expect(parseBlockers(parseMetadata('blocked_by:\n  - 018    me\n'), '18')).toEqual({
+      items: [],
+      problems: ['blocked_by item "018    me": an intent cannot block itself.'],
+      notes: [],
+    });
+  });
+  it('skips an empty item without throwing', () => {
+    expect(parseBlockers({ blocked_by: ['', '13    r'] }, '15')).toEqual({ items: [{ id: '13', reason: 'r' }], problems: [], notes: [] });
+  });
   it('is not a gate: gates of a blocked intent still parse', () => {
     const md = parseMetadata('plan_approved: 2026-11-13 by-agent\nblocked_by:\n  - 13    r\n');
     expect(parseGate(md.plan_approved)).toEqual({ state: 'recorded', date: '2026-11-13', by: 'agent' });
@@ -83,6 +93,9 @@ describe('openChain', () => {
 describe('findCycles', () => {
   it('reports a cycle once', () => {
     expect(findCycles({ 17: ['15'], 15: ['17'] })).toEqual([['15', '17']]);
+  });
+  it('starts a cycle at its numerically smallest id, not the lexically smallest', () => {
+    expect(findCycles({ 9: ['13'], 13: ['9'] })).toEqual([['9', '13']]);
   });
   it('none in a chain', () => {
     expect(findCycles({ 17: ['15'], 15: ['13'] })).toEqual([]);
