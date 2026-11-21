@@ -11,7 +11,7 @@ plan_approved: 2026-11-21 by-agent    # auto: owner "/auto 71" (auto_authorized 
 live_checked:
 merged:
 konmari:
-auto_authorized: 2026-11-21 by-agent    # owner: "yes, then /auto 71"
+auto_authorized: 2026-11-21 by-agent    # owner: "/auto 71" (after the escalate stop: diff read)
 auto_round: 3
 auto_stopped: escalate, owner reads the diff
 follows_up:
