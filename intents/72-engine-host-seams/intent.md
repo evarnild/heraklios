@@ -49,8 +49,8 @@ scene holds rule sequencing that no test covers.
   answers) are exposed as engine data: a pending question, plus an answer
   action that `applyAction` accepts. Its tests drive a whole game through
   questions and answers alone.
-  - `BoardScene` and the computer seats use it in place of their own
-    sequencing.
+  - The fuzz harness uses it in place of its own sequencing. `BoardScene`
+    and the computer seats keep theirs for now (see the amendment below).
   - Headless seeded play gives the same results as before: `playRandomGame`
     traces and stats are unchanged for a fixed set of seeds.
 - **The host entry.** One supported module gives a host the whole game as
@@ -60,8 +60,16 @@ scene holds rule sequencing that no test covers.
 - **Proof.** A test drives a seeded game from deployment to its end through
   the host entry only. It ends in the same state as the same game played
   through the existing engine calls.
-- **Shape and size.** The web game plays exactly as before. `BoardScene.ts`
-  is shorter, and the size baseline is lowered to match.
+- **Shape and size.** The web game plays exactly as before.
+
+**Amendment (owner, 2026-11-21, spec question round: "Split it out").**
+Moving `BoardScene` and the computer seats onto the protocol is split into its
+own follow-up intent, recorded with `blocked_by` §72. §72's Outcome no longer
+includes it, nor the shorter `BoardScene.ts`. In the same round the owner
+chose two more points:
+- the open question lives in a JSON session object beside `GameState`, not
+  saved, so saving and undo stay refused mid-combat as today;
+- answers are new `Action` kinds.
 
 ## Constraints
 
