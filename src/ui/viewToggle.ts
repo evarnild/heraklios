@@ -20,7 +20,13 @@ export function viewToggleLabel(current: BoardViewKind): string {
  * factor 0) that flips between the Standard and Drawn views at any moment and
  * remembers the choice. The caller adds it to its `pinUIObjects` list.
  */
-export function createViewToggle(scene: Phaser.Scene, x: number, y: number, view: ViewSwitchable): Phaser.GameObjects.Text {
+export function createViewToggle(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  view: ViewSwitchable,
+  onChange?: (kind: BoardViewKind) => void,
+): Phaser.GameObjects.Text {
   const button = scene.add
     .text(x, y, viewToggleLabel(view.viewKind), {
       fontSize: '12px',
@@ -36,6 +42,7 @@ export function createViewToggle(scene: Phaser.Scene, x: number, y: number, view
     setBoardViewKind(next);
     view.setViewKind(next);
     button.setText(viewToggleLabel(next));
+    onChange?.(next);
   });
   return button;
 }
