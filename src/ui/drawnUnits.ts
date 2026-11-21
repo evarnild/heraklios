@@ -72,7 +72,7 @@ export class DrawnUnits {
 
   constructor(
     private host: ViewHost,
-    onDrained: () => void = () => {},
+    onDrained: () => void,
   ) {
     this.animator = new DrawnAnimator({
       scene: host.scene,

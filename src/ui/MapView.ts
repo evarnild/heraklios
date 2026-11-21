@@ -295,11 +295,6 @@ export class MapView {
     this.boardView.setUnits(units, motion);
   }
 
-  /** Finishes every unit animation at once (a no-op in the Standard view). */
-  finishAnimations(): void {
-    this.boardView.finishAnimations?.();
-  }
-
   /** Resolves when no unit animation is playing or queued. */
   animationsSettled(): Promise<void> {
     return this.boardView.animationsSettled?.() ?? Promise.resolve();
