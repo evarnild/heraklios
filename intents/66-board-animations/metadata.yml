@@ -8,11 +8,11 @@ review_tier:
 intent_accepted: 2026-11-05 by-agent    # owner: "accept 64 and 66 spec"
 spec_accepted: 2026-11-21 by-agent    # owner: "spec accepted"
 plan_approved: 2026-11-21 by-agent    # auto: owner "/auto 66" (auto_authorized 2026-11-21)
-live_checked:
+live_checked: 2026-11-21 by-agent    # owner: "66 live checked"
 merged:
 auto_authorized: 2026-11-21 by-agent    # owner: "/auto 66 (a)"
 auto_round: 3
-auto_stopped: live check owed
+auto_stopped:
 follows_up:
 links:
   - intents/64-vector-view
