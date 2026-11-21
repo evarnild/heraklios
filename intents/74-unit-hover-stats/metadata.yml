@@ -2,7 +2,7 @@
 id: 74
 slug: unit-hover-stats
 type: feature
-status: accepted
+status: in-review
 title: Hovering a unit shows its characteristics; the Drawn view's number badge goes
 review_tier:
 intent_accepted: 2026-11-21 by-agent    # owner: "/auto 74", answering "say yes to accept it, or /auto 74 to accept it and carry it through"

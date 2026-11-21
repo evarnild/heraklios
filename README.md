@@ -145,6 +145,18 @@ tooltip with its coordinate and terrain type (e.g. "(4, 9) — Plateau") —
 useful for telling plain from plateau or marsh at a glance, or for pinning
 down exactly which hex a rule, a bug, or a screenshot is talking about.
 
+When the hex holds a unit, the tooltip adds the unit's characteristics, in
+both views and for either player: its name and owner ("Infantry — Athens
+(yellow)"), a line of its values (attack, then ranged attack and range for a
+unit with a range, defense and movement allowance) and, on the Board only, a
+state line (movement left, a ship's equipment as "equipment 1/3", and
+"charged" for cavalry that has charged). Attack, ranged attack and defense
+are the values in play, with the printed value in brackets where it differs:
+a charging light cavalry shows "attack 6 (3)", a ship that has lost equipment
+"attack 5 (15), defense 5 (15)". Placement shows no state line, since a unit
+being placed has full movement and equipment. An empty hex shows its one line
+as before. The labels are in English and French.
+
 ### Saving and loading
 
 The Board's **💾 Save / Load** button opens a panel with six save slots plus a
@@ -537,8 +549,8 @@ standard**).
   phalanx, bow, rider, chariot, elephant, and a galley with 1, 2, 3 or 5
   rows of oars) on a base in its owner's colour, with a different base shape
   per player (round, square, diamond, shield) so the players differ by more
-  than hue, and a small badge with the counter's numbers
-  (`attack (ranged) range / defence movement`). A ship's facing is the
+  than hue; the figures carry no text, the unit's numbers being in the hover
+  tooltip. A ship's facing is the
   galley itself pointing that way, so the Drawn view draws no separate
   facing arrowhead; the elephant's drift arrow stays an arrow. In Placement
   the same holds: placed galleys point their chosen way, and the ship you

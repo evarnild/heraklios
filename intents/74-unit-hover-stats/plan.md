@@ -242,3 +242,12 @@ Re-read on `main` at `2f045b6`.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-11-21 - all five subtasks (implementer)
+
+- **Commits:** 4c1f5f4 (formatter, labels), 9944ef4 (hook and badge removal, subtasks 2 and 3 together), 8de8c99 (e2e, dev-hook reader), plus the README/Progress commit.
+- **Shipped:** `src/ui/unitTooltip.ts` (`formatUnitTooltip`, `unitTooltipFor`); a `tooltip` block in `en.ts`/`fr.ts`; `MapView.unitTooltipAt` and `tooltipText()`; the Drawn view's badge and `counterBadge` (with its tests) removed; `e2e/unit-tooltip.spec.ts` with a `hoverHex` helper; README.
+- **Labels, English:** `attack`, `ranged`, `range`, `defense`, `movement`, `movement left`, `equipment`, `charged`; first line `<unit> — <player> (<colour>)`; values joined by ", ", state joined by ", " (e.g. `attack 6 (3), defense 2, movement 6` / `movement left 2, charged`).
+- **Labels, French:** `attaque`, `tir`, `portée`, `défense`, `mouvement`, `mouvement restant`, `équipement`, `a chargé`; the first line has the same shape (`tooltip.owner` is on `messages.test.ts`'s same-in-both list).
+- **Tests:** verify green, 1533 tests in 90 files (1528 on the base: `counterBadge`'s 3 cases left, 8 new in `unitTooltip.test.ts`). Lint 21 warnings, equal to the cap, none added. `npm run e2e`: 28 passed, including the new scenario.
+- **Divergences:** (1) subtasks 2 and 3 are one commit. (2) The scene hooks need no new import line: `MapView.ts` re-exports `unitTooltipFor`, so each scene only extends its existing `MapView` import. Each scene's one hook line is absorbed by removing one blank line next to it, so `BoardScene.ts` stays 3172 and `PlacementScene.ts` 574; no budget line. (3) `tooltipText` is a `MapView` method that the dev hook calls from the one packed line next to `landscapeBuilds`, so `installDevHook` did not grow. (4) The Drawn-view doc comment in `drawnUnits.ts` was reflowed to one line. (5) The ship example in the tests is a bireme (equipment 1/3: attack 5 (15), defense 5 (15)).
