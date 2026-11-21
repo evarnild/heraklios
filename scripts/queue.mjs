@@ -12,6 +12,7 @@
 // committed yet). The listing shows committed intents only (those on main). The pure half is queue-lib.mjs.
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { isMerged } from './blockers-lib.mjs';
 import { parseMetadata } from './intent-check-lib.mjs';
 import { formatQueue, nextId, pickSource, queueData } from './queue-lib.mjs';
 import { git, readIntentMetadataFromBranch } from './session-io.mjs';
@@ -70,7 +71,7 @@ function collectEntries() {
     const picked = pickSource(mainMeta, found?.metadata ?? null, merged);
     if (!picked) continue;
     if (conflict) picked.source = 'branch conflict';
-    entries.push({ id, ...picked, mergeRank: picked.metadata.status === 'done' ? rankOf(picked.metadata.merged) : null });
+    entries.push({ id, ...picked, mainMerged: isMerged(mainMeta), mergeRank: picked.metadata.status === 'done' ? rankOf(picked.metadata.merged) : null });
   }
   return entries;
 }
@@ -93,7 +94,7 @@ if (args.includes('--next-id')) {
     nextId({ historyText: textOf('plan-history.md'), overviewText: textOf('OVERVIEW.md'), ids: allIntentIds() }),
   );
 } else if (args.includes('--json')) {
-  console.log(JSON.stringify(queueData(collectEntries()), null, 2));
+  console.log(JSON.stringify(queueData(collectEntries(), { knownIds: allIntentIds() }), null, 2));
 } else {
-  process.stdout.write(formatQueue(collectEntries()));
+  process.stdout.write(formatQueue(collectEntries(), { knownIds: allIntentIds() }));
 }

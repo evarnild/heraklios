@@ -67,7 +67,7 @@ async function readOpenIntent({ runner, fs, root }, intent, source, branch) {
 }
 
 /**
- * The whole dashboard payload: `{ root, intents, worktrees }`. Each intent is
+ * The whole dashboard payload: `{ root, intents, worktrees, problems }`. Each intent is
  * the queue's row plus `group`, `next` (`nextStep`), `worktree`, `location`
  * and `session`, with what waits on the owner first.
  */
@@ -78,7 +78,9 @@ export async function loadState(deps) {
     runJson(runner, scriptCall(root, 'sessions.mjs', ['--json']), 'npm run sessions'),
   ]);
   const byId = new Map(worktrees.filter((w) => w.id).map((w) => [String(w.id), w]));
-  const rows = Object.entries(queue).flatMap(([group, list]) => list.map((i) => ({ ...i, group })));
+  // `problems` (spec B12) is a list of text lines, not a group of rows: it goes on the state (B13).
+  const { problems = [], ...groups } = queue;
+  const rows = Object.entries(groups).flatMap(([group, list]) => list.map((i) => ({ ...i, group })));
   const intents = await Promise.all(
     rows.map(async (intent) => {
       const wt = byId.get(String(intent.id)) ?? null;
@@ -94,7 +96,7 @@ export async function loadState(deps) {
       return { ...intent, next, worktree, location, session, review: read.reviewHeader?.verdict ?? null, autoStopped, autoLaunch: autoLaunch(autoStopped, intent.id) };
     }),
   );
-  return { root, intents: waitingOnOwner(intents), worktrees };
+  return { root, intents: waitingOnOwner(intents), worktrees, problems };
 }
 
 /** Finds one intent in a loaded state, or null. */
