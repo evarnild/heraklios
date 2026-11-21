@@ -13,7 +13,7 @@ merged:
 konmari:
 auto_authorized: 2026-11-21 by-agent    # owner: "/auto 72"
 auto_round:
-auto_stopped:
+auto_stopped: plan found the spec incomplete
 follows_up:
 links:
   - intents/70-unity-front-end-probe
