@@ -3,7 +3,7 @@ import type { CombatResult } from '../data/combatTable';
 import type { HexCoord } from '../data/map';
 import { applyAction, legalActions, type Action } from './actions';
 import { describeLandAttack, eligibleAdvanceCandidates, legalRetreatHexes, unitAt } from './combat';
-import { newPending, type AnswerAction, type Question } from './combatResolution';
+import { newPending, stepsForItems, type AnswerAction, type Question } from './combatResolution';
 import { rollDie } from './dice';
 import { resolveElephantDrift } from './drift';
 import {
@@ -313,6 +313,49 @@ describe('question sequences (B4, B5)', () => {
     expect(played.events.map((e) => e.kind)).toEqual(['driftStarted', 'driftCombat']);
     expect(trampled.position).toEqual(options.at(-1)); // moved by its owner's answer
     expect(elephant.position).toEqual({ q: 14 + unitType(elephant).movement, r: 5 }); // its whole move, east: it carried on
+  });
+
+  // The queue is the retreats first, then the drifts, each followed by the
+  // advance at its own hex (the harness's order, I1). Kills swapping them: the
+  // drift would roll its dice before the retreat is even asked.
+  it('asks a forced retreat before an elephant drifts', () => {
+    const elephant = unit('e', 'elephants', 14, 5, 1);
+    const foot = unit('f', 'fantassins', 14, 4, 1);
+    const chariot = unit('c', 'chars-lourds', 13, 5, 0);
+    const state = gameWith([elephant, foot, chariot]);
+    const session = newSession(state);
+    const rng = scripted([dieFor([chariot], [elephant, foot], 'DR'), 1]);
+
+    const step = sessionApply(session, attackAction([chariot], [elephant, foot]), rng);
+    expect(step.events).toEqual([]); // no drift has started
+    const asked = [sessionQuestion(session)!];
+    expect(asked[0]).toMatchObject({ kind: 'retreat', player: 1, unitId: 'f' });
+
+    const events: SessionEvent[] = [];
+    while (session.pending) {
+      const answers = sessionLegalActions(session) as AnswerAction[];
+      events.push(...sessionApply(session, answers.at(-1)!, rng).events);
+      if (session.pending) asked.push(sessionQuestion(session)!);
+    }
+    expect(asked.map((q) => q.kind)).toEqual(['retreat', 'advance', 'advance']);
+    expect(events.map((e) => e.kind)).toEqual(['driftStarted']);
+  });
+
+  // I1: an item skipped because its unit is already gone still gets its
+  // advance offer, when it is a defender's. Kills dropping that offer.
+  it('still offers the advance after a defender item that is skipped', () => {
+    const gone = unit('gone', 'fantassins', 11, 5, 1);
+    gone.destroyed = true;
+    const a = unit('a', 'fantassins', 10, 5);
+    const session = newSession(gameWith([gone, a]));
+    const pending = newPending(['a'], stepsForItems([{ kind: 'retreat', unitId: 'gone', originalHex: { q: 11, r: 5 } }], 'defender'));
+    sessionBeginResolution(session, pending, scripted([]));
+    expect(sessionQuestion(session)).toEqual({ kind: 'advance', player: 0, vacatedHex: { q: 11, r: 5 }, candidateIds: ['a'] });
+
+    // An attacker's own skipped item offers nothing.
+    const other = newSession(gameWith([structuredClone(gone), structuredClone(a)]));
+    sessionBeginResolution(other, newPending(['a'], stepsForItems([{ kind: 'retreat', unitId: 'gone', originalHex: { q: 11, r: 5 } }], 'attacker')), scripted([]));
+    expect(other.pending).toBeNull();
   });
 
   it('keeps the same questions when played through a JSON copy mid-question', () => {
