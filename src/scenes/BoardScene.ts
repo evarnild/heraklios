@@ -65,7 +65,7 @@ import {
 } from '../engine/combat';
 import { resolveElephantDrift } from '../engine/drift';
 import { History } from '../engine/history';
-import { hexAdd, hexKey, DIRECTIONS, facingForDirection } from '../engine/hex';
+import { hexAdd, hexKey, parseHexKey, DIRECTIONS, facingForDirection } from '../engine/hex';
 import {
   unitType,
   currentAttack,
@@ -1603,7 +1603,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.clearNavalMovementControls();
     const reachable = reachableHexes(this.state(), unit);
     this.mapView.highlightHexGroups([
-      { hexes: Array.from(reachable.keys()).map(parseKey), color: 0x4aa6ff, alpha: 0.35 },
+      { hexes: Array.from(reachable.keys()).map(parseHexKey), color: 0x4aa6ff, alpha: 0.35 },
       // §54: friends this unit can swap with, in their own colour.
       { hexes: this.swapPartners(unit).map((u) => u.position), color: 0x4ae08a, alpha: 0.55 },
     ]);
@@ -1667,7 +1667,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       (k) => k !== forwardKey && !contactHexKeys.has(k),
     );
     if (autoPathHexes.length > 0) {
-      groups.push({ hexes: autoPathHexes.map(parseKey), color: 0x2ad6c8, alpha: 0.16 });
+      groups.push({ hexes: autoPathHexes.map(parseHexKey), color: 0x2ad6c8, alpha: 0.16 });
     }
     if (reachable.has(forwardKey)) {
       groups.push({
@@ -1678,12 +1678,12 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     }
     const distantContactHexes = Array.from(contactHexKeys).filter((k) => k !== forwardKey || !forwardIsContact);
     if (distantContactHexes.length > 0) {
-      groups.push({ hexes: distantContactHexes.map(parseKey), color: 0xff6a2a, alpha: 0.18 });
+      groups.push({ hexes: distantContactHexes.map(parseHexKey), color: 0xff6a2a, alpha: 0.18 });
     }
     this.mapView.highlightHexGroups(groups);
     this.mapView.setRangeLabels(
       Array.from(reachable.entries()).map(([key, info]) => ({
-        hex: parseKey(key),
+        hex: parseHexKey(key),
         value: ship.movementLeft - info.cost,
       })),
     );
@@ -3157,11 +3157,6 @@ function requireAiActionUnit(unit: Unit | undefined, action: Action, id: string)
 /** A unit's type name in the current language. */
 function nameOf(unit: Unit): string {
   return unitName(unit.typeId);
-}
-
-function parseKey(key: string): HexCoord {
-  const [q, r] = key.split(',').map(Number);
-  return { q: q!, r: r! };
 }
 
 /** `A`, `B`, `C`, ... for `chooseAdvance`/`chooseExchangeSacrifice`'s per-unit

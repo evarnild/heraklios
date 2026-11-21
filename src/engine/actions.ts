@@ -2,7 +2,7 @@ import type { HexCoord } from '../data/map';
 import { boardingRatioToColumnIndex, type BoardingResult } from '../data/navalBoarding';
 import { isRammingHitWithBonus, type ShipTypeId } from '../data/navalRamming';
 import { rollDie } from './dice';
-import { hexKey } from './hex';
+import { hexKey, parseHexKey } from './hex';
 import {
   reachableHexes,
   reachableNavalHexes,
@@ -165,11 +165,6 @@ function requireLivingUnit(state: GameState, id: string): Unit {
   if (!unit) throw new Error(`applyAction: no unit with id "${id}"`);
   if (unit.destroyed) throw new Error(`applyAction: unit "${id}" is already destroyed`);
   return unit;
-}
-
-function parseHexKey(key: string): HexCoord {
-  const [q, r] = key.split(',').map(Number);
-  return { q: q!, r: r! };
 }
 
 /** The `landMove` mutation, kept out of `applyAction`'s switch (lint complexity). */

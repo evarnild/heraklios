@@ -1,7 +1,7 @@
 import type { HexCoord } from '../data/map';
 import { findRammingContacts, navalStateKey, reachableNavalHexes, searchNaval } from './navalMovement';
 import { evaluateCharge, searchLand, straightLineDirection } from './movement';
-import { hexAdd, hexDistance, hexKey } from './hex';
+import { hexAdd, hexDistance, hexKey, parseHexKey } from './hex';
 import type { GameState, Unit } from './state';
 
 /**
@@ -11,11 +11,6 @@ import type { GameState, Unit } from './state';
  * found the move's cost on (or `evaluateCharge`'s straight line for a
  * charge), the naval path the one `searchNaval` found.
  */
-
-function parseKey(key: string): HexCoord {
-  const [q, r] = key.split(',').map(Number);
-  return { q: q!, r: r! };
-}
 
 /**
  * The hexes a land unit walks to reach `to`: first step next to the unit's
@@ -41,7 +36,7 @@ export function landMovePath(state: GameState, unit: Unit, to: HexCoord): HexCoo
   const startKey = hexKey(unit.position);
   const steps: HexCoord[] = [];
   for (let key: string | undefined = targetKey; key !== undefined && key !== startKey; key = parents.get(key)) {
-    steps.push(parseKey(key));
+    steps.push(parseHexKey(key));
   }
   return steps.reverse();
 }
@@ -90,7 +85,7 @@ export function navalStatePath(state: GameState, unit: Unit, final: NavalPathSte
     k = parents.get(k)
   ) {
     const [hexPart, f] = k.split('|');
-    steps.push({ hex: parseKey(hexPart!), facing: Number(f) });
+    steps.push({ hex: parseHexKey(hexPart!), facing: Number(f) });
   }
   return steps.reverse();
 }
