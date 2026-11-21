@@ -217,6 +217,19 @@ describe('GET /api/state (spec B3)', () => {
     ]);
     expect(body.intents.find((i) => i.id === 52).worktree).toEqual({ exists: true, path: WT, branch: 'feat/52-orch', session: 'working' });
   });
+  it('builds rows from the queue groups only: the problems list is no group, and rides on the state (§71 B13)', async () => {
+    const lines = ['blocked_by cycle: §15 -> §17 -> §15.', '§18: blocked_by names §99, which is on no branch.'];
+    const { handle } = setup({ answer: scriptsAnswer({ ...QUEUE, problems: lines }) });
+    const body = payload(await handle(get('/api/state')));
+    expect(body.intents.map((i) => i.id)).toEqual([29, 52, 51]);
+    expect(body.intents.every((i) => typeof i.id === 'number' && i.group !== 'problems')).toBe(true);
+    expect(body.problems).toEqual(lines);
+    const blocked = { ...QUEUE, queued: [{ ...QUEUE.queued[0], blocked_by: [{ id: 52, reason: 'needs it' }], blocked_by_open: [52, 7] }] };
+    const row = payload(await setup({ answer: scriptsAnswer(blocked) }).handle(get('/api/state'))).intents.find((i) => i.id === 29);
+    expect(row.blocked).toEqual({ text: 'blocked by §52 (§7)', reasons: ['§52: needs it'] });
+    const without = payload(await setup().handle(get('/api/state')));
+    expect(without.problems).toEqual([]);
+  });
   it('shows an intent as needs you when the session manager holds a pending request, first in the list', async () => {
     const live = [
       { sid: 's1', intent: '29', state: 'needs you' }, // a reviewer or auto session: no hook event reaches its row

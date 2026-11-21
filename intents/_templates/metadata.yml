@@ -21,3 +21,8 @@ follows_up:              # fix only: id of the intent whose change caused this d
 links:
   # - plan-history.md#19-...    related history
   # - intents/26-ai-sdlc-kit    related intent
+# Hard prerequisites only: "cannot be built correctly until that intent is
+# merged". One per line, `<id>    <reason>`. Not a gate: any agent drafting the
+# intent, spec or plan may write it. Related work stays in links.
+blocked_by:
+  # - 13    its test checks the growth

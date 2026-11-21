@@ -13,6 +13,7 @@
 // read from git, so it can run from any checkout.
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { blockerState, parseBlockers } from './blockers-lib.mjs';
 import { checkChange, formatResult, parseArgs, parseBranch, parseMetadata, parseReviewHeader } from './intent-check-lib.mjs';
 import { budgetVerdict, checkBudget, countLines, isBudgeted, parseCatFileBatch } from './size-budget-lib.mjs';
 
@@ -132,7 +133,32 @@ function checkSizeBudget(type) {
   return budgetVerdict(failures, type);
 }
 
-const result = checkChange({ branch, metadata, intentDir, intentFiles, diff, review });
+// blocked_by: whether a blocker is merged is read from main, never from this branch.
+const mainIntentDirs = () => {
+  try {
+    return git('ls-tree', '--name-only', 'main:intents').split('\n').filter(Boolean);
+  } catch {
+    return [];
+  }
+};
+const mainMetaOf = (blockerId) => {
+  const dir = mainIntentDirs().find((d) => d.startsWith(`${blockerId}-`));
+  if (!dir) return null;
+  try {
+    return parseMetadata(git('show', `main:intents/${dir}/metadata.yml`));
+  } catch {
+    return null;
+  }
+};
+const onSomeBranch = (blockerId) =>
+  git('for-each-ref', '--format=%(refname:short)', 'refs/heads')
+    .split('\n')
+    .some((b) => parseBranch(b)?.id === blockerId);
+const blockers = parsed
+  ? parseBlockers(metadata, parsed.id).items.map((b) => ({ ...b, state: blockerState(b.id, mainMetaOf, onSomeBranch) }))
+  : [];
+
+const result = checkChange({ branch, metadata, intentDir, intentFiles, diff, review, blockers });
 if (intentDir && result.type) {
   const budget = checkSizeBudget(result.type);
   result.errors.push(...budget.errors);

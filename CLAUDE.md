@@ -82,7 +82,8 @@ and in `intents/README.md` / `REVIEW-POLICY.md` win if they disagree.
   It stops for the owner's questions, a "Needs decision:" finding, an
   `escalate` verdict (the owner reads the diff; the next `/auto <id>` goes
   on), a spec or plan amendment, running out of rounds, the live check, a
-  CRITICAL finding, any red it cannot trace, a re-check mismatch, a plan that exists unapproved, a ship dry-run that
+  CRITICAL finding, any red it cannot trace, a re-check mismatch, a plan that exists unapproved, an open `blocked_by`
+  blocker or a broken record (before it spawns), a ship dry-run that
   is blocked, a worktree held by another session, a sixth open session or an
   agent error, and ends at "ready:
   `/ship <id>`"; it never ships, and never records `spec_accepted` or
@@ -117,6 +118,7 @@ Claude Code session. One session, in the main checkout, is the
 npm run spawn -- <id>           # worktree ../heraklios-wt/<id>-<slug> on the intent's branch,
                                 # npm ci, dev port 5200+(id mod 100), CLAUDE.local.md brief
 npm run spawn -- <id> --remove  # after merge; refuses if unmerged, dirty or junctioned
+                                # spawn itself refuses an intent whose `blocked_by` blocker is not merged
 npm run sessions                # every worktree: status, gates, ±main, dirty, session state
 npm run sessions -- --log 30    # the raw event tail
 ```
@@ -151,7 +153,8 @@ npm run sessions -- --log 30    # the raw event tail
   `plan_approved` and `auto_authorized` for that one intent and nothing wider.
   An Auto click is a bare `/auto <id>`, so it resumes only stops that need no
   answer: no run yet or a closed session; `spec drafted` and `live check owed`
-  (record the gate with its button first); `escalate` (the click also means
+  (record the gate with its button first); `blocked by <n>` and `blocked_by record broken` (it spawns only once
+  every blocker is merged or the record is fixed); `escalate` (the click also means
   "I have read the diff"); `ready for /ship`; a cause you have cleared. A
   stop that needs your answer (`spec questions`, `decision needed`, `spec or
   plan amendment needed`, `critical finding`, `plan exists unapproved`, `plan found the spec incomplete`) is

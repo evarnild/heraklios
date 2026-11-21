@@ -127,7 +127,13 @@ function intentRow(intent) {
   const next = el('span', { class: `owner-${intent.next.owner}`, text: `${intent.next.step} (${intent.next.owner})` });
   return [
     `§${intent.id}`,
-    el('span', {}, intent.title ?? intent.slug ?? '', el('small', { text: ` ${intent.type ?? ''}` })),
+    el(
+      'span',
+      {},
+      intent.title ?? intent.slug ?? '',
+      el('small', { text: ` ${intent.type ?? ''}` }),
+      intent.blocked?.text ? el('div', { class: 'blocked', text: intent.blocked.text, title: intent.blocked.reasons.join('\n') }) : null,
+    ),
     intent.status ?? '',
     [intent.gates, intent.auto].filter(Boolean).join('  '),
     intent.source === 'main' ? 'main' : intent.worktree.exists ? intent.worktree.branch : 'branch',
@@ -140,6 +146,8 @@ function intentRow(intent) {
 const INTENT_HEADERS = ['§', 'title', 'status', 'gates', 'where', 'session', 'next step', 'actions'];
 
 function renderState(state) {
+  $('problems').replaceChildren(...state.problems.map((line) => el('p', { class: 'problem', text: line })));
+  $('problems').hidden = state.problems.length === 0;
   const waiting = state.intents.filter((i) => i.next.owner === 'owner' || i.session === 'needs you');
   $('waiting-list').replaceChildren(waiting.length ? table(INTENT_HEADERS, waiting.map(intentRow)) : el('p', { text: 'Nothing waits on you.' }));
   const open = state.intents.filter((i) => !['done', 'abandoned', 'deferred'].includes(i.status));

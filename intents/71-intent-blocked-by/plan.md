@@ -282,3 +282,119 @@ Re-read on `main` at `7e2033c`. Source files at
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-11-21 — implementation (subtasks 1-7)
+
+Commits: `75ef51a` blockers-lib, `39ac69b` check:intent, `97988bb` spawn,
+`423caa6` queue plus orchestrator guard, `b48c00f` orchestrator display and
+Auto resume, `8e64d38` skills, `056f032` docs (and the status flip in the
+commit after it).
+
+Shipped: B1-B18 as in the spec. `npm run verify` green at every commit: 83
+test files, 1470 tests at the end (1436 before this work), 21 lint warnings,
+cap 21 unchanged. `npm run check:intent` on this branch: PASS.
+
+- **AC1** `scripts/blockers-lib.test.mjs`, 16 tests, every source case in Vitest.
+- **AC2** `scripts/intent-check-blockers.test.mjs` (new, 7 tests) and three
+  end-to-end cases in `scripts/check-intent.test.mjs`, including the branch
+  whose copy of the blocker says `merged:` while `main`'s does not. Mutant:
+  dropping `blockers` from the `checkChange` call in `check-intent.mjs` makes
+  the three end-to-end cases fail (restored by copy).
+- **AC3** `queue-lib.test.mjs` (7 cases) and `queue.test.mjs` (2 git-seam cases).
+- **AC4** `spawn-intent.test.mjs` (7 cases): each refusal asserts the message,
+  exit 1, no worktree directory and no branch; a cleared blocker spawns.
+- **AC5** `state.mjs` builds rows from every key except `problems` and puts
+  `problems` on the state, in the same commit as the `queue --json` change
+  (`423caa6`). Tests: `server.test.mjs` (no stray rows, `problems` on the
+  state, a row's `blocked`), `orchestrator-lib.test.mjs` (`autoLaunch` for
+  `blocked by 3` / `blocked by 13` / `blocked_by record broken`, `blockedRow`).
+- **AC6** `npm run queue` output on this branch is identical to `main`'s (no
+  intent declares `blocked_by`). `npm run check:intent -- <branch>` from this
+  worktree, before and after the change:
+  - `feat/66-board-animations`: before `FAIL` (size budget: BoardScene.ts has
+    3195 lines, over its ceiling of 3173; 25 files changed); after `FAIL`
+    (size budget: the branch raises BoardScene.ts from 3173 to 3177 without a
+    budget line; 30 files changed). Same verdict; the message differs only
+    because §66's branch moved between the two runs (more commits). No
+    `blocked_by` line appears in either.
+  - `exp/70-unity-front-end-probe`: before `PASS` (13 files); after `PASS`
+    (67 files; the branch moved).
+- **No backfill (I2):** no `blocked_by` records were added to any existing
+  intent, and the source's `blockers-backfill.test.mjs` is not ported. §64 and
+  §65 are merged, so a record would be cleared at once.
+
+Differences from the source (`3041c48`), beyond I1-I3 and B13-B16:
+- `refuseIfBlocked` takes the lowest open and lowest unknown blocker through
+  one small `lowest(state)` helper instead of two copies of the sort (same
+  behaviour; keeps the function short).
+- `queueData`'s `flat` is indented properly (the source left it misindented).
+- The source's tests named their cases with its own spec numbers (`B3:`, `B5:`,
+  `F3:`); those prefixes are dropped, as they mean something else here.
+- The `checkBlockers` tests live in a new file, not in
+  `intent-check-lib.test.mjs` (plan, Assumptions). One extra case checks the
+  message without a reason and each broken-record kind alone.
+- The skills' wording is the source's with `heraklios-implementer` and
+  heraklios's step numbers; the `/intent` item is folded into heraklios's
+  step 3 sentence. The `CLAUDE.md` and `sdlc.md` lines are heraklios's own,
+  as the plan said, plus a short paragraph in `README.md`'s orchestrator
+  section (there is no "Known simplifications" item for this).
+- The orchestrator's `blockedRow` reuses queue-lib's `blockedText`; the split
+  of `blocked_by_open` into direct and further is by membership in the row's
+  own `blocked_by` (the JSON does not mark where the direct ids end).
+
+Not run: the live check (owed to the owner, plan Validation) and `npm run e2e`
+(not needed: no `src/` or `e2e/` change).
+
+Correction to the entry above (found in round 1): "1436 before" should read
+1420 before; the spawn tests were 8 cases, not 7.
+
+### 2026-11-21 — rework, round 1
+
+Commits: the rework commit that follows `b2e16ff` (see `git log`). `npm run
+verify` green: 83 test files, 1478 tests (1470 + 8 new), 21 lint warnings,
+cap 21 unchanged. `check:intent` PASS.
+
+New tests and the mutant each kills. Each was proved: back up the file by
+copy, apply the mutant, run the test file (one failure each), restore by copy,
+`git status --short` showed only the test files.
+
+| Test | Mutant it kills |
+| --- | --- |
+| `blockers-lib.test.mjs`: a self reference `018` for self id `18` | B06: self-id compared as strings (`id === String(selfId)`), `blockers-lib.mjs:24` |
+| `blockers-lib.test.mjs`: `findCycles({ 9: ['13'], 13: ['9'] })` starts at `9` | B22: smallest id compared lexically (`b < a`), `:86` |
+| `blockers-lib.test.mjs`: an empty item is skipped without throwing | B03: `if (!m) continue;` removed, `:20` |
+| `check-intent.test.mjs`: §9 only on a branch (open), §96 merged on main: FAIL naming §9 | K02: `${blockerId}-` prefix dropped, `check-intent.mjs:145` |
+| `spawn-intent.test.mjs`: §5 only on a branch, §50 merged on main: refuses naming §5 | S06: same prefix in `session-io.mjs:98` |
+| `spawn-intent.test.mjs`: open blocker without a reason: "(no reason given)" | P07: `open.reason \|\| 'no reason given'` reduced to `open.reason` |
+| `spawn-intent.test.mjs`: a blocker on two branches is open, not unknown | S05: the `catch` in `readBlockers` returning false instead of true |
+| `queue.test.mjs`: `merged:` on main (status not terminal) with a branch shown: not blocked | U01: `mainMerged: isMerged(mainMeta)` removed in `queue.mjs` |
+
+Notes:
+- K02 and S06 need the blocker to be absent from main: with it on main, the
+  blocker's own directory (`9-...`) sorts before `96-...` (`-` before digits),
+  so a prefix match still finds the right one. A blocker that exists only on a
+  branch makes the other intent's directory the only candidate.
+- Another difference from the source: `checkChange`'s JSDoc gains a
+  `@param input.blockers` line (`intent-check-lib.mjs`, around line 164).
+- The `B3:` prefix is dropped from the spawn test name (spawn-intent.test.mjs).
+
+### 2026-11-21 — rework, round 2
+
+Commits: the rework commit that follows `adceb6f` (see `git log`). `npm run
+verify` green: 83 test files, 1481 tests (1478 + 3 new tests covering 4 mutants), 21 lint warnings,
+cap 21 unchanged.
+
+New tests and the mutant each kills (proved by copy, mutate, run the test
+file, restore by copy; one failure each, `git status --short` showed only the
+test files afterwards):
+
+| Test | Mutant it kills |
+| --- | --- |
+| `spawn-intent.test.mjs`: `intents/57-draft/` only uncommitted in the main checkout, a committed intent blocked by it: refused as open, not "broken" (spec B4) | S03: `findIntentDir(root, blockerId) !== null \|\|` removed from `exists` in `session-io.mjs` |
+| `queue-lib.test.mjs`: entries without `mainMerged`, a main-sourced `merged:` clears the blocker | Q04: fallback reduced to `e.mainMerged` |
+| the same test: a branch-sourced `merged:` does not clear it | Q03: fallback reads `isMerged(e.metadata)` regardless of source |
+| `queue-lib.test.mjs`: problem lines in ascending numeric id order (§13 before §100, entries given §100 first) | Q06: entries not sorted before the problems loop |
+
+Note on U01's fixture (round 1): `mainMerged` is the only way the queue sees
+main's `merged:` once a branch copy is picked, which is why that test uses a
+non-terminal status on main with a branch shown.

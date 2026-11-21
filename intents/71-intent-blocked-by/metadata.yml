@@ -2,18 +2,18 @@
 id: 71
 slug: intent-blocked-by
 type: feature
-status: accepted
+status: in-review
 title: Record which intents must merge before another can be built (blocked_by)
 review_tier:
 intent_accepted: 2026-11-21 by-agent    # owner: "yes, then /auto 71"
 spec_accepted: 2026-11-21 by-agent    # owner: "yes"
 plan_approved: 2026-11-21 by-agent    # auto: owner "/auto 71" (auto_authorized 2026-11-21)
-live_checked:
+live_checked: 2026-11-21 by-agent    # owner: "live check passed for §71"
 merged:
 konmari:
-auto_authorized: 2026-11-21 by-agent    # owner: "yes, then /auto 71"
-auto_round:
-auto_stopped:
+auto_authorized: 2026-11-21 by-agent    # owner: "/auto 71" (after the escalate stop: diff read)
+auto_round: 3
+auto_stopped: ready for /ship
 follows_up:
 links:
   - intents/50-sdlc-auto-mode

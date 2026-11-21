@@ -5,6 +5,7 @@
 // unit-tested (orchestrator-lib.test.mjs). The rules themselves stay in
 // intents/README.md, REVIEW-POLICY.md and the skills; this only reads them.
 import { GATE_FIELDS, parseGate, TYPE_RULES } from '../../scripts/intent-check-lib.mjs';
+import { blockedText } from '../../scripts/queue-lib.mjs';
 import { setKeys } from '../../scripts/ship-lib.mjs';
 
 /** The roles a session can be launched in (spec B5). Anything else is refused. */
@@ -149,6 +150,25 @@ export function waitingOnOwner(entries) {
   return [...entries].sort((a, b) => rank(a) - rank(b) || Number(a.id) - Number(b.id));
 }
 
+/**
+ * What a queue row says about its open blockers (§71 B14): `{ text, reasons }`.
+ * `text` is the queue's own `blocked by §a, §b (§c)` (queue-lib's blockedText,
+ * so the page cannot drift from `npm run queue`), `reasons` one `§n: reason`
+ * line per open direct blocker that has one, for the hover. The row's
+ * `blocked_by_open` lists the direct blockers first, then the further ones,
+ * and a further one is never in the row's own `blocked_by`, so the split is
+ * by membership. No rule of its own: this only formats what the script said.
+ */
+export function blockedRow(intent) {
+  const open = (intent.blocked_by_open ?? []).map(Number);
+  const own = new Map((intent.blocked_by ?? []).map((b) => [Number(b.id), b.reason ?? '']));
+  const direct = open.filter((id) => own.has(id));
+  const further = open.filter((id) => !own.has(id));
+  const text = blockedText({ direct, further });
+  const reasons = direct.filter((id) => own.get(id)).map((id) => `§${id}: ${own.get(id)}`);
+  return { text, reasons };
+}
+
 // --- Launching a session (spec B5) -----------------------------------------
 
 /**
@@ -195,6 +215,8 @@ const NEEDS_ANSWER = [
 ];
 /** Stops the skill does not resume at all: the intent continues by hand. */
 const BY_HAND = ['out of rounds'];
+/** Stops /auto writes at step 4 for an unmerged prerequisite or a broken blocked_by record (§71 B8, B16). */
+const BLOCKER_STOPS = ['blocked by', 'blocked_by record broken'];
 
 const startsWithAny = (text, list) => list.some((p) => text.startsWith(p));
 
@@ -223,6 +245,7 @@ export function autoLaunch(autoStopped, id = '<id>') {
   else if (stop.startsWith('spec drafted')) tail = 'Record spec_accepted with its button first: this resumes the run from the accepted spec.';
   else if (stop.startsWith('live check owed')) tail = 'Record live_checked with its button first, once you have run the live check and it passed.';
   else if (stop.startsWith('escalate')) tail = 'It ALSO means "I have read the diff": the run goes on to the live-check or ship stop with no further review. Click only if you have read it.';
+  else if (startsWithAny(stop, BLOCKER_STOPS)) tail = 'The run spawns only if every blocked_by intent is merged into main, or the blocked_by record is fixed; otherwise it stops again at the same place. It starts no new round.';
   else if (stop.startsWith('ready for /ship')) tail = 'It re-runs the ship dry-run and reports; it never ships.';
   else tail = `The run stopped at "${stop}". Click only if you have cleared that cause: the run redoes the step that stopped.`;
   return { allowed: true, confirmText: `${base} ${tail} Launch it?` };

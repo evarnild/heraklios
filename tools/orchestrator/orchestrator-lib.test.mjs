@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   autoLaunch,
+  blockedRow,
   foreignHost,
   foreignOrigin,
   gateAllowed,
@@ -343,5 +344,35 @@ describe('autoLaunch: what an Auto click can resume (F13)', () => {
     const r = autoLaunch('out of rounds, open findings below', '52');
     expect(r.allowed).toBe(false);
     expect(r.reason).toContain('by hand');
+  });
+});
+
+describe('autoLaunch and the blocker stops (§71 B16)', () => {
+  it.each(['blocked by 3', 'blocked by 13', 'blocked_by record broken'])('allows %s, and the confirm says what the run does', (stop) => {
+    const r = autoLaunch(stop, '52');
+    expect(r.allowed, stop).toBe(true);
+    expect(r.confirmText).toContain('/auto 52');
+    expect(r.confirmText).toContain('every blocked_by intent is merged into main');
+    expect(r.confirmText).toContain('blocked_by record is fixed');
+    expect(r.confirmText).toContain('stops again');
+    expect(r.confirmText).not.toContain('Click only if you have cleared that cause');
+  });
+});
+
+describe('blockedRow (§71 B14)', () => {
+  const row = (over) => ({ blocked_by: [], blocked_by_open: [], ...over });
+  it('is empty when nothing open blocks the intent', () => {
+    expect(blockedRow(row({}))).toEqual({ text: '', reasons: [] });
+    expect(blockedRow(row({ blocked_by: [{ id: 2, reason: 'x' }] }))).toEqual({ text: '', reasons: [] });
+    expect(blockedRow({})).toEqual({ text: '', reasons: [] });
+  });
+  it('gives the queue text, direct blockers first and the further ones in brackets', () => {
+    const r = blockedRow(row({ blocked_by: [{ id: 3, reason: 'needs it' }, { id: 5, reason: '' }], blocked_by_open: [3, 5, 2] }));
+    expect(r.text).toBe('blocked by §3, §5 (§2)');
+    expect(r.reasons).toEqual(['§3: needs it']);
+  });
+  it('a cleared direct blocker is not shown', () => {
+    const r = blockedRow(row({ blocked_by: [{ id: 2, reason: 'a' }, { id: 3, reason: 'b' }], blocked_by_open: [3] }));
+    expect(r).toEqual({ text: 'blocked by §3', reasons: ['§3: b'] });
   });
 });

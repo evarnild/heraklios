@@ -122,3 +122,83 @@ describe('queueLine and formatQueue', () => {
     expect(data.inFlight.map((e) => e.auto)).toEqual(['auto · r2', '']);
   });
 });
+
+describe('blocked_by in the queue', () => {
+  const chain = () => [
+    entry(13, 'in-progress'),
+    entry(14, 'accepted', { blocked_by: ['13    needs the growth'] }),
+    entry(15, 'accepted', { blocked_by: ['14    cases on 500 products'] }),
+    entry(17, 'accepted', { blocked_by: ['15    reads its reports'] }),
+  ];
+  const lineOf = (text, id) => text.split(String.fromCharCode(10)).find((l) => l.trim().startsWith(`§${id}  `));
+
+  it('prints direct open blockers, then the chain in parentheses, each once', () => {
+    const text = formatQueue(chain());
+    expect(lineOf(text, 17)).toContain('  blocked by §15 (§14, §13)  ');
+    expect(lineOf(text, 14)).toContain('  blocked by §13  ');
+    expect(lineOf(text, 13)).not.toContain('blocked by');
+  });
+
+  it('drops cleared links from the chain', () => {
+    const entries = chain();
+    entries[1] = entry(14, 'accepted', { blocked_by: ['13    x'] });
+    entries[0] = { ...entry(13, 'done', { merged: 'abc1234' }, 0), mainMerged: true };
+    const text = formatQueue(entries);
+    expect(lineOf(text, 17)).toContain('  blocked by §15 (§14)  ');
+    expect(lineOf(text, 14)).not.toContain('blocked by');
+  });
+
+  it('a merged: on a branch copy does not clear a blocker, main does', () => {
+    const branchCopy = { ...entry(13, 'done', { merged: 'abc1234' }, null, 'branch'), mainMerged: false };
+    expect(lineOf(formatQueue([branchCopy, entry(14, 'accepted', { blocked_by: ['13    x'] })]), 14)).toContain('blocked by §13');
+    const onMain = { ...entry(13, 'done', { merged: 'abc1234' }, 0), mainMerged: true };
+    expect(lineOf(formatQueue([onMain, entry(14, 'accepted', { blocked_by: ['13    x'] })]), 14)).not.toContain('blocked by');
+  });
+
+  it('a cycle is one problem line and the queue still prints', () => {
+    const text = formatQueue([
+      entry(15, 'accepted', { blocked_by: ['17    x'] }),
+      entry(17, 'accepted', { blocked_by: ['15    y'] }),
+    ]);
+    expect(text).toContain(['Problems', '  blocked_by cycle: §15 -> §17 -> §15.', ''].join(String.fromCharCode(10)));
+    expect(text.match(/blocked_by cycle/g)).toHaveLength(1);
+    expect(lineOf(text, 17)).toContain('blocked by §15');
+  });
+
+  it('broken records are problems naming the intent', () => {
+    const text = formatQueue([entry(18, 'accepted', { blocked_by: ['x    a', '18    b', '99    c'] })]);
+    expect(text).toContain('§18: blocked_by item "x    a": "x" is not an intent id (digits).');
+    expect(text).toContain('§18: blocked_by item "18    b": an intent cannot block itself.');
+    expect(text).toContain('§18: blocked_by names §99, which is on no branch.');
+    expect(formatQueue([entry(18, 'accepted', { blocked_by: ['99    c'] })], { knownIds: ['99'] })).not.toContain('Problems');
+  });
+
+  it('JSON carries blocked_by and blocked_by_open', () => {
+    const data = queueData(chain());
+    const e17 = data.inFlight.find((e) => e.id === 17);
+    expect(e17.blocked_by).toEqual([{ id: 15, reason: 'reads its reports' }]);
+    expect(e17.blocked_by_open).toEqual([15, 14, 13]);
+    expect(data.inFlight.find((e) => e.id === 13)).toMatchObject({ blocked_by: [], blocked_by_open: [] });
+    expect(data.problems).toEqual([]);
+  });
+
+  it('without mainMerged, a main-sourced merged: clears the blocker and a branch-sourced one does not', () => {
+    const waits = entry(14, 'accepted', { blocked_by: ['13    x'] });
+    const onMain = entry(13, 'done', { merged: 'abc1234' }, 0, 'main');
+    const onBranch = entry(13, 'in-review', { merged: 'abc1234' }, null, 'branch');
+    expect(lineOf(formatQueue([onMain, waits]), 14)).not.toContain('blocked by');
+    expect(lineOf(formatQueue([onBranch, waits]), 14)).toContain('blocked by §13');
+  });
+
+  it('lists problems in ascending numeric id order whatever the entry order', () => {
+    const data = queueData([entry(100, 'accepted', { blocked_by: ['x    a'] }), entry(13, 'accepted', { blocked_by: ['x    b'] })]);
+    expect(data.problems).toEqual([
+      '§13: blocked_by item "x    b": "x" is not an intent id (digits).',
+      '§100: blocked_by item "x    a": "x" is not an intent id (digits).',
+    ]);
+  });
+
+  it('metadata without the field prints as before', () => {
+    expect(formatQueue([entry(1, 'accepted')])).not.toContain('blocked');
+  });
+});
