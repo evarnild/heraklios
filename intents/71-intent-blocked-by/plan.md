@@ -381,7 +381,7 @@ Notes:
 ### 2026-11-21 — rework, round 2
 
 Commits: the rework commit that follows `adceb6f` (see `git log`). `npm run
-verify` green: 83 test files, 1482 tests (1478 + 4 new), 21 lint warnings,
+verify` green: 83 test files, 1481 tests (1478 + 3 new tests covering 4 mutants), 21 lint warnings,
 cap 21 unchanged.
 
 New tests and the mutant each kills (proved by copy, mutate, run the test
