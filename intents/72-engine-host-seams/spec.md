@@ -266,3 +266,32 @@ Each of these becomes a comment at its site:
 - **The follow-up intent** ("BoardScene and the computer seats use the session
   protocol", `blocked_by` §72) is drafted after this spec is accepted. It is
   not part of §72.
+
+## Amendment: the owner's answers to the plan's questions (2026-11-21)
+
+`/build-plan` found four points the spec left open. These are the owner's
+answers. Each one clarifies the B it names.
+
+- **A1 (B3, B6, B16), "Separate union".** The answer kinds are a separate
+  `AnswerAction` union in the session module, with `SessionAction = Action |
+  AnswerAction`. Only `sessionApply` takes answers, and only
+  `sessionLegalActions` lists them. `Action`, `applyAction` and `legalActions`
+  are untouched.
+- **A2 (B4, I2), "onForced hook".**
+  - `sessionApply(session, action, rng, hooks?)` takes an optional hooks
+    argument. The session reports each step it applies without asking through
+    `hooks.onForced(question)`, at the moment it applies the step. A
+    one-option retreat or push is such a step.
+  - The harness adapter calls the agent there, so the rng is drawn in today's
+    order. This relies on agents drawing the rng synchronously, as both do
+    today.
+  - Hosts may ignore the hook.
+- **A3 (B3), "No list check".** `sessionApply` and the host's `apply` check a
+  turn action only through `applyAction`'s own errors, as the harness does
+  today. They do not check it against `sessionLegalActions`, so caller-built
+  combined attacks are accepted. Answers are still checked against the listed
+  answers (B3).
+- **A4 (B10), "Units the seat has".** In `deployUnit`'s id `p${seat}u${n}`, `n`
+  is the number of units that seat already has in `state`. This is the same as
+  today's computer placer. A second human seat's ids now restart at 0. Ids are
+  never shown to players, and the seat in the id keeps them unique.
