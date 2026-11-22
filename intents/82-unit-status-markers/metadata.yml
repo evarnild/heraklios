@@ -1,0 +1,22 @@
+# generated-by: heraklios/intent@0.1.5
+id: 82
+slug: unit-status-markers
+type: feature
+status: accepted
+title: Each unit shows whether it has moved, charged, attacked or been attacked this phase
+review_tier:
+intent_accepted: 2026-11-22 by-agent    # owner: "accept 81 82 83 84 /auto 81 /auto 83"
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+konmari:
+auto_authorized:
+auto_round:
+auto_stopped:
+follows_up:
+links:
+  - intents/74-unit-hover-stats    the tooltip's state line shows the same facts on hover
+  - intents/77-standard-view-animations    the markers must follow animated counters
+blocked_by:
+  - 77    it rebuilds both views' unit layers; markers must ride on them

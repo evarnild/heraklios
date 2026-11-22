@@ -1,0 +1,21 @@
+# generated-by: heraklios/intent@0.1.5
+id: 83
+slug: end-move-phase-warning
+type: feature
+status: accepted
+title: Ending the movement phase with unmoved units shows them and asks to confirm
+review_tier:
+intent_accepted: 2026-11-22 by-agent    # owner: "accept 81 82 83 84 /auto 81 /auto 83"
+spec_accepted: 2026-11-22 by-agent    # owner: "spec accepted 81 and 83"
+plan_approved: 2026-11-22 by-agent    # auto: owner "/auto 81 /auto 83" (auto_authorized 2026-11-22)
+live_checked:
+merged:
+konmari:
+auto_authorized: 2026-11-22 by-agent    # owner: "/auto 81 /auto 83"
+auto_round:
+auto_stopped: too many sessions
+follows_up:
+links:
+  - intents/82-unit-status-markers    the same not-moved fact
+blocked_by:
+

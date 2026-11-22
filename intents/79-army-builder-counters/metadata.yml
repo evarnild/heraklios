@@ -6,14 +6,14 @@ status: accepted
 title: The army builder shows each unit's original counter
 review_tier:
 intent_accepted: 2026-11-22 by-agent    # owner: "accept 76 and 79"
-spec_accepted:
-plan_approved:
+spec_accepted: 2026-11-22 by-agent    # owner: "spec accepted 79"
+plan_approved: 2026-11-22 by-agent    # auto: owner "/auto 79" (auto_authorized 2026-11-22)
 live_checked:
 merged:
 konmari:
 auto_authorized: 2026-11-22 by-agent    # owner: "/auto 79"
 auto_round:
-auto_stopped: spec drafted, waiting for spec_accepted
+auto_stopped:
 follows_up:
 links:
   - intents/74-unit-hover-stats    the values line a hover could reuse

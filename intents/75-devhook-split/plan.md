@@ -165,3 +165,23 @@ Re-read on `main` at `129b0c7`.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### Phase 1-3 — 2026-11-22
+
+- Commits: characterisation spec first, then the split (hashes in `git log`).
+- Shipped: `e2e/dev-hook-members.spec.ts` pins the 31 members (including
+  `tooltipText` and `tooltipBox` from §74) as functions; passed on the
+  unsplit hook. `installDevHook` is now a spread of `sceneReaders`,
+  `boardReaders`, `mapReaders` and `viewReaders`; `board`, `mapScene` and
+  `buttons` moved to module level as functions of `game`. Both packing
+  comments gone, one member per line. `idle` and `busy` live in
+  `boardReaders`, `idle` calling the local `busy`.
+- Lengths (eslint rule, blank/comment lines skipped): `installDevHook` 9
+  (was 80), `sceneReaders` 17, `boardReaders` 49, `mapReaders` 40,
+  `viewReaders` 6. `devHook.ts` is 454 lines, so no sibling module.
+- Counts: verify green (1670 tests passed, 2 skipped); `npm run e2e` 32
+  passed (31 before plus the new spec).
+- Warnings: 19, the cap stays 19 (`installDevHook` at 80 was not counted, so
+  nothing fell). Cap not lowered.
+- Divergence: `viewReaders()` takes no `game` (it reads none); the plan
+  sketched it the same way. None otherwise.

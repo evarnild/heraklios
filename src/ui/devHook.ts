@@ -106,7 +106,7 @@ export interface DevHook {
   /**
    * True when the scene's display list is in non-decreasing depth order, i.e.
    * nothing drawn at a lower depth sits after (and so over) a higher one
-   * (the markers re-stacking in `StandardBoardView.setUnits`). Read-only.
+   * (the figures re-stacking in `UnitLayer.setUnits`). Read-only.
    */
   displayListSorted(): boolean;
   /** Which board view the surface is showing (§64). */
@@ -190,22 +190,37 @@ interface PendingChoice {
 }
 
 export function installDevHook(game: Phaser.Game): void {
-  const board = (): BoardInternals => {
-    if (!game.scene.isActive('Board')) throw new Error('Board scene is not active');
-    return game.scene.getScene('Board') as BoardInternals;
-  };
-
-  /** The Board or the Placement scene: either draws the map through a `mapView`. */
-  const mapScene = (): BoardInternals => {
-    const scene = game.scene.getScenes(true).find((sc) => 'mapView' in sc);
-    if (!scene) throw new Error('No active scene with a map');
-    return scene as BoardInternals;
-  };
-
-  const buttons = (): ButtonCandidate[] =>
-    game.scene.getScenes(true).flatMap((scene) => scene.children.list.flatMap((obj) => candidate(scene, obj)));
-
   const hook: DevHook = {
+    ...sceneReaders(game),
+    ...boardReaders(game),
+    ...mapReaders(game),
+    ...viewReaders(),
+  };
+  (window as unknown as { __heraklios: DevHook }).__heraklios = hook;
+}
+
+function board(game: Phaser.Game): BoardInternals {
+  if (!game.scene.isActive('Board')) throw new Error('Board scene is not active');
+  return game.scene.getScene('Board') as BoardInternals;
+}
+
+/** The Board or the Placement scene: either draws the map through a `mapView`. */
+function mapScene(game: Phaser.Game): BoardInternals {
+  const scene = game.scene.getScenes(true).find((sc) => 'mapView' in sc);
+  if (!scene) throw new Error('No active scene with a map');
+  return scene as BoardInternals;
+}
+
+function buttons(game: Phaser.Game): ButtonCandidate[] {
+  return game.scene.getScenes(true).flatMap((scene) => scene.children.list.flatMap((obj) => candidate(scene, obj)));
+}
+
+/** The game's scenes, its state, the dice seed and the buttons a test clicks. */
+function sceneReaders(game: Phaser.Game): Pick<
+  DevHook,
+  'scenes' | 'state' | 'testScenario' | 'seed' | 'buttonCount' | 'buttonToCanvas' | 'placement' | 'armyBuilder'
+> {
+  return {
     scenes: () => game.scene.getScenes(true).map((s) => s.scene.key),
     // A JSON copy: GameState is JSON-safe (saves serialize it), and a copy
     // means nothing a test does to the result reaches the game.
@@ -214,6 +229,39 @@ export function installDevHook(game: Phaser.Game): void {
     seed: (n) => {
       Math.random = createSeededRng(n);
     },
+    buttonCount: (label) => matchingButtons(buttons(game), label).length,
+    buttonToCanvas: (label, index) => pickButton(buttons(game), label, index),
+    placement: () => placementSnapshot(game),
+    armyBuilder: () => armyBuilderSnapshot(game),
+  };
+}
+
+/** What the Board is doing and has on offer: moves, pending choices, busy/idle, log, panels. */
+function boardReaders(game: Phaser.Game): Pick<
+  DevHook,
+  | 'reachable'
+  | 'swappable'
+  | 'busy'
+  | 'idle'
+  | 'pendingHexes'
+  | 'selectedUnitId'
+  | 'logEntries'
+  | 'logPanel'
+  | 'rulesPanel'
+> {
+  // `idle` calls this same function, so the two never disagree.
+  const busy = (): string[] => {
+    if (!game.scene.isActive('Board')) return ['Board not active'];
+    const b = board(game) as unknown as Record<string, unknown>;
+    for (const f of BUSY_FIELDS) {
+      if (!(f in b)) throw new Error(`devHook: BoardScene has no "${f}" field any more — update BUSY_FIELDS`);
+    }
+    const reasons: string[] = BUSY_FIELDS.filter((f) => b[f] !== false && b[f] !== null);
+    const tweens = board(game).tweens.getTweens().length;
+    if (tweens) reasons.push(`${tweens} tween(s)`);
+    return reasons;
+  };
+  return {
     reachable: (unitId) => {
       const st = session.gameState;
       const unit = st?.units.find((u) => u.id === unitId);
@@ -226,54 +274,68 @@ export function installDevHook(game: Phaser.Game): void {
       if (!st || !unit) throw new Error(`No unit ${unitId}`);
       return st.units.filter((o) => swapStep(st, unit, o) !== null).map((o) => o.id);
     },
+    busy,
+    idle: () => busy().length === 0,
+    pendingHexes: () => {
+      const choice = (board(game) as unknown as { retreatChoice: PendingChoice | null }).retreatChoice;
+      if (!choice) return [];
+      return choice.kind === 'retreat' ? (choice.legalHexes ?? []) : (choice.pushTargets ?? []).map((u) => u.position);
+    },
+    selectedUnitId: () => selectedUnitId(board(game)),
+    logEntries: () => logInternals(board(game)).logHistory.entries().map((e) => ({ kind: e.kind, text: e.text })),
+    logPanel: () => logPanelSnapshot(logInternals(board(game)).logPanel),
+    rulesPanel: () => rulesPanelSnapshot(board(game)),
+  };
+}
+
+/** The map surface: the camera, hex positions, what is drawn on it and its tooltip. */
+function mapReaders(game: Phaser.Game): Pick<
+  DevHook,
+  | 'centerOn'
+  | 'hexToCanvas'
+  | 'viewCentre'
+  | 'cameraZoom'
+  | 'cameraScroll'
+  | 'displayListSorted'
+  | 'boardView'
+  | 'boardObjects'
+  | 'hudStrays'
+  | 'unitCanvas'
+  | 'tooltipText'
+  | 'tooltipBox'
+> {
+  return {
     centerOn: (hex) => {
-      const b = mapScene();
+      const b = mapScene(game);
       const w = b.mapView.toScreen(hex);
       b.cameras.main.centerOn(w.x, w.y);
     },
     hexToCanvas: (hex) => {
-      const b = mapScene();
+      const b = mapScene(game);
       return worldToCanvas(b.cameras.main, b.mapView.toScreen(hex));
     },
     viewCentre: () => {
-      const cam = mapScene().cameras.main;
+      const cam = mapScene(game).cameras.main;
       return { x: cam.x + cam.width / 2, y: cam.y + cam.height / 2 };
     },
-    buttonCount: (label) => matchingButtons(buttons(), label).length,
-    buttonToCanvas: (label, index) => pickButton(buttons(), label, index),
-    busy: () => {
-      if (!game.scene.isActive('Board')) return ['Board not active'];
-      const b = board() as unknown as Record<string, unknown>;
-      for (const f of BUSY_FIELDS) {
-        if (!(f in b)) throw new Error(`devHook: BoardScene has no "${f}" field any more — update BUSY_FIELDS`);
-      }
-      const reasons: string[] = BUSY_FIELDS.filter((f) => b[f] !== false && b[f] !== null);
-      const tweens = board().tweens.getTweens().length;
-      if (tweens) reasons.push(`${tweens} tween(s)`);
-      return reasons;
-    },
-    idle: () => hook.busy().length === 0,
-    pendingHexes: () => {
-      const choice = (board() as unknown as { retreatChoice: PendingChoice | null }).retreatChoice;
-      if (!choice) return [];
-      return choice.kind === 'retreat' ? (choice.legalHexes ?? []) : (choice.pushTargets ?? []).map((u) => u.position);
-    },
-    placement: () => placementSnapshot(game),
-    armyBuilder: () => armyBuilderSnapshot(game),
-    logEntries: () => logInternals(board()).logHistory.entries().map((e) => ({ kind: e.kind, text: e.text })),
-    logPanel: () => logPanelSnapshot(logInternals(board()).logPanel),
-    cameraZoom: () => board().cameras.main.zoom,
-    displayListSorted: () => displayListSorted(mapScene()),
-    rulesPanel: () => rulesPanelSnapshot(board()),
-    boardView: () => mapScene().mapView.viewKind,
-    animationSpeed: () => animationSpeed(), unitCanvas: (unitId) => unitCanvas(mapScene(), unitId),
-    cameraScroll: () => ({ x: mapScene().cameras.main.scrollX, y: mapScene().cameras.main.scrollY }),
-    selectedUnitId: () => selectedUnitId(board()),
-    boardObjects: () => boardObjects(mapScene()),
-    hudStrays: () => mapScene().mapView.cameraStrays(),
-    landscapeBuilds: () => landscapeBuilds(), tooltipText: () => mapScene().mapView.tooltipText(), tooltipBox: () => mapScene().mapView.tooltipBox(), // packed to stay under the 80-line limit, as §66's is; splitting installDevHook is a separate refactor intent
+    cameraZoom: () => board(game).cameras.main.zoom,
+    cameraScroll: () => ({ x: mapScene(game).cameras.main.scrollX, y: mapScene(game).cameras.main.scrollY }),
+    displayListSorted: () => displayListSorted(mapScene(game)),
+    boardView: () => mapScene(game).mapView.viewKind,
+    boardObjects: () => boardObjects(mapScene(game)),
+    hudStrays: () => mapScene(game).mapView.cameraStrays(),
+    unitCanvas: (unitId) => unitCanvas(mapScene(game), unitId),
+    tooltipText: () => mapScene(game).mapView.tooltipText(),
+    tooltipBox: () => mapScene(game).mapView.tooltipBox(),
   };
-  (window as unknown as { __heraklios: DevHook }).__heraklios = hook;
+}
+
+/** Page-wide view settings and counters, not tied to one scene. */
+function viewReaders(): Pick<DevHook, 'animationSpeed' | 'landscapeBuilds'> {
+  return {
+    animationSpeed: () => animationSpeed(),
+    landscapeBuilds: () => landscapeBuilds(),
+  };
 }
 
 function placementSnapshot(game: Phaser.Game): ReturnType<DevHook['placement']> {

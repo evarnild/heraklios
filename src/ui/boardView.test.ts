@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GHOST_SHIP_ID, ghostDrawing, reconcileUnits, unitAlpha, type UnitDrawing } from './boardView';
+import { DIMMED_UNIT_ALPHA, GHOST_SHIP_ID, ghostDrawing, reconcileUnits, unitAlpha, type UnitDrawing } from './boardView';
 
 const u = (id: string, q: number, r: number, typeId = 'hoplite', owner = 0, facing?: number): UnitDrawing => ({
   id,
@@ -82,7 +82,27 @@ describe('ghostDrawing', () => {
 });
 
 describe('unitAlpha', () => {
-  it('is 1 for a plain drawing', () => {
-    expect(unitAlpha(u('a', 1, 1))).toBe(1);
+  it('is 1 without the flag and DIMMED_UNIT_ALPHA with it', () => {
+    expect(unitAlpha({})).toBe(1);
+    expect(unitAlpha({ dimmed: true })).toBe(DIMMED_UNIT_ALPHA);
+  });
+
+  it('keeps the dim between the ghost (0.5) and nearly opaque (spec AC7 range)', () => {
+    expect(DIMMED_UNIT_ALPHA).toBeGreaterThanOrEqual(0.4);
+    expect(DIMMED_UNIT_ALPHA).toBeLessThanOrEqual(0.75);
+  });
+});
+
+describe('reconcileUnits and the dimmed flag', () => {
+  const dim = (d: UnitDrawing): UnitDrawing => ({ ...d, dimmed: true });
+  it('recreates a unit whose flag turns on or off', () => {
+    const a = u('a', 1, 1);
+    expect(reconcileUnits(byId([a]), [dim(a)]).update).toEqual([{ unit: dim(a), recreate: true }]);
+    expect(reconcileUnits(byId([dim(a)]), [a]).update).toEqual([{ unit: a, recreate: true }]);
+  });
+
+  it('gives no work when the flag is the same twice', () => {
+    const a = dim(u('a', 1, 1));
+    expect(reconcileUnits(byId([a]), [{ ...a }])).toEqual({ add: [], update: [], remove: [] });
   });
 });

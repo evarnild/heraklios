@@ -15,6 +15,8 @@ export interface UnitDrawing {
   owner: number;
   position: HexCoord;
   facing?: number;
+  /** Drawn at `DIMMED_UNIT_ALPHA`: a unit the viewer can't move here (Placement's earlier seats). */
+  dimmed?: true;
 }
 
 /**
@@ -22,13 +24,27 @@ export interface UnitDrawing {
  * not yet placed (Placement's `pendingShip`, which is not a unit): the
  * Standard view draws it as an arrow, the Drawn view as a translucent figure
  * of that type turned to `facing`. A placed ship's entry is ignored by both
- * views (§77): its mark is part of its unit's figure, from `UnitDrawing.facing`.
+ * views (§77): its mark is part of its unit's figure, from `UnitDrawing.facing`,
+ * so it dims with its counter (`unitAlpha`).
  */
 export interface FacingShip {
   hex: HexCoord;
   facing: number;
   playerIndex: number;
   ghostTypeId?: string;
+}
+
+/**
+ * The alpha of a dimmed unit (Spec 76 I1, A1). Dimmed, owner colour kept: the
+ * colour says whose army, the alpha says not yours to move here; an outline
+ * would differ between counter and figure, a desaturated colour could collide
+ * with another hue. More solid than the staged ghost's 0.5.
+ */
+export const DIMMED_UNIT_ALPHA = 0.6;
+
+/** The alpha a drawing is shown at: 1, or `DIMMED_UNIT_ALPHA` when dimmed. */
+export function unitAlpha(d: { readonly dimmed?: true }): number {
+  return d.dimmed ? DIMMED_UNIT_ALPHA : 1;
 }
 
 /** The id the Drawn view gives the staged ship's provisional figure. */
@@ -64,11 +80,6 @@ export interface UnitFigure {
   setAlpha(alpha: number): void;
   /** What a turn rotates: the galley figure (Drawn), the facing mark (Standard); null with no facing. */
   readonly facingPart: { readonly rotation: number; setRotation(radians: number): void } | null;
-}
-
-/** A unit's resting alpha: the one value a view applies after making a figure and when settling it (1 today; §76 dims earlier seats here). */
-export function unitAlpha(_unit: UnitDrawing): number {
-  return 1;
 }
 
 /**
@@ -125,8 +136,8 @@ export interface ViewHost {
 
 export interface UnitUpdate {
   unit: UnitDrawing;
-  /** True when the type or owner changed, so the counter must be rebuilt
-   * rather than just moved. */
+  /** True when the type, owner or dimmed flag changed, so the counter must be
+   * rebuilt rather than just moved. */
   recreate: boolean;
 }
 
@@ -140,7 +151,7 @@ export interface UnitDiff {
 /**
  * Compares what is drawn (`prev`, by id) with the wanted list. An unchanged
  * unit produces no work; a moved or re-faced unit is an `update`, never a
- * remove plus add; a changed type or owner is an `update` with `recreate`.
+ * remove plus add; a changed type, owner or dimmed flag is an `update` with `recreate`.
  * `add` and `update` follow `next`'s order, `remove` follows `prev`'s.
  */
 export function reconcileUnits(prev: ReadonlyMap<string, UnitDrawing>, next: readonly UnitDrawing[]): UnitDiff {
@@ -153,7 +164,7 @@ export function reconcileUnits(prev: ReadonlyMap<string, UnitDrawing>, next: rea
       diff.add.push(unit);
       continue;
     }
-    const recreate = old.typeId !== unit.typeId || old.owner !== unit.owner;
+    const recreate = old.typeId !== unit.typeId || old.owner !== unit.owner || old.dimmed !== unit.dimmed;
     const moved = old.position.q !== unit.position.q || old.position.r !== unit.position.r;
     if (recreate || moved || old.facing !== unit.facing) diff.update.push({ unit, recreate });
   }

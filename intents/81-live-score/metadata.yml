@@ -1,0 +1,21 @@
+# generated-by: heraklios/intent@0.1.5
+id: 81
+slug: live-score
+type: feature
+status: accepted
+title: The Board shows every player's current score at all times
+review_tier: reviewed    # Q1 yes: implements the rulebook's +30 naval bonus in the winner rule
+intent_accepted: 2026-11-22 by-agent    # owner: "accept 81 82 83 84 /auto 81 /auto 83"
+spec_accepted: 2026-11-22 by-agent    # owner: "spec accepted 81 and 83"
+plan_approved: 2026-11-22 by-agent    # auto: owner "/auto 81 Q1 yes" (auto_authorized 2026-11-22)
+live_checked:
+merged:
+konmari:
+auto_authorized: 2026-11-22 by-agent    # owner: "/auto 81 Q1 yes"
+auto_round:
+auto_stopped:
+follows_up:
+links:
+  - intents/43-center-view-on-turn    the Board HUD
+blocked_by:
+

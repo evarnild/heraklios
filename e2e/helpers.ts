@@ -213,3 +213,11 @@ export async function hexShot(page: Page, hex: Hex): Promise<Buffer> {
   const box = await canvasBox(page);
   return page.screenshot({ clip: { x: box.x + pt.x - 12, y: box.y + pt.y - 12, width: 24, height: 24 } });
 }
+
+/** The Drawn view draws one figure per living unit and leaves none to the HUD camera. */
+export async function expectDrawnObjects(page: Page, label: string) {
+  const living = (await state(page)).units.filter((u) => !u.destroyed).length;
+  const objects = await page.evaluate(() => window.__heraklios.boardObjects());
+  expect(objects.unitDrawings, `${label}: a figure per living unit`).toBe(living);
+  expect(objects.hudLeaks, `${label}: no world object on the HUD camera`).toBe(0);
+}
