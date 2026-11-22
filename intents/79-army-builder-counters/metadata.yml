@@ -2,7 +2,7 @@
 id: 79
 slug: army-builder-counters
 type: feature
-status: accepted
+status: in-review
 title: The army builder shows each unit's original counter
 review_tier:
 intent_accepted: 2026-11-22 by-agent    # owner: "accept 76 and 79"
