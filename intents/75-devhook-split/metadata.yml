@@ -13,7 +13,7 @@ merged:
 konmari:
 auto_authorized: 2026-11-22 by-agent    # owner: "/auto 75"
 auto_round: 1
-auto_stopped:
+auto_stopped: ready for /ship
 follows_up:
 links:
   - intents/66-board-animations
