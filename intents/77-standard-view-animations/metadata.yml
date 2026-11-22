@@ -13,7 +13,7 @@ merged:
 konmari:
 auto_authorized: 2026-11-22 by-agent    # owner: "/auto 77 all, Normal, travels"
 auto_round:
-auto_stopped: spec questions
+auto_stopped: spec drafted, waiting for spec_accepted
 follows_up:
 links:
   - intents/66-board-animations    the Drawn view's animations; B17 kept the Standard view still
