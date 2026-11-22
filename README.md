@@ -656,14 +656,37 @@ every player still finishes the round already in progress, so nobody is
 shorted a turn the others got to take. The status line reads **"FINAL
 ROUND"** once that's happened, and the End game button relabels itself to
 say so too. Once that final round completes, the winner is whoever holds
-the highest surviving army value in purchase points — the same figure the
-Game Over screen already lists for every player. Two or more players tied
-at that value is a **draw**: nobody is declared the winner, and the Game
-Over screen names everyone who tied instead of picking one by seat order.
+the highest **score**: the surviving army value in purchase points, plus the
+rulebook's 30-point naval bonus (*"Le joueur dont les vaisseaux restent
+seuls en mer obtient, lors du compte final, une bonification de 30
+points"*) — the same figure the Game Over screen lists for every player,
+with **(+30 at sea)** on the line of whoever holds the bonus. A player holds
+it when they are the only one with a ship still afloat (not destroyed),
+wherever it is; a galley up a river counts, and so does a rival who never
+bought a ship or who lost the whole fleet. A damaged ship still counts at
+its full purchase value. Two or more players tied at that score is a
+**draw**: nobody is declared the winner, and the Game Over screen names
+everyone who tied instead of picking one by seat order.
 
 Elimination remains the other way a game can end, and it isn't affected by
 any of the above: the moment only one player still has any units on the
 board, that player wins immediately.
+
+The bonus does not change that: the sole survivor wins whatever the scores,
+and Game Over then only lists them.
+
+**The Score panel.** The Board always shows a small panel at the bottom
+right of the map area (in both views, never moved or scaled by panning and
+zooming, with no close button). It lists every player in player order,
+eliminated ones included at 0: a square and name in the player's colour,
+their score, **(+30 at sea)** when they hold the naval bonus, and their
+units left (land units and ships). The active player's row is marked with a
+triangle and a highlighted background, and follows the turn, the computer's
+included. The figures come from the same engine function Game Over and the
+winner use, and change within a frame of any loss (combat, a retreat with
+nowhere to go, an elephant's drift, a ram or boarding, undo, redo, a load);
+a damaged ship changes nothing until it sinks. A click, drag or wheel on the
+panel does not reach the map.
 
 ### Naval movement and combat
 

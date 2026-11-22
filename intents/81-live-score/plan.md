@@ -498,3 +498,35 @@ lists `scorePanel`.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-11-22 — all subtasks (implementer)
+
+Commits (branch `feat/81-live-score`): engine `playerScores`; winner rule plus the
+hand-edited fixture and tests; texts and Game Over; pure panel layout; the panel
+on the Board with the BoardScene ceiling lowered; dev-hook reader and e2e; README
+and this entry.
+
+- **Shipped:** `src/engine/score.ts` (+12 tests), `endGameByTimeLimit` on the score
+  (+3 tests), `src/ui/scorePanelLayout.ts` (+8 tests), `src/ui/scorePanel.ts`,
+  Game Over reads `playerScores`, i18n keys, `scorePanel()` dev-hook reader,
+  `e2e/score-panel.spec.ts` (5 scenarios), README "Ending the game".
+- **Fixture:** `git diff -U0 src/engine/fixtures` is exactly three hunks, line
+  1527, 1722 and 2176, each `-     1` / `+     0` (`ev-vs-ev/seed1`, `ev-vs-ev/seed6`,
+  `ev-vs-ev-found/seed12`). Edited by hand byte for byte (CRLF kept), not regenerated.
+  `harnessPinned` passes on it, so no other game moved.
+- **Sizes:** `BoardScene.ts` 3172 -> 3169, ceiling lowered to 3169 in the same
+  commit (`size:baseline --write` changed only that line). `devHook.ts` 454 -> 459
+  (not in the baseline; under 500). `fuzzHarness.ts` stays 1276. No `budget:` line.
+- **Lint:** 19 warnings, cap 19, not raised. `verify` and `check:intent` PASS.
+- **Tests:** 1704 passed, 2 skipped (99 files), up from 1681. e2e: 38 scenarios.
+- **Divergence from the plan:** `messages.test.ts`'s `SAME_IN_BOTH` list gained
+  `board.scoreHeader` and `board.scorePoints` (identical in en and fr by design).
+  The plan did not name that file. `scorePanel` reads each row's drawn text for
+  its snapshot (score and units parsed from the text objects), rather than the engine again.
+- **e2e flake seen:** in two of three full `npm run e2e` runs,
+  `save-load.spec.ts` ("a saved game loads back to the saved position") failed with
+  the pre-load state still showing (it passes alone, with the new spec alone, and in
+  the third full run, and a full run without the new scenarios passed). Its load step
+  waits on `scenes().includes('Board')`, already true, so it can read the state
+  before the load applies; this looks like an existing race that the extra worker load
+  exposes. Not investigated further. The reviewer should rerun it.
