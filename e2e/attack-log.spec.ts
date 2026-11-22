@@ -68,10 +68,11 @@ test('the log shows the autosave and the attack being built', async ({ page }) =
   expect(twoLine).toMatch(/~.*~/);
   await clickHex(page, infArchers.position);
   await page.waitForFunction((t) => window.__heraklios.logEntries().at(-1)?.text === t, twoLine);
+  const aloneBefore = (await entries(page)).filter((t) => t === aloneLine).length;
   await clickHex(page, infArchers.position);
   await page.waitForFunction(
     ([t, n]) => window.__heraklios.logEntries().filter((e) => e.text === t).length > (n as number),
-    [aloneLine, (await entries(page)).filter((t) => t === aloneLine).length] as const,
+    [aloneLine, aloneBefore] as const,
   );
 
   // Add the target: both forces, from the engine.

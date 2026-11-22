@@ -769,8 +769,14 @@ built adds one line describing all of it: "Attack: Heavy chariots (8) → Heavy
 chariots, Light chariots (8), die +3 (2 Wide river at (20, 3) + 1 river
 crossing)", with the attack and defence forces the roll will use and, when the
 die modifier from terrain and river is not zero, that modifier and its parts.
-With attackers but no target it says "choose a
-target"; emptying the group says "Attack cleared.". A refused click adds no
+With attackers but no target it carries the group's
+estimated totals, marked `~`, then "choose a target": "Attack: Infantry,
+Infantry-archers (melee ~4, ranged ~2), choose a target." (French "mêlée ~4,
+distance ~2"). Melee adds every melee-capable unit's attack (a charging cavalry
+doubled) and ranged every ranged value, so a unit with both counts in both; a
+part that is 0 is left out. The exact force appears once a target is picked and
+may differ. A ship selected for a ram or boarding shows no totals. Emptying
+the group says "Attack cleared.". A refused click adds no
 attack line, and the computer's attacks are not announced beforehand (their
 combat report names every unit and force).
 
