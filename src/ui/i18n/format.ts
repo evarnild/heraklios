@@ -3,7 +3,8 @@
 // table. The optional `m` is for tests, which format in a chosen language.
 import type { ArmyError } from '../../engine/army';
 import { driftExitKind, type DriftEvent } from '../../engine/drift';
-import type { LandAttackPreview } from '../../engine/combat';
+import { estimateAttackTotals, type LandAttackPreview } from '../../engine/combat';
+import type { Unit } from '../../engine/state';
 import { RIVER_CROSSING } from '../../data/terrain';
 import type { SavedGame, SaveError } from '../../engine/saveGame';
 import { messages, type Messages } from './index';
@@ -101,16 +102,17 @@ export function dieModifierParts(
 
 /** The attack being built, as one log line (§53 B3, B6). `preview` is null
  * when there is no land target (none yet, or a naval selection). An empty
- * attacker list is "Attack cleared."; the totals appear only with a target. */
+ * attacker list is "Attack cleared."; with no target a land group shows its
+ * estimated totals (§80), with one the exact force. */
 export function formatAttackLine(
-  attackerNames: readonly string[],
+  attackerUnits: readonly Unit[],
   targetNames: readonly string[],
   preview: LandAttackPreview | null,
   m: Messages = messages(),
 ): string {
-  if (attackerNames.length === 0) return m.log.attackCleared;
-  const attackers = attackerNames.join(', ');
-  if (!preview || targetNames.length === 0) return m.log.attackChooseTarget(attackers);
+  if (attackerUnits.length === 0) return m.log.attackCleared;
+  const attackers = attackerUnits.map((u) => unitNameIn(m, u.typeId)).join(', ');
+  if (!preview || targetNames.length === 0) return m.log.attackChooseTarget(attackers, estimateParts(attackerUnits, m));
   return m.log.attackWithTargets(
     attackers,
     preview.attackForce,
@@ -119,4 +121,13 @@ export function formatAttackLine(
     preview.terrainModifier,
     dieModifierParts(preview, m).join(' + '),
   );
+}
+
+/** The estimated totals as words (§80); a part that is 0 is left out (B5), and none for a ship. */
+function estimateParts(attackers: readonly Unit[], m: Messages): string {
+  const totals = estimateAttackTotals(attackers);
+  if (!totals) return '';
+  return [totals.melee > 0 ? m.log.meleeEstimate(totals.melee) : null, totals.ranged > 0 ? m.log.rangedEstimate(totals.ranged) : null]
+    .filter((p): p is string => p !== null)
+    .join(', ');
 }

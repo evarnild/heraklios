@@ -311,7 +311,10 @@ export const en = {
     riverModifier: (value: number) => `${value} river crossing`,
     attackWithTargets: (attackers: string, attack: number, targets: string, defense: number, modifier: number, parts: string) =>
       `Attack: ${attackers} (${attack}) → ${targets} (${defense})${modifier !== 0 ? `, die +${modifier} (${parts})` : ''}`,
-    attackChooseTarget: (attackers: string) => `Attack: ${attackers}, choose a target.`,
+    // §80: `~` marks an estimate; the line with a target (no `~`) is the exact force.
+    attackChooseTarget: (attackers: string, totals: string) => `Attack: ${attackers}${totals ? ` (${totals})` : ''}, choose a target.`,
+    meleeEstimate: (n: number) => `melee ~${n}`,
+    rangedEstimate: (n: number) => `ranged ~${n}`,
     attackCleared: 'Attack cleared.',
     combatReport: (r: CombatReport) =>
       [

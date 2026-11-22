@@ -272,6 +272,30 @@ export function attackForceAgainst(attacker: Unit, defenders: readonly Unit[]): 
 }
 
 /**
+ * The attackers' totals BEFORE a target is picked (§80), for the log line.
+ * Without a target the engine can't know which value each attacker will use
+ * (`attackForceAgainst` decides by distance), so these are what the group
+ * could bring each way, not two halves of one force: `melee` sums
+ * `currentAttack` over the melee-capable (a charging cavalry doubled, its
+ * flag set until its owner's next movement phase), `ranged` sums
+ * `currentRangedAttack` over those with a ranged value, and a unit with both
+ * counts in both. The `meleeCapable` filter states the meaning, though a
+ * non-melee unit's attack is 0 today. Positions play no part. A group holding
+ * a ship gets none (§53 B6: one ship, no totals), nor does an empty group.
+ */
+export function estimateAttackTotals(attackers: readonly Unit[]): { melee: number; ranged: number } | null {
+  if (attackers.length === 0 || attackers.some((u) => unitType(u).domain === 'naval')) return null;
+  let melee = 0;
+  let ranged = 0;
+  for (const u of attackers) {
+    const t = unitType(u);
+    if (t.meleeCapable) melee += currentAttack(u);
+    if (t.rangedAttack > 0) ranged += currentRangedAttack(u);
+  }
+  return { melee, ranged };
+}
+
+/**
  * What a land attack looks like BEFORE the die is rolled: the two forces and
  * the die modifier. It is the very code `computeLandAttackDetail` (the roll)
  * uses, so a pre-roll summary in the log can't drift from the roll.

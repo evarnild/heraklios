@@ -185,7 +185,7 @@ describe('clockLimitText and roundLimitText', () => {
   });
 });
 
-describe('formatAttackLine (§53)', () => {
+describe('formatAttackLine (§53, §80)', () => {
   const base: LandAttackPreview = {
     attackForce: 12,
     attackerForces: new Map(),
@@ -201,36 +201,55 @@ describe('formatAttackLine (§53)', () => {
   const both = { ...hill, terrainModifier: 3, riverCrossingApplied: true };
   const en = messagesFor('en');
   const fr = messagesFor('fr');
-  const A = ['Archers', 'Hoplites'];
+  const unitOf = (typeId: string): Unit => ({ ...elephant(), typeId });
+  const A = [unitOf('archers'), unitOf('fantassins')];
   const T = ['Peltasts'];
 
   it('attackers and targets with both forces, no modifier', () => {
-    expect(formatAttackLine(A, T, base, en)).toBe('Attack: Archers, Hoplites (12) → Peltasts (6)');
-    expect(formatAttackLine(A, T, base, fr)).toBe('Attaque : Archers, Hoplites (12) → Peltasts (6)');
+    expect(formatAttackLine(A, T, base, en)).toBe('Attack: Archers, Infantry (12) → Peltasts (6)');
+    expect(formatAttackLine(A, T, base, fr)).toBe('Attaque : Archers, Fantassins (12) → Peltasts (6)');
   });
 
   it('adds the die modifier and its parts: terrain only, river only, both', () => {
     expect(formatAttackLine(A, T, hill, en)).toBe(
-      'Attack: Archers, Hoplites (12) → Peltasts (6), die +2 (2 Plateau at (4, 9))'.replace('Plateau', en.terrain.plateau),
+      'Attack: Archers, Infantry (12) → Peltasts (6), die +2 (2 Plateau at (4, 9))'.replace('Plateau', en.terrain.plateau),
     );
-    expect(formatAttackLine(A, T, river, en)).toBe('Attack: Archers, Hoplites (12) → Peltasts (6), die +1 (1 river crossing)');
+    expect(formatAttackLine(A, T, river, en)).toBe('Attack: Archers, Infantry (12) → Peltasts (6), die +1 (1 river crossing)');
     expect(formatAttackLine(A, T, both, en)).toBe(
-      `Attack: Archers, Hoplites (12) → Peltasts (6), die +3 (2 ${en.terrain.plateau} at (4, 9) + 1 river crossing)`,
+      `Attack: Archers, Infantry (12) → Peltasts (6), die +3 (2 ${en.terrain.plateau} at (4, 9) + 1 river crossing)`,
     );
-    expect(formatAttackLine(A, T, river, fr)).toBe('Attaque : Archers, Hoplites (12) → Peltasts (6), dé +1 (1 traversée de rivière)');
+    expect(formatAttackLine(A, T, river, fr)).toBe('Attaque : Archers, Fantassins (12) → Peltasts (6), dé +1 (1 traversée de rivière)');
     expect(formatAttackLine(A, T, hill, fr)).toBe(
-      `Attaque : Archers, Hoplites (12) → Peltasts (6), dé +2 (2 ${fr.terrain.plateau} en (4, 9))`,
+      `Attaque : Archers, Fantassins (12) → Peltasts (6), dé +2 (2 ${fr.terrain.plateau} en (4, 9))`,
     );
   });
 
   it('joins several targets in order, with the summed defence', () => {
-    expect(formatAttackLine(A, ['Peltasts', 'Archers'], base, en)).toBe('Attack: Archers, Hoplites (12) → Peltasts, Archers (6)');
-    expect(formatAttackLine(A, ['Peltasts', 'Archers'], base, fr)).toBe('Attaque : Archers, Hoplites (12) → Peltasts, Archers (6)');
+    expect(formatAttackLine(A, ['Peltasts', 'Archers'], base, en)).toBe('Attack: Archers, Infantry (12) → Peltasts, Archers (6)');
+    expect(formatAttackLine(A, ['Peltasts', 'Archers'], base, fr)).toBe('Attaque : Archers, Fantassins (12) → Peltasts, Archers (6)');
   });
 
-  it('attackers alone ask for a target, with no number', () => {
-    expect(formatAttackLine(A, [], null, en)).toBe('Attack: Archers, Hoplites, choose a target.');
-    expect(formatAttackLine(['Trireme'], [], null, fr)).toBe('Attaque : Trireme, choisissez une cible.');
+  it('attackers alone ask for a target, with their estimated totals', () => {
+    expect(formatAttackLine([unitOf('fantassins'), unitOf('fantassins-archers')], [], null, en)).toBe(
+      'Attack: Infantry, Infantry-archers (melee ~4, ranged ~2), choose a target.',
+    );
+    expect(formatAttackLine([unitOf('fantassins'), unitOf('fantassins-archers')], [], null, fr)).toBe(
+      'Attaque : Fantassins, Fantassins-Archers (mêlée ~4, distance ~2), choisissez une cible.',
+    );
+  });
+
+  it('leaves out a part that is 0', () => {
+    expect(formatAttackLine([unitOf('fantassins-lourds')], [], null, en)).toBe('Attack: Heavy infantry (melee ~4), choose a target.');
+    expect(formatAttackLine([unitOf('fantassins-lourds')], [], null, fr)).toBe('Attaque : Fantassins Lourds (mêlée ~4), choisissez une cible.');
+    expect(formatAttackLine([unitOf('archers')], [], null, en)).toBe('Attack: Archers (ranged ~2), choose a target.');
+    expect(formatAttackLine([unitOf('archers')], [], null, fr)).toBe('Attaque : Archers (distance ~2), choisissez une cible.');
+  });
+
+  it('a ship shows no totals, and no totals means no parentheses', () => {
+    expect(formatAttackLine([unitOf('triremes')], [], null, en)).toBe('Attack: Triremes, choose a target.');
+    expect(formatAttackLine([unitOf('triremes')], [], null, fr)).toBe('Attaque : Trirèmes, choisissez une cible.');
+    expect(en.log.attackChooseTarget('Archers', '')).toBe('Attack: Archers, choose a target.');
+    expect(fr.log.attackChooseTarget('Archers', '')).toBe('Attaque : Archers, choisissez une cible.');
   });
 
   it('an empty attacker group is cleared', () => {

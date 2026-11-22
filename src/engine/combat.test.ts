@@ -18,6 +18,7 @@ import {
   eligibleAdvanceCandidates,
   exchangeSacrificeForce,
   exchangeSacrificeMeetsThreshold,
+  estimateAttackTotals,
   legalRetreatHexes,
   previewLandAttack,
   pruneIllegalSelections,
@@ -1445,5 +1446,35 @@ describe('previewLandAttack — the pre-roll summary the roll itself uses (§53)
       expect(p.terrainModifierSourceHex).toEqual({ q: 4, r: 9 });
       expect(p.defenseForce).toBe(2);
     }
+  });
+});
+
+describe('estimateAttackTotals (§80)', () => {
+  const at = (typeId: string, extra: Partial<Unit> = {}) => makeUnit({ typeId, position: { q: 0, r: 0 }, ...extra });
+  // Not tested: dropping `meleeCapable` or `rangedAttack > 0` (equivalent mutants with today's roster).
+  it('archers bring ranged only', () => {
+    expect(estimateAttackTotals([at('archers')])).toEqual({ melee: 0, ranged: 2 });
+  });
+  it('heavy infantry bring melee only', () => {
+    expect(estimateAttackTotals([at('fantassins-lourds')])).toEqual({ melee: 4, ranged: 0 });
+  });
+  it('sums across units', () => {
+    expect(estimateAttackTotals([at('fantassins'), at('fantassins-archers')])).toEqual({ melee: 4, ranged: 2 });
+  });
+  it('a unit with both counts in both', () => {
+    expect(estimateAttackTotals([at('archers'), at('fantassins-archers')])).toEqual({ melee: 2, ranged: 4 });
+  });
+  it('a charging cavalry counts doubled in melee', () => {
+    expect(estimateAttackTotals([at('cavalerie-legere', { charged: true })])?.melee).toBe(6);
+    expect(estimateAttackTotals([at('cavalerie-legere', { charged: false })])?.melee).toBe(3);
+  });
+  it('gives none for a ship or an empty group', () => {
+    expect(estimateAttackTotals([at('galeres')])).toBeNull();
+    expect(estimateAttackTotals([])).toBeNull();
+  });
+  it('ignores positions', () => {
+    const a = estimateAttackTotals([at('fantassins-archers', { position: { q: 0, r: 0 } })]);
+    const b = estimateAttackTotals([at('fantassins-archers', { position: { q: 9, r: 9 } })]);
+    expect(a).toEqual(b);
   });
 });
