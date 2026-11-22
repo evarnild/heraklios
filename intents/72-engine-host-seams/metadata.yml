@@ -8,12 +8,12 @@ review_tier:
 intent_accepted: 2026-11-21 by-agent    # owner: "/auto 72", answering "say yes to accept it, or /auto 72 to accept it and carry it"
 spec_accepted: 2026-11-21 by-agent    # owner: "yes"
 plan_approved: 2026-11-21 by-agent    # auto: owner "/auto 72" (auto_authorized 2026-11-21)
-live_checked:
+live_checked: 2026-11-22 by-agent    # owner: "live checked 72"
 merged:
 konmari:
 auto_authorized: 2026-11-21 by-agent    # owner: "/auto 72"
 auto_round: 2
-auto_stopped: live check owed
+auto_stopped:
 follows_up:
 links:
   - intents/70-unity-front-end-probe
