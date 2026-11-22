@@ -27,6 +27,7 @@ const MEMBERS = [
   'reachable',
   'rulesPanel',
   'scenes',
+  'scorePanel',
   'seed',
   'selectedUnitId',
   'state',

@@ -16,6 +16,7 @@ import { validateArmy } from '../engine/army';
 import { session } from './session';
 import type { LandCombatHighlight } from '../engine/ruleTables';
 import type { RulesTab } from './rulesPanel';
+import { scorePanelSnapshot, type ScorePanelSnapshot } from './scorePanel';
 import { GHOST_SHIP_ID } from './boardView';
 import { landscapeBuilds } from './landscape/paintLandscape';
 import { animationSpeed, type AnimationSpeed } from './animationSpeed';
@@ -146,6 +147,8 @@ export interface DevHook {
   tooltipBox(): { x: number; y: number; width: number; height: number } | null;
   /** The Board's Tables panel: open or not, its tab, and the land table's highlight (§55). Read-only. */
   rulesPanel(): { open: boolean; tab: RulesTab | null; highlight: LandCombatHighlight | null };
+  /** The Board's score panel: its rectangle, whether every row fits, and per row what is drawn (§81). */
+  scorePanel(): ScorePanelSnapshot;
 }
 
 /** `BoardScene` members the log readers use, by name; guarded like `BUSY_FIELDS`. */
@@ -248,6 +251,7 @@ function boardReaders(game: Phaser.Game): Pick<
   | 'logEntries'
   | 'logPanel'
   | 'rulesPanel'
+  | 'scorePanel'
 > {
   // `idle` calls this same function, so the two never disagree.
   const busy = (): string[] => {
@@ -285,6 +289,7 @@ function boardReaders(game: Phaser.Game): Pick<
     logEntries: () => logInternals(board(game)).logHistory.entries().map((e) => ({ kind: e.kind, text: e.text })),
     logPanel: () => logPanelSnapshot(logInternals(board(game)).logPanel),
     rulesPanel: () => rulesPanelSnapshot(board(game)),
+    scorePanel: () => scorePanelSnapshot(board(game)),
   };
 }
 
