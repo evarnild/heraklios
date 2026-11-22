@@ -1,13 +1,156 @@
 <!-- generated-by: heraklios/review@0.2.0 -->
 # §74 review — Hovering a unit shows its characteristics; the Drawn view's number badge goes
 
-verdict: rework
+verdict: attest
 tier: attested
-reviewed-commit: 0b05252
-round: 2
+reviewed-commit: a115b58
+round: 3
 sampled: no
 run: auto
 live-check: owed
+
+`sampled: no`: `npm run sdlc:scan -- --sample-due auto --exclude 74` printed
+`sample-due auto: nth attested auto change = 10, every 3, sampled: no`.
+
+All three round 2 findings are resolved. The spec amendment (N1 (b)), the
+corrected PlacementScene comment and the README sentence agree with each other
+and with the code. There are two LOW findings and neither needs rework, so the
+verdict is attest.
+
+## Passes
+| # | Pass | Result |
+| --- | --- | --- |
+| 1 | Intent and plan match | pass: N1 (b), N2 and N3 done as decided. Spec amendment `spec.md:147-168`, `PlacementScene.ts:315-316` and `README.md:157-158` agree. Progress `plan.md:268-275` is accurate |
+| 2 | Type check | the only error is the owed live check (pasted below) |
+| 3 | Rulebook fidelity | pass: the amendment's quote of `05-rules-french-original.md:83-96` is faithful. `511ccc8` does filter on the owner |
+| 4 | Tests prove the rule | findings (1): R3-1. N2, NL and HOOKBOX are killed. PTRX, PTRY and TBOXW survive. VISGUARD is equivalent |
+| 5 | Boundary and conventions | pass: presentation only |
+| 6 | Numbers in prose | pass: "1148 of 1100" reproduced under the N2 mutant. The 840–895 band matches. The viewport is 1100×750 in `playwright.config.ts:30` and `src/main.ts:11-12` |
+| 7 | Documentation | pass. Nit: `README.md:158` is about 107 columns in a paragraph wrapped at about 78 |
+| 8 | Guardrails and hygiene | pass, with LOW R3-2. Lint 21 warnings (cap 21). BoardScene.ts 3172, PlacementScene.ts 574, both at their ceilings |
+| 9 | Repo footguns | pass: the engine is untouched |
+| 10 | Architecture | pass: the pointer position is presentation state, and `tooltipBox()` is a read-only test reader |
+
+## Type check
+```
+> heraklios@0.1.0 check:intent
+> node scripts/check-intent.mjs
+
+type-check: FAIL (intent 74, feature)
+  error: A live check is owed and not recorded. Do the steps in intents/74-unit-hover-stats/review.md → ## Live check, then set live_checked: <date> in intents/74-unit-hover-stats/metadata.yml.
+  note:  15 file(s), 464 line(s) changed outside intents/.
+```
+The owed live check is the only error, and it is the owner's to clear.
+
+## Findings
+- **LOW R3-1** `e2e/unit-tooltip.spec.ts:141-143`: the N2 e2e checks that the
+  refreshed box stays inside the viewport, but not where it sits.
+  - PTRX and PTRY (deleting the stored `pointerX`/`pointerY`,
+    `MapView.ts:213-214`) survive. After a move the box would jump to the top
+    left, but still inside the viewport.
+  - TBOXW (the reader returning `width: 0`) survives for the same reason.
+  - The code is correct, and the fix has a test that failed before it.
+  - The placement is covered by live-check step 5.
+  - Worth a look, in §75 or a follow-up: assert that the box sits beside the
+    pointer, e.g. `shown.x + shown.width === at.x - 16`. That would kill PTRX,
+    PTRY and TBOXW.
+- **LOW R3-2** `src/ui/devHook.ts:274`: the packed line now holds three
+  members, `landscapeBuilds`, `tooltipText` and `tooltipBox`.
+  - It is within decision (a): it is still the one recorded second packed line,
+    and `installDevHook` stays at 80 lines with no new warning.
+  - §75's plan pins "every member the hook has at the start of this work" and
+    re-reads the file after §74 merges, so it covers `tooltipBox` without
+    amending §75.
+
+**Round 2 findings, resolution.**
+- **N1 (owner (b))**: resolved. The code is unchanged. The spec amendment
+  re-reads B4 as "every unit, every player, on the Board and in Placement", and
+  the comment and README now say so. No remaining claim of private placement:
+  searched for "in private", "secret" and "only theirs".
+- **N2**: resolved. `updateHover` stores the pointer (`MapView.ts:212-215`).
+  `setUnits` re-shows through `showHexTooltip` (`:309`). The new e2e
+  (`e2e/unit-tooltip.spec.ts:111-146`) kills the bare-`setText` mutant
+  (1148 > 1100).
+- **N3**: resolved. `MapView.ts:438` uses `'\n' + unitLines`, and the NL mutant
+  is killed.
+
+## Not checked
+- Where the refreshed box sits relative to the pointer (R3-1); this rests on
+  the live check.
+- B1 (no badge), B8 at the zoom limits, and B9 (touch).
+- A camera move under a still pointer, which predates §74.
+- M7, which is equivalent on today's data.
+- Two Progress measurements: "box x 576 to 846", and the band at 931.
+- The merge with `main`: `git merge-tree` is clean, but the merged tree was not
+  built (`/ship` does that).
+
+## Live check
+- owed: rule 1 (`src/ui/**`, `src/scenes/**`), new visual behaviour. It also
+  covers R3-1.
+- steps:
+  1. In `C:/Users/eric/src/heraklios-wt/74-unit-hover-stats`, run
+     `npm run dev -- --port 5274 --strictPort --host 127.0.0.1` and open
+     http://127.0.0.1:5274/.
+  2. Start "Test mode (2 players, armies ready)".
+  3. Switch to "🗺 Drawn view". There are no number badges under the figures.
+  4. Hover units of both players, in both views. Each shows
+     `<unit> — <player> (<colour>)`, then a values line, then `movement left N`.
+     Archers add `ranged 2, range 2`, and ships add `equipment E/M`.
+  5. Rest the pointer on an empty reachable hex, select a unit, and click that
+     hex without moving the pointer. The unit's lines appear at once.
+     - Repeat this near the right edge, then near the bottom edge.
+     - The grown box stays on screen, flipped left of or above the pointer.
+     - It **stays next to the pointer** and doesn't jump to the top left
+       (R3-1).
+  6. Charge with a light cavalry unit: it shows `attack 6 (3)` and `charged`.
+  7. Board so a ship loses equipment: it shows reduced values with the printed
+     values in brackets.
+  8. Hover near the edges and at both zoom limits: the box stays on screen.
+  9. Switch to French on the Menu: the labels are French, and a ship shows
+     `équipage E/M`.
+  10. Reload, click "2" on the Menu, then "Use default army" and "Confirm army"
+      for each player, to reach Placement.
+      - Player 1 places a unit and moves the pointer off and back on: it shows
+        the name and values lines only.
+      - Player 1 finishes. While player 2 places, hover player 1's band.
+      - Player 1's units are not drawn, but hovering one shows
+        `<unit> — <player 1> (<colour>)` and the values line, with no state
+        line (N1 (b)).
+- you should see: steps 3–10 as described, with no text on the Drawn figures.
+
+## Verified myself vs. taken on trust
+- **Coordinator, re-run:** `npm run verify` at `a115b58`. Exit 0, lint 0
+  errors and 21 warnings (cap 21), 90 files and 1534 tests passed. Matches.
+- **Coordinator, re-run:** `npm run check:intent`. FAIL with only the owed live
+  check (pasted above). Matches.
+- **Coordinator, re-run:** `npm run e2e`. 31 passed in 1.4m, with no failure.
+  The reviewer's run had the known pre-existing `save-load.spec.ts` flake
+  (30 passed, 1 failed; 3 of 3 passed on a repeat). It did not recur here.
+- **Coordinator, re-run:** the four survivors, each backed up by copy, applied
+  once, run against `e2e/unit-tooltip.spec.ts`, and restored by copy:
+  - PTRX: SURVIVED (4 passed);
+  - PTRY: SURVIVED (4 passed);
+  - VISGUARD: SURVIVED (4 passed, equivalent);
+  - TBOXW: SURVIVED (4 passed).
+
+  `git status --short` was clean after. All four match the reviewer.
+- **Reviewer:**
+  - Eight mutants run against `e2e/unit-tooltip.spec.ts`:
+    - killed: N2 (1148 > 1100), PGUARD (by tsc), NL and HOOKBOX;
+    - survived: PTRX, PTRY, VISGUARD and TBOXW.
+  - Re-read the amendment's rulebook and commit citations.
+  - `git merge-tree` against `main`: clean.
+- **Taken on trust:** the two Progress measurements under Not checked.
+
+# Round 2 (history)
+
+- verdict: rework
+- tier: attested
+- reviewed-commit: 0b05252
+- round: 2
+- sampled: no
+- run: auto
+- live-check: owed
 
 `sampled: no`. Running `npm run sdlc:scan -- --sample-due auto --exclude 74`
 gives "nth attested auto change = 10, every 3, sampled: no". It counts only
@@ -18,7 +161,7 @@ half of F6. The rework fixed the stale tooltip but brought in one new
 mechanical problem (N2). The reviewer also found a Placement privacy leak
 (N1), which has been there since round 1. N1 needs the owner's decision.
 
-## Passes
+### Passes
 | # | Pass | Result |
 | --- | --- | --- |
 | 1 | Intent and plan match | findings (1): N1. F1–F7 resolved as decided, apart from F6's `'\n'` (N3) |
@@ -32,7 +175,7 @@ mechanical problem (N2). The reviewer also found a Placement privacy leak
 | 9 | Repo footguns | pass |
 | 10 | Architecture | findings (1): N2 |
 
-## Type check
+### Type check
 ```
 > heraklios@0.1.0 check:intent
 > node scripts/check-intent.mjs
@@ -43,7 +186,7 @@ type-check: FAIL (intent 74, feature)
 ```
 The only error is the owed live check, which is the owner's to clear.
 
-## Findings
+### Findings
 - **N1, MEDIUM**: Placement's tooltip shows the other players' placed units.
   - **Where.** `src/scenes/PlacementScene.ts:143`: the hook calls
     `unitTooltipFor(session.gameState!, hex, { state: false })`, through
@@ -101,7 +244,7 @@ The only error is the owed live check, which is the owner's to clear.
 - **F7: resolved.** The Placement e2e is at `e2e/unit-tooltip.spec.ts:80-107`,
   and M20 is now killed.
 
-## Not checked
+### Not checked
 - N1 and N2 have not been seen on screen. Both rest on reading the code.
 - A camera move under a still pointer (wheel zoom, `centreOnActivePlayer`)
   leaves the whole tooltip on the old hex. This predates §74 and is not §74's.
@@ -109,7 +252,7 @@ The only error is the owed live check, which is the owner's to clear.
 - B8 (the box on screen) and B9 (touch) are not checked.
 - M7 is equivalent on today's data.
 
-## Live check
+### Live check
 - owed: rule 1 (`src/ui/**`, `src/scenes/**`), for new, visual behaviour.
 - steps:
   1. In `C:/Users/eric/src/heraklios-wt/74-unit-hover-stats`, run
@@ -138,7 +281,7 @@ The only error is the owed live check, which is the owner's to clear.
         the N1 decision.
 - you should see: steps 3–10 as described, with no text on the Drawn figures.
 
-## Verified myself vs. taken on trust
+### Verified myself vs. taken on trust
 - **Coordinator, re-run:** `npm run verify` at `0b05252`. Exit 0; lint 0
   errors, 21 warnings (cap 21); 90 files, 1534 tests passed. Matches.
 - **Coordinator, re-run:** `npm run check:intent`. FAIL, with only the owed
