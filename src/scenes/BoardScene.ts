@@ -10,14 +10,10 @@ import { session, resetToMenu, seatControlFor } from '../ui/session';
 import { showConfirmDialog } from '../ui/confirmDialog';
 import { SaveLoadPanel } from '../ui/saveLoadPanel';
 import { RulesPanel } from '../ui/rulesPanel';
+import { createScorePanel } from '../ui/scorePanel';
 import { BOARD_PROMPT, RAM_PROMPT } from '../ui/boardPrompts';
 import { SIDE_PANEL_WIDTH } from '../ui/rulesPanelLayout';
-import {
-  applySavedGame,
-  captureCurrentGame,
-  consumePendingLoad,
-  writeSave,
-} from '../ui/saveStorage';
+import { applySavedGame, captureCurrentGame, consumePendingLoad, writeSave } from '../ui/saveStorage';
 import type { SavedGame } from '../engine/saveGame';
 import {
   advanceGameClock,
@@ -857,7 +853,8 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // buttons', pinned to the HUD camera by the panel itself.
     this.logPanel = createLogPanel(this, this.mapView, logPanelBounds(height, PANEL_WIDTH));
     this.rulesPanel = new RulesPanel(this, { onObjectsCreated: (objects) => this.mapView.excludeFromMainCamera(objects) });
-    this.mapView.pointerBlocked = (x, y) => this.logPanel.contains(x, y) || this.rulesPanel.contains(x, y);
+    const scorePanel = createScorePanel(this, this.mapView);
+    this.mapView.pointerBlocked = (x, y) => this.logPanel.contains(x, y) || this.rulesPanel.contains(x, y) || scorePanel.contains(x, y);
 
     this.mapView.pinUIObjects([
       panelBg,
