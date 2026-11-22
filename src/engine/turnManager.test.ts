@@ -663,3 +663,43 @@ describe('endGameByTimeLimit — draws (plan.md §9.2.2 #2)', () => {
     expect(state.pendingGameEnd).toBe(false);
   });
 });
+
+describe('endGameByTimeLimit — the naval bonus (§81)', () => {
+  it('lets the bonus break a tie on army value', () => {
+    const state = buildThreePlayerState();
+    state.units.length = 0;
+    state.units.push(buildUnit('a1', 0, 'fantassins', 0), buildUnit('a2', 0, 'galeres', 1)); // 15 + 30
+    for (const q of [2, 3, 4]) state.units.push(buildUnit(`b${q}`, 1, 'fantassins', q)); // 15
+    state.players[2]!.eliminated = true;
+
+    endGameByTimeLimit(state);
+
+    expect(state.winnerIds).toEqual([0]);
+  });
+
+  it('lets the bonus create a draw', () => {
+    const state = buildThreePlayerState();
+    state.units.length = 0;
+    state.units.push(buildUnit('a1', 0, 'fantassins', 0), buildUnit('a2', 0, 'galeres', 1)); // 15 + 30 = 45
+    for (let q = 2; q < 11; q++) state.units.push(buildUnit(`b${q}`, 1, 'fantassins', q)); // 45
+    state.players[2]!.eliminated = true;
+
+    endGameByTimeLimit(state);
+
+    expect(state.winnerIds).toEqual([0, 1]);
+  });
+
+  it('leaves the elimination ending naming its sole survivor', () => {
+    const state = buildThreePlayerState();
+    state.units.length = 0;
+    const wreck = buildUnit('w', 0, 'galeres', 0);
+    wreck.destroyed = true;
+    state.units.push(wreck, buildUnit('b', 1, 'fantassins', 1));
+    state.phase = 'combat';
+
+    advancePhase(state);
+
+    expect(state.gameOver).toBe(true);
+    expect(state.winnerIds).toEqual([1]);
+  });
+});

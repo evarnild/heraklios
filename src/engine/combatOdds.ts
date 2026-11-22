@@ -57,8 +57,8 @@ function zeroCounts(): Record<CombatResult, number> {
  * maximizing close to the thing that actually wins a timed game rather than
  * a proxy for it.
  *
- * "Close to", not "exactly": `armyValue` — what that ending really counts —
- * sums each surviving unit's FULL printed cost, while this pro-rates a
+ * "Close to", not "exactly": `armyValue` — what that ending counts, less
+ * the naval bonus — sums each surviving unit's FULL printed cost, while this pro-rates a
  * damaged ship (see below). The divergence is deliberate and is confined to
  * ships; for a land army the two agree unit for unit.
  *

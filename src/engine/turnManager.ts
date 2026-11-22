@@ -1,5 +1,6 @@
 import type { CombatMode, GameState, Player, PlayerId } from './state';
-import { armyValue, livingUnits, unitType } from './state';
+import { playerScores } from './score';
+import { livingUnits, unitType } from './state';
 
 export function createInitialState(
   players: Player[],
@@ -164,24 +165,20 @@ export function resetMovementForActivePlayer(state: GameState): void {
  * Ends the game by whichever of the three triggers set `pendingGameEnd`
  * (`advancePhase` calls this itself at the next round wrap — see its doc
  * comment) or, in the fuzz harness, by a bare turn cap reached between
- * rounds. Winner: highest surviving army value in purchase points among
- * players not already eliminated; two or more tied at that value are a draw
- * (`winnerIds` holds all of them — see its doc comment on `GameState` for why
- * this replaced a silent lower-seat tiebreak).
+ * rounds. Winner: highest score among players not already eliminated, the
+ * surviving army value in purchase points plus the 30-point naval bonus for
+ * the only player with a ship afloat (`engine/score.ts`'s `playerScores`, the
+ * figure the Board panel and Game Over show too); two or more tied at that
+ * score are a draw (`winnerIds` holds all of them — see its doc comment on
+ * `GameState` for why this replaced a silent lower-seat tiebreak).
  */
 export function endGameByTimeLimit(state: GameState): void {
   state.gameOver = true;
   state.pendingGameEnd = false;
-  let bestValue = -1;
-  for (const p of state.players) {
-    if (p.eliminated) continue;
-    const value = armyValue(state, p.id);
-    if (value > bestValue) bestValue = value;
-  }
-  state.winnerIds =
-    bestValue < 0
-      ? []
-      : state.players.filter((p) => !p.eliminated && armyValue(state, p.id) === bestValue).map((p) => p.id);
+  const alive = new Set(state.players.filter((p) => !p.eliminated).map((p) => p.id));
+  const scores = playerScores(state).filter((s) => alive.has(s.playerId));
+  const best = Math.max(...scores.map((s) => s.score));
+  state.winnerIds = scores.filter((s) => s.score === best).map((s) => s.playerId);
 }
 
 /**

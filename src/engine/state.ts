@@ -181,8 +181,8 @@ export interface GameState {
   allowSwaps: boolean;
   gameOver: boolean;
   /**
-   * Everyone still standing when the game ended, at the highest surviving
-   * army value (`armyValue`) — length 1 for an outright win, 2+ for a draw
+   * Everyone still standing when the game ended, at the highest score
+   * (`playerScores`: army value plus naval bonus) — length 1 for an outright win, 2+ for a draw
    * between that many tied players, and 0 only for "nobody left" (every
    * player eliminated, or the game hasn't ended yet). Replaced the earlier
    * `winnerId: PlayerId | null`, which could not distinguish a genuine draw

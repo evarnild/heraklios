@@ -1524,7 +1524,7 @@
     "seed": 1,
     "gameOver": true,
     "winnerIds": [
-     1
+     0
     ],
     "endedByTimeLimit": true,
     "turnsReached": 8,
@@ -1719,7 +1719,7 @@
     "seed": 6,
     "gameOver": true,
     "winnerIds": [
-     1
+     0
     ],
     "endedByTimeLimit": true,
     "turnsReached": 8,
@@ -2173,7 +2173,7 @@
     "seed": 12,
     "gameOver": true,
     "winnerIds": [
-     1
+     0
     ],
     "endedByTimeLimit": true,
     "turnsReached": 8,
