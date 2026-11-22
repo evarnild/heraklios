@@ -6,14 +6,14 @@ status: accepted
 title: The attack line shows the attackers' total before a target is chosen
 review_tier:
 intent_accepted: 2026-11-22 by-agent    # owner: "/auto 80", answering "say yes to accept it, or /auto 80 to accept and start the spec"
-spec_accepted:
+spec_accepted: 2026-11-22 by-agent    # owner: "in French distance instead of tir and then spec accepted"
 plan_approved:
 live_checked:
 merged:
 konmari:
 auto_authorized: 2026-11-22 by-agent    # owner: "/auto 80"
 auto_round:
-auto_stopped: spec drafted, waiting for spec_accepted
+auto_stopped:
 follows_up:
 links:
   - intents/53-log-autosave-and-attack-selection    B3 left the number out before a target
