@@ -1,0 +1,23 @@
+# generated-by: heraklios/intent@0.1.5
+id: 75
+slug: devhook-split
+type: refactor
+status: accepted
+title: The dev hook is built from small groups, so a new reader is one plain line
+review_tier:
+intent_accepted: 2026-11-22 by-agent    # owner: "accept 75 and 73, /auto 75 then 73"
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+konmari:
+auto_authorized:
+auto_round:
+auto_stopped:
+follows_up:
+links:
+  - intents/66-board-animations
+  - intents/74-unit-hover-stats
+  - intents/73-boardscene-on-session
+blocked_by:
+  - 74    it adds the second packed line in installDevHook that this split unpacks

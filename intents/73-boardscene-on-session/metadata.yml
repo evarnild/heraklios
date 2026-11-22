@@ -1,0 +1,22 @@
+# generated-by: heraklios/intent@0.1.5
+id: 73
+slug: boardscene-on-session
+type: refactor
+status: accepted
+title: The Board scene and its computer seats settle combats through the engine session
+review_tier:
+intent_accepted: 2026-11-22 by-agent    # owner: "accept 75 and 73, /auto 75 then 73"
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+konmari:
+auto_authorized:
+auto_round:
+auto_stopped:
+follows_up:
+links:
+  - intents/72-engine-host-seams
+  - intents/70-unity-front-end-probe
+blocked_by:
+  - 72    the session, its questions and answer actions must exist first
