@@ -8,7 +8,7 @@ review_tier:
 intent_accepted: 2026-11-21 by-agent    # owner: "/auto 74", answering "say yes to accept it, or /auto 74 to accept it and carry it through"
 spec_accepted: 2026-11-21 by-agent    # owner: "spec accepted"
 plan_approved: 2026-11-21 by-agent    # auto: owner "/auto 74" (auto_authorized 2026-11-21)
-live_checked:
+live_checked: 2026-11-22 by-agent    # owner: "live checked 74 /ship 74"
 merged:
 konmari:
 auto_authorized: 2026-11-22 by-agent    # owner: "/auto 74 (b)"
