@@ -1,0 +1,22 @@
+# generated-by: heraklios/intent@0.1.5
+id: 84
+slug: tables-during-combat
+type: feature
+status: accepted
+title: The Tables panel stays available while a combat is being resolved
+review_tier:
+intent_accepted: 2026-11-22 by-agent    # owner: "accept 81 82 83 84 /auto 81 /auto 83"
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+konmari:
+auto_authorized:
+auto_round:
+auto_stopped:
+follows_up:
+links:
+  - intents/55-rule-tables-panel    hid the panel during a pending decision
+  - intents/73-boardscene-on-session    rewrites the pending-decision flow the suppression keys on
+blocked_by:
+  - 73    it replaces decisionPending's flow that the suppression reads

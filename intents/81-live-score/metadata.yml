@@ -1,0 +1,21 @@
+# generated-by: heraklios/intent@0.1.5
+id: 81
+slug: live-score
+type: feature
+status: accepted
+title: The Board shows every player's current score at all times
+review_tier:
+intent_accepted: 2026-11-22 by-agent    # owner: "accept 81 82 83 84 /auto 81 /auto 83"
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+konmari:
+auto_authorized: 2026-11-22 by-agent    # owner: "/auto 81 /auto 83"
+auto_round:
+auto_stopped:
+follows_up:
+links:
+  - intents/43-center-view-on-turn    the Board HUD
+blocked_by:
+
