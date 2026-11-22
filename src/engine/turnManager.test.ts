@@ -217,6 +217,32 @@ describe('advancePhase — randomized turn order reshuffle', () => {
     expect(state.activePlayerIndex).toBe(1);
   });
 
+  // §72 (B14): the reshuffle takes the caller's rng. Kills not passing it on.
+  it('reshuffles with the rng it is given, and never touches Math.random then', () => {
+    const state = buildWrappingState();
+    const spy = vi.spyOn(Math, 'random');
+    try {
+      advancePhase(state, fakeRng([0.1, 0.9, 0.9]));
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+    expect(state.seatOrder).toEqual([3, 1, 2, 0]);
+  });
+
+  // Kills removing the default: with no rng the web game still shuffles on
+  // Math.random.
+  it('still reshuffles with Math.random when no rng is given', () => {
+    const state = buildWrappingState();
+    const spy = vi.spyOn(Math, 'random');
+    try {
+      advancePhase(state);
+      expect(spy).toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it('preserves the once-per-round invariant across many reshuffled rounds', () => {
     const players: Player[] = [0, 1, 2, 3].map((id) => ({
       id: id as PlayerId,

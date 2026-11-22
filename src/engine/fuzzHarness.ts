@@ -4,19 +4,15 @@ import { canEnterTerrain } from '../data/terrain';
 import { DIRECTIONS, hexAdd, hexEquals } from './hex';
 import { getUnitType } from '../data/units';
 import type { CombatResult } from '../data/combatTable';
-import { legalActions, applyAction, type Action } from './actions';
+import type { Action } from './actions';
 import type { DrivingAgent, PlayerAgent } from './agent';
-import { rollDie } from './dice';
-import { resolveElephantDrift } from './drift';
 import { RandomAgent } from './randomAgent';
 import { resolveUnitRetreat as resolveEngineUnitRetreat, type RetreatHooks } from './retreat';
 import { createSeededRng } from './rng';
-import {
-  attackerCanJoin,
-  eligibleAdvanceCandidates,
-  applyExchangeSacrifice,
-  unitAt,
-} from './combat';
+import { attackerCanJoin } from './combat';
+import { stepsForItems, newPending, type ResolutionItem, type SessionEvent } from './combatResolution';
+import { newSession, sessionApply, sessionLegalActions, type GameSession } from './gameSession';
+import { settleResolutionWithAgent, settleWithAgent } from './sessionAgents';
 import { resetMovementForActivePlayer, createInitialState, endGameByTimeLimit } from './turnManager';
 import {
   armyValue,
@@ -689,28 +685,47 @@ export async function resolveUnitRetreat(
   await resolveEngineUnitRetreat(state, unit, agent, hooks, visited, resolvedIds);
 }
 
-/**
- * Shared with `BoardScene.promptAdvanceChoice` after plan.md §9.1. The bug
- * this protects against: filtering advance candidates only by `!u.destroyed`
- * offers a vacated hex illegal for the advancing unit's category (e.g. a
- * defeated defender's marsh/steep-flank hex, legal for THAT unit but not for
- * a cavalry/chariot attacker in the same combat group).
- *
- * `eligibleAdvanceCandidates` (engine/combat.ts) is the extracted, tested,
- * shared fix for this — used here rather than reimplementing the filter
- * inline specifically so it ISN'T only the harness's own private correction
- * (a prior version filtered inline here, which meant this harness's own
- * terrain invariant could never see the identical bug in `BoardScene.ts`:
- * the harness silently corrected the exact defect it would otherwise have
- * caught). The scene now calls the same exported function.
- */
-async function processAdvanceOffer(state: GameState, vacatedHex: HexCoord, candidates: Unit[], agent: PlayerAgent): Promise<void> {
-  if (unitAt(state, vacatedHex)) return; // already re-occupied by an earlier choice in this batch
-  const alive = eligibleAdvanceCandidates(candidates, vacatedHex);
-  if (alive.length === 0) return;
-  const chosen = await agent.chooseAdvance(state, alive, vacatedHex);
-  if (chosen) chosen.position = vacatedHex;
+/** Folds a settled resolution's events into the harness's counters. */
+function countEvents(stats: HarnessStats | undefined, events: readonly SessionEvent[]): void {
+  if (!stats) return;
+  for (const event of events) {
+    if (event.kind === 'push') stats.pushesResolved++;
+    else if (event.kind === 'driftStarted') stats.driftsResolved++;
+    else stats.driftCombatsResolved++;
+  }
 }
+
+/**
+ * Settles queued retreats or drifts through the session machine
+ * (`engine/combatResolution.ts`): the same order, the same agent calls and the
+ * same dice as the hand-rolled loops they replaced. The session names units by
+ * id, so every unit passed in must be in `state.units`. `resolvedIds` is the
+ * caller's set; the machine's own list is copied back into it.
+ */
+async function settleItems(
+  state: GameState,
+  items: ResolutionItem[],
+  run: {
+    side: 'attacker' | 'defender';
+    attackersForAdvance: Unit[];
+    agent: PlayerAgent;
+    rng: () => number;
+    stats: HarnessStats | undefined;
+    resolvedIds: Set<string>;
+  },
+): Promise<void> {
+  const pending = newPending(
+    run.attackersForAdvance.map((u) => u.id),
+    stepsForItems(items, run.side),
+    [...run.resolvedIds],
+  );
+  const step = await settleResolutionWithAgent(newSession(state), pending, run.agent, run.rng);
+  for (const id of pending.resolvedIds) run.resolvedIds.add(id);
+  countEvents(run.stats, step.events);
+}
+
+const asItems = (pending: readonly PendingResolutionInput[], kind: ResolutionItem['kind']): ResolutionItem[] =>
+  normalizePendingResolutionItems(pending).map(({ unit, originalHex }) => ({ kind, unitId: unit.id, originalHex }));
 
 /**
  * MEDIUM finding from adversarial review (M11): on a result that forces the
@@ -719,15 +734,15 @@ async function processAdvanceOffer(state: GameState, vacatedHex: HexCoord, candi
  * one of them can move ANOTHER unit that's also separately queued (e.g.
  * unit A, boxed in, pushes its sibling attacker B aside; B is ALSO in
  * `pendingRetreats` for the same combat result). Without tracking that, the
- * loop below would later reach B's own queue entry and ask the player to
- * retreat it A SECOND time for the same single result. `resolvedIds`
- * (populated by every `resolveUnitRetreat` call, including nested pushed
- * units — see that function) is checked before each queue entry so a
- * chain-moved sibling is skipped rather than double-processed.
+ * queue would later reach B's own entry and ask the player to retreat it A
+ * SECOND time for the same single result. `resolvedIds` (populated by every
+ * retreat, including nested pushed units) is checked before each queue entry
+ * so a chain-moved sibling is skipped rather than double-processed.
  *
  * Exported for the same reason as `resolveUnitRetreat` — so this exact
  * batch-level skip logic can be driven directly by a test, not just
- * inferred from `playRandomGame`'s aggregate stats.
+ * inferred from `playRandomGame`'s aggregate stats. Since §72 it is a thin
+ * wrapper over the session machine, which owns that logic.
  */
 export async function processRetreats(
   state: GameState,
@@ -738,20 +753,10 @@ export async function processRetreats(
   stats?: HarnessStats,
   resolvedIds: Set<string> = new Set(),
 ): Promise<void> {
-  for (const { unit, originalHex } of normalizePendingResolutionItems(pendingRetreats)) {
-    if (unit.destroyed || resolvedIds.has(unit.id)) {
-      if (side === 'defender') {
-        await processAdvanceOffer(state, originalHex, attackersForAdvance, agent);
-      }
-      continue;
-    }
-    await resolveUnitRetreat(state, unit, agent, stats, undefined, resolvedIds);
-    // Per the rulebook (see BoardScene's finishQueueItem doc comment), only
-    // a DEFENDER's retreat frees a hex the attacker may advance into.
-    if (side === 'defender') {
-      await processAdvanceOffer(state, originalHex, attackersForAdvance, agent);
-    }
-  }
+  const noDie = (): number => {
+    throw new Error('processRetreats: a retreat rolls no die');
+  };
+  await settleItems(state, asItems(pendingRetreats, 'retreat'), { side, attackersForAdvance, agent, rng: noDie, stats, resolvedIds });
 }
 
 export async function processDrifts(
@@ -764,35 +769,7 @@ export async function processDrifts(
   stats?: HarnessStats,
   resolvedIds: Set<string> = new Set(),
 ): Promise<void> {
-  for (const { unit, originalHex } of normalizePendingResolutionItems(pendingDrifts)) {
-    if (unit.destroyed || resolvedIds.has(unit.id)) {
-      if (side === 'defender') {
-        await processAdvanceOffer(state, originalHex, attackersForAdvance, agent);
-      }
-      continue;
-    }
-    await resolveElephantDrift(
-      state,
-      unit,
-      unitType(unit).movement,
-      agent,
-      () => rollDie(rng),
-      {
-        onDriftStart: (drifting) => {
-          resolvedIds.add(drifting.id);
-        },
-        onPush: () => {
-          if (stats) stats.pushesResolved++;
-        },
-      },
-      undefined,
-      stats,
-      resolvedIds,
-    );
-    if (side === 'defender') {
-      await processAdvanceOffer(state, originalHex, attackersForAdvance, agent);
-    }
-  }
+  await settleItems(state, asItems(pendingDrifts, 'drift'), { side, attackersForAdvance, agent, rng, stats, resolvedIds });
 }
 
 // ---------------------------------------------------------------------------
@@ -1004,10 +981,6 @@ function assertChosenActionIsLegal(state: GameState, action: Action, legal: Acti
   );
 }
 
-function emptyContext(): { attackedThisPhase: Set<string>; rammedThisTurn: Set<string> } {
-  return { attackedThisPhase: new Set<string>(), rammedThisTurn: new Set<string>() };
-}
-
 /**
  * Dispatches each decision to the agent of the seat it actually belongs to.
  *
@@ -1123,7 +1096,7 @@ export async function playRandomGame(seed: number, options: PlayRandomGameOption
   resetMovementForActivePlayer(state);
 
   const initialSeatOrder = [...state.seatOrder];
-  const context = emptyContext();
+  const session = newSession(state);
   const stats: HarnessStats = {
     seed,
     gameOver: false,
@@ -1160,12 +1133,13 @@ export async function playRandomGame(seed: number, options: PlayRandomGameOption
       );
     }
 
-    const legal = legalActions(state, context);
+    // No question is ever open here: `applyOneAction` settles every combat before returning.
+    const legal = sessionLegalActions(session) as Action[];
     assertNoActionTargetsADeadUnit(state, legal);
     const action = agent.chooseNextAction(state, legal);
     assertChosenActionIsLegal(state, action, legal);
     options.trace?.push(formatAction(action));
-    await applyOneAction(state, action, agent, rng, context, stats);
+    await applyOneAction(session, action, agent, rng, stats);
 
     stats.totalActions++;
     stats.actionsByKind[action.kind] = (stats.actionsByKind[action.kind] ?? 0) + 1;
@@ -1203,53 +1177,29 @@ function buildSeatAgents(
   return new SeatAgentRouter(agents);
 }
 
+/**
+ * Applies one chosen action through the session and checks what it should
+ * have done. A land attack is settled by `settleWithAgent`: the session asks
+ * its questions, the seat's agent answers them in today's order (see
+ * `engine/sessionAgents.ts`). The invariant checks and the counters stay
+ * here; the sequencing (exchange, retreats, drifts, advances) is the
+ * session's (§72).
+ */
 async function applyOneAction(
-  state: GameState,
+  session: GameSession,
   action: Action,
   agent: PlayerAgent,
   rng: () => number,
-  context: { attackedThisPhase: Set<string>; rammedThisTurn: Set<string> },
   stats: HarnessStats,
 ): Promise<void> {
+  const { state } = session;
   switch (action.kind) {
-    case 'endPhase': {
-      const wasCombatPhase = state.phase === 'combat';
-      const previousIndex = state.activePlayerIndex;
-      applyAction(state, action, rng);
-      // Captured AFTER `applyAction`, deliberately. `advancePhase` marks any
-      // player who just lost their last unit as eliminated and *then* runs its
-      // skip loop against those updated flags — so a seat eliminated by this
-      // very `endPhase` is skipped by `advancePhase` but would still be
-      // *expected* by a pre-call snapshot, throwing a false positive. Since
-      // `advancePhase` only ever adds eliminations, the post-call map is
-      // exactly the input its own skip loop used. Latent at 2 seats (any
-      // elimination ends the game, and the assert is gameOver-guarded), but
-      // reachable as soon as the harness grows a third seat.
-      const eliminatedAfter = new Map(state.players.map((p) => [p.id, p.eliminated] as const));
-      // Mirrors BoardScene.endPhase exactly (BoardScene.ts:1736-1765): the
-      // scene-local attack/ram bookkeeping lives outside GameState (see
-      // engine/actions.ts's `ActionContext` doc comment) and isn't
-      // `applyAction`'s responsibility to reset.
-      context.attackedThisPhase.clear();
-      if (!state.gameOver && state.phase === 'movement') {
-        context.rammedThisTurn.clear();
-        assertMovementWasRefilled(state, 'after endPhase into a fresh movement phase');
-      }
-      if (wasCombatPhase && !state.gameOver) {
-        assertSeatAdvancedCorrectly(
-          state.seatOrder,
-          eliminatedAfter,
-          previousIndex,
-          state.activePlayerIndex,
-          'after endPhase ended a combat phase',
-        );
-      }
-      return;
-    }
+    case 'endPhase':
+      return applyEndPhase(session, action, rng);
 
     case 'landSwap': {
       const before = [requireUnit(state, action.unitId).position, requireUnit(state, action.otherId).position];
-      applyAction(state, action, rng);
+      sessionApply(session, action, rng);
       const after = [requireUnit(state, action.unitId).position, requireUnit(state, action.otherId).position];
       if (!hexEquals(after[0]!, before[1]!) || !hexEquals(after[1]!, before[0]!)) {
         throw new Error(`Invariant violated: landSwap ${action.unitId}<->${action.otherId} did not exchange the units' positions`);
@@ -1259,86 +1209,31 @@ async function applyOneAction(
 
     case 'landMove':
     case 'navalMove':
-    case 'navalRotate': {
-      applyAction(state, action, rng);
+    case 'navalRotate':
+      sessionApply(session, action, rng);
       return;
-    }
 
     case 'ram': {
-      const result = applyAction(state, action, rng);
-      context.rammedThisTurn.add(action.unitId);
+      const { result } = sessionApply(session, action, rng);
       stats.ramsResolved++;
-      if (result.hit) stats.ramHits++;
+      if (result.kind === 'ram' && result.hit) stats.ramHits++;
       return;
     }
 
-    case 'board': {
-      applyAction(state, action, rng);
-      context.attackedThisPhase.add(action.attackerId);
+    case 'board':
+      sessionApply(session, action, rng);
       stats.boardingsResolved++;
       return;
-    }
 
     case 'landAttack': {
       assertNoCavalryVsPhalanx(state, action.attackerIds, action.defenderIds);
-      for (const id of action.attackerIds) context.attackedThisPhase.add(id);
-      const result = applyAction(state, action, rng);
+      const step = await settleWithAgent(session, action, agent, rng);
+      if (step.result.kind !== 'landAttack') throw new Error('Invariant violated: a land attack returned another result');
       stats.landAttacksResolved++;
       if (action.attackerIds.length > 1) stats.multiAttackerAttacks++;
-      stats.combatResultCounts[result.detail.result] = (stats.combatResultCounts[result.detail.result] ?? 0) + 1;
-
-      // Stage 2c investigation (plan.md §6.7/§6.9, finding B): can a single
-      // resolved combat need BOTH an exchange-sacrifice choice AND carry
-      // pendingDrifts/pendingRetreats, which the `requiresExchangeChoice`
-      // branch below never reads? Traced through `applyLandCombatResult`
-      // (engine/combat.ts): `pendingDrifts`/`pendingRetreats` are only ever
-      // populated inside `forceRetreat`, which is only ever called from the
-      // 'AR'/'DR' cases. The 'EX' case's `requiresExchangeChoice: true`
-      // branch returns immediately without calling `forceRetreat` at all —
-      // an EX result destroys every defender outright and (with more than
-      // one attacker) defers ONLY the attacker-side sacrifice choice, never
-      // a retreat or drift for anyone. So this combination is structurally
-      // IMPOSSIBLE from `applyLandCombatResult` today, not merely untested —
-      // the throw below is a regression guard against that invariant
-      // silently breaking under a future refactor, not a workaround for a
-      // bug that currently fires (confirmed: it did not fire once across
-      // this file's default/elephant-scenario soaks while writing this
-      // guard). `BoardScene.ts`'s combat handler
-      // (`applyAttack`/`beginRetreatChoices`, `BoardScene.ts:1719-1743`) has
-      // the exact same branch shape — `if (outcome.requiresExchangeChoice)
-      // { ...; return; }` before the `pendingRetreats`/`pendingDrifts` check
-      // — so it would share the exact same latent drop if this ever became
-      // reachable; this guard stands in for that untested scene too.
-      if (result.outcome.requiresExchangeChoice && (result.outcome.pendingDrifts.length > 0 || result.outcome.pendingRetreats.length > 0)) {
-        throw new Error(
-          "Invariant violated: applyLandCombatResult returned requiresExchangeChoice=true together with a non-empty pendingDrifts/pendingRetreats — the exchange-choice branch below never processes either, so this would silently drop a forced retreat or elephant drift.",
-        );
-      }
-
-      if (!result.outcome.requiresExchangeChoice && result.outcome.pendingDrifts.length > 0) {
-        const side = result.detail.result === 'DR' ? 'defender' : 'attacker';
-        const resolvedIds = new Set<string>();
-        const pendingRetreats = capturePendingResolutionItems(result.outcome.pendingRetreats);
-        const pendingDrifts = capturePendingResolutionItems(result.outcome.pendingDrifts);
-        await processRetreats(state, pendingRetreats, side, result.attackers, agent, stats, resolvedIds);
-        await processDrifts(state, pendingDrifts, side, result.attackers, agent, rng, stats, resolvedIds);
-        return;
-      }
-
-      if (result.outcome.requiresExchangeChoice) {
-        const chosen = await agent.chooseExchangeSacrifice(state, result.attackers, result.outcome.requiredSacrificeForce);
-        applyExchangeSacrifice(chosen);
-        for (const hex of result.defenderOriginalHexes) {
-          await processAdvanceOffer(state, hex, result.attackers, agent);
-        }
-      } else if (result.outcome.pendingRetreats.length > 0) {
-        const side = result.detail.result === 'DR' ? 'defender' : 'attacker';
-        await processRetreats(state, result.outcome.pendingRetreats, side, result.attackers, agent, stats);
-      } else if (result.detail.result === 'DE' || result.detail.result === 'EX') {
-        for (const hex of result.defenderOriginalHexes) {
-          await processAdvanceOffer(state, hex, result.attackers, agent);
-        }
-      }
+      const resolved = step.result.detail.result;
+      stats.combatResultCounts[resolved] = (stats.combatResultCounts[resolved] ?? 0) + 1;
+      countEvents(stats, step.events);
       return;
     }
 
@@ -1346,5 +1241,36 @@ async function applyOneAction(
       const unhandled: never = action;
       throw new Error(`applyOneAction: unhandled action kind ${(unhandled as Action).kind}`);
     }
+  }
+}
+
+function applyEndPhase(session: GameSession, action: Action, rng: () => number): void {
+  const { state } = session;
+  const wasCombatPhase = state.phase === 'combat';
+  const previousIndex = state.activePlayerIndex;
+  sessionApply(session, action, rng);
+  // Captured AFTER the action, deliberately. `advancePhase` marks any
+  // player who just lost their last unit as eliminated and *then* runs its
+  // skip loop against those updated flags — so a seat eliminated by this
+  // very `endPhase` is skipped by `advancePhase` but would still be
+  // *expected* by a pre-call snapshot, throwing a false positive. Since
+  // `advancePhase` only ever adds eliminations, the post-call map is
+  // exactly the input its own skip loop used. Latent at 2 seats (any
+  // elimination ends the game, and the assert is gameOver-guarded), but
+  // reachable as soon as the harness grows a third seat.
+  const eliminatedAfter = new Map(state.players.map((p) => [p.id, p.eliminated] as const));
+  // The attack/ram bookkeeping that `BoardScene.endPhase` does by hand lives
+  // in the session's context now (see `sessionApply`).
+  if (!state.gameOver && state.phase === 'movement') {
+    assertMovementWasRefilled(state, 'after endPhase into a fresh movement phase');
+  }
+  if (wasCombatPhase && !state.gameOver) {
+    assertSeatAdvancedCorrectly(
+      state.seatOrder,
+      eliminatedAfter,
+      previousIndex,
+      state.activePlayerIndex,
+      'after endPhase ended a combat phase',
+    );
   }
 }

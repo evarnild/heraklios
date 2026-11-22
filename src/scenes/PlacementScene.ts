@@ -10,7 +10,8 @@ import { edgeName, unitName } from '../ui/i18n/names';
 import { createInitialState } from '../engine/turnManager';
 import { History } from '../engine/history';
 import { unitCategory } from '../engine/movement';
-import { maxEquipmentPointsForType, type GameState, type Unit } from '../engine/state';
+import type { GameState } from '../engine/state';
+import { deployUnit } from '../engine/deployment';
 import { getUnitType } from '../data/units';
 import { canEnterTerrain } from '../data/terrain';
 import { MAP_TERRAIN, hexKey } from '../data/map';
@@ -33,7 +34,6 @@ interface PlacementSnapshot {
   state: GameState;
   queue: QueueItem[];
   placedShips: { hex: HexCoord; facing: number }[];
-  unitCounter: number;
 }
 
 export class PlacementScene extends Phaser.Scene {
@@ -56,7 +56,6 @@ export class PlacementScene extends Phaser.Scene {
   private highlightedDomain: 'land' | 'naval' | null = null;
   private queue: QueueItem[] = [];
   private infoText!: Phaser.GameObjects.Text;
-  private unitCounter = 0;
   /** Ships placed so far by the CURRENT player, for the facing-arrow overlay.
    * Reset in `create`: Phaser reuses one scene instance across the
    * player-by-player `scene.start('Placement', ...)` restarts, so field
@@ -300,7 +299,6 @@ export class PlacementScene extends Phaser.Scene {
       state: structuredClone(session.gameState!),
       queue: structuredClone(this.queue),
       placedShips: structuredClone(this.placedShips),
-      unitCounter: this.unitCounter,
     };
   }
 
@@ -308,7 +306,6 @@ export class PlacementScene extends Phaser.Scene {
     session.gameState = structuredClone(snapshot.state);
     this.queue = structuredClone(snapshot.queue);
     this.placedShips = structuredClone(snapshot.placedShips);
-    this.unitCounter = snapshot.unitCounter;
     this.redrawPlacedUnits();
     this.refreshPlacementHighlight();
     this.updateInfo();
@@ -440,23 +437,12 @@ export class PlacementScene extends Phaser.Scene {
       return;
     }
 
-    this.history.push(this.captureSnapshot(), messages().placement.placeAction(unitName(item.typeId)));
-    const unit: Unit = {
-      // Namespaced by player so ids stay unique without depending on
-      // `unitCounter` surviving Phaser's scene restarts (several features key
-      // state off unit ids — see engine/history.ts' callers).
-      id: `p${this.playerIndex}u${this.unitCounter++}`,
-      owner: this.playerIndex as 0 | 1 | 2 | 3,
-      typeId: item.typeId,
-      position: hex,
-      movementLeft: t.movement,
-      facing: 0,
-      equipmentPoints: undefined,
-      defendedThisPhase: false,
-      charged: false,
-      destroyed: false,
-    };
-    state.units.push(unit);
+    // The id comes from the engine (`deployUnit`): `p${seat}u${n}`, n being the
+    // units the seat already has - no counter to keep alive across Phaser's
+    // scene restarts or to put back on undo.
+    const snapshot = this.captureSnapshot();
+    if (!deployUnit(state, this.playerIndex, { typeId: item.typeId, hex }).ok) return;
+    this.history.push(snapshot, messages().placement.placeAction(unitName(item.typeId)));
     item.remaining -= 1;
     this.drawPlacedUnits();
     this.refreshPlacementHighlight();
@@ -512,22 +498,10 @@ export class PlacementScene extends Phaser.Scene {
     const pending = this.pendingShip;
     const item = this.currentItem();
     if (!pending || !item) return;
-    const t = getUnitType(pending.typeId);
-    this.history.push(this.captureSnapshot(), messages().placement.placeAction(unitName(pending.typeId)));
     const state = session.gameState!;
-    const unit: Unit = {
-      id: `p${this.playerIndex}u${this.unitCounter++}`,
-      owner: this.playerIndex as 0 | 1 | 2 | 3,
-      typeId: pending.typeId,
-      position: pending.hex,
-      movementLeft: t.movement,
-      facing: pending.facing,
-      equipmentPoints: maxEquipmentPointsForType(t),
-      defendedThisPhase: false,
-      charged: false,
-      destroyed: false,
-    };
-    state.units.push(unit);
+    const snapshot = this.captureSnapshot();
+    if (!deployUnit(state, this.playerIndex, { typeId: pending.typeId, hex: pending.hex, facing: pending.facing }).ok) return;
+    this.history.push(snapshot, messages().placement.placeAction(unitName(pending.typeId)));
     item.remaining -= 1;
     this.drawPlacedUnits();
     this.placedShips.push({ hex: pending.hex, facing: pending.facing });

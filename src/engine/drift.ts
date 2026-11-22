@@ -206,7 +206,7 @@ function directionsEqual(a: HexCoord | undefined, b: HexCoord): boolean {
   return !!a && a.q === b.q && a.r === b.r;
 }
 
-function needsInput(events: readonly DriftEvent[]): DriftEvent | undefined {
+export function needsInput(events: readonly DriftEvent[]): DriftEvent | undefined {
   for (let i = events.length - 1; i >= 0; i--) {
     const event = events[i]!;
     if (

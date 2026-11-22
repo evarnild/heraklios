@@ -233,6 +233,20 @@ and rendering.
   `buildPushScenarioGameState`/`buildElephantScenarioGameState` builders in
   `fuzzHarness.ts` are purpose-built positions that make the push and drift
   paths reachable deterministically rather than by luck.
+- **A whole game without Phaser** (§72): `deployment.ts` holds the deployment
+  zones (moved from `ui/mapBounds.ts`), `deployUnit` and `autoDeploy`;
+  `gameSession.ts` is the JSON `GameSession` (state, attacked/rammed context,
+  the open combat) with `sessionLegalActions`/`sessionApply` taking turn
+  actions and answers (`AnswerAction`, a union of its own beside `Action`);
+  `combatResolution.ts` is the resumable machine that settles a land combat
+  (exchange sacrifice, retreats and pushes, drift with trample, advances) as
+  JSON questions; `sessionAgents.ts` answers them with a `PlayerAgent`, calling
+  the agents in the order they always were (the harness's traces are pinned);
+  `host.ts` is the one JSON entry (`newGame`/`load` with a required seed).
+  The fuzz harness settles its combats through the session. `BoardScene` and
+  the computer seats in it still use `engine/retreat.ts` and
+  `resolveElephantDrift` (two drivers until the follow-up intent, recorded in
+  `docs/architecture.md`).
 - The board's **Tables panel** (§55): `engine/ruleTables.ts` turns the rule data into
   rows and cells (and the land-table highlight) and is unit-tested; `ui/rulesPanel.ts`
   only draws them, placed by `ui/rulesPanelLayout.ts`, which keeps it clear of the ram and
@@ -261,7 +275,7 @@ and rendering.
   `hexRender.ts`/`hexDraw.ts` (hex geometry and drawing helpers), `session.ts`
   (the in-memory `SessionState` — player setup, army selections, combat mode,
   test mode — that scenes read/write as they hand off to each other),
-  `mapBounds.ts` (deployment-zone geometry), `saveStorage.ts`
+  `mapBounds.ts` (re-exports the engine's deployment zones, plus `seaZoneNear`), `saveStorage.ts`
   (client of the local save API + file import/export + the read-only import
   of old `localStorage` saves; the browser-side half of
   `engine/saveGame.ts`), `saveLoadPanel.ts`, `testMode.ts` (Menu shortcuts

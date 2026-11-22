@@ -739,3 +739,128 @@ and the rest), with no expectation edited.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-11-21 - subtasks 1-8, all shipped (implementer)
+
+Commits (on `feat/72-engine-host-seams`):
+- `eef4065` subtask 1: snapshots from `main`'s unchanged code
+- `2d0a3d3` subtask 2: deployment moved to `engine/deployment.ts`
+- `508f631` subtask 3: B14, `advancePhase(state, rng)`
+- `8e78bc1` subtask 4: `GameSession`, `combatResolution.ts`, `sessionAgents.ts`
+- `d2da2db` subtask 5: the harness onto the session
+- `9dc50e0` subtask 6: `engine/host.ts`
+- `c006735` subtask 7: `aiSetup` and `PlacementScene` rewired
+- the final commit: subtask 8 (README, CLAUDE.md), this entry and `status: in-review`
+
+What shipped, as planned: the zones, `deployUnit` and `autoDeploy` in the engine
+(`ui/mapBounds.ts` re-exports them and keeps `seaZoneNear`; `autoPlaceSeat` is
+one line); `advancePhase`/`endPhase` take the caller's rng; a JSON
+`GameSession` with `sessionLegalActions`/`sessionApply` (answers are a separate
+`AnswerAction` union, A1; `onForced` hook, A2; no list check on turn actions,
+A3); the fuzz harness settling combats through it; `host.ts`; the
+`docs/architecture.md` rows (rng default for `advancePhase`; the two retreat and
+drift drivers).
+
+Tests: 91 files and 1599 tests at subtask 1 (the snapshot tests included), 94
+files and 1659 tests (2 skipped: the two gated fixture writers) at the end. `npm run verify`
+green at every commit. Lint warnings 21 -> 19 and the cap lowered to 19 in
+`package.json` in the harness commit (`applyOneAction`'s two warnings went;
+`settleItems` was written with an options object so it adds none).
+
+B15, the pinned traces: all 66 pinned games (6807 actions) give the same
+length, sha256 and full `HarnessStats` as the fixture written from `main`
+before any §72 code, on the first run of the rewritten harness, with no
+re-pinning. `fuzzHarness.test.ts` (including the direct `processRetreats` and
+`processDrifts` tests) and `heuristicSoak.test.ts` (seed-7 sha256 pins) run
+unchanged. Coverage asserted in `harnessPinned.test.ts`: 9 pushes, 34 drifts, 24
+drift combats, 5 exchange choices, 32 multi-attacker attacks, and AR 76, DR 144,
+DE 28, EX 25, AE 9.
+
+I3 check (gate): passed. Every one of the 5 exchange choices made in the pinned
+games is minimal (`harnessPinned.test.ts`, "makes only minimal exchange
+sacrifices"), so the answer set stayed "minimal subsets only".
+
+Deployment snapshots (`72-deployment-zones.json`, `72-auto-deploy.json`): the
+engine functions and the `ui` wrappers (`deployment.test.ts`,
+`deploymentSnapshot.test.ts`) both equal them; `mapBounds.test.ts` and
+`aiSetup.test.ts` are unchanged.
+
+Mutants killed by copy-and-restore runs of `gameSession.test.ts`: swapping the
+retreat/drift order, dropping the advance after a skipped item, asking on one
+option, dropping `onForced`, giving the advance to the defender, an extra die
+draw, resuming the drift before the trample retreat, dropping the minimality
+filter, clearing `rammedThisTurn` on every `endPhase`, not threading `visited`.
+One survived by being equivalent (`vacatedHex` aliasing a position that is only
+ever reassigned). Removing the rng pass-through in `actions.ts` is killed by
+`actions.test.ts` and by `host.test.ts`.
+
+Line counts: new `deployment.ts` 409, `gameSession.ts` 185,
+`combatResolution.ts` 416, `sessionAgents.ts` 118, `host.ts` 223 (all under
+500). Shrunk: `fuzzHarness.ts` 1350 -> 1276 and `PlacementScene.ts` 574 -> 548
+(both ceilings lowered with `size:baseline --write`); `ui/aiSetup.ts` 213 -> 70;
+`ui/mapBounds.ts` 207 -> 39. `actions.ts` stays 488, `drift.ts` 667 and
+`combat.ts` 1111 (only `export` on `needsInput`). No budget line was needed.
+
+`npm run e2e`: 27 passed. The first run had one failure, `save-load.spec.ts`
+"a saved game loads back to the saved position" (the loaded state still showed
+the second move); it passed alone and in a second full run. It uses the Menu
+test-mode shortcut, so it does not touch Placement or any code this intent
+changed; I read it as a timing flake under load, not a regression.
+
+Divergences from the plan:
+- The pinned set is a superset: besides the planned 30 + 5 + 5 + 6 + 2 games it
+  has 18 more ("found" games: push scenario seeds 17, 19, 22, 29, 50; default
+  seed 76; `'ev'` against `'ev'` seeds 8, 9, 10, 12, 14, 15, 17, 20, 22, 24, 25,
+  26), found by scanning, because the planned seeds gave one exchange choice and
+  one push in total, which is too thin for the I3 check and the push path.
+- `deploymentSnapshotCases.ts` (a small test-data module in `src/engine/`) holds
+  the snapshot cases so the engine and `ui` comparisons share one list.
+- `sessionApply` returns `pending` as the whole JSON `Pending` (the open
+  question is `pending.question`, and `sessionQuestion` reads it), and a
+  `sessionBeginResolution` entry exists for the harness's `processRetreats` and
+  `processDrifts` wrappers.
+- `needsInput` is the only line changed in `drift.ts`, as planned. The parity
+  test in `gameSession.test.ts` keeps a test-local copy of the old driver
+  sequencing, built on `resolveElephantDrift` and `engine/retreat.ts`, so it
+  stays a real comparison now that the harness's own wrappers use the session.
+- The live check (AC7) is still owed to the owner.
+
+### 2026-11-21 - rework, round 1 (implementer)
+
+Review `b36f69e` asked for tests for four surviving mutants and two LOW items.
+No source file under `src/` changed except the hashing move below. Each mutant
+was proved killed by backing the file up by copy, applying it, running the
+test file, restoring by copy, and checking `git status --short` showed only
+test files.
+
+New tests, each with the mutant it kills:
+- `gameSession.test.ts` "offers no advance into a defender hex that is occupied
+  again" (CR21). The sequence: defenders a and b are both queued, a is boxed in
+  and pushes b, so a takes b's original hex before b's own advance offer; an
+  attacker stands next to that hex. The test asserts the only advance question
+  is for a's hex. Kills removing `if (unitAt(game, step.hex)) return null;`
+  in `combatResolution.ts`. (Pushing a defender into a sibling defender's hex is
+  real, so no other sequence was needed; the items are queued with
+  `stepsForItems` as `pendingFromAttack` would build them.)
+- `sessionAgents.test.ts` "maps the second listed subset to that subset" and
+  "maps a non-minimal superset to the first listed subset it contains" (SA2).
+  Forces 4, 4, 2 against 5 list {a,b}, {a,c}, {b,c}; a stub agent returns {a,c},
+  then all three; the destroyed units are {a,c} and {a,b}. Kills `.every` ->
+  `.some` in `sacrificeAnswer`.
+- `sessionAgents.test.ts` "makes settleWithAgent reject" (SA4). The agent's
+  `chooseRetreat` rejects on a one-option (forced) retreat. Kills removing
+  `await Promise.all(kept)`.
+- `host.test.ts` "brings back the attacked and rammed lists, so nobody acts
+  twice" (H4). A ram, `endPhase`, then a land attack are played through the
+  host, saved and loaded: both lists come back equal, and `legalActions()`
+  offers neither the attacker nor a `board` for the ship that rammed. Kills
+  `load` restoring `attackedThisPhase: []` and, separately,
+  `rammedThisTurn: []`.
+- `gameSession.test.ts` `rejects` now matches `/question is open/`,
+  `/no question is open/` and `/not one of/` (kills changing those messages);
+  `deployment.test.ts` already matched `/rng/` and now kills changing its
+  message.
+
+LOW: `deploymentSnapshotCases.ts` no longer imports `node:crypto`; `zoneSnapshot`
+takes the hash function, and the two tests that call it pass a `node:crypto`
+one. The fixtures are unchanged.

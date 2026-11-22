@@ -921,7 +921,19 @@ terminal (the real `claude` command line in the page) is not built yet.
   `seatControl.ts`/`seatRouter.ts` for which seat is played by whom and
   which agent answers each decision) and the headless
   self-play harness that soaks it (`fuzzHarness.ts`), and the save-file
-  format and its validation. Fully
+  format and its validation. A whole game can also run without the Phaser
+  scenes: `deployment.ts` holds the deployment zones, `deployUnit` and
+  `autoDeploy` (what Placement and the computer seats' deployment use);
+  `gameSession.ts` is a JSON `GameSession` (the state, the attacked/rammed
+  sets and the open combat) that turns a land combat's choices - retreat,
+  push, advance, exchange sacrifice, and an elephant's drift with its
+  trampled units - into questions and answers (`combatResolution.ts` is the
+  resumable machine behind it, `sessionAgents.ts` answers its questions with a
+  `PlayerAgent`, and the self-play harness settles its combats this way); and
+  `host.ts` is the one JSON entry (`newGame`/`load`, then `legalActions`,
+  `apply`, `question`, `state`, `save`) with a required seeded random
+  generator, the turn-order shuffle included. The web game still resolves its
+  own combats in `BoardScene`. Fully
   unit-tested and independent of Phaser (the browser-side half of saving —
   the client of the save API, the read-only import of old `localStorage`
   saves and file download/upload — lives in `src/ui/saveStorage.ts`).

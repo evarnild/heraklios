@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint . --max-warnings 21",
+    "lint": "eslint . --max-warnings 19",
     "check:intent": "node scripts/check-intent.mjs",
     "size:baseline": "node scripts/size-budget.mjs",
     "sdlc:scan": "node scripts/sdlc-scan.mjs",
