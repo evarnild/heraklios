@@ -1,13 +1,199 @@
 <!-- generated-by: heraklios/review@0.2.0 -->
 # §77 review — The Standard view animates moves and combats, like the Drawn view
 
-verdict: rework
+verdict: attest
 tier: attested
-reviewed-commit: 0f8ab11
-round: 1
-sampled: no
+reviewed-commit: 047f4ac
+round: 2
+sampled: yes
 run: auto
 live-check: owed
+
+- **Tier: Attested.** The path table gives `src/ui/**`, `e2e/**` and README
+  wording. Nothing in the diff touches `src/engine`, `src/data`,
+  `src/scenes` or a Reviewed path.
+- **Sampled: yes.** `npm run sdlc:scan -- --sample-due auto --exclude 77`,
+  run in the main checkout, printed `nth attested auto change = 12, every 3,
+  sampled: yes`. A full read of the diff is due after the merge.
+- **Scope of this round.** It covers round 1's rework commit 63dadd7:
+  - a new e2e test in `e2e/naval.spec.ts:22-44`;
+  - the `hexDraw.ts:32` line split;
+  - the `README.md:583` re-wrap.
+
+  047f4ac only bumps `auto_round`. The rest of `main...HEAD` is unchanged
+  since round 1, so passes 1, 3, 5, 9 and 10 and round 1's 21 killed
+  mutants are reused.
+
+## Passes
+| # | Pass | Result |
+| --- | --- | --- |
+| 1 | Intent and plan match | pass: the rework is exactly round 1's fix plus the two nits, recorded in Progress |
+| 2 | Type check | the only error is the owed live check |
+| 3 | Rulebook fidelity | not run: digital-only (reused) |
+| 4 | Tests prove the rule | findings (1, LOW): the new test kills M9a; M16, M21 and M8b survive and are accepted as live check |
+| 5 | Boundary and conventions | pass |
+| 6 | Numbers in prose | pass: the rework's numbers reproduced |
+| 7 | Documentation | findings (1, LOW, carried over): two stale comments |
+| 8 | Guardrails and hygiene | pass: lint 19 warnings (cap 19) |
+| 9 | Repo footguns | pass: engine, data and scenes untouched |
+| 10 | Architecture | pass (reused) |
+
+## Type check
+```
+> heraklios@0.1.0 check:intent
+> node scripts/check-intent.mjs
+
+type-check: FAIL (intent 77, feature)
+  error: A live check is owed and not recorded. Do the steps in intents/77-standard-view-animations/review.md → ## Live check, then set live_checked: <date> in intents/77-standard-view-animations/metadata.yml.
+  note:  25 file(s), 1793 line(s) changed outside intents/.
+```
+The only error is the owed live check, which the owner clears.
+
+## Findings
+- **LOW** `src/ui/standardBoardView.ts:206`, `src/ui/standardUnits.ts:54`: no
+  automated test reads the Standard facing mark (B6, B7).
+  - M16 and M21 still survive vitest and e2e. The spec accepts the live check
+    as their proof.
+  - Worth a look: a follow-up adding a dev-hook reader for a Standard ship's
+    mark rotation. That is one line after §75.
+- **LOW** `src/scenes/BoardScene.ts:909-920`: `renderAllUnits` still sends
+  every ship to `setFacingIndicators`. Worth a look: a follow-up, after §73,
+  that sends only the staged ship.
+- **LOW** `src/ui/devHook.ts:109`, `src/scenes/PlacementScene.ts:319`: two
+  stale comments.
+  - §76 has now merged, so §77 is the second of the two to merge. Its rebase
+    can fix both without growth.
+  - Worth a look.
+- **LOW** `src/ui/unitLayer.test.ts:116-130`: the `finishAnimations` test
+  uses a one-step slide, so M8 is killed only by e2e. Worth a look.
+
+No finding needs rework.
+
+## Resolution of round 1's findings
+- **MEDIUM M9a** (`drawnUnits.ts:84`, `facingPart: null`): **resolved.**
+  - The test "the Turn button turns the galley figure in the Drawn view"
+    (`e2e/naval.spec.ts:23`) kills it. It fails with "the figure turned to
+    the new facing": expected 0, received 1.0471975511965979.
+  - The comparison modulo a whole turn cannot pass vacuously:
+    - The first assertion pins the starting rotation.
+    - The engine facing is asserted to be `(old+1)%6`.
+    - A figure that doesn't turn is off by π/3.
+    - A missing figure gives NaN, which `toBeCloseTo` rejects.
+- **LOW M16, M21:** still survive. Open, as a follow-up.
+- **LOW BoardScene ships, stale comments, unitLayer M8 test:** open.
+- **Nits** `hexDraw.ts:32` and `README.md:583`: resolved.
+- **M8b:** still survives; near-equivalent.
+
+## Not checked
+- **B6–B9 and B11 in a browser:**
+  - the mark slides, lunges, shakes, fades and turns with its counter;
+  - the counter stays upright;
+  - the drift arrow waits;
+  - each cue plays in Standard;
+  - a computer turn waits;
+  - a view switch mid-animation works.
+
+  These are for the live check (AC11).
+- **The new test runs only at Off.** It proves the settle path. That the
+  galley turns during the motion at Normal is covered by the unitMotions unit
+  tests and live-check step 10.
+- **The merge result was not built.** `git merge-tree` against main was clean
+  before §76 merged. §76 has since merged (6f258b0), and round 1 found 3
+  content conflicts and a duplicate `unitAlpha` against it. Both plans
+  describe the resolution: keep §76's `unitAlpha`, and pass `alpha` through
+  `drawFacingArrowhead` → `drawArrowheadAt`.
+  - §77's rebase must be done and re-verified before `/ship`. The ship
+    script's preconditions and its `verify` on main catch a broken merge.
+- **The per-view-switch `once('shutdown')` closures** were not measured.
+
+## Live check
+- **Owed:** rule 1 (`src/ui/**`) and rule 3 (B6–B9, B11 above). The change is
+  new and visual.
+- **Setup:** in `C:/Users/eric/src/heraklios-wt/77-standard-view-animations`,
+  run `npm run dev -- --port 5277 --strictPort --host 127.0.0.1` and open
+  http://127.0.0.1:5277/.
+  - Use the Standard view, with "⏩ Speed: Normal".
+  - Repeat steps 2, 3 and 7 at Slow.
+
+1. **Test mode (2 players, armies ready).**
+   - A land move slides hex by hex; the movement readout is already on the
+     new hex.
+   - A cavalry charge slides along its line.
+   - With "Unit swaps: on", a swap slides both units together.
+2. **Combat test mode.** The ships are at r=7 and r=9 from q=25.
+   - Arrowheads point along each ship's facing from the first frame.
+   - Turn: the arrowhead turns 60° smoothly and the counter stays upright.
+   - A forward move: the arrowhead slides with its counter, never ahead of
+     it.
+   - Ram, a hit and a miss: the mark lunges or shakes with its counter, and
+     a sunk ship fades with its mark.
+   - Board: the mark lunges and shakes with its counter.
+3. **Land combat.** The land rows are at r=3 and r=5 from q=10.
+   - Each attacker lunges and back.
+   - Then an elimination fades, and retreats, pushes, advances and exchanges
+     play in commit order.
+4. **An elephant drift, ideally with a trample:** the drift arrow appears
+   only after the slide.
+5. **A computer seat** ("Who plays each seat": AI — normal):
+   - each move plays fully before its pause;
+   - the drift arrow still waits.
+6. **Cut short:** at Slow, a click or key mid-slide lands everything at
+   once, and Ctrl+Z mid-animation undoes cleanly.
+7. **A view switch mid-animation, both ways:** the final state shows, with
+   no half-moved counter or arrow.
+8. **Speed:**
+   - the button shows in both views and keeps its label;
+   - Slow persists across a reload;
+   - at Off, moves jump.
+9. **Placement:**
+   - nothing animates and there is no Speed button;
+   - the staged ship's arrow follows Turn;
+   - placed ships point correctly.
+10. **The Drawn view:**
+    - unchanged;
+    - a galley turns smoothly at Normal and ends on its new facing (M9a).
+
+You should see everything above, with Standard counters never rotating, the
+mark never detaching, and no console errors.
+
+## Verified myself vs. taken on trust
+- **Coordinator, re-run:** `npm run verify` at 047f4ac. Exit 0, lint 0
+  errors and 19 warnings (cap 19), 99 files, 1698 passed and 2 skipped.
+  Matches.
+- **Coordinator, re-run:** `npm run check:intent`. The only error is the owed
+  live check. Matches.
+- **Coordinator, re-run:** `npm run e2e`. 35 passed (59.2s). Matches.
+- **Coordinator, re-run:** the mutants. Each was backed up and restored by
+  copy, and each ran `vitest src/ui` and the full e2e suite:
+
+  | Mutant | vitest | e2e | Result |
+  | --- | --- | --- | --- |
+  | M9a | 302 passed | 1 failed, 34 passed | **killed** |
+  | M16 | 302 passed | 35 passed | survived |
+  | M21 | 302 passed | 35 passed | survived |
+  | M8b | 302 passed | 35 passed | survived |
+
+  `git status --short` was clean after. All four match the reviewer.
+- **Reviewer:**
+  - verify, check:intent and e2e with the same counts;
+  - M9a killed by `naval.spec.ts:23`, and M16, M21 and M8b survive;
+  - the comparison analysis;
+  - merge-tree against main, clean before §76 merged;
+  - sampling.
+- **Taken on trust:**
+  - the planner and cue feed;
+  - everything visual;
+  - that test mode honours "Who plays each seat".
+
+# Round 1 (history)
+
+- verdict: rework
+- tier: attested
+- reviewed-commit: 0f8ab11
+- round: 1
+- sampled: no
+- run: auto
+- live-check: owed
 
 **Tier.** The path table sets it to Attested (`src/ui/**`, `e2e/**`, README
 wording). `review_tier` is empty, and no finding is CRITICAL or HIGH.
@@ -17,7 +203,7 @@ sdlc:scan -- --sample-due auto --exclude 77` says "= 11, sampled: no". On main,
 which now includes §75's attested review, it says "= 12, sampled: yes". If a
 later round attests, re-run the scan on main.
 
-## Passes
+### Passes
 | # | Pass | Result |
 | --- | --- | --- |
 | 1 | Intent and plan match | pass: subtasks 1–9 present. The divergences are minor and recorded in Progress (`frames` exported, `unitLayer.ts` 194 lines, `jointFigure` lead type) |
@@ -31,7 +217,7 @@ later round attests, re-run the scan on main.
 | 9 | Repo footguns | pass: engine, data and scenes untouched |
 | 10 | Architecture | pass: one planner, one queue and one set of curves; shared `UnitLayer` with unit-tested Phaser-free parts |
 
-## Type check
+### Type check
 ```
 > heraklios@0.1.0 check:intent
 > node scripts/check-intent.mjs
@@ -40,7 +226,7 @@ type-check: PASS (intent 77, feature)
   note:  24 file(s), 1768 line(s) changed outside intents/.
 ```
 
-## Findings
+### Findings
 - **MEDIUM** `src/ui/drawnUnits.ts:84` (`facingPart: figureOf(container)`):
   the Drawn galley's turn wiring is untested (B16).
   - Mutant M9a sets `facingPart: null`. That stops every Drawn ship from
@@ -85,7 +271,7 @@ type-check: PASS (intent 77, feature)
   - `src/ui/hexDraw.ts:32` has `): void {  const tipRadius…` on one line.
   - `README.md:583` was not re-wrapped.
 
-## Not checked
+### Not checked
 - **B6–B9 and B11 in a browser.** Nothing automated checks that:
   - the mark slides, lunges, shakes, fades and turns with its counter;
   - the counter stays upright;
@@ -108,7 +294,7 @@ type-check: PASS (intent 77, feature)
   catches it). The resolution is in both plans: keep §76's `unitAlpha`, and
   pass `alpha` through `drawFacingArrowhead` to `drawArrowheadAt`.
 
-## Live check
+### Live check
 Owed: rule 1 (`src/ui/**`) and rule 3 (the browser-only behaviour above).
 The change is new and visual. The steps will be restated by the round that
 attests.
@@ -137,7 +323,7 @@ attests.
     ship's arrow follows Turn, and placed ships point correctly.
 11. **Drawn view:** unchanged, and a galley still turns (M9a).
 
-## Verified myself vs. taken on trust
+### Verified myself vs. taken on trust
 - **Coordinator, re-run:** `npm run verify` at 0f8ab11. Exit 0, lint 0
   errors and 19 warnings (cap 19), 99 files, 1698 passed and 2 skipped.
   Matches.
