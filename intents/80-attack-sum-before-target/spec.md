@@ -41,12 +41,12 @@ carries the attackers' estimated totals:
 | part | English | French |
 | --- | --- | --- |
 | melee | `melee ~<M>` | `mêlée ~<M>` |
-| ranged | `ranged ~<R>` | `tir ~<R>` |
+| ranged | `ranged ~<R>` | `distance ~<R>` |
 
 Examples (unit names as in `en.ts:14-15`, `fr.ts:9-10`):
 
 - `Attack: Infantry, Infantry-archers (melee ~4, ranged ~2), choose a target.`
-- `Attaque : Fantassins, Fantassins-Archers (mêlée ~4, tir ~2), choisissez une cible.`
+- `Attaque : Fantassins, Fantassins-Archers (mêlée ~4, distance ~2), choisissez une cible.`
 - `Attack: Archers (ranged ~2), choose a target.` (melee 0, omitted: B5)
 - `Attack: Heavy infantry (melee ~4), choose a target.` (ranged 0, omitted: B5)
 
@@ -125,7 +125,7 @@ Each becomes a code comment at its implementation site.
   combat phase (`turnManager.ts:158` clears it at their next movement).
   So `M` shows the doubled value the roll would use in melee, as the §74
   tooltip does (`unitTooltip.ts:32`). At the function.
-- **French "mêlée".** `fr.ts` has `tir` for ranged (`fr.ts:50`) but no
+- **French "mêlée" and "distance" (owner, 2026-11-22: in French "distance" instead of "tir").** `fr.ts` has `tir` for ranged (`fr.ts:50`, the §74 tooltip), but this line says "distance", the owner's choice; the tooltip keeps "tir". `fr.ts` has no
   word for melee. "Mêlée" is the usual French word for hand-to-hand combat
   and is short enough for the log line. At the fr string.
 - **Naval.** A group holding a ship gets no estimate (owner, answer 2;
@@ -153,7 +153,7 @@ Each becomes a code comment at its implementation site.
   `formatAttackLine (§53)` block at `:188`), in English and French:
   - both parts: `Attack: Infantry, Infantry-archers (melee ~4, ranged ~2),
     choose a target.` and `Attaque : Fantassins, Fantassins-Archers (mêlée
-    ~4, tir ~2), choisissez une cible.`;
+    ~4, distance ~2), choisissez une cible.`;
   - melee only and ranged only (B5), in both languages;
   - both 0 or no estimate: today's line, in both languages;
   - a naval selection: `Attaque : Trirèmes, choisissez une cible.` or
@@ -191,7 +191,7 @@ Each becomes a code comment at its implementation site.
   (the line has the exact force, no `~`), remove it (the estimate line
   returns), clear; click a galley (`Attack: Galleys, choose a target.`);
   switch to French and repeat the archers click
-  (`Attaque : Archers (tir ~2), choisissez une cible.`).
+  (`Attaque : Archers (distance ~2), choisissez une cible.`).
 
 ## Non-functional
 
@@ -248,7 +248,7 @@ with AC7's short steps; `/review` decides.
   `~` glued to the number; the parts in parentheses after the names,
   before `, choose a target.`, following the owner's example
   `(melee ~4, ranged ~4)`.
-- **French "mêlée" and "tir".** "Tir" reuses `fr.ts:50`; "mêlée" is new
+- **French "mêlée" and "distance".** "Distance" is the owner's word (not `fr.ts:50`'s "tir"); "mêlée" is new
   (no melee word exists in `fr.ts`).
 - **English "ranged".** Reuses the §74 tooltip's word (`en.ts:58`).
 - **Zero parts are omitted** (the coordinator's preference), and "both
