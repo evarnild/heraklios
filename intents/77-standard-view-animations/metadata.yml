@@ -7,7 +7,7 @@ title: The Standard view animates moves and combats, like the Drawn view
 review_tier:
 intent_accepted: 2026-11-22 by-agent    # owner: "yes and /auto 77"
 spec_accepted: 2026-11-22 by-agent    # owner: "spec accepted 77"
-plan_approved:
+plan_approved: 2026-11-22 by-agent    # auto: owner "/auto 77 all, Normal, travels" (auto_authorized 2026-11-22)
 live_checked:
 merged:
 konmari:
