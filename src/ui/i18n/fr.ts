@@ -137,6 +137,7 @@ export const fr: Messages = {
     draw: (names) => `Égalité entre ${joinNames(names)} !`,
     over: 'Partie terminée',
     pointsRemaining: (name, points) => `${name} : ${points} points restants`,
+    pointsRemainingAtSea: (name, points) => `${name} : ${points} points restants (+30 en mer)`,
     backToMenu: 'Retour au menu',
   },
 
@@ -153,6 +154,10 @@ export const fr: Messages = {
   },
 
   board: {
+    scoreHeader: 'Score',
+    scorePoints: (n) => `${n} pts`,
+    scoreUnits: (n) => (n <= 1 ? `${n} unité` : `${n} unités`),
+    scoreAtSea: '(+30 en mer)',
     endPhase: 'Fin de phase',
     resolveAttack: 'Résoudre l’attaque',
     ram: 'Éperonner !',

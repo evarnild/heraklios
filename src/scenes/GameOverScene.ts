@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { session, resetToMenu } from '../ui/session';
-import { armyValue } from '../engine/state';
+import { playerScores } from '../engine/score';
 import { messages } from '../ui/i18n';
 
 export class GameOverScene extends Phaser.Scene {
@@ -30,9 +30,12 @@ export class GameOverScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
+    const scores = playerScores(state);
     state.players.forEach((p, i) => {
+      const s = scores[i]!;
+      const line = s.navalBonus > 0 ? t.gameOver.pointsRemainingAtSea : t.gameOver.pointsRemaining;
       this.add
-        .text(width / 2, height / 2 - 10 + i * 26, t.gameOver.pointsRemaining(p.name, armyValue(state, p.id)), {
+        .text(width / 2, height / 2 - 10 + i * 26, line(p.name, s.score), {
           fontSize: '16px',
           color: '#ffffff',
         })
