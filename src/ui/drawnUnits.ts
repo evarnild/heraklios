@@ -6,8 +6,8 @@ import { reconcileUnits } from './boardView';
 import type { UnitDrawing, UnitMotion, ViewHost } from './boardView';
 import { planAnimation } from './animationPlan';
 import { animationSpeed } from './animationSpeed';
-import { DrawnAnimator } from './drawnAnimator';
-import { figureOf } from './drawnMotions';
+import { UnitAnimator } from './unitAnimator';
+import { figureOf } from './unitMotions';
 
 const INK = 0x20180e;
 const PALE = 0xf3ead2;
@@ -66,13 +66,13 @@ export class DrawnUnits {
   private units = new Map<string, { drawing: UnitDrawing; container: Phaser.GameObjects.Container }>();
   /** Containers of units that are fading out: gone from `units`, still drawn until the fade ends. */
   private departing = new Map<string, Phaser.GameObjects.Container>();
-  private animator: DrawnAnimator;
+  private animator: UnitAnimator;
 
   constructor(
     private host: ViewHost,
     onDrained: () => void,
   ) {
-    this.animator = new DrawnAnimator({
+    this.animator = new UnitAnimator({
       scene: host.scene,
       toScreen: (hex) => host.toScreen(hex),
       container: (id) => this.units.get(id)?.container ?? this.departing.get(id),
