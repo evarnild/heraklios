@@ -7,13 +7,13 @@ title: The Board scene and its computer seats settle combats through the engine 
 review_tier:
 intent_accepted: 2026-11-22 by-agent    # owner: "accept 75 and 73, /auto 75 then 73"
 spec_accepted:
-plan_approved:
+plan_approved: 2026-11-22 by-agent    # auto: owner "/auto 73" (auto_authorized 2026-11-22)
 live_checked:
 merged:
 konmari:
 auto_authorized: 2026-11-22 by-agent    # owner: "accept 75 and 73, /auto 75 then 73"
 auto_round:
-auto_stopped: plan found the spec incomplete
+auto_stopped:
 follows_up:
 links:
   - intents/72-engine-host-seams
