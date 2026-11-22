@@ -18,7 +18,7 @@ import { MAP_TERRAIN, hexKey } from '../data/map';
 import type { HexCoord } from '../data/map';
 import { createViewToggle } from '../ui/viewToggle';
 import type { FacingShip } from '../ui/boardView';
-import { placementFacingShips, placementUnitDrawings } from '../ui/placementDrawings';
+import { placementFacingShips, placementUnitDrawings, type PendingShip } from '../ui/placementDrawings';
 import { bindUndoRedoKeys } from '../ui/shortcutKeys';
 
 interface QueueItem {
@@ -69,7 +69,7 @@ export class PlacementScene extends Phaser.Scene {
    * them pick its initial facing (reusing the Movement phase's rotate
    * buttons and facing-arrow overlay, see BoardScene's `rotateSelectedShip`)
    * before it's actually added to `state.units`. */
-  private pendingShip: { hex: HexCoord; typeId: string; facing: number } | null = null;
+  private pendingShip: PendingShip | null = null;
   private rotateCCWBtn!: Phaser.GameObjects.Text;
   private rotateCWBtn!: Phaser.GameObjects.Text;
   /** Post-turn-facing arrowhead icons beside the Turn buttons — same
