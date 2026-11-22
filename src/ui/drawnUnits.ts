@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { baseShape, figureFor } from './figures/figureShapes';
 import type { Primitive, Tone } from './figures/figureShapes';
 import { HEX_SIZE, PLAYER_COLORS_HEX, facingAngleRad } from './hexRender';
-import { reconcileUnits } from './boardView';
+import { reconcileUnits, unitAlpha } from './boardView';
 import type { UnitDrawing, UnitMotion, ViewHost } from './boardView';
 import { planAnimation } from './animationPlan';
 import { animationSpeed } from './animationSpeed';
@@ -155,12 +155,12 @@ export class DrawnUnits {
     this.host.scene.children.queueDepthSort();
   }
 
-  /** Puts one unit's container on its drawing: position, facing, opaque. */
+  /** Puts one unit's container on its drawing: position, facing, alpha (its drawing's). */
   private settle(id: string): void {
     const entry = this.units.get(id);
     if (!entry?.container.active) return;
     const at = this.host.toScreen(entry.drawing.position);
-    entry.container.setPosition(at.x, at.y).setAlpha(1);
+    entry.container.setPosition(at.x, at.y).setAlpha(unitAlpha(entry.drawing));
     figureOf(entry.container).setRotation(entry.drawing.facing === undefined ? 0 : facingAngleRad(entry.drawing.facing));
   }
 
@@ -198,7 +198,7 @@ export class DrawnUnits {
     // I2 (spec §74): the unit's numbers are shown by the hover tooltip, not on the figure, so the
     // container holds no text object.
     // Named by id, so the dev hook can count a unit's (or the ghost's) containers on the display list.
-    const container = scene.add.container(at.x, at.y, [base, fig]).setDepth(10).setName(unit.id);
+    const container = scene.add.container(at.x, at.y, [base, fig]).setDepth(10).setName(unit.id).setAlpha(unitAlpha(unit));
     this.host.ignoreOnUiCamera(container);
     return container;
   }

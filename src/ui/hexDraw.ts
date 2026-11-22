@@ -10,7 +10,8 @@ import { HEX_SIZE, hexPolygonPoints, facingAngleRad } from './hexRender';
  * hex — plan.md §17.2) — a free function rather than a view method
  * since the button glyph has no hex or camera to go through, only a fixed
  * screen point. `scale` shrinks the whole triangle proportionally: a
- * button-sized icon doesn't want a full ship-sized arrowhead.
+ * button-sized icon doesn't want a full ship-sized arrowhead. `alpha` draws
+ * a dimmed ship's arrow (fill at `alpha`, outline at 0.9 of it).
  */
 export function drawFacingArrowhead(
   graphics: Phaser.GameObjects.Graphics,
@@ -18,6 +19,7 @@ export function drawFacingArrowhead(
   facing: number,
   colorHex: string,
   scale = 1,
+  alpha = 1,
 ): void {
   const angle = facingAngleRad(facing);
   const tipRadius = HEX_SIZE * 0.95 * scale;
@@ -35,8 +37,8 @@ export function drawFacingArrowhead(
   };
 
   const color = Phaser.Display.Color.HexStringToColor(colorHex).color;
-  graphics.fillStyle(color, 1);
-  graphics.lineStyle(1.5, 0x1a1408, 0.9);
+  graphics.fillStyle(color, alpha);
+  graphics.lineStyle(1.5, 0x1a1408, 0.9 * alpha);
   graphics.beginPath();
   graphics.moveTo(tip.x, tip.y);
   graphics.lineTo(backLeft.x, backLeft.y);
