@@ -315,8 +315,8 @@ export class PlacementScene extends Phaser.Scene {
     this.refreshUndoRedoButtons();
   }
 
-  /** Draws this player's placed units (only theirs, as each player places in
-   * private) from state. */
+  /** Draws only this player's placed units (a choice of this scene, not a rule: the
+   * rules hide nothing, §74 spec amendment) from state. */
   private drawPlacedUnits(): void {
     const mine = session.gameState!.units.filter((u) => u.owner === this.playerIndex);
     // A ship carries its facing so the Drawn view turns the galley; the Standard view ignores it.

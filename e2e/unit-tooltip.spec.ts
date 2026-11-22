@@ -3,10 +3,11 @@
 // read through the dev hook, so it is the tooltip's actual content.
 import { expect, test, type Page } from '@playwright/test';
 import { MAP_TERRAIN } from '../src/data/map';
+import { DIRECTIONS, hexAdd } from '../src/engine/hex';
 import { en } from '../src/ui/i18n/en';
 import { getUnitType } from '../src/data/units';
 import {
-  MENU_TEST, activeUnitOfType, clickButton, clickHex, collectErrors, hoverHex, key, reachable, startFromMenu, state, waitIdle,
+  MENU_TEST, activeUnitOfType, clickButton, clickHex, collectErrors, hoverHex, key, reachable, startFromMenu, state, unit, waitIdle,
   type Hex,
 } from './helpers';
 
@@ -104,5 +105,42 @@ test('Placement: hovering a placed unit shows no state line', async ({ page }) =
 
   const lines = await hoverLines(page, placed.position);
   expect(lines.slice(1)).toEqual([`${en.units[type.id as keyof typeof en.units]} — ${(await state(page)).players[0]!.name} (${en.colors[0]})`, values.join(', ')]);
+  expect(errors).toEqual([]);
+});
+
+// N2 (review round 2): the tooltip refreshed by a move must be placed again, so a longer text
+// does not run off the right edge.
+test('a tooltip refreshed by a move stays inside the viewport', async ({ page }) => {
+  const errors = await startFromMenu(page, MENU_TEST, 'test', 1);
+  // The ships start far from the left edge, where the camera can scroll their hex to the right edge.
+  const ship = await activeUnitOfType(page, 'galeres');
+  const to = hexAdd(ship.position, DIRECTIONS[ship.facing]!);
+  expect(await reachable(page, ship.id), 'the hex ahead is reachable').toContain(key(to));
+  await clickHex(page, ship.position);
+  await waitIdle(page);
+
+  // Scroll so `to` sits where the one-line tooltip fits to the right of the pointer and the
+  // four-line one does not.
+  const box = (await page.locator('canvas').boundingBox())!;
+  let at: { x: number; y: number } | null = null;
+  for (let dq = 1; dq < 40 && !at; dq++) {
+    await page.evaluate((h) => window.__heraklios.centerOn(h), { q: to.q - dq, r: to.r });
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    const pt = await page.evaluate((h) => window.__heraklios.hexToCanvas(h), to);
+    if (pt && pt.x > box.width - 260 && pt.x < box.width - 205) at = pt;
+  }
+  expect(at, 'a scroll that puts the destination near the right edge').toBeTruthy();
+  await page.mouse.move(box.x + at!.x - 3, box.y + at!.y);
+  await page.mouse.move(box.x + at!.x, box.y + at!.y);
+  await expect.poll(async () => ((await tooltip(page)) ?? '').startsWith(`(${to.q}, ${to.r}) — `)).toBe(true);
+  expect((await tooltip(page))!.split('\n'), 'the destination is empty').toHaveLength(1);
+
+  await page.mouse.click(box.x + at!.x, box.y + at!.y); // the pointer stays on `to`
+  await waitIdle(page);
+  expect((await unit(page, ship.id)).position, 'the ship moved ahead').toEqual(to);
+  await expect.poll(async () => ((await tooltip(page)) ?? '').split('\n').length).toBe(4);
+  const shown = (await page.evaluate(() => window.__heraklios.tooltipBox()))!;
+  expect(shown.x + shown.width, 'the tooltip stays inside the viewport').toBeLessThanOrEqual(box.width);
+  expect(shown.x).toBeGreaterThanOrEqual(0);
   expect(errors).toEqual([]);
 });

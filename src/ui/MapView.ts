@@ -37,6 +37,8 @@ export class MapView {
   /** The hex the pointer is over, so hover fires only when it changes. */
   private hoveredKey: string | null = null;
   private hoveredHex: HexCoord | null = null;
+  private pointerX = 0;
+  private pointerY = 0;
   /** Set once `pinUIObjects` has added the fixed HUD camera — used so newly
    * created world objects (unit markers) get excluded from it too. */
   private uiCamera: Phaser.Cameras.Scene2D.Camera | null = null;
@@ -207,6 +209,10 @@ export class MapView {
     if (key === this.hoveredKey) return;
     this.hoveredKey = key;
     this.hoveredHex = hex;
+    if (pointer) {
+      this.pointerX = pointer.x;
+      this.pointerY = pointer.y;
+    }
     this.onHexHover?.(hex);
     if (hex && pointer) this.showHexTooltip(hex, pointer.x, pointer.y);
     else this.hideHexTooltip();
@@ -300,7 +306,7 @@ export class MapView {
     this.drawing.setUnits(units);
     this.boardView.setUnits(units, motion);
     // A unit that moved onto (or off) the hex under a still pointer changes what it shows (§74).
-    if (this.hoveredHex && this.hoverTooltip?.visible) this.hoverTooltip.setText(this.tooltipTextFor(this.hoveredHex));
+    if (this.hoveredHex && this.hoverTooltip?.visible) this.showHexTooltip(this.hoveredHex, this.pointerX, this.pointerY);
   }
 
   /** Resolves when no unit animation is playing or queued. */
@@ -429,8 +435,13 @@ export class MapView {
   /** The hex line, then the scene's unit lines for that hex when it holds a unit. */
   private tooltipTextFor(hex: HexCoord): string {
     const unitLines = this.unitTooltipAt?.(hex);
-    return formatHexTooltip(hex) + (unitLines ? `
-${unitLines}` : '');
+    return formatHexTooltip(hex) + (unitLines ? '\n' + unitLines : '');
+  }
+
+  /** The visible hover tooltip's screen box, or null (the dev hook's reader, §74). */
+  tooltipBox(): { x: number; y: number; width: number; height: number } | null {
+    const t = this.hoverTooltip;
+    return t?.visible ? { x: t.x, y: t.y, width: t.width, height: t.height } : null;
   }
 
   private hideHexTooltip(): void {

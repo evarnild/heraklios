@@ -155,7 +155,8 @@ are the values in play, with the printed value in brackets where it differs:
 a charging light cavalry shows "attack 6 (3)", a ship that has lost equipment
 "attack 5 (15), defense 5 (15)". Placement shows no state line, since a unit
 being placed has full movement and equipment. An empty hex shows its one line
-as before. The labels are in English and French.
+as before. In Placement, hovering also shows earlier players' placed units
+that are not drawn on the screen (the rules hide nothing). The labels are in English and French.
 
 ### Saving and loading
 

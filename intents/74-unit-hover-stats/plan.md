@@ -264,3 +264,12 @@ Owner's answers: F2 (a), F5 "équipage". Each mutant was applied by copy, the te
 - **F6:** the `unitTooltipFor` re-export sits next to the `drawFacingArrowhead` one; the template literal uses an escaped newline, not a raw one. `MapView.ts` is back to CRLF throughout (my first edit had left 7 LF-only lines).
 - **F7:** new e2e `Placement: hovering a placed unit shows no state line`, asserting the two lines in full. Killed by: `{ state: false }` changed to `{ state: true }` in `PlacementScene.ts` (the scenario failed). The scene file is unchanged in the final tree.
 - `BoardScene.ts` 3172 and `PlacementScene.ts` 574 unchanged; lint cap unchanged.
+
+### 2026-11-22 - rework after the round 2 review (implementer)
+
+Owner's answer to N1: (b), keep the behaviour (recorded as a spec amendment in `spec.md`, commit ef3ca0c). Each mutant was applied after a backup by copy, the test run, and the file restored by copy.
+
+- **N1:** the code is unchanged. The comment on `PlacementScene.drawPlacedUnits` now says the scene draws only the placing player's units, as a choice of the scene and not a rule, and points to the spec amendment (still two lines, so the file stays 574). The README gains one sentence: in Placement, hovering also shows earlier players' placed units that are not drawn on the screen.
+- **N2:** `MapView` remembers the last pointer position in `updateHover`; `setUnits` now re-shows the tooltip through `showHexTooltip(hoveredHex, pointerX, pointerY)`, which recomputes the edge flip, instead of a bare `setText`. New dev-hook reader `tooltipBox()` (a `MapView.tooltipBox()` method, on the same packed line as `tooltipText` so `installDevHook` did not grow). New e2e `a tooltip refreshed by a move stays inside the viewport`: the Galleys ship (far from the left edge) is scrolled so its forward hex sits at about x 865 of 1100, where the one-line tooltip fits and the four-line one does not; the pointer rests there, a click moves the ship ahead, and the tooltip box must stay inside the viewport. Killed by: the refresh changed back to a bare `setText` (the box then ended at 1148 of 1100, and the scenario failed). With the fix the box is x 576 to 846. An earlier band (pointer at 931) did not kill the mutant, because the one-line tooltip had already flipped there; the band is now 840 to 895.
+- **N3:** the template literal is now `'\n' + unitLines`. It changes no behaviour, so no test can tell it from the raw newline; there is no mutant for it.
+- `BoardScene.ts` 3172, `PlacementScene.ts` 574, lint cap unchanged.
