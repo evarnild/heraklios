@@ -2,7 +2,7 @@
 id: 77
 slug: standard-view-animations
 type: feature
-status: accepted
+status: in-review
 title: The Standard view animates moves and combats, like the Drawn view
 review_tier:
 intent_accepted: 2026-11-22 by-agent    # owner: "yes and /auto 77"

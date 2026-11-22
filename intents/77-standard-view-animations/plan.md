@@ -504,3 +504,14 @@ Run one at a time, in this order. Nothing else heavy runs alongside (memory).
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-11-22: all subtasks (1-9), by the implementer
+
+- **Commits:** `f425643` rename (`drawnAnimator`/`drawnMotions` to `unitAnimator`/`unitMotions`, nothing else); `f97b525` the `UnitFigure` seam, `unitAlpha`, `UnitLayer`, `HeldDriftArrow`, the Drawn view re-plumbed; `46c4343` the Standard view animates (`standardUnits.ts`, `drawArrowheadAt`) and one Speed button; then the e2e commit and the README commit.
+- **Shipped:** as the plan. The Standard counter and its facing mark are one joint figure on the shared layer. `setFacingIndicators` draws only the staged ship in both views. The mark is a per-ship `Graphics` at depth 10.5. The drift arrow is held through `HeldDriftArrow` in both views. The Speed button is always shown. `unitAlpha(drawing)` is applied after `make` and in `settle`, never a hard 1, and a fade starts from the figure's current alpha.
+- **Tests:** vitest 99 files, 1698 passed, 2 skipped (new: `unitMotions.test.ts`, `unitLayer.test.ts` (with `unitAlpha` mocked to 0.6 to catch a hard 1), `heldDriftArrow.test.ts`, `unitAlpha` in `boardView.test.ts`). `npm run e2e`: 34 passed in 1.7 min (the animation spec has 7: slide and Slow click-finish per view, speed button in both views, Off, Slow undo). `npm run check:intent`: PASS.
+- **Lint:** 19 warnings, cap 19 (unchanged, none added).
+- **Sizes:** `standardBoardView.ts` 335 (was 371), `drawnUnits.ts` 163 (was 212), `unitLayer.ts` 194, `standardUnits.ts` 59, `unitAnimator.ts` 135, `unitMotions.ts` 92, `heldDriftArrow.ts` 42, `drawnBoardView.ts` 127, `boardView.ts` 162. No file over 500 lines touched. `git diff --stat main...HEAD -- src/engine src/data src/scenes` is empty.
+- **AC10:** the e2e suite ran in 1.7 min (106 s wall) with the 7 new or looped animation scenarios included. No run on `main` was made (the main checkout was off limits), so the comparison is not measured. Earlier recorded e2e times in `intents/*/review.md` are for smaller suites (15-19 scenarios). Every other scenario still runs at Off.
+- **Divergences:** (1) `frames` already existed privately in `e2e/helpers.ts`, so it is exported there instead of copied from `rules-panel.spec.ts`; `chord` is moved. (2) `unitLayer.ts` is 194 lines, over the ~150 estimate; still under 500. (3) The `jointFigure` lead type is `Image | Text` (the counter). Nothing else.
+- **Not checked:** the facing mark's travel, the turn, and every cue (B6-B9, B11) are for the live check (AC11). Stale comments left per the plan: `devHook.ts:109` and `PlacementScene.ts:319`.
