@@ -5,9 +5,9 @@ import type { ActionCue } from '../engine/actionCue';
 /**
  * One unit as a view draws it. Units are keyed by `id`, not by hex, so a view
  * (and a later animation) knows a unit that moved is the same unit.
- * `facing` is carried for views that draw a ship's bow on the unit itself;
- * the Standard view draws facings through `setFacingIndicators` instead and
- * ignores it.
+ * `facing` is a ship's facing: the Drawn view turns the galley figure by it,
+ * the Standard view turns the ship's facing mark by it (§77), and both
+ * animate the change.
  */
 export interface UnitDrawing {
   id: string;
@@ -20,8 +20,9 @@ export interface UnitDrawing {
 /**
  * One ship's facing indicator. `ghostTypeId` marks a ship that is staged but
  * not yet placed (Placement's `pendingShip`, which is not a unit): the
- * Standard view draws it as an arrow like any other, the Drawn view draws it
- * as a translucent figure of that type turned to `facing`.
+ * Standard view draws it as an arrow, the Drawn view as a translucent figure
+ * of that type turned to `facing`. A placed ship's entry is ignored by both
+ * views (§77): its mark is part of its unit's figure, from `UnitDrawing.facing`.
  */
 export interface FacingShip {
   hex: HexCoord;
@@ -45,9 +46,30 @@ export function ghostDrawing(ships: readonly FacingShip[]): UnitDrawing | null {
  * Drawn view animates the difference between what it shows and what is wanted,
  * unit by unit); an `ActionCue` adds what a drawing cannot carry (a path, a
  * clash, a shake); `'snap'` draws at once after finishing any animation (undo,
- * redo, load, start). The Standard view ignores it.
+ * redo, load, start). Both views honour it (§77).
  */
 export type UnitMotion = ActionCue | 'snap' | null;
+
+/**
+ * One unit's drawing as the animator sees it (§77, I4): the Drawn container, or
+ * the Standard counter with its facing mark. The motions move, fade and shake
+ * it, and turn only its `facingPart`.
+ */
+export interface UnitFigure {
+  readonly active: boolean;
+  readonly x: number;
+  readonly y: number;
+  readonly alpha: number;
+  setPosition(x: number, y: number): void;
+  setAlpha(alpha: number): void;
+  /** What a turn rotates: the galley figure (Drawn), the facing mark (Standard); null with no facing. */
+  readonly facingPart: { readonly rotation: number; setRotation(radians: number): void } | null;
+}
+
+/** A unit's resting alpha: the one value a view applies after making a figure and when settling it (1 today; §76 dims earlier seats here). */
+export function unitAlpha(_unit: UnitDrawing): number {
+  return 1;
+}
 
 /**
  * What a scene asks a board view to draw: the drawing half of the old
@@ -60,7 +82,7 @@ export interface BoardView {
   setUnits(units: readonly UnitDrawing[], motion?: UnitMotion): void;
 
   /** Brings every unit to its final drawing at once, the whole animation queue
-   * (B9). Optional: a view that does not animate has nothing to finish. */
+   * (B9). Optional: a view with nothing to animate has nothing to finish. */
   finishAnimations?(): void;
   /** Resolves when no animation is playing or queued; at once if none (B11). */
   animationsSettled?(): Promise<void>;

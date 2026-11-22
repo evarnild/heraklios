@@ -1,6 +1,6 @@
 import { rememberedChoice } from './rememberedChoice';
 
-/** How fast the Drawn view animates, remembered like the board view
+/** How fast the board views animate, remembered like the board view
  * (`rememberedChoice.ts`): in `localStorage`, with the in-memory value kept
  * when storage is unavailable. Not part of a save (§66 B14). */
 export type AnimationSpeed = 'normal' | 'slow' | 'off';

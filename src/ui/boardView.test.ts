@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GHOST_SHIP_ID, ghostDrawing, reconcileUnits, type UnitDrawing } from './boardView';
+import { GHOST_SHIP_ID, ghostDrawing, reconcileUnits, unitAlpha, type UnitDrawing } from './boardView';
 
 const u = (id: string, q: number, r: number, typeId = 'hoplite', owner = 0, facing?: number): UnitDrawing => ({
   id,
@@ -78,5 +78,11 @@ describe('ghostDrawing', () => {
       position: { q: 4, r: 4 },
       facing: 5,
     });
+  });
+});
+
+describe('unitAlpha', () => {
+  it('is 1 for a plain drawing', () => {
+    expect(unitAlpha(u('a', 1, 1))).toBe(1);
   });
 });

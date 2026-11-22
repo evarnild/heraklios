@@ -19,8 +19,17 @@ export function drawFacingArrowhead(
   colorHex: string,
   scale = 1,
 ): void {
-  const angle = facingAngleRad(facing);
-  const tipRadius = HEX_SIZE * 0.95 * scale;
+  drawArrowheadAt(graphics, center, facingAngleRad(facing), colorHex, scale);
+}
+
+/** The arrowhead triangle pointing at `angle` radians (no facing lookup): the Standard view draws a ship's mark along +x and rotates it (§77). */
+export function drawArrowheadAt(
+  graphics: Phaser.GameObjects.Graphics,
+  center: { x: number; y: number },
+  angle: number,
+  colorHex: string,
+  scale = 1,
+): void {  const tipRadius = HEX_SIZE * 0.95 * scale;
   const backRadius = HEX_SIZE * 0.5 * scale;
   const spread = 0.4; // radians half-width of the arrowhead's back edge
 
