@@ -142,3 +142,31 @@ type-check: PASS (intent 79, feature)
   - the implementer's earlier failing `placement.spec.ts` runs;
   - that §81 and §83 add no lint warnings;
   - everything visual.
+
+## KonMari check
+- **Outcome.** The record is 68e730c, against base 4a1979a. The outcome is
+  `kept`. It tidied two commits:
+  - 239833a: `drawRow` now takes `UnitType`, the import is on one line, and
+    the comment no longer repeats `counterTextureKey`'s doc.
+  - 5be86a9: the README sentence is re-wrapped.
+- **Coordinator, re-run.** The killed scene mutants on the changed file,
+  `ArmyBuilderScene.ts`, were run against `e2e/army-builder.spec.ts`. Both
+  are still killed:
+  - S3 (column-major index): 1 failed, the §51 test, as in the review.
+  - S6 (reversed index): 3 failed.
+
+  `git status --short` was clean afterwards.
+- **Coordinator, re-run.** `npm run verify`: lint 0 errors and 18 warnings;
+  97 files, with 1677 passed and 2 skipped. Matches.
+- **Coordinator, re-run.** `npm run check:intent`: its only error is the
+  owed live check.
+- **Coordinator, re-run.** `npm run e2e`: 33 passed (52.7s).
+- **Unchanged.** The H1–H10 mutants are untouched, since the layout helper
+  didn't change. No ceiling or lint cap changed.
+- **Reviewer's read** of the KonMari commits found nothing:
+  - within reach: the import, signature and comment are §79's own lines;
+  - behaviour is unchanged: `UnitType` is the element type of `UNIT_TYPES`;
+  - no test changed;
+  - no dependency or eslint-disable was added;
+  - principles 5–12 hold;
+  - konmari.md lists exactly the two tidy-ups.
