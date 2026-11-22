@@ -379,20 +379,8 @@ Each becomes a code comment at the bonus function, citing
 
 ## Questions for the owner
 
-1. **Q1 — Should the winner be decided on the score with the +30 bonus?**
-   Today the engine ignores the bonus everywhere: `endGameByTimeLimit` ranks
-   by `armyValue` alone (`turnManager.ts:172-185`), Game Over shows
-   `armyValue` (`GameOverScene.ts:35`), and README "Known simplifications"
-   does not mention it. Your answer 4 shows the bonus live, and the intent's
-   outcome says Game Over shows the same figures as the panel; but the intent
-   also says it "does not change the scoring rule". The two cannot both hold
-   once the bonus is shown: either the final result adds it too, or the panel
-   shows a score that does not decide the game.
-   **Recommendation: yes.** Add the bonus to the winner calculation and to
-   Game Over (B10, B11), so the panel, Game Over and the winner agree, and the
-   rulebook's "lors du compte final" rule is applied as printed. The cost: a
-   rule change in `turnManager.ts`, README "Ending the game" updated, and any
-   fuzz-harness expectation that moves (Non-functional). If **no**: B11 goes,
-   Game Over keeps `armyValue`, the panel's note says the bonus does not count
-   for the winner, and the omission becomes a README "Known simplifications"
-   bullet.
+None open. Q1 was answered by the owner (2026-11-22, "/auto 81 Q1 yes"):
+the +30 naval bonus is added to the winner calculation and to Game Over
+(B10, B11 and AC3 as written), so the panel, Game Over and the winner
+agree.
+
