@@ -567,19 +567,20 @@ chose; with nothing remembered, or storage unavailable, the view is
 Standard. Clicks, hover and the tooltip behave the same in both views: the
 hex under the cursor is the one the board's own geometry says it is.
 
-#### Animations in the Drawn view
+#### Animations
 
-In the Drawn view the units move and fight on screen instead of jumping. The
+In both views the units move and fight on screen instead of jumping. The
 game does not wait for it: every action changes the game exactly when it
 always did, at every speed, so rules, log, saves, undo and the computer's
 choices are the same whether you watch or not. Highlights, labels and the
 movement-points readout show the new state at once; only the unit figures
-take their time.
+take their time. Both views play the same steps, in the same order and at the
+same speed; they differ only in what moves (below).
 
 - **A move** slides the unit hex by hex along the path its cost was worked out
   on; a cavalry charge slides along its straight line. A ship turns in place
   at each rotation and slides at each forward step, and the Turn button turns
-  the figure 60°. A swap slides the two units across each other together.
+  the figure 60° (in the Standard view, the ship's facing mark). A swap slides the two units across each other together.
 - **A land attack** is a clash: each attacker lunges part-way toward the
   nearest defender it fights (with several defenders, the nearest hex, ties by
   defender order) and back, then the result shows: an eliminated unit fades
@@ -599,8 +600,8 @@ take their time.
   click or key would have done. Undo, redo, loading a game and switching view
   draw the new state at once, with no animation. A computer turn is not
   interrupted by a click; only its animations are finished.
-- **Speed.** A button above the view toggle (shown in the Drawn view only)
-  steps **Speed: Normal**, **Slow**, **Off** and back. At Normal a hex step
+- **Speed.** A button above the view toggle (shown in both views, one speed
+  for both) steps **Speed: Normal**, **Slow**, **Off** and back. At Normal a hex step
   takes 180 ms, a 60° turn 120 ms, a clash 350 ms, a ram 400 ms, a fade
   300 ms and a shake 200 ms; Slow is exactly twice that, and Off is no
   animation (the figure jumps). A change of speed applies from the next
@@ -608,9 +609,21 @@ take their time.
   the view), is not part of a save, and is Normal when nothing valid is
   remembered or storage is unavailable.
 
-Placement never animates. The Standard view never animates and has no speed button. The movement
+**In the Standard view** the counter itself slides, lunges, shakes and fades.
+A ship's facing arrowhead belongs to its counter: it slides, lunges, shakes
+and fades with it, and during a turn it rotates smoothly from the old facing
+to the new one, never appearing at the destination ahead of the counter. The
+counter image never rotates (its printed stats stay readable); only its
+arrowhead turns. Everything else (hex fills and rings, the movement-points
+readout, the A/B/C and range labels, the tooltip) shows the new state at once;
+the drift arrow waits for the slide, as in the Drawn view. A player who has
+never touched the Speed button sees the Standard view animate at Normal; set it
+to Off for the old jump.
+
+Placement never animates, in either view, and has no speed button. The movement
 paths and the clash and shake cues are engine functions (`movePath.ts`,
-`actionCue.ts`); the Drawn view only plays them.
+`actionCue.ts`); the views only play them, through one planner, queue and set
+of motion curves (`animationPlan.ts`, `unitAnimator.ts`, `unitMotions.ts`).
 
 In a dev server only, the Menu has a **Figure gallery (dev)** button next to
 the combat test mode: four players, each with all 14 unit types, to compare
