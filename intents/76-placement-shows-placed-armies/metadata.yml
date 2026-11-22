@@ -2,18 +2,18 @@
 id: 76
 slug: placement-shows-placed-armies
 type: feature
-status: accepted
+status: in-review
 title: Placement shows the armies other players have already placed
 review_tier:
 intent_accepted: 2026-11-22 by-agent    # owner: "accept 76 and 79"
 spec_accepted: 2026-11-22 by-agent    # owner: "spec accepted 76"
 plan_approved: 2026-11-22 by-agent    # auto: owner "/auto 76" (auto_authorized 2026-11-22)
-live_checked:
+live_checked: 2026-11-22 by-agent    # owner: "live checked 76 /ship 76"
 merged:
 konmari:
 auto_authorized: 2026-11-22 by-agent    # owner: "/auto 76"
-auto_round:
-auto_stopped:
+auto_round: 1
+auto_stopped: live check owed
 follows_up:
 links:
   - intents/74-unit-hover-stats

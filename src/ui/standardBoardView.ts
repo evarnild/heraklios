@@ -4,7 +4,7 @@ import { MAP_TERRAIN, RIVER_HEXSIDES } from '../data/map';
 import { HEX_SIZE, TERRAIN_COLORS, RIVER_COLOR, markerTextureKey, PLAYER_COLORS_HEX } from './hexRender';
 import { allHexes } from './mapBounds';
 import { drawFacingArrowhead, hexPolygonPointsAt, toVec } from './hexDraw';
-import { reconcileUnits } from './boardView';
+import { reconcileUnits, unitAlpha } from './boardView';
 import type { BoardView, FacingShip, UnitDrawing, ViewHost } from './boardView';
 
 type Marker = Phaser.GameObjects.Image | Phaser.GameObjects.Text;
@@ -165,6 +165,7 @@ export class StandardBoardView implements BoardView {
     // Newly-created markers appear after pinUIObjects ran once at scene
     // setup — keep them out of the fixed HUD camera too.
     this.host.ignoreOnUiCamera(marker);
+    marker.setAlpha(unitAlpha(unit));
     return marker;
   }
 
@@ -243,10 +244,10 @@ export class StandardBoardView implements BoardView {
    */
   setFacingIndicators(ships: readonly FacingShip[]): void {
     this.facingGraphics.clear();
-    for (const { hex, facing, playerIndex } of ships) {
-      const center = this.host.toScreen(hex);
-      const colorHex = PLAYER_COLORS_HEX[playerIndex] ?? '#ffffff';
-      drawFacingArrowhead(this.facingGraphics, center, facing, colorHex);
+    for (const ship of ships) {
+      const center = this.host.toScreen(ship.hex);
+      const colorHex = PLAYER_COLORS_HEX[ship.playerIndex] ?? '#ffffff';
+      drawFacingArrowhead(this.facingGraphics, center, ship.facing, colorHex, 1, unitAlpha(ship));
     }
   }
 

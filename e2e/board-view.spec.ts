@@ -4,7 +4,7 @@
 // never re-bake the landscape, and the choice survives a reload.
 import { expect, test, type Page } from '@playwright/test';
 import { getUnitType } from '../src/data/units';
-import { MENU_TEST, activeUnitOfType, clickButton, clickHex, collectErrors, key, reachable, startFromMenu, state, unit, waitIdle } from './helpers';
+import { MENU_TEST, activeUnitOfType, clickButton, clickHex, collectErrors, expectDrawnObjects, key, reachable, startFromMenu, state, unit, waitIdle } from './helpers';
 
 const DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]] as const;
 const DRAWN = '🗺 Drawn view';
@@ -28,14 +28,6 @@ async function toggle(page: Page, label: string, kind: 'standard' | 'drawn') {
   await clickButton(page, label);
   await page.waitForFunction((k) => window.__heraklios.boardView() === k, kind);
   await frames(page);
-}
-
-/** The Drawn view draws one figure per living unit and leaves none to the HUD camera. */
-async function expectDrawnObjects(page: Page, label: string) {
-  const living = (await state(page)).units.filter((u) => !u.destroyed).length;
-  const objects = await page.evaluate(() => window.__heraklios.boardObjects());
-  expect(objects.unitDrawings, `${label}: a figure per living unit`).toBe(living);
-  expect(objects.hudLeaks, `${label}: no world object on the HUD camera`).toBe(0);
 }
 
 test('the view toggle keeps state, camera and selection, and a move works in the Drawn view', async ({ page }) => {

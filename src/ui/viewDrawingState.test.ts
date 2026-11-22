@@ -126,4 +126,15 @@ describe('ViewDrawingState', () => {
     units.length = 0;
     expect(replayed(s)[0]).toEqual(['setUnits', [U]]);
   });
+
+  it('replays the dimmed flag on units and arrows', () => {
+    const s = new ViewDrawingState();
+    s.setUnits([{ ...U, dimmed: true }]);
+    s.setFacingIndicators([{ hex: H, facing: 2, playerIndex: 0, dimmed: true }]);
+    const calls = replayed(s);
+    expect(calls.find((c) => c[0] === 'setUnits')![1]).toEqual([{ ...U, dimmed: true }]);
+    expect(calls.find((c) => c[0] === 'setFacingIndicators')![1]).toEqual([
+      { hex: H, facing: 2, playerIndex: 0, dimmed: true },
+    ]);
+  });
 });
