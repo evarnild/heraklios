@@ -1,0 +1,23 @@
+# generated-by: heraklios/intent@0.1.5
+id: 77
+slug: standard-view-animations
+type: feature
+status: accepted
+title: The Standard view animates moves and combats, like the Drawn view
+review_tier:
+intent_accepted: 2026-11-22 by-agent    # owner: "yes and /auto 77"
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+konmari:
+auto_authorized: 2026-11-22 by-agent    # owner: "/auto 77"
+auto_round:
+auto_stopped:
+follows_up:
+links:
+  - intents/66-board-animations    the Drawn view's animations; B17 kept the Standard view still
+  - intents/65-board-view-seam    the BoardView interface both views implement
+  - intents/73-boardscene-on-session    changes how BoardScene settles combats (may share call sites on rebase)
+blocked_by:
+  - 74    edits drawnUnits.ts, which this refactors to share the animator
