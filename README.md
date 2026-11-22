@@ -92,7 +92,11 @@ To make a change — intent, plan, build, review, merge — see
    randomly assigned edge's 3-hex-deep band (green highlight; see
    "Deployment zone position" below). Ships also let the placing player pick
    an initial facing (see "Naval movement and combat" below) instead of
-   always starting bow-first in a fixed direction. Steps 2 and 3 are skipped
+   always starting bow-first in a fixed direction. The armies of the seats
+   that already placed (human or computer) are shown on the board from the
+   first frame, dimmed in both views and with their ships' facing; they can't
+   be clicked or moved, and the 4-hex gap around them shapes the green band.
+   Steps 2 and 3 are skipped
    for any seat the computer is playing — it buys and deploys its own army.
 4. **Board** — turns proceed player by player, each running a Movement
    phase (click a unit, then a highlighted reachable hex — ships instead
@@ -156,7 +160,7 @@ a charging light cavalry shows "attack 6 (3)", a ship that has lost equipment
 "attack 5 (15), defense 5 (15)". Placement shows no state line, since a unit
 being placed has full movement and equipment. An empty hex shows its one line
 as before. In Placement, hovering also shows earlier players' placed units
-that are not drawn on the screen (the rules hide nothing). The labels are in English and French.
+(the rules hide nothing). The labels are in English and French.
 
 ### Saving and loading
 

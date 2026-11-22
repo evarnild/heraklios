@@ -349,3 +349,21 @@ port) →
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-11-22 - implementation (subtasks 1-6)
+
+- Commits: view seam + both views' alpha; `placementDrawings` helper and tests;
+  scene change with size ceiling 548 -> 526 (`PlacementScene.ts` 548 -> 526
+  lines); e2e + README + this entry.
+- Shipped as planned: `dimmed` flag, `DIMMED_UNIT_ALPHA = 0.6`, `unitAlpha`,
+  `drawFacingArrowhead` alpha parameter, `placementUnitDrawings` /
+  `placementFacingShips`, `placedShips` removed (arrows derived from state),
+  `redrawPlacedUnits()` at the end of `create`. `BoardScene.ts` and
+  `devHook.ts` untouched.
+- Tests: vitest 97 files, 1681 passed, 2 skipped (includes the new
+  boardView, viewDrawingState and placementDrawings cases); e2e 32 passed.
+  Lint 19 warnings, cap stays 19 (the `create` length warning remains).
+- Divergence: the e2e counts seat-0 figures in the Drawn view only
+  (`boardObjects().unitDrawings` is 0 in the Standard view), so it toggles to
+  Drawn before the first `expectDrawnObjects`. Standard-view drawing of the
+  earlier units, and the alpha itself, are covered by the live check.
