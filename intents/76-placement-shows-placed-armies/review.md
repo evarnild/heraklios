@@ -169,3 +169,43 @@ type-check: PASS (intent 76, feature)
   - the visual result of the dim;
   - that the Menu offers an "AI — …" level for seat 0;
   - that §77's rebase will keep §76's `unitAlpha`, as its plan states.
+
+## KonMari check
+- **Record and outcome.** The record is 219f995 (base 7fcee11), and the
+  outcome is `kept`. Two tidy-ups were made:
+  - d15ff65 adds one private `isShip` in `placementDrawings.ts`. This fixes
+    the review's nit.
+  - 3345d37 types `PlacementScene.pendingShip` as `PendingShip`. The change is
+    type-only, and the scene stays at 526 lines.
+- **Coordinator, re-run:** the killed mutants on the changed file
+  `placementDrawings.ts`, run against `placementDrawings.test.ts`. All are
+  still killed:
+
+  | Mutant | What it changes | Result |
+  | --- | --- | --- |
+  | `isShip` | `!==` instead of `===` (covers the old M10, M14 and M16 sites) | 3 failed |
+  | M7a | `drawing.dimmed` owner check inverted | 2 failed |
+  | M7b | `ship.dimmed` owner check inverted | 1 failed |
+  | M9 | destroyed filter removed | 2 failed |
+  | M16 | land units included in the arrows | 2 failed |
+  | M17 | `playerIndex` set to the placing seat | 1 failed |
+  | M19 | ghost dropped | 1 failed |
+
+  `git status --short` was clean after.
+- **Coordinator, re-run:** `npm run verify`. Exit 0. Lint 0 errors and 19
+  warnings. 97 files: 1681 passed, 2 skipped. These are the review's counts.
+- **Coordinator, re-run:** `npm run check:intent`. The only error is the owed
+  live check.
+- **Coordinator, re-run:** `npm run e2e`. 32 passed (56.0s).
+- **Ceilings.** None changed, and no baselined file shrank.
+- **Reviewer's read of the KonMari commits.** No findings. On each point:
+  - the changes are within reach: the duplicated naval test, and the inline
+    type that `PendingShip` already described;
+  - behaviour is unchanged;
+  - no test changed;
+  - no dependency or eslint-disable was added;
+  - principles 5 to 12 are respected;
+  - konmari.md lists exactly the two tidy-ups.
+- **Proposed refactor intent (in konmari.md).** `BoardScene.renderAllUnits`
+  builds the same drawings as the `placementDrawings` helpers, so one shared
+  helper could serve both scenes. That is outside this diff.
