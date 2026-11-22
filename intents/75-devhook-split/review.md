@@ -132,3 +132,21 @@ and `buttons()` mechanically, so that they take `game`. Each was compared with
   - Progress's statement that the characterisation spec passed on the
     unsplit hook. Its `src` is identical to main's, so this is low risk.
   - The historical line and member counts quoted from older commits.
+
+## KonMari check
+- **Record and outcome.** The record is 7180644 (base e5a58ce), with
+  `outcome: nothing to tidy`. There are no tidy-up commits, so the code is
+  unchanged since the review.
+- **KonMari agent:** `npm run verify` before the record. Exit 0. 96 test
+  files; 1670 passed and 2 skipped. Lint 0 errors and 19 warnings. These are
+  the review's counts.
+- **Coordinator:** with no tidy-up commit there is nothing to re-run. The
+  killed mutants (M1–M5) are unaffected, no ceiling changed, and there is no
+  KonMari diff for a reviewer to read.
+- **Looked at and left** (as recorded in konmari.md):
+  - `board(game)` resembles `placementSnapshot` and `armyBuilderSnapshot`,
+    but folding them together would touch helpers outside the diff;
+  - `cameraZoom` stays on `board(game)`, as on main;
+  - the `animationSpeed` and `landscapeBuilds` wrappers are kept, which
+    changes no argument passing;
+  - the `devHookReaders.ts` move is left to a later intent.
