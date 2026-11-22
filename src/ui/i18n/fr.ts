@@ -52,7 +52,7 @@ export const fr: Messages = {
     defense: 'défense',
     movement: 'mouvement',
     movementLeft: 'mouvement restant',
-    equipment: 'équipement',
+    equipment: 'équipage',
     charged: 'a chargé',
   },
 

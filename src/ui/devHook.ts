@@ -268,7 +268,7 @@ export function installDevHook(game: Phaser.Game): void {
     selectedUnitId: () => selectedUnitId(board()),
     boardObjects: () => boardObjects(mapScene()),
     hudStrays: () => mapScene().mapView.cameraStrays(),
-    landscapeBuilds: () => landscapeBuilds(), tooltipText: () => mapScene().mapView.tooltipText(),
+    landscapeBuilds: () => landscapeBuilds(), tooltipText: () => mapScene().mapView.tooltipText(), // packed to stay under the 80-line limit, as §66's is; splitting installDevHook is a separate refactor intent
   };
   (window as unknown as { __heraklios: DevHook }).__heraklios = hook;
 }

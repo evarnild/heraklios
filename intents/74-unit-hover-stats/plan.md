@@ -251,3 +251,16 @@ this line is the implementer's to edit. -->
 - **Labels, French:** `attaque`, `tir`, `portée`, `défense`, `mouvement`, `mouvement restant`, `équipement`, `a chargé`; the first line has the same shape (`tooltip.owner` is on `messages.test.ts`'s same-in-both list).
 - **Tests:** verify green, 1533 tests in 90 files (1528 on the base: `counterBadge`'s 3 cases left, 8 new in `unitTooltip.test.ts`). Lint 21 warnings, equal to the cap, none added. `npm run e2e`: 28 passed, including the new scenario.
 - **Divergences:** (1) subtasks 2 and 3 are one commit. (2) The scene hooks need no new import line: `MapView.ts` re-exports `unitTooltipFor`, so each scene only extends its existing `MapView` import. Each scene's one hook line is absorbed by removing one blank line next to it, so `BoardScene.ts` stays 3172 and `PlacementScene.ts` 574; no budget line. (3) `tooltipText` is a `MapView` method that the dev hook calls from the one packed line next to `landscapeBuilds`, so `installDevHook` did not grow. (4) The Drawn-view doc comment in `drawnUnits.ts` was reflowed to one line. (5) The ship example in the tests is a bireme (equipment 1/3: attack 5 (15), defense 5 (15)).
+
+### 2026-11-22 - rework after the round 1 review (implementer)
+
+Owner's answers: F2 (a), F5 "équipage". Each mutant was applied by copy, the test run, and restored by copy; `git status --short` showed only the intended edits.
+
+- **F2:** `installDevHook` is not split. The packed `tooltipText` line has a trailing comment saying it is packed to stay under the 80-line limit, as §66's is, and that splitting `installDevHook` is a separate refactor intent.
+- **F5:** the French equipment label is now `équipage` (was `équipement`), as in the rulebook's "points d'équipage". The French test asserts `mouvement restant 2, équipage 1/3`. Killed by: the label put back to `équipement` (1 test failed).
+- **F1 (stale tooltip):** `MapView` remembers `hoveredHex`; `setUnits` rebuilds the visible tooltip's text for it (`tooltipTextFor`). No scene line. New e2e `a unit that moves onto the hovered hex shows its lines at once`: hover an empty reachable hex, click to move there, the pointer unmoved, poll for the unit's lines (4 lines). Killed by: the refresh in `setUnits` disabled (the scenario failed).
+- **F3 (M5):** new unit case `shows a damaged trireme` asserts `attack 15 (20), ranged 0 (2), range 2, defense 15 (20), movement 6` and `movement left 2, equipment 3/4`. Killed by: `currentRangedAttack(unit)` replaced by `type.rangedAttack` (1 failed).
+- **F4:** the French case asserts the whole text (`Cavalerie Légère — Perse (rouge)` ...); the `{state: false}` bireme case asserts both lines in full. Killed by: the state line forced on (2 failed).
+- **F6:** the `unitTooltipFor` re-export sits next to the `drawFacingArrowhead` one; the template literal uses an escaped newline, not a raw one. `MapView.ts` is back to CRLF throughout (my first edit had left 7 LF-only lines).
+- **F7:** new e2e `Placement: hovering a placed unit shows no state line`, asserting the two lines in full. Killed by: `{ state: false }` changed to `{ state: true }` in `PlacementScene.ts` (the scenario failed). The scene file is unchanged in the final tree.
+- `BoardScene.ts` 3172 and `PlacementScene.ts` 574 unchanged; lint cap unchanged.

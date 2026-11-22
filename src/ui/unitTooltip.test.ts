@@ -56,19 +56,27 @@ describe('formatUnitTooltip', () => {
     ]);
   });
 
+  it('shows a damaged trireme: its ranged attack drops with its equipment', () => {
+    const text = formatUnitTooltip(unit('triremes', { equipmentPoints: 3 }), owner, on);
+    expect(text.split('\n').slice(1)).toEqual([
+      'attack 15 (20), ranged 0 (2), range 2, defense 15 (20), movement 6',
+      'movement left 2, equipment 3/4',
+    ]);
+  });
+
   it('has no state line in Placement, and no equipment for land units', () => {
-    expect(formatUnitTooltip(unit('biremes', { equipmentPoints: 3 }), owner, { state: false }).split('\n')).toHaveLength(2);
+    expect(formatUnitTooltip(unit('biremes', { equipmentPoints: 3 }), owner, { state: false })).toBe(
+      'Biremes — Persia (red)\nattack 15, defense 15, movement 6',
+    );
     expect(formatUnitTooltip(unit('fantassins'), owner, on)).not.toContain('equipment');
   });
 
   it('speaks French in French', () => {
     setLanguage('fr');
     const text = formatUnitTooltip(unit('cavalerie-legere', { charged: true }), { name: 'Perse', index: 1 }, on);
-    expect(text.split('\n').slice(1)).toEqual([
-      'attaque 6 (3), défense 2, mouvement 6',
-      'mouvement restant 2, a chargé',
-    ]);
-    expect(text.split('\n')[0]).toMatch(/ — Perse \(rouge\)$/);
+    expect(text).toBe('Cavalerie Légère — Perse (rouge)\nattaque 6 (3), défense 2, mouvement 6\nmouvement restant 2, a chargé');
+    const ship = formatUnitTooltip(unit('biremes', { equipmentPoints: 1 }), { name: 'Perse', index: 1 }, on);
+    expect(ship.split('\n')[2]).toBe('mouvement restant 2, équipage 1/3');
   });
 });
 

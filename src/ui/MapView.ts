@@ -4,9 +4,6 @@ import type { HexCoord } from '../data/map';
 import { HEX_SIZE, hexToPixel } from './hexRender';
 import { allHexes } from './mapBounds';
 import { formatHexTooltip } from './hexTooltip';
-
-// Re-exported so a scene wires the hover hook through the import it already has.
-export { unitTooltipFor } from './unitTooltip';
 import { hexAtPoint } from './hexHitTest';
 import { StandardBoardView } from './standardBoardView';
 import { DrawnBoardView } from './drawnBoardView';
@@ -16,6 +13,8 @@ import type { BoardViewKind } from './boardViewPreference';
 import { ViewDrawingState } from './viewDrawingState';
 
 export { drawFacingArrowhead } from './hexDraw';
+// Re-exported so a scene wires the hover hook through the import it already has (§74).
+export { unitTooltipFor } from './unitTooltip';
 
 /** The shared board surface, plus a facade over the current `BoardView`.
  * The surface owns the origin and coordinates, the main and fixed UI cameras,
@@ -37,6 +36,7 @@ export class MapView {
   private hitZone: Phaser.GameObjects.Zone;
   /** The hex the pointer is over, so hover fires only when it changes. */
   private hoveredKey: string | null = null;
+  private hoveredHex: HexCoord | null = null;
   /** Set once `pinUIObjects` has added the fixed HUD camera — used so newly
    * created world objects (unit markers) get excluded from it too. */
   private uiCamera: Phaser.Cameras.Scene2D.Camera | null = null;
@@ -206,6 +206,7 @@ export class MapView {
     const key = hex ? `${hex.q},${hex.r}` : null;
     if (key === this.hoveredKey) return;
     this.hoveredKey = key;
+    this.hoveredHex = hex;
     this.onHexHover?.(hex);
     if (hex && pointer) this.showHexTooltip(hex, pointer.x, pointer.y);
     else this.hideHexTooltip();
@@ -298,6 +299,8 @@ export class MapView {
   setUnits(units: readonly UnitDrawing[], motion?: UnitMotion): void {
     this.drawing.setUnits(units);
     this.boardView.setUnits(units, motion);
+    // A unit that moved onto (or off) the hex under a still pointer changes what it shows (§74).
+    if (this.hoveredHex && this.hoverTooltip?.visible) this.hoverTooltip.setText(this.tooltipTextFor(this.hoveredHex));
   }
 
   /** Resolves when no unit animation is playing or queued. */
@@ -389,9 +392,7 @@ export class MapView {
    * runs off-screen.
    */
   private showHexTooltip(hex: HexCoord, pointerX: number, pointerY: number): void {
-    const unitLines = this.unitTooltipAt?.(hex);
-    const text = formatHexTooltip(hex) + (unitLines ? `
-${unitLines}` : '');
+    const text = this.tooltipTextFor(hex);
     if (!this.hoverTooltip) {
       this.hoverTooltip = this.scene.add
         .text(0, 0, text, {
@@ -423,6 +424,13 @@ ${unitLines}` : '');
   /** The visible hover tooltip's text, or null (the dev hook's reader, §74). */
   tooltipText(): string | null {
     return this.hoverTooltip?.visible ? this.hoverTooltip.text : null;
+  }
+
+  /** The hex line, then the scene's unit lines for that hex when it holds a unit. */
+  private tooltipTextFor(hex: HexCoord): string {
+    const unitLines = this.unitTooltipAt?.(hex);
+    return formatHexTooltip(hex) + (unitLines ? `
+${unitLines}` : '');
   }
 
   private hideHexTooltip(): void {

@@ -4,7 +4,11 @@
 import { expect, test, type Page } from '@playwright/test';
 import { MAP_TERRAIN } from '../src/data/map';
 import { en } from '../src/ui/i18n/en';
-import { MENU_TEST, activeUnitOfType, clickButton, hoverHex, startFromMenu, state, type Hex } from './helpers';
+import { getUnitType } from '../src/data/units';
+import {
+  MENU_TEST, activeUnitOfType, clickButton, clickHex, collectErrors, hoverHex, key, reachable, startFromMenu, state, waitIdle,
+  type Hex,
+} from './helpers';
 
 const DRAWN = '🗺 Drawn view';
 const tooltip = (page: Page) => page.evaluate(() => window.__heraklios.tooltipText());
@@ -48,5 +52,57 @@ test('hovering a unit shows its characteristics in both views, an empty hex one 
     const lines = await hoverLines(page, mover.position);
     expect(lines.slice(1), `${view}: the unit's lines`).toEqual(expectedLines);
   }
+  expect(errors).toEqual([]);
+});
+
+// F1 (review round 1): a unit moved onto the hex under a still pointer must show its lines
+// without the pointer moving.
+test('a unit that moves onto the hovered hex shows its lines at once', async ({ page }) => {
+  const errors = await startFromMenu(page, MENU_TEST, 'test', 1);
+  const mover = await activeUnitOfType(page, 'fantassins');
+  const reach = await reachable(page, mover.id);
+  const to = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]]
+    .map(([dq, dr]) => ({ q: mover.position.q + dq!, r: mover.position.r + dr! }))
+    .find((h) => reach.includes(key(h)))!;
+  expect(to, 'an adjacent reachable hex').toBeTruthy();
+
+  await clickHex(page, mover.position);
+  await waitIdle(page);
+  expect(await hoverLines(page, to), 'the destination is empty').toHaveLength(1);
+  await clickHex(page, to); // the pointer stays on `to`
+  await waitIdle(page);
+  expect((await state(page)).units.find((u) => u.id === mover.id)!.position).toEqual(to);
+  await expect.poll(async () => ((await tooltip(page)) ?? '').split('\n').length, { message: 'the unit lines appear with no pointer move' }).toBe(4);
+  expect((await tooltip(page))!.split('\n')[1]).toContain(en.units.fantassins);
+  expect(errors).toEqual([]);
+});
+
+// F7: Placement shows the unit's name and values but no state line (B6).
+test('Placement: hovering a placed unit shows no state line', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.addInitScript(() => localStorage.setItem('heraklios.language', 'en'));
+  await page.goto('/');
+  await page.waitForFunction(() => window.__heraklios?.buttonCount('2') === 1);
+  await clickButton(page, '2');
+  for (let seat = 0; seat < 2; seat++) {
+    await page.waitForFunction(() => window.__heraklios.buttonCount('Use default army') === 1);
+    await clickButton(page, 'Use default army');
+    await clickButton(page, 'Confirm army');
+  }
+  await page.waitForFunction(() => window.__heraklios.scenes().includes('Placement'));
+  await page.waitForFunction(() => window.__heraklios.state() !== null);
+
+  const { current, legalHexes } = await page.evaluate(() => window.__heraklios.placement());
+  const type = getUnitType(current!);
+  expect(type.domain).toBe('land');
+  await clickHex(page, legalHexes[0]!);
+  await page.waitForFunction(() => (window.__heraklios.state() as { units: unknown[] }).units.length === 1);
+  const placed = (await state(page)).units[0]!;
+  const values = [`attack ${type.attack}`];
+  if (type.range > 0) values.push(`ranged ${type.rangedAttack}`, `range ${type.range}`);
+  values.push(`defense ${type.defense}`, `movement ${type.movement}`);
+
+  const lines = await hoverLines(page, placed.position);
+  expect(lines.slice(1)).toEqual([`${en.units[type.id as keyof typeof en.units]} — ${(await state(page)).players[0]!.name} (${en.colors[0]})`, values.join(', ')]);
   expect(errors).toEqual([]);
 });
