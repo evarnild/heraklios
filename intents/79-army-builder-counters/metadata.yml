@@ -1,0 +1,20 @@
+# generated-by: heraklios/intent@0.1.5
+id: 79
+slug: army-builder-counters
+type: feature
+status: accepted
+title: The army builder shows each unit's original counter
+review_tier:
+intent_accepted: 2026-11-22 by-agent    # owner: "accept 76 and 79"
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+konmari:
+auto_authorized:
+auto_round:
+auto_stopped:
+follows_up:
+links:
+  - intents/74-unit-hover-stats    the values line a hover could reuse
+blocked_by:

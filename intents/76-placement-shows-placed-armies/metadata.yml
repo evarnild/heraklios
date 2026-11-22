@@ -1,0 +1,22 @@
+# generated-by: heraklios/intent@0.1.5
+id: 76
+slug: placement-shows-placed-armies
+type: feature
+status: accepted
+title: Placement shows the armies other players have already placed
+review_tier:
+intent_accepted: 2026-11-22 by-agent    # owner: "accept 76 and 79"
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+konmari:
+auto_authorized:
+auto_round:
+auto_stopped:
+follows_up:
+links:
+  - intents/74-unit-hover-stats
+  - intents/72-engine-host-seams
+blocked_by:
+  - 74    its Placement tooltip and the comment this intent replaces must land first
