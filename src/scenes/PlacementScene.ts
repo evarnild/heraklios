@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { MapView, drawFacingArrowhead } from '../ui/MapView';
+import { MapView, drawFacingArrowhead, unitTooltipFor } from '../ui/MapView';
 import { PLAYER_COLORS_HEX } from '../ui/hexRender';
 import { legalDeploymentHexes, legalNavalDeploymentHexes } from '../ui/mapBounds';
 import { session, buildPlayers, resetToMenu } from '../ui/session';
@@ -139,7 +139,7 @@ export class PlacementScene extends Phaser.Scene {
 
     this.mapView = new MapView(this, width, height);
     this.mapView.onHexClick = (hex) => this.handleHexClick(hex);
-
+    this.mapView.unitTooltipAt = (hex) => unitTooltipFor(session.gameState!, hex, { state: false });
     this.infoText = this.add
       .text(20, height - 40, '', {
         fontSize: '15px',
@@ -312,8 +312,8 @@ export class PlacementScene extends Phaser.Scene {
     this.refreshUndoRedoButtons();
   }
 
-  /** Draws this player's placed units (only theirs, as each player places in
-   * private) from state. */
+  /** Draws only this player's placed units (a choice of this scene, not a rule: the
+   * rules hide nothing, §74 spec amendment) from state. */
   private drawPlacedUnits(): void {
     const mine = session.gameState!.units.filter((u) => u.owner === this.playerIndex);
     // A ship carries its facing so the Drawn view turns the galley; the Standard view ignores it.

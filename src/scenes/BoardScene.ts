@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { landUnitsCentre } from '../ui/viewCentre';
-import { MapView, drawFacingArrowhead } from '../ui/MapView';
+import { MapView, drawFacingArrowhead, unitTooltipFor } from '../ui/MapView';
 import type { UnitDrawing } from '../ui/boardView';
 import { PLAYER_COLORS_HEX } from '../ui/hexRender';
 import { messages } from '../ui/i18n';
@@ -880,11 +880,11 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       this.statusText,
       this.clockText,
     ]);
-
     // A resumed game already carries the right movement points and ramming
     // record — only a fresh one gets them handed out here.
     if (!staged) this.resetMovementForActivePlayer();
     this.mapView.onHexClick = (hex) => this.onHexClick(hex);
+    this.mapView.unitTooltipAt = (hex) => unitTooltipFor(this.state(), hex, { state: true });
     this.refreshStatus();
     this.refreshUndoRedoButtons();
     this.autosave();

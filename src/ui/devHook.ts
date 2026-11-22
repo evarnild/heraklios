@@ -35,6 +35,8 @@ interface BoardInternals extends Phaser.Scene {
   mapView: {
     toScreen(h: Hex): Point;
     viewKind: 'standard' | 'drawn';
+    tooltipText(): string | null;
+    tooltipBox(): { x: number; y: number; width: number; height: number } | null;
     cameraStrays(): CameraScan;
     drawnInspect(): { unitDrawings: number; ghostRotation: number | null; unitRotations: Record<string, number>; hudLeaks: number } | null;
   };
@@ -138,6 +140,10 @@ export interface DevHook {
   hudStrays(): CameraScan;
   /** How many landscapes this page has baked (§64: pan and zoom must not bake). */
   landscapeBuilds(): number;
+  /** The hover tooltip's text while it is visible, else null (§74). */
+  tooltipText(): string | null;
+  /** The tooltip's screen box while it is visible, else null (§74). */
+  tooltipBox(): { x: number; y: number; width: number; height: number } | null;
   /** The Board's Tables panel: open or not, its tab, and the land table's highlight (§55). Read-only. */
   rulesPanel(): { open: boolean; tab: RulesTab | null; highlight: LandCombatHighlight | null };
 }
@@ -265,7 +271,7 @@ export function installDevHook(game: Phaser.Game): void {
     selectedUnitId: () => selectedUnitId(board()),
     boardObjects: () => boardObjects(mapScene()),
     hudStrays: () => mapScene().mapView.cameraStrays(),
-    landscapeBuilds: () => landscapeBuilds(),
+    landscapeBuilds: () => landscapeBuilds(), tooltipText: () => mapScene().mapView.tooltipText(), tooltipBox: () => mapScene().mapView.tooltipBox(), // packed to stay under the 80-line limit, as §66's is; splitting installDevHook is a separate refactor intent
   };
   (window as unknown as { __heraklios: DevHook }).__heraklios = hook;
 }

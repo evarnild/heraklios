@@ -242,3 +242,34 @@ Re-read on `main` at `2f045b6`.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-11-21 - all five subtasks (implementer)
+
+- **Commits:** 4c1f5f4 (formatter, labels), 9944ef4 (hook and badge removal, subtasks 2 and 3 together), 8de8c99 (e2e, dev-hook reader), plus the README/Progress commit.
+- **Shipped:** `src/ui/unitTooltip.ts` (`formatUnitTooltip`, `unitTooltipFor`); a `tooltip` block in `en.ts`/`fr.ts`; `MapView.unitTooltipAt` and `tooltipText()`; the Drawn view's badge and `counterBadge` (with its tests) removed; `e2e/unit-tooltip.spec.ts` with a `hoverHex` helper; README.
+- **Labels, English:** `attack`, `ranged`, `range`, `defense`, `movement`, `movement left`, `equipment`, `charged`; first line `<unit> — <player> (<colour>)`; values joined by ", ", state joined by ", " (e.g. `attack 6 (3), defense 2, movement 6` / `movement left 2, charged`).
+- **Labels, French:** `attaque`, `tir`, `portée`, `défense`, `mouvement`, `mouvement restant`, `équipement`, `a chargé`; the first line has the same shape (`tooltip.owner` is on `messages.test.ts`'s same-in-both list).
+- **Tests:** verify green, 1533 tests in 90 files (1528 on the base: `counterBadge`'s 3 cases left, 8 new in `unitTooltip.test.ts`). Lint 21 warnings, equal to the cap, none added. `npm run e2e`: 28 passed, including the new scenario.
+- **Divergences:** (1) subtasks 2 and 3 are one commit. (2) The scene hooks need no new import line: `MapView.ts` re-exports `unitTooltipFor`, so each scene only extends its existing `MapView` import. Each scene's one hook line is absorbed by removing one blank line next to it, so `BoardScene.ts` stays 3172 and `PlacementScene.ts` 574; no budget line. (3) `tooltipText` is a `MapView` method that the dev hook calls from the one packed line next to `landscapeBuilds`, so `installDevHook` did not grow. (4) The Drawn-view doc comment in `drawnUnits.ts` was reflowed to one line. (5) The ship example in the tests is a bireme (equipment 1/3: attack 5 (15), defense 5 (15)).
+
+### 2026-11-22 - rework after the round 1 review (implementer)
+
+Owner's answers: F2 (a), F5 "équipage". Each mutant was applied by copy, the test run, and restored by copy; `git status --short` showed only the intended edits.
+
+- **F2:** `installDevHook` is not split. The packed `tooltipText` line has a trailing comment saying it is packed to stay under the 80-line limit, as §66's is, and that splitting `installDevHook` is a separate refactor intent.
+- **F5:** the French equipment label is now `équipage` (was `équipement`), as in the rulebook's "points d'équipage". The French test asserts `mouvement restant 2, équipage 1/3`. Killed by: the label put back to `équipement` (1 test failed).
+- **F1 (stale tooltip):** `MapView` remembers `hoveredHex`; `setUnits` rebuilds the visible tooltip's text for it (`tooltipTextFor`). No scene line. New e2e `a unit that moves onto the hovered hex shows its lines at once`: hover an empty reachable hex, click to move there, the pointer unmoved, poll for the unit's lines (4 lines). Killed by: the refresh in `setUnits` disabled (the scenario failed).
+- **F3 (M5):** new unit case `shows a damaged trireme` asserts `attack 15 (20), ranged 0 (2), range 2, defense 15 (20), movement 6` and `movement left 2, equipment 3/4`. Killed by: `currentRangedAttack(unit)` replaced by `type.rangedAttack` (1 failed).
+- **F4:** the French case asserts the whole text (`Cavalerie Légère — Perse (rouge)` ...); the `{state: false}` bireme case asserts both lines in full. Killed by: the state line forced on (2 failed).
+- **F6:** the `unitTooltipFor` re-export sits next to the `drawFacingArrowhead` one; the template literal uses an escaped newline, not a raw one. `MapView.ts` is back to CRLF throughout (my first edit had left 7 LF-only lines).
+- **F7:** new e2e `Placement: hovering a placed unit shows no state line`, asserting the two lines in full. Killed by: `{ state: false }` changed to `{ state: true }` in `PlacementScene.ts` (the scenario failed). The scene file is unchanged in the final tree.
+- `BoardScene.ts` 3172 and `PlacementScene.ts` 574 unchanged; lint cap unchanged.
+
+### 2026-11-22 - rework after the round 2 review (implementer)
+
+Owner's answer to N1: (b), keep the behaviour (recorded as a spec amendment in `spec.md`, commit ef3ca0c). Each mutant was applied after a backup by copy, the test run, and the file restored by copy.
+
+- **N1:** the code is unchanged. The comment on `PlacementScene.drawPlacedUnits` now says the scene draws only the placing player's units, as a choice of the scene and not a rule, and points to the spec amendment (still two lines, so the file stays 574). The README gains one sentence: in Placement, hovering also shows earlier players' placed units that are not drawn on the screen.
+- **N2:** `MapView` remembers the last pointer position in `updateHover`; `setUnits` now re-shows the tooltip through `showHexTooltip(hoveredHex, pointerX, pointerY)`, which recomputes the edge flip, instead of a bare `setText`. New dev-hook reader `tooltipBox()` (a `MapView.tooltipBox()` method, on the same packed line as `tooltipText` so `installDevHook` did not grow). New e2e `a tooltip refreshed by a move stays inside the viewport`: the Galleys ship (far from the left edge) is scrolled so its forward hex sits at about x 865 of 1100, where the one-line tooltip fits and the four-line one does not; the pointer rests there, a click moves the ship ahead, and the tooltip box must stay inside the viewport. Killed by: the refresh changed back to a bare `setText` (the box then ended at 1148 of 1100, and the scenario failed). With the fix the box is x 576 to 846. An earlier band (pointer at 931) did not kill the mutant, because the one-line tooltip had already flipped there; the band is now 840 to 895.
+- **N3:** the template literal is now `'\n' + unitLines`. It changes no behaviour, so no test can tell it from the raw newline; there is no mutant for it.
+- `BoardScene.ts` 3172, `PlacementScene.ts` 574, lint cap unchanged.

@@ -43,6 +43,19 @@ export const fr: Messages = {
 
   phases: { movement: 'mouvement', combat: 'combat' },
 
+  /** The hover tooltip's unit lines (`unitTooltip.ts`). */
+  tooltip: {
+    owner: (unit: string, player: string, colour: string) => `${unit} — ${player} (${colour})`,
+    attack: 'attaque',
+    ranged: 'tir',
+    range: 'portée',
+    defense: 'défense',
+    movement: 'mouvement',
+    movementLeft: 'mouvement restant',
+    equipment: 'équipage',
+    charged: 'a chargé',
+  },
+
   common: {
     abandon: 'Abandonner',
     switchToDrawn: '🗺 Vue dessinée',
