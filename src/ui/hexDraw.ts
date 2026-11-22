@@ -29,7 +29,8 @@ export function drawArrowheadAt(
   angle: number,
   colorHex: string,
   scale = 1,
-): void {  const tipRadius = HEX_SIZE * 0.95 * scale;
+): void {
+  const tipRadius = HEX_SIZE * 0.95 * scale;
   const backRadius = HEX_SIZE * 0.5 * scale;
   const spread = 0.4; // radians half-width of the arrowhead's back edge
 

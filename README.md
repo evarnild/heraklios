@@ -580,7 +580,8 @@ same speed; they differ only in what moves (below).
 - **A move** slides the unit hex by hex along the path its cost was worked out
   on; a cavalry charge slides along its straight line. A ship turns in place
   at each rotation and slides at each forward step, and the Turn button turns
-  the figure 60° (in the Standard view, the ship's facing mark). A swap slides the two units across each other together.
+  the figure 60° (in the Standard view, the ship's facing mark). A swap
+  slides the two units across each other together.
 - **A land attack** is a clash: each attacker lunges part-way toward the
   nearest defender it fights (with several defenders, the nearest hex, ties by
   defender order) and back, then the result shows: an eliminated unit fades

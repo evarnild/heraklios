@@ -515,3 +515,9 @@ this line is the implementer's to edit. -->
 - **AC10:** the e2e suite ran in 1.7 min (106 s wall) with the 7 new or looped animation scenarios included. No run on `main` was made (the main checkout was off limits), so the comparison is not measured. Earlier recorded e2e times in `intents/*/review.md` are for smaller suites (15-19 scenarios). Every other scenario still runs at Off.
 - **Divergences:** (1) `frames` already existed privately in `e2e/helpers.ts`, so it is exported there instead of copied from `rules-panel.spec.ts`; `chord` is moved. (2) `unitLayer.ts` is 194 lines, over the ~150 estimate; still under 500. (3) The `jointFigure` lead type is `Image | Text` (the counter). Nothing else.
 - **Not checked:** the facing mark's travel, the turn, and every cue (B6-B9, B11) are for the live check (AC11). Stale comments left per the plan: `devHook.ts:109` and `PlacementScene.ts:319`.
+
+### 2026-11-22: review round 1 rework, by the implementer
+
+- **MEDIUM (M9a, `drawnUnits.ts` `facingPart`):** new e2e `naval.spec.ts` "the Turn button turns the galley figure in the Drawn view": switch to Drawn, select a galley, press Turn, then read `boardObjects().unitRotations[id]` and compare it with `facingAngleRad(newFacing)` (modulo a whole turn, since a turn takes the short way). Killed M9a (`facingPart: null`, backed up and restored by copy): the test failed with "the figure turned to the new facing", expected difference 0, received 1.047 (60 degrees).
+- **LOWs:** `hexDraw.ts` two statements on one line split; the README line re-wrapped.
+- **Checks:** `npm run verify` green (19 warnings, cap 19; 1698 passed, 2 skipped); `npm run e2e` 35 passed in 1.3 min.
