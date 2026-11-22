@@ -36,6 +36,7 @@ export class MapView {
   private hitZone: Phaser.GameObjects.Zone;
   /** The hex the pointer is over, so hover fires only when it changes. */
   private hoveredKey: string | null = null;
+  /** The hovered hex and the pointer's last screen point, so `setUnits` can refresh the tooltip in place (§74). */
   private hoveredHex: HexCoord | null = null;
   private pointerX = 0;
   private pointerY = 0;
@@ -427,15 +428,15 @@ export class MapView {
     this.hoverTooltip.setVisible(true);
   }
 
-  /** The visible hover tooltip's text, or null (the dev hook's reader, §74). */
-  tooltipText(): string | null {
-    return this.hoverTooltip?.visible ? this.hoverTooltip.text : null;
-  }
-
   /** The hex line, then the scene's unit lines for that hex when it holds a unit. */
   private tooltipTextFor(hex: HexCoord): string {
     const unitLines = this.unitTooltipAt?.(hex);
     return formatHexTooltip(hex) + (unitLines ? '\n' + unitLines : '');
+  }
+
+  /** The visible hover tooltip's text, or null (the dev hook's reader, §74). */
+  tooltipText(): string | null {
+    return this.hoverTooltip?.visible ? this.hoverTooltip.text : null;
   }
 
   /** The visible hover tooltip's screen box, or null (the dev hook's reader, §74). */
