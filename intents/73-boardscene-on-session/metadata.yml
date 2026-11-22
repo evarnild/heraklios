@@ -13,7 +13,7 @@ merged:
 konmari:
 auto_authorized: 2026-11-22 by-agent    # owner: "accept 75 and 73, /auto 75 then 73"
 auto_round:
-auto_stopped:
+auto_stopped: plan found the spec incomplete
 follows_up:
 links:
   - intents/72-engine-host-seams
