@@ -20,3 +20,4 @@ links:
   - intents/70-unity-front-end-probe
 blocked_by:
   - 72    the session, its questions and answer actions must exist first
+  - 75    its new e2e scenarios need dev-hook readers, and §75 makes room in installDevHook (owner: "/auto 75 then 73")
