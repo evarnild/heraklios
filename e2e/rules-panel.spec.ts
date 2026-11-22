@@ -13,8 +13,10 @@ import { messagesFor } from '../src/ui/i18n/index';
 import {
   MENU_CLOSE_COMBAT,
   activeUnitOfType,
+  chord,
   clickButton,
   clickHex,
+  frames,
   settle,
   startFromMenu,
   state,
@@ -29,18 +31,6 @@ const panel = (page: Page) => page.evaluate(() => window.__heraklios.rulesPanel(
 const attackLines = (page: Page) =>
   page.evaluate(() => window.__heraklios.logEntries().filter((e) => e.text.startsWith('Attack')).length);
 
-const frames = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
-/** One key press with a frame between each DOM event: Phaser re-processes the frame's queued key events on
- * every DOM key event, so a press whose down and up land in one frame can fire its handler twice. */
-async function chord(page: Page, mods: string[], key: string): Promise<void> {
-  for (const m of mods) await page.keyboard.down(m);
-  await frames(page);
-  await page.keyboard.down(key);
-  await frames(page);
-  await page.keyboard.up(key);
-  for (const m of mods.reverse()) await page.keyboard.up(m);
-  await frames(page);
-}
 const canvasBox = async (page: Page) => (await page.locator('canvas').boundingBox())!;
 
 /** The seeded roll leaves a retreat, push or advance choice pending: the panel is hidden meanwhile,
