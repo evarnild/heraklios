@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { UNIT_TYPES } from '../data/units';
+import { UNIT_TYPES, type UnitType } from '../data/units';
 import { validateArmy, defaultArmySelection, filledCount, ARMY_BUDGET } from '../engine/army';
 import { session, resetToMenu } from '../ui/session';
 import { skipAiArmySeats } from '../ui/aiSetup';
@@ -7,12 +7,7 @@ import { showConfirmDialog } from '../ui/confirmDialog';
 import { messages } from '../ui/i18n';
 import { formatArmyError } from '../ui/i18n/format';
 import { edgeName, unitName } from '../ui/i18n/names';
-import {
-  armyBottomY,
-  armyRowSlot,
-  counterDisplaySize,
-  counterTextureKey,
-} from '../ui/armyBuilderLayout';
+import { armyBottomY, armyRowSlot, counterDisplaySize, counterTextureKey } from '../ui/armyBuilderLayout';
 
 export class ArmyBuilderScene extends Phaser.Scene {
   private playerIndex = 0;
@@ -143,11 +138,10 @@ export class ArmyBuilderScene extends Phaser.Scene {
   }
 
   // One unit's row: its counter, name, cost/max and the `«` `-` count `+` `»` controls (§79).
-  private drawRow(unit: (typeof UNIT_TYPES)[number], index: number, selection: Record<string, number>): void {
+  private drawRow(unit: UnitType, index: number, selection: Record<string, number>): void {
     const t = messages();
     const { x, centreY: y } = armyRowSlot(index);
-    // The builder shows the print counter the Standard view draws, in the
-    // building player's colour; Menu's preload loaded every colour already.
+    // Menu's preload loaded every player's colour already.
     const counter = this.add.image(x.counter, y, counterTextureKey(this.playerIndex, unit.id)).setOrigin(0, 0.5);
     const size = counterDisplaySize(counter.width, counter.height);
     counter.setDisplaySize(size.width, size.height);
