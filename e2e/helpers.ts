@@ -124,9 +124,15 @@ async function frames(page: Page): Promise<void> {
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 }
 
-async function clickCanvas(page: Page, pt: { x: number; y: number }): Promise<void> {
+/** The game canvas's box on the page, which canvas points are offset by. */
+async function canvasBox(page: Page): Promise<{ x: number; y: number }> {
   const box = await page.locator('canvas').boundingBox();
   if (!box) throw new Error('No canvas on the page');
+  return box;
+}
+
+async function clickCanvas(page: Page, pt: { x: number; y: number }): Promise<void> {
+  const box = await canvasBox(page);
   await page.mouse.click(box.x + pt.x, box.y + pt.y);
 }
 
@@ -184,8 +190,7 @@ async function hexPoint(page: Page, hex: Hex): Promise<{ x: number; y: number }>
 /** Moves the pointer onto `hex`'s centre (a hover, no click). */
 export async function hoverHex(page: Page, hex: Hex): Promise<void> {
   const pt = await hexPoint(page, hex);
-  const box = await page.locator('canvas').boundingBox();
-  if (!box) throw new Error('No canvas on the page');
+  const box = await canvasBox(page);
   await page.mouse.move(box.x + pt.x, box.y + pt.y);
   await frames(page);
 }
@@ -193,7 +198,6 @@ export async function hoverHex(page: Page, hex: Hex): Promise<void> {
 /** A 24×24 screenshot around a hex's centre (§30's small-region check). */
 export async function hexShot(page: Page, hex: Hex): Promise<Buffer> {
   const pt = await hexPoint(page, hex);
-  const box = await page.locator('canvas').boundingBox();
-  if (!box) throw new Error('No canvas on the page');
+  const box = await canvasBox(page);
   return page.screenshot({ clip: { x: box.x + pt.x - 12, y: box.y + pt.y - 12, width: 24, height: 24 } });
 }
