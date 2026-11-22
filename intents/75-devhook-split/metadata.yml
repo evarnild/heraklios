@@ -7,7 +7,7 @@ title: The dev hook is built from small groups, so a new reader is one plain lin
 review_tier:
 intent_accepted: 2026-11-22 by-agent    # owner: "accept 75 and 73, /auto 75 then 73"
 spec_accepted:
-plan_approved:
+plan_approved: 2026-11-22 by-agent    # auto: owner "/auto 75" (auto_authorized 2026-11-22)
 live_checked:
 merged:
 konmari:
