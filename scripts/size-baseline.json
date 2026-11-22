@@ -4,5 +4,5 @@
   "src/engine/fuzzHarness.ts": 1276,
   "src/engine/heuristicAgent.ts": 1065,
   "src/scenes/BoardScene.ts": 3172,
-  "src/scenes/PlacementScene.ts": 548
+  "src/scenes/PlacementScene.ts": 526
 }

@@ -18,6 +18,7 @@ import { MAP_TERRAIN, hexKey } from '../data/map';
 import type { HexCoord } from '../data/map';
 import { createViewToggle } from '../ui/viewToggle';
 import type { FacingShip } from '../ui/boardView';
+import { placementFacingShips, placementUnitDrawings } from '../ui/placementDrawings';
 import { bindUndoRedoKeys } from '../ui/shortcutKeys';
 
 interface QueueItem {
@@ -33,7 +34,6 @@ interface QueueItem {
 interface PlacementSnapshot {
   state: GameState;
   queue: QueueItem[];
-  placedShips: { hex: HexCoord; facing: number }[];
 }
 
 export class PlacementScene extends Phaser.Scene {
@@ -56,12 +56,6 @@ export class PlacementScene extends Phaser.Scene {
   private highlightedDomain: 'land' | 'naval' | null = null;
   private queue: QueueItem[] = [];
   private infoText!: Phaser.GameObjects.Text;
-  /** Ships placed so far by the CURRENT player, for the facing-arrow overlay.
-   * Reset in `create`: Phaser reuses one scene instance across the
-   * player-by-player `scene.start('Placement', ...)` restarts, so field
-   * initializers run only once and this would otherwise keep the previous
-   * player's ships and redraw their arrows in the new player's color. */
-  private placedShips: { hex: HexCoord; facing: number }[] = [];
   private skipBtn!: Phaser.GameObjects.Text;
   private undoBtn!: Phaser.GameObjects.Text;
   private redoBtn!: Phaser.GameObjects.Text;
@@ -116,7 +110,6 @@ export class PlacementScene extends Phaser.Scene {
     }
     this.playerIndex = firstHumanSeat;
 
-    this.placedShips = [];
     this.pendingShip = null;
     this.history.clear();
 
@@ -292,43 +285,35 @@ export class PlacementScene extends Phaser.Scene {
     this.updateInfo();
     this.refreshUndoRedoButtons();
     this.refreshShipControls();
+    // The first frame already shows the seats that placed before this one (B1, B8).
+    this.redrawPlacedUnits();
   }
 
   private captureSnapshot(): PlacementSnapshot {
     return {
       state: structuredClone(session.gameState!),
       queue: structuredClone(this.queue),
-      placedShips: structuredClone(this.placedShips),
     };
   }
 
   private restoreSnapshot(snapshot: PlacementSnapshot): void {
     session.gameState = structuredClone(snapshot.state);
     this.queue = structuredClone(snapshot.queue);
-    this.placedShips = structuredClone(snapshot.placedShips);
     this.redrawPlacedUnits();
     this.refreshPlacementHighlight();
     this.updateInfo();
     this.refreshUndoRedoButtons();
   }
 
-  /** Draws only this player's placed units (a choice of this scene, not a rule: the
-   * rules hide nothing, §74 spec amendment) from state. */
+  /** Draws every placed unit from state: this seat's opaque, the other seats' dimmed (a choice of
+   * this scene, not a rule: the rules hide nothing, `05-rules-french-original.md:91-96`; §74 spec
+   * amendment, §76). A ship carries its facing so the Drawn view turns the galley. */
   private drawPlacedUnits(): void {
-    const mine = session.gameState!.units.filter((u) => u.owner === this.playerIndex);
-    // A ship carries its facing so the Drawn view turns the galley; the Standard view ignores it.
-    this.mapView.setUnits(
-      mine.map((u) => ({
-        id: u.id,
-        typeId: u.typeId,
-        owner: u.owner,
-        position: u.position,
-        facing: getUnitType(u.typeId).domain === 'naval' ? u.facing : undefined,
-      })), 'snap'); // Placement never animates (§66 B13)
+    // Placement never animates (§66 B13)
+    this.mapView.setUnits(placementUnitDrawings(session.gameState!, this.playerIndex), 'snap');
   }
 
-  /** Rebuilds the marker/arrow overlay from state after a restore. Only this
-   * player's units are drawn, matching what `tryPlace` renders as you go. */
+  /** Rebuilds every seat's units and facing arrows from state (on open, undo, redo). */
   private redrawPlacedUnits(): void {
     this.drawPlacedUnits();
     this.mapView.setFacingIndicators(this.shipArrowList());
@@ -452,16 +437,10 @@ export class PlacementScene extends Phaser.Scene {
 
   // --- Ship-facing choice (Feature C) ---
 
-  /** Combines already-placed ships with the current pending preview (if any)
-   * for a single `setFacingIndicators` call — same array shape BoardScene
-   * uses for the Movement phase's facing arrows. */
+  /** Every placed ship's arrow (other seats' dimmed) plus the staged ship, for one
+   * `setFacingIndicators` call. */
   private shipArrowList(): FacingShip[] {
-    const list: FacingShip[] = this.placedShips.map((s) => ({ ...s, playerIndex: this.playerIndex }));
-    if (this.pendingShip) {
-      const { hex, facing, typeId } = this.pendingShip;
-      list.push({ hex, facing, playerIndex: this.playerIndex, ghostTypeId: typeId });
-    }
-    return list;
+    return placementFacingShips(session.gameState!, this.playerIndex, this.pendingShip);
   }
 
   private refreshShipControls(): void {
@@ -504,7 +483,6 @@ export class PlacementScene extends Phaser.Scene {
     this.history.push(snapshot, messages().placement.placeAction(unitName(pending.typeId)));
     item.remaining -= 1;
     this.drawPlacedUnits();
-    this.placedShips.push({ hex: pending.hex, facing: pending.facing });
     this.pendingShip = null;
     this.mapView.setFacingIndicators(this.shipArrowList());
     this.refreshShipControls();
