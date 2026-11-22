@@ -143,3 +143,26 @@ in text. Two readings, each to be a comment at its site:
 - **The hook is something like `MapView.unitAt?: (hex) => tooltip lines |
   null`, set by each scene** (Non-functional). The exact shape is for the
   plan.
+
+## Amendment: Placement shows every player's units on hover (owner, 2026-11-22)
+
+Review round 2's N1 found that, in Placement, the tooltip shows units the
+screen does not draw: Placement draws only the placing player's own units. The
+owner's answer was "/auto 74 (b)": accept it and record it. The reasons:
+
+- **The rules hide nothing.** `05-rules-french-original.md:83-96` describes a
+  band at most 3 hexes deep, no contact between armies, and a 4-hex minimum gap
+  ("L'écart minimum qui sépare deux armées au début du jeu a été fixé à 4
+  hexagones"). It has no secret or simultaneous deployment. The gap rule also
+  means each army is placed in view of the others.
+- **The hiding is not a design choice.** Placement only ever drew the units
+  placed in that scene. The undo/redo commit `511ccc8` kept this by filtering on
+  the owner. The comment at `PlacementScene.ts:315-316` ("as each player places
+  in private") explains it after the fact, and the rules do not support it.
+
+**B4 now reads "every unit, every player, on the Board and in Placement".**
+Hovering an earlier player's placed unit in Placement shows its lines (without
+the state line, B6), although Placement does not draw it.
+`PlacementScene.ts`'s comment is corrected to say the scene draws only the
+placing player's units, which is not a rule. Drawing the other players' units
+in Placement is left to a separate intent.
