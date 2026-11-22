@@ -143,28 +143,29 @@ The owed live check is the only error, and it is the owner's to clear.
 - **Taken on trust:** the two Progress measurements under Not checked.
 
 ## KonMari check
-- base 943b9ea; record fcbeb21, . Tidied: ab0842a (MapView, moved  beside its caller and documented the hover fields), cb37155 (e2e helpers share one ).
-- **Coordinator, re-run:**  on fcbeb21. Exit 0, lint 0 errors and 21 warnings (cap 21), 90 files and 1534 tests, the same counts as the review.
-- **Coordinator, re-run:** . FAIL only on the owed live check.
-- **Coordinator, re-run:** . 31 passed.
-- **Coordinator, re-run:** the killed mutants on the changed file , against . All of them are still killed:
+- **Record:** base 943b9ea; record fcbeb21, `outcome: kept`.
+- **Tidied:**
+  - ab0842a (MapView): moved `tooltipTextFor` next to its caller and documented the hover fields;
+  - cb37155 (e2e helpers): the helpers now share one `canvasBox`.
+- **Coordinator, re-run:** `npm run verify` on fcbeb21. Exit 0. Lint 0 errors and 21 warnings (cap 21). 90 files and 1534 tests. These are the same counts as the review's.
+- **Coordinator, re-run:** `npm run check:intent`. It fails only on the owed live check.
+- **Coordinator, re-run:** `npm run e2e`. 31 passed.
+- **Coordinator, re-run:** the killed mutants on the changed file, `src/ui/MapView.ts`, run against `e2e/unit-tooltip.spec.ts`. All are still killed:
   - N2: 1 failed;
   - NL: 4 failed;
   - ALWAYSAPPEND: 3 failed;
   - HOVHEX: 3 failed;
   - F1REFRESH: 3 failed.
 
-   was clean afterwards.
+  `git status --short` was clean after.
 - No baselined file shrank, so no ceiling changed.
-- **Reviewer's read** (KonMari commits only):
-  - within reach: / held the duplicate of the new  lookup;
+- **Reviewer's read** (KonMari commits only). No findings:
+  - within reach: `clickCanvas` and `hexShot` held the duplicate of the new `hoverHex` lookup;
   - behaviour unchanged;
   - no test assertion or case changed;
   - no dependency or eslint-disable added;
   - principles 5 to 12 respected;
   - konmari.md lists exactly the two tidy-ups.
-
-  No findings.
 
 # Round 2 (history)
 
