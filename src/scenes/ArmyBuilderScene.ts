@@ -7,6 +7,12 @@ import { showConfirmDialog } from '../ui/confirmDialog';
 import { messages } from '../ui/i18n';
 import { formatArmyError } from '../ui/i18n/format';
 import { edgeName, unitName } from '../ui/i18n/names';
+import {
+  armyBottomY,
+  armyRowSlot,
+  counterDisplaySize,
+  counterTextureKey,
+} from '../ui/armyBuilderLayout';
 
 export class ArmyBuilderScene extends Phaser.Scene {
   private playerIndex = 0;
@@ -50,27 +56,7 @@ export class ArmyBuilderScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    const abandonBtn = this.add
-      .text(20, 24, t.common.abandon, {
-        fontSize: '14px',
-        color: '#fff',
-        backgroundColor: '#5a2a2a',
-        padding: { x: 10, y: 6 },
-      })
-      .setOrigin(0, 0.5)
-      .setInteractive({ useHandCursor: true });
-    abandonBtn.on('pointerdown', () => {
-      showConfirmDialog({
-        scene: this,
-        message: t.common.abandonMessage(t.builder.abandonMessage),
-        confirmLabel: t.common.abandon,
-        cancelLabel: t.builder.keepBuilding,
-        onConfirm: () => {
-          resetToMenu();
-          this.scene.start('Menu');
-        },
-      });
-    });
+    this.addAbandonButton();
 
     const selection = session.armySelections[this.playerIndex]!;
 
@@ -92,64 +78,22 @@ export class ArmyBuilderScene extends Phaser.Scene {
       this.refresh();
     });
 
-    const startY = 70;
-    const rowH = 32;
-    UNIT_TYPES.forEach((unit, i) => {
-      const y = startY + i * rowH;
-      this.add.text(20, y, unitName(unit.id), { fontSize: '15px', color: '#ffffff' });
-      this.add.text(220, y, t.builder.costAndMax(unit.cost, unit.maxCount), { fontSize: '13px', color: '#a89878' });
+    UNIT_TYPES.forEach((unit, i) => this.drawRow(unit, i, selection));
 
-      const rowBtn = { fontSize: '18px', color: '#fff', backgroundColor: '#553', padding: { x: 10, y: 2 } };
-      // `«` clears the type, `»` fills it up to what the budget and its maximum allow (§51).
-      const clear = this.add.text(370, y, '«', rowBtn).setInteractive({ useHandCursor: true });
-      const fill = this.add.text(490, y, '»', rowBtn).setInteractive({ useHandCursor: true });
-      this.clearBtns[unit.id] = clear;
-      this.fillBtns[unit.id] = fill;
-      clear.on('pointerdown', () => {
-        selection[unit.id] = 0;
-        this.refresh();
-      });
-      fill.on('pointerdown', () => {
-        selection[unit.id] = filledCount(selection, unit.id);
-        this.refresh();
-      });
-
-      const minus = this.add
-        .text(400, y, '-', { fontSize: '18px', color: '#fff', backgroundColor: '#553', padding: { x: 10, y: 2 } })
-        .setInteractive({ useHandCursor: true });
-      const countText = this.add.text(430, y, String(selection[unit.id] ?? 0), {
-        fontSize: '16px',
-        color: '#fff',
-      });
-      const plus = this.add
-        .text(460, y, '+', { fontSize: '18px', color: '#fff', backgroundColor: '#553', padding: { x: 10, y: 2 } })
-        .setInteractive({ useHandCursor: true });
-
-      this.countTexts[unit.id] = countText;
-
-      minus.on('pointerdown', () => {
-        selection[unit.id] = Math.max(0, (selection[unit.id] ?? 0) - 1);
-        this.refresh();
-      });
-      plus.on('pointerdown', () => {
-        selection[unit.id] = Math.min(unit.maxCount, (selection[unit.id] ?? 0) + 1);
-        this.refresh();
-      });
-    });
-
-    this.totalText = this.add.text(20, startY + UNIT_TYPES.length * rowH + 20, '', {
+    const bottom = armyBottomY(UNIT_TYPES.length);
+    this.totalText = this.add.text(20, bottom.total, '', {
       fontSize: '18px',
       color: '#ffe08a',
     });
 
-    this.errorText = this.add.text(20, startY + UNIT_TYPES.length * rowH + 56, '', {
+    this.errorText = this.add.text(20, bottom.error, '', {
       fontSize: '13px',
       color: '#ff9a9a',
       wordWrap: { width: width - 40 },
     });
 
     this.confirmBtn = this.add
-      .text(width - 20, startY + UNIT_TYPES.length * rowH + 20, t.builder.confirm, {
+      .text(width - 20, bottom.confirm, t.builder.confirm, {
         fontSize: '18px',
         color: '#fff',
         backgroundColor: '#2a5a2a',
@@ -171,6 +115,77 @@ export class ArmyBuilderScene extends Phaser.Scene {
     });
 
     this.refresh();
+  }
+
+  private addAbandonButton(): void {
+    const t = messages();
+    const abandonBtn = this.add
+      .text(20, 24, t.common.abandon, {
+        fontSize: '14px',
+        color: '#fff',
+        backgroundColor: '#5a2a2a',
+        padding: { x: 10, y: 6 },
+      })
+      .setOrigin(0, 0.5)
+      .setInteractive({ useHandCursor: true });
+    abandonBtn.on('pointerdown', () => {
+      showConfirmDialog({
+        scene: this,
+        message: t.common.abandonMessage(t.builder.abandonMessage),
+        confirmLabel: t.common.abandon,
+        cancelLabel: t.builder.keepBuilding,
+        onConfirm: () => {
+          resetToMenu();
+          this.scene.start('Menu');
+        },
+      });
+    });
+  }
+
+  // One unit's row: its counter, name, cost/max and the `«` `-` count `+` `»` controls (§79).
+  private drawRow(unit: (typeof UNIT_TYPES)[number], index: number, selection: Record<string, number>): void {
+    const t = messages();
+    const { x, centreY: y } = armyRowSlot(index);
+    // The builder shows the print counter the Standard view draws, in the
+    // building player's colour; Menu's preload loaded every colour already.
+    const counter = this.add.image(x.counter, y, counterTextureKey(this.playerIndex, unit.id)).setOrigin(0, 0.5);
+    const size = counterDisplaySize(counter.width, counter.height);
+    counter.setDisplaySize(size.width, size.height);
+    this.add.text(x.name, y, unitName(unit.id), { fontSize: '15px', color: '#ffffff' }).setOrigin(0, 0.5);
+    this.add
+      .text(x.cost, y, t.builder.costAndMax(unit.cost, unit.maxCount), { fontSize: '13px', color: '#a89878' })
+      .setOrigin(0, 0.5);
+
+    const rowBtn = { fontSize: '18px', color: '#fff', backgroundColor: '#553', padding: { x: 10, y: 2 } };
+    const button = (bx: number, label: string): Phaser.GameObjects.Text =>
+      this.add.text(bx, y, label, rowBtn).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
+    // `«` clears the type, `»` fills it up to what the budget and its maximum allow (§51).
+    const clear = button(x.clear, '«');
+    const fill = button(x.fill, '»');
+    this.clearBtns[unit.id] = clear;
+    this.fillBtns[unit.id] = fill;
+    clear.on('pointerdown', () => {
+      selection[unit.id] = 0;
+      this.refresh();
+    });
+    fill.on('pointerdown', () => {
+      selection[unit.id] = filledCount(selection, unit.id);
+      this.refresh();
+    });
+
+    const minus = button(x.minus, '-');
+    this.countTexts[unit.id] = this.add
+      .text(x.count, y, String(selection[unit.id] ?? 0), { fontSize: '16px', color: '#fff' })
+      .setOrigin(0, 0.5);
+    const plus = button(x.plus, '+');
+    minus.on('pointerdown', () => {
+      selection[unit.id] = Math.max(0, (selection[unit.id] ?? 0) - 1);
+      this.refresh();
+    });
+    plus.on('pointerdown', () => {
+      selection[unit.id] = Math.min(unit.maxCount, (selection[unit.id] ?? 0) + 1);
+      this.refresh();
+    });
   }
 
   private refresh(): void {

@@ -6,6 +6,8 @@
 // the scenario checks that through the hook's counts rather than assuming it.
 import { expect, test, type Page } from '@playwright/test';
 import { UNIT_TYPES } from '../src/data/units';
+import { en } from '../src/ui/i18n/en';
+import { fr } from '../src/ui/i18n/fr';
 import { clickButton, collectErrors } from './helpers';
 
 const builder = (page: Page) => page.evaluate(() => window.__heraklios.armyBuilder());
@@ -67,3 +69,45 @@ test('the « and » buttons clear and fill a unit type, and dim when they would 
 
   expect(errors).toEqual([]);
 });
+
+// §79: the rows sit in two columns of seven, in reading order, with every
+// control on the canvas, in both languages.
+for (const [lang, text] of [
+  ['en', en],
+  ['fr', fr],
+] as const) {
+  test(`the army builder's two columns keep every control on the canvas (${lang})`, async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.addInitScript((l) => localStorage.setItem('heraklios.language', l), lang);
+    await page.goto('/');
+    await page.waitForFunction(() => window.__heraklios?.buttonCount('2') === 1);
+    await clickButton(page, '2');
+    const useDefault = text.builder.useDefault;
+    const confirm = text.builder.confirm;
+    await page.waitForFunction((label) => window.__heraklios.buttonCount(label) === 1, useDefault);
+
+    const rows = UNIT_TYPES.length;
+    for (const label of ['«', '-', '+', '»']) {
+      expect(await page.evaluate((l) => window.__heraklios.buttonCount(l), label), label).toBe(rows);
+    }
+    const at = (label: string, index: number) =>
+      page.evaluate(([l, i]) => window.__heraklios.buttonToCanvas(l as string, i as number), [label, index] as const);
+    for (let r = 0; r < rows / 2; r++) {
+      const left = await at('«', 2 * r);
+      const right = await at('«', 2 * r + 1);
+      expect(right.y, `row ${r} shares a y`).toBe(left.y);
+      expect(right.x, `row ${r} right column`).toBeGreaterThan((await at('»', 2 * r)).x);
+      if (r > 0) expect(left.y, `row ${r} below row ${r - 1}`).toBeGreaterThan((await at('«', 2 * r - 2)).y);
+    }
+    expect(await page.evaluate((l) => window.__heraklios.buttonCount(l), useDefault)).toBe(1);
+    expect(await page.evaluate((l) => window.__heraklios.buttonCount(l), confirm)).toBe(1);
+    const confirmY = (await at(confirm, 0)).y;
+    for (let i = 0; i < rows; i++) expect(confirmY).toBeGreaterThan((await at('»', i)).y);
+
+    await clickButton(page, '+', 13);
+    const b = await builder(page);
+    expect(b.counts.quintiremes).toBe(1);
+    for (const unit of UNIT_TYPES) if (unit.id !== 'quintiremes') expect(b.counts[unit.id] ?? 0, unit.id).toBe(0);
+    expect(errors).toEqual([]);
+  });
+}

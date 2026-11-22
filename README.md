@@ -87,7 +87,8 @@ To make a change — intent, plan, build, review, merge — see
    ready-made 400-point army as a starting point that can still be
    hand-adjusted afterward. Each row also has `»`, which adds as many of a
    type as the budget and its maximum allow, and `«`, which removes them all;
-   each is dimmed while a click would change nothing.
+   each is dimmed while a click would change nothing. Each row shows the unit's original counter in the building
+   player's colour, the rows in two columns of seven.
 3. **Placement** — each player deploys their purchased units within their
    randomly assigned edge's 3-hex-deep band (green highlight; see
    "Deployment zone position" below). Ships also let the placing player pick

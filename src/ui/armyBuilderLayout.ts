@@ -20,7 +20,7 @@ export const ARMY_ROW_OFFSETS = {
   fill: 484,
 } as const;
 
-export type ArmyRowX = { [K in keyof typeof ARMY_ROW_OFFSETS]: number };
+export type ArmyRowX = Record<keyof typeof ARMY_ROW_OFFSETS, number>;
 
 export interface ArmyRowSlot {
   column: number;
