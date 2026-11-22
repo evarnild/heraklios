@@ -2,7 +2,7 @@
 id: 75
 slug: devhook-split
 type: refactor
-status: accepted
+status: in-review
 title: The dev hook is built from small groups, so a new reader is one plain line
 review_tier:
 intent_accepted: 2026-11-22 by-agent    # owner: "accept 75 and 73, /auto 75 then 73"
