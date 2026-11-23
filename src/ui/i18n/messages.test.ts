@@ -68,6 +68,8 @@ const SAME_IN_BOTH = new Set([
   'menu.minutes',
   'menu.hours',
   'board.seat',
+  'board.scoreHeader',
+  'board.scorePoints',
   'board.seatWithControl',
   'tooltip.owner',
   'board.tables',

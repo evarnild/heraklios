@@ -498,3 +498,74 @@ lists `scorePanel`.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-11-22 — all subtasks (implementer)
+
+Commits (branch `feat/81-live-score`): engine `playerScores`; winner rule plus the
+hand-edited fixture and tests; texts and Game Over; pure panel layout; the panel
+on the Board with the BoardScene ceiling lowered; dev-hook reader and e2e; README
+and this entry.
+
+- **Shipped:** `src/engine/score.ts` (+12 tests), `endGameByTimeLimit` on the score
+  (+3 tests), `src/ui/scorePanelLayout.ts` (+8 tests), `src/ui/scorePanel.ts`,
+  Game Over reads `playerScores`, i18n keys, `scorePanel()` dev-hook reader,
+  `e2e/score-panel.spec.ts` (5 scenarios), README "Ending the game".
+- **Fixture:** `git diff -U0 src/engine/fixtures` is exactly three hunks, line
+  1527, 1722 and 2176, each `-     1` / `+     0` (`ev-vs-ev/seed1`, `ev-vs-ev/seed6`,
+  `ev-vs-ev-found/seed12`). Edited by hand byte for byte (CRLF kept), not regenerated.
+  `harnessPinned` passes on it, so no other game moved.
+- **Sizes:** `BoardScene.ts` 3172 -> 3169, ceiling lowered to 3169 in the same
+  commit (`size:baseline --write` changed only that line). `devHook.ts` 454 -> 459
+  (not in the baseline; under 500). `fuzzHarness.ts` stays 1276. No `budget:` line.
+- **Lint:** 19 warnings, cap 19, not raised. `verify` and `check:intent` PASS.
+- **Tests:** 1704 passed, 2 skipped (99 files), up from 1681. e2e: 38 scenarios.
+- **Divergence from the plan:** `messages.test.ts`'s `SAME_IN_BOTH` list gained
+  `board.scoreHeader` and `board.scorePoints` (identical in en and fr by design).
+  The plan did not name that file. `scorePanel` reads each row's drawn text for
+  its snapshot (score and units parsed from the text objects), rather than the engine again.
+- **e2e flake seen:** in two of three full `npm run e2e` runs,
+  `save-load.spec.ts` ("a saved game loads back to the saved position") failed with
+  the pre-load state still showing (it passes alone, with the new spec alone, and in
+  the third full run, and a full run without the new scenarios passed). Its load step
+  waits on `scenes().includes('Board')`, already true, so it can read the state
+  before the load applies; this looks like an existing race that the extra worker load
+  exposes. Not investigated further. The reviewer should rerun it.
+
+### 2026-11-23 — round 1 rework (implementer)
+
+- **Finding 1 (HIGH):** `ScorePanel` now rebuilds its objects and rectangle when
+  `state.players.length` differs from its built row count (`build(count)`), so an
+  in-place load with another player count shows one row per player. New e2e
+  "an in-place load of a save with another player count shows one row per player":
+  a 4-player save (dev figure gallery) into slot 3, loaded into a running 2-player
+  Board, rows `[0,1,2,3]`, `fits`, equal to the engine. Mutant (rebuild disabled)
+  fails only that case.
+- **Finding 2:** both load cases now wait for the `Game loaded.` log entry (then idle
+  and two frames) before reading the panel. `save-load.spec.ts` untouched.
+- **Finding 3:** `snapshot()` reports `active` as `highlight.visible && marker.visible`.
+  M12b (`marker.setVisible(!row.active)`) now fails 5 of the 6 scenarios.
+  The file was backed up and restored by copy.
+- **Not done:** the optional seed LOW (a seed whose attack destroys a unit).
+- **Counts:** `BoardScene.ts` still 3169; lint 19 of cap 19; verify 1704 passed, 2 skipped;
+  e2e 39 scenarios: 38 passed, 1 failed, again `save-load.spec.ts` (the flake already
+  recorded above, outside §81's scope). `check:intent` only reports the owed live check.
+
+### 2026-11-23 — round 2 rework (implementer)
+
+- **R2 (MEDIUM):** new e2e "an in-place load of a save with fewer players shrinks the
+  panel and frees the old area": a 2-player Test mode save (slot 3) loaded in place
+  into the 4-player figure-gallery Board. Rows `[0,1]`, `fits`, `rect.height` smaller
+  than before, rows equal the engine. Mutant `!==` -> `>`: killed (that case fails).
+- **R5:** in the same case, after the load, a hover just above the shrunk panel (inside
+  the old, taller panel's area) must reach a hex (`tooltipText()` non-null at some point
+  along the strip), because a leftover interactive background would swallow it
+  (topOnly input). Mutant "delete `o.destroy()` loop": killed. A hover rather than a click
+  was used: it needs no unit under the strip and shows a swallowed event the same way.
+- **R7:** `snapshot()` reports `marker: r.marker.visible` beside `active: r.highlight.visible`;
+  the e2e `expected()` sets `marker` equal to `active`, so every rows comparison checks it.
+  Mutant `marker.setVisible(true)`: killed (6 of 7 scenarios fail). `DevHook` takes its type from
+  `ScorePanelSnapshot`, so `devHook.ts` is unchanged at 459.
+- The two in-place load scenarios' bodies moved to top-level functions so the `describe`
+  callback stays under 80 lines (the first draft made it 20 warnings; now 19, cap 19).
+- Files backed up and restored by copy for each mutant. `BoardScene.ts` 3169.
+- **Counts:** verify 1704 passed, 2 skipped; e2e 40 passed (the `save-load.spec.ts` flake did not hit).

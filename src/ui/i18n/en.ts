@@ -151,6 +151,7 @@ export const en = {
     draw: (names: string[]) => `Draw between ${joinNames(names)}!`,
     over: 'Game over',
     pointsRemaining: (name: string, points: number) => `${name}: ${points} points remaining`,
+    pointsRemainingAtSea: (name: string, points: number) => `${name}: ${points} points remaining (+30 at sea)`,
     backToMenu: 'Back to menu',
   },
 
@@ -167,6 +168,10 @@ export const en = {
   },
 
   board: {
+    scoreHeader: 'Score',
+    scorePoints: (n: number) => `${n} pts`,
+    scoreUnits: (n: number) => (n === 1 ? '1 unit' : `${n} units`),
+    scoreAtSea: '(+30 at sea)',
     endPhase: 'End phase',
     resolveAttack: 'Resolve attack',
     ram: 'Ram!',

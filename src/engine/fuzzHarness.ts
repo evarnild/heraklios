@@ -785,7 +785,7 @@ export interface HarnessStats {
    * once the game is over). */
   winnerIds: PlayerId[];
   /** True when the game reached `turnCap` and was ended by
-   * `endGameByTimeLimit` (highest army value wins) rather than by mutual
+   * `endGameByTimeLimit` (highest score wins) rather than by mutual
    * elimination — see `playRandomGame`'s doc comment for why this is a
    * legitimate rulebook ending, not a harness failure. */
   endedByTimeLimit: boolean;
@@ -818,8 +818,8 @@ export interface HarnessStats {
   multiAttackerAttacks: number;
   /**
    * Each player's surviving army value when the game ended (see
-   * `state.armyValue`) — the quantity `endGameByTimeLimit` actually decides a
-   * timed game on.
+   * `state.armyValue`) — what `endGameByTimeLimit` decides a timed game on,
+   * less the naval bonus (`playerScores`).
    *
    * Reported alongside `winnerIds` rather than left to be inferred from it,
    * because `winnerIds` alone is still a coarser measure of how well an agent

@@ -70,6 +70,12 @@ class WatchingAgent implements DrivingAgent {
   }
 }
 
+// §81: `endGameByTimeLimit` now decides on the score (army value plus the 30
+// point naval bonus for the only player with a ship afloat). Three games ended
+// by the turn cap changed `winnerIds` from [1] to [0], edited by hand in the
+// fixture: ev-vs-ev/seed1 and seed6 (final army values 10 vs 35, only seat 0
+// has ships: 40 > 35) and ev-vs-ev-found/seed12 (25 vs 35: 55 > 35).
+// Nothing else in any game moved.
 const SPECS: GameSpec[] = [];
 const range = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => from + i);
 
