@@ -37,32 +37,38 @@ export interface ScorePanelSnapshot {
 const PANELS = new WeakMap<Phaser.Scene, ScorePanel>();
 
 export class ScorePanel {
-  private readonly objects: Phaser.GameObjects.GameObject[] = [];
-  private readonly rows: RowObjects[] = [];
-  private readonly rect: Rect;
-  private readonly bg: Phaser.GameObjects.Rectangle;
-  private readonly header: Phaser.GameObjects.Text;
+  private objects: Phaser.GameObjects.GameObject[] = [];
+  private rows: RowObjects[] = [];
+  private rect!: Rect;
+  private header!: Phaser.GameObjects.Text;
   private lastKey = '';
   private ids: PlayerId[] = [];
 
-  constructor(private readonly scene: Phaser.Scene, mapView: MapView, playerCount: number) {
-    this.rect = scorePanelRect(scene.scale.width, scene.scale.height, playerCount);
+  constructor(private readonly scene: Phaser.Scene, private readonly mapView: MapView, playerCount: number) {
+    this.build(playerCount);
+  }
+
+  /** Builds the objects for `playerCount` rows; a load with another player count rebuilds them. */
+  private build(playerCount: number): void {
+    this.rect = scorePanelRect(this.scene.scale.width, this.scene.scale.height, playerCount);
     const { left, top, width, height } = this.rect;
-    this.bg = scene.add
+    const bg = this.scene.add
       .rectangle(left, top, width, height, 0x1a1408, 0.9)
       .setOrigin(0, 0)
       .setScrollFactor(0)
       .setDepth(DEPTH)
       .setStrokeStyle(1, 0x4a3f2a, 1)
       .setInteractive();
-    this.bg.on('pointerdown', () => {
+    bg.on('pointerdown', () => {
       /* swallow: the click is on the panel, not the hex under it */
     });
     this.header = this.text(left + 10, top + 6, 12, '#e8d9b0');
-    this.objects.push(this.bg, this.header);
+    this.objects = [bg, this.header];
+    this.rows = [];
     for (let i = 0; i < playerCount; i++) this.rows.push(this.buildRow(top + SCORE_HEADER_H - 6 + i * SCORE_ROW_H));
-    mapView.excludeFromMainCamera(this.objects);
+    this.mapView.excludeFromMainCamera(this.objects);
     this.setVisible(false);
+    this.lastKey = '';
   }
 
   private text(x: number, y: number, size: number, color: string): Phaser.GameObjects.Text {
@@ -102,6 +108,10 @@ export class ScorePanel {
       if (this.lastKey !== '') this.setVisible(false);
       this.lastKey = '';
       return;
+    }
+    if (state.players.length !== this.rows.length) {
+      for (const o of this.objects) o.destroy();
+      this.build(state.players.length);
     }
     const t = messages();
     const rows = scorePanelRows(state, t);
@@ -149,7 +159,7 @@ export class ScorePanel {
           score: Number(/\d+/.exec(r.points.text)![0]),
           atSea: r.atSea.visible,
           unitsLeft: Number(/\d+/.exec(r.units.text)![0]),
-          active: r.highlight.visible,
+          active: r.highlight.visible && r.marker.visible,
         };
       });
     return { rect: this.rect, fits, rows };

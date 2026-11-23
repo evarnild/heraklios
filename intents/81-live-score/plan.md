@@ -530,3 +530,22 @@ and this entry.
   waits on `scenes().includes('Board')`, already true, so it can read the state
   before the load applies; this looks like an existing race that the extra worker load
   exposes. Not investigated further. The reviewer should rerun it.
+
+### 2026-11-23 — round 1 rework (implementer)
+
+- **Finding 1 (HIGH):** `ScorePanel` now rebuilds its objects and rectangle when
+  `state.players.length` differs from its built row count (`build(count)`), so an
+  in-place load with another player count shows one row per player. New e2e
+  "an in-place load of a save with another player count shows one row per player":
+  a 4-player save (dev figure gallery) into slot 3, loaded into a running 2-player
+  Board, rows `[0,1,2,3]`, `fits`, equal to the engine. Mutant (rebuild disabled)
+  fails only that case.
+- **Finding 2:** both load cases now wait for the `Game loaded.` log entry (then idle
+  and two frames) before reading the panel. `save-load.spec.ts` untouched.
+- **Finding 3:** `snapshot()` reports `active` as `highlight.visible && marker.visible`.
+  M12b (`marker.setVisible(!row.active)`) now fails 5 of the 6 scenarios.
+  The file was backed up and restored by copy.
+- **Not done:** the optional seed LOW (a seed whose attack destroys a unit).
+- **Counts:** `BoardScene.ts` still 3169; lint 19 of cap 19; verify 1704 passed, 2 skipped;
+  e2e 39 scenarios: 38 passed, 1 failed, again `save-load.spec.ts` (the flake already
+  recorded above, outside §81's scope). `check:intent` only reports the owed live check.

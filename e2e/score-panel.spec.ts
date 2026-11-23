@@ -57,6 +57,13 @@ function expectInBottomRight(rect: { left: number; top: number; width: number; h
   expect(rect.top + rect.height).toBeLessThanOrEqual(742);
 }
 
+/** The load is async (an HTTP read): wait for the message the Board logs once it has applied. */
+async function waitLoaded(page: Page): Promise<void> {
+  await page.waitForFunction(() => window.__heraklios.logEntries().some((e) => e.text === 'Game loaded.'));
+  await waitIdle(page);
+  await frames(page);
+}
+
 async function endTurn(page: Page): Promise<void> {
   await clickButton(page, 'End phase'); // movement -> combat
   await waitIdle(page);
@@ -178,15 +185,48 @@ test.describe('the bonus after a load', () => {
     writeFileSync(SLOT_3_FILE, JSON.stringify(saved));
 
     await clickButton(page, 'Load', await loadOnSameRowAs(page, slot3));
-    await page.waitForFunction(() => window.__heraklios.scenes().includes('Board'));
-    await waitIdle(page);
-    await frames(page);
+    await waitLoaded(page);
 
     const rows = (await panel(page)).rows;
     const army0 = playerScores(await state(page))[0]!.armyValue;
     expect(rows[0]).toMatchObject({ playerId: 0, atSea: true, score: army0 + 30 });
     expect(rows[1]).toMatchObject({ playerId: 1, atSea: false });
     await expectRowsMatchEngine(page, 'after the load');
+    expect(errors).toEqual([]);
+  });
+  test('an in-place load of a save with another player count shows one row per player', async ({ page, context }) => {
+    // A 4-player Board (the dev figure gallery) saves into slot 3 ...
+    const gallery = await context.newPage();
+    const galleryErrors = collectErrors(gallery);
+    await gallery.addInitScript(() => localStorage.setItem('heraklios.language', 'en'));
+    await gallery.goto('/');
+    await gallery.waitForFunction(() => window.__heraklios?.buttonCount('Figure gallery (dev)') === 1);
+    await clickButton(gallery, 'Figure gallery (dev)');
+    await gallery.waitForFunction(() => window.__heraklios.scenes().includes('Board'));
+    await waitIdle(gallery);
+    expect((await panel(gallery)).rows).toHaveLength(4);
+    await clickButton(gallery, SAVE_LOAD);
+    await waitSavePanelLoaded(gallery);
+    const slot3 = await gallery.evaluate(() => window.__heraklios.buttonToCanvas('Save', 2));
+    await clickButton(gallery, 'Save', 2);
+    await waitLoadOnRowOf(gallery, slot3);
+    await gallery.close();
+
+    // ... and loads into a running 2-player Board without a restart.
+    const errors = await startFromMenu(page, MENU_TEST, 'test', 1);
+    expect((await panel(page)).rows).toHaveLength(2);
+    await clickButton(page, SAVE_LOAD);
+    await waitSavePanelLoaded(page);
+    const point = await page.evaluate(() => window.__heraklios.buttonToCanvas('Save', 2));
+    await clickButton(page, 'Load', await loadOnSameRowAs(page, point));
+    await waitLoaded(page);
+
+    const after = await panel(page);
+    expect(after.rows.map((r) => r.playerId)).toEqual([0, 1, 2, 3]);
+    expect(after.fits).toBe(true);
+    expectInBottomRight(after.rect);
+    await expectRowsMatchEngine(page, 'after the 4-player load');
+    expect(galleryErrors).toEqual([]);
     expect(errors).toEqual([]);
   });
 });
