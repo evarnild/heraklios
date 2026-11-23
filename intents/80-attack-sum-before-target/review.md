@@ -133,3 +133,36 @@ No finding needs rework.
   - the implementer's account of its own interim e2e failure;
   - the owner's "distance" wording as recorded;
   - everything visual.
+
+## KonMari check
+- **Record:** aae2fbc, base 3222c28, `outcome: kept`.
+- **Tidied:** c64476b. `estimateParts` now builds its parts with plain `if`s,
+  as `dieModifierParts` does in the same file. `format.ts` only;
+  `combat.ts` is untouched, so the +24 budget still holds.
+- **Coordinator, re-run:** the killed formatter mutants against the tidied
+  `estimateParts`, each run on `vitest src/ui/i18n`, backed up and restored
+  by copy. All are still killed:
+  - F1: a melee part of 0 shown;
+  - F2: a ranged part of 0 shown;
+  - F3: part order swapped;
+  - F4: separator changed;
+  - F5: null totals give a fake estimate;
+  - F9: the estimate computed from `[]`.
+
+  `git status --short` was clean after.
+- **Coordinator, re-run:** `npm run verify`. Lint 0 errors and 19 warnings;
+  96 files, 1679 passed and 2 skipped. Matches.
+- **Coordinator, re-run:** `npm run check:intent`. Its only error is the
+  owed live check.
+- **Coordinator, re-run:** `npm run e2e`. 32 passed (1.0m).
+- **Reviewer's read of the KonMari commits:** no findings.
+  - The change stays within reach: it is §80's own `estimateParts` body.
+  - Behaviour is unchanged for every input:
+    - null totals give `''`;
+    - zero parts give `''`;
+    - one part gives that part;
+    - both parts give them in the same order and with the same separator.
+  - No test changed.
+  - No dependency and no eslint-disable were added.
+  - Principles 5–12 are respected.
+  - konmari.md lists exactly the one tidy-up.
