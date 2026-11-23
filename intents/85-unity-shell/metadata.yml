@@ -6,14 +6,14 @@ status: accepted
 title: A Unity shell hosts the engine through its supported entry, with a parity gate
 review_tier: reviewed    # no path-table row for a Unity tree; C# is outside verify's tests
 intent_accepted: 2026-11-22 by-agent    # owner: "accept 85 intent"
-spec_accepted:
+spec_accepted: 2026-11-23 by-agent    # owner: "spec accepted 85"
 plan_approved:
 live_checked:
 merged:
 konmari:
 auto_authorized: 2026-11-22 by-agent    # owner: "/auto 85"
 auto_round:
-auto_stopped: spec drafted, waiting for spec_accepted
+auto_stopped:
 follows_up:
 links:
   - intents/70-unity-front-end-probe    the probe and its "go, with conditions"
