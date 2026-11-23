@@ -182,14 +182,14 @@ export interface GameState {
   gameOver: boolean;
   /**
    * Everyone still standing when the game ended, at the highest score
-   * (`playerScores`: army value plus naval bonus) — length 1 for an outright win, 2+ for a draw
-   * between that many tied players, and 0 only for "nobody left" (every
-   * player eliminated, or the game hasn't ended yet). Replaced the earlier
-   * `winnerId: PlayerId | null`, which could not distinguish a genuine draw
-   * from "no winner": `null` meant both "nobody left" AND, via
-   * `endGameByTimeLimit`'s old tiebreak, silently picked the lower-seat
-   * player out of an actual tie (plan.md §9.2.2) — that tiebreak is gone now
-   * that a tie has its own representation. See `engine/saveGame.ts`'s
+   * (`playerScores`: army value plus naval bonus) — length 1 for an outright
+   * win, 2+ for a draw between that many tied players, and 0 only for "nobody
+   * left" (every player eliminated, or the game hasn't ended yet). Replaced the
+   * earlier `winnerId: PlayerId | null`, which could not distinguish a genuine
+   * draw from "no winner": `null` meant both "nobody left" AND, via
+   * `endGameByTimeLimit`'s old tiebreak, silently picked the lower-seat player
+   * out of an actual tie (plan.md §9.2.2) — that tiebreak is gone now that a
+   * tie has its own representation. See `engine/saveGame.ts`'s
    * `SAVE_VERSION` 2 -> 3 note for the save-format side of this change.
    */
   winnerIds: PlayerId[];
