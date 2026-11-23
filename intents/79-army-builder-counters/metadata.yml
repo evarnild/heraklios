@@ -2,14 +2,14 @@
 id: 79
 slug: army-builder-counters
 type: feature
-status: in-review
+status: done
 title: The army builder shows each unit's original counter
 review_tier:
 intent_accepted: 2026-11-22 by-agent    # owner: "accept 76 and 79"
 spec_accepted: 2026-11-22 by-agent    # owner: "spec accepted 79"
 plan_approved: 2026-11-22 by-agent    # auto: owner "/auto 79" (auto_authorized 2026-11-22)
 live_checked: 2026-11-23 by-agent    # owner: "live checked 79 /ship 79"
-merged:
+merged: ddb47ca    # 2026-11-23, merged by Claude on the owner's explicit request in chat
 konmari:
 auto_authorized: 2026-11-22 by-agent    # owner: "/auto 79"
 auto_round: 1
