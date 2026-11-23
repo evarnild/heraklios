@@ -339,3 +339,11 @@ worktree runs e2e or a mutation pass.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-11-22 — all subtasks (implementer)
+
+- Commits: layout helper and test; scene draws from the helper, README sentence, e2e test, lint cap 19 -> 18 (see `git log`).
+- Shipped: `src/ui/armyBuilderLayout.ts` (about 70 lines) with a 7-test unit file; `ArmyBuilderScene.ts` 190 -> 205 lines, rows in a private `drawRow`, the Abandon button in a private `addAbandonButton`; new e2e test in en and fr; one README sentence.
+- Lint: `create()` was 85 lines after `drawRow` alone, so the Abandon button also moved out; `create()` no longer warns, warnings 19 -> 18, cap lowered 19 -> 18 in `package.json`.
+- Tests: `npm run verify` green, 97 files, 1677 passed, 2 skipped. e2e: army-builder spec 3/3; full run 32 passed, 1 failed (`placement.spec.ts` "Turn buttons", `browserContext.close: Target page, context or browser has been closed`); rerun alone, it passed once after failing once more, so treated as a flake under load, not caused by this change (the test only passes through the builder with default army and confirm).
+- Divergence: the plan expected `create()` to fall under 80 with `drawRow` alone; it needed `addAbandonButton` too. e2e imports `en`/`fr` from `src/ui/i18n/en` and `fr` (the index does not export them).
