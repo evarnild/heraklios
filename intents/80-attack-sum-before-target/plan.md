@@ -422,3 +422,12 @@ is tight.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-11-22 — subtasks 1-3 (implementer)
+
+- Commits: `256de8e` (engine function, line, scene, tests, e2e, size baseline) and a README/progress commit after it.
+- Shipped: `estimateAttackTotals` in `combat.ts` (24 lines as planned, so the `budget:` line is exact), `formatAttackLine` taking units, en/fr strings (`mêlée ~`, `distance ~`), one-argument scene change, the extended e2e, README paragraph.
+- Sizes: `combat.ts` 1135 (baseline rewritten to 1135), `BoardScene.ts` 3172 (unchanged).
+- Lint: 19 warnings, cap 19 (unchanged).
+- Tests: 96 files, 1679 passed, 2 skipped (verify); `npm run e2e` attack-log passes (full suite ran 31 passed, 1 failed before an e2e bug fix: the count for the deselect wait was read after the click; fixed, attack-log rerun green alone).
+- Divergence: subtasks 1 and 2 went in one commit, because `verify` was run once on both together (it was green); the README is its own commit as planned. Working files are CRLF while the index is LF, so edits kept LF.

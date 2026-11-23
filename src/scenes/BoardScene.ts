@@ -2002,12 +2002,12 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * One log line describing the whole attack being built (§53): called at the
    * end of each click that changes it, after the prune's own line — never on a
    * refusal, an undo/redo or a resolution. The totals are `previewLandAttack`,
-   * the same code the roll uses; a naval selection or no target yet shows the
-   * attackers alone.
+   * the same code the roll uses; with no target yet a land group shows its
+   * estimated totals (§80) and a naval selection the ship alone.
    */
   private logAttackLine(): void {
     const preview = this.syncRulesPanel();
-    this.log(formatAttackLine(this.attackGroup.map(nameOf), this.defenderGroup.map(nameOf), preview));
+    this.log(formatAttackLine(this.attackGroup, this.defenderGroup.map(nameOf), preview));
   }
 
   /** The land attack being built (null: no attackers, no target, or a naval selection), handed to the Tables panel to highlight. */

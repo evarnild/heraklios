@@ -294,7 +294,10 @@ export const fr: Messages = {
     riverModifier: (value) => `${value} traversée de rivière`,
     attackWithTargets: (attackers, attack, targets, defense, modifier, parts) =>
       `Attaque : ${attackers} (${attack}) → ${targets} (${defense})${modifier !== 0 ? `, dé +${modifier} (${parts})` : ''}`,
-    attackChooseTarget: (attackers) => `Attaque : ${attackers}, choisissez une cible.`,
+    // §80: "distance" here is the owner's word (2026-11-22); the §74 tooltip keeps "tir"; "mêlée" is new.
+    attackChooseTarget: (attackers, totals) => `Attaque : ${attackers}${totals ? ` (${totals})` : ''}, choisissez une cible.`,
+    meleeEstimate: (n) => `mêlée ~${n}`,
+    rangedEstimate: (n) => `distance ~${n}`,
     attackCleared: 'Attaque annulée.',
     combatReport: (r) =>
       [
