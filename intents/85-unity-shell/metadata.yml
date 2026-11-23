@@ -7,7 +7,7 @@ title: A Unity shell hosts the engine through its supported entry, with a parity
 review_tier: reviewed    # no path-table row for a Unity tree; C# is outside verify's tests
 intent_accepted: 2026-11-22 by-agent    # owner: "accept 85 intent"
 spec_accepted: 2026-11-23 by-agent    # owner: "spec accepted 85"
-plan_approved:
+plan_approved: 2026-11-23 by-agent    # auto: owner "/auto 85" (auto_authorized 2026-11-22)
 live_checked:
 merged:
 konmari:
