@@ -3,11 +3,220 @@
 
 verdict: rework
 tier: reviewed
-reviewed-commit: 6f12eb9d2eb5b0e96bd51dfea9183fe3e7306f6a
-round: 1
+reviewed-commit: d938ae9afc139b436d246e357a150913763761ec
+round: 2
 sampled: no
 run: auto
 live-check: owed
+
+- **Tier: Reviewed.** `metadata.yml` sets `review_tier: reviewed`, because Q1
+  = yes changes the winner rule.
+- **Sampled: no.** `npm run sdlc:scan -- --sample-due auto --exclude 81`, run
+  in the main checkout, printed `= 14, every 3, sampled: no`.
+- **Why rework and not escalate.** All three round-1 fixes work, and their
+  named mutants are killed. But the new check `state.players.length !==
+  this.rows.length` is tested only for growth (2 → 4). Changing it to "grow
+  only" (`>`, mutant R2) passes every test, although round 1's HIGH named
+  both directions. Adding the shrink test is one mechanical case. After it,
+  this Reviewed tier goes to `escalate`.
+- **What was reused from round 1.** Only `src/ui/scorePanel.ts` and
+  `e2e/score-panel.spec.ts` changed since round 1, so round 1's analysis of
+  the rest is reused: the engine, the fixture replay, Game Over, i18n,
+  devHook, the README and the rulebook reading.
+
+## Passes
+| # | Pass | Result |
+| --- | --- | --- |
+| 1 | Intent and plan match | pass: the three round-1 fixes and nothing else, recorded in Progress |
+| 2 | Type check | the only error is the owed live check |
+| 3 | Rulebook fidelity | pass (reused from round 1); round 1's LOW on I4 is still open |
+| 4 | Tests prove the rule | findings (4): R2 survives (MEDIUM); R5, R7 and R8 survive (LOW); M9 and M10 still survive (LOW, carried) |
+| 5 | Boundary and conventions | pass |
+| 6 | Numbers in prose | pass for the rework's Progress entry; round 1's `plan.md:41-44` LOW is still open and is the owner's |
+| 7 | Documentation | pass |
+| 8 | Guardrails and hygiene | pass: lint 19 warnings (cap 19) |
+| 9 | Repo footguns | pass (reused); `harnessPinned` is green |
+| 10 | Architecture | pass (reused); the "+30" literal LOW is still open, by design |
+
+## Type check
+```
+> heraklios@0.1.0 check:intent
+> node scripts/check-intent.mjs
+
+type-check: FAIL (intent 81, feature)
+  error: A live check is owed and not recorded. Do the steps in intents/81-live-score/review.md → ## Live check, then set live_checked: <date> in intents/81-live-score/metadata.yml.
+  note:  22 file(s), 937 line(s) changed outside intents/.
+```
+The only error is the owed live check.
+
+## Findings
+- **MEDIUM** `src/ui/scorePanel.ts:112`: the rebuild condition is tested only
+  for growth.
+  - Mutant R2 (`!==` → `>`) passes all 6 `score-panel.spec.ts` scenarios.
+    Under it, a 2-player save loaded in place into a 4-player Board would
+    keep a 4-row panel with two empty rows. That is the other direction of
+    round 1's HIGH.
+  - The code is correct by reading.
+  - **Needs rework:** add the shrink case to `e2e/score-panel.spec.ts`,
+    mirroring the case at `:197-231`:
+    1. Save a 2-player Test mode Board into slot 3.
+    2. From a running "Figure gallery (dev)" Board (4 players), load it in
+       place.
+    3. Assert rows `[0, 1]`, `fits`, a `rect.height` smaller than before the
+       load, and `expectRowsMatchEngine`.
+
+    That kills R2.
+- **LOW** `src/ui/scorePanel.ts:113`: R5 (old objects not destroyed on a
+  rebuild) survives, because `snapshot()` reads only the new rows.
+  - On a shrink, the old, taller and interactive rectangle would stay drawn
+    and swallow map clicks.
+  - Worth a look: in the shrink case, click a hex just above the new panel
+    and expect a selection.
+- **LOW** `src/ui/scorePanel.ts:131`/`:162`: R7 (`marker.setVisible(true)`, a
+  triangle on every row) survives. `active: highlight && marker` cannot see
+  the marker on inactive rows.
+  - Worth a look: report `marker: r.marker.visible` separately and assert it
+    equals `active`.
+- **LOW** `src/ui/scorePanel.ts:69`: R8 (no `excludeFromMainCamera`)
+  survives. The panel would then also be drawn by the zoomable camera, as a
+  ghost. The live check covers it. Worth a look.
+- **LOW, carried from round 1 and unchanged:**
+  - M9 and M10 at `GameOverScene.ts:36-38`;
+  - seed 1 at `score-panel.spec.ts:134`;
+  - the I4 note at `score.ts:4-30`;
+  - "16" against 19 at `plan.md:41-44` (the owner's);
+  - the "+30" literals in `en.ts`/`fr.ts`.
+
+  Worth a look.
+- **LOW, outside §81's scope** `e2e/save-load.spec.ts:83-85`: the flake is
+  pre-existing.
+  - It failed once on main in 3 full runs, with the same assertion.
+  - It passes alone, 5/5 on both main and the branch.
+  - Its cause is the race named in round 1. §81's `waitLoaded`
+    (`score-panel.spec.ts:61`) is the fix.
+  - Worth a look: a small fix intent.
+
+## Round 1 findings: resolution
+- **HIGH** (the panel not rebuilt on an in-place load): **resolved for
+  growth.** `build(count)` now runs from `refresh()` on a count change, after
+  destroying the old objects. The e2e at `score-panel.spec.ts:197` kills R1,
+  R3 and R4. Shrinking is the residual MEDIUM above.
+- **MEDIUM** (load tests read too early): **resolved.** `waitLoaded` waits for
+  `Game loaded.`, and both load cases use it.
+- **MEDIUM** (M12b): **resolved.** `snapshot()` reports `highlight &&
+  marker`, and M12b fails 5 of the 6 scenarios. A related LOW is R7.
+- **The LOWs and the nit:** still open, carried above.
+
+## Not checked
+- **The merged tree was not built.**
+  - `git merge-tree` against main (a38213d, after §80) is clean.
+  - Both sides touched `README.md`, `scripts/size-baseline.json`,
+    `BoardScene.ts`, `en.ts` and `fr.ts`.
+  - In the merged tree, `BoardScene.ts` is 3169 against a ceiling of 3169,
+    and `combat.ts` is 1135 against 1135.
+  - `/ship` runs verify after the merge.
+- **The panel shrinking on an in-place load at runtime** (R2). It is correct
+  by reading. Live-check step 8b covers it.
+- **Visual leftovers from a rebuild** (R5, R8), and Game Over content (M9,
+  M10).
+- **The live-check items:**
+  - readability and colours;
+  - overlap with the Tables panel and the prompts;
+  - the computer's turn.
+- **Mutants not run:**
+  - the click-swallow `pointerdown`;
+  - the `SHUTDOWN` clean-up;
+  - `MARGIN_RIGHT`;
+  - the English singular.
+- **R6** (no `lastKey` reset) is judged equivalent.
+
+## Live check
+- **Owed** under rule 1 (`src/scenes/**`, `src/ui/**`). The change is new and
+  visual. This is the only check of Game Over (M9, M10), of the panel
+  shrinking, and of R5 and R8.
+- **Setup:** in `C:/Users/eric/src/heraklios-wt/81-live-score`, run
+  `npm run dev -- --port 5281 --strictPort --host 127.0.0.1` and open
+  http://127.0.0.1:5281/.
+- **Steps:**
+  1. Start a game with 3 or 4 players, one of them a computer. Give at least
+     two players a ship, and play through to the Board.
+     - The "Score" panel is at the bottom right, with one row per player in
+       player order.
+     - Each row shows a coloured square and the name matching that player's
+       counters, then "N pts" and "N units".
+     - The panel covers no button, the log or the Tables panel, and it stays
+       fixed on pan and zoom.
+  2. End phases through a full round, including the computer's turn.
+     - Only the active row has the triangle and the highlight, and both move
+       with the turn.
+     - The figures drop as the computer's attacks resolve.
+  3. Destroy a unit, then Undo, then Redo.
+     - The points and unit count drop, come back, and drop again.
+  4. Open the Tables panel, and trigger a retreat or exchange prompt and a
+     ram prompt.
+     - The panel stays, and nothing overlaps it.
+  5. Wheel, drag and click on the panel.
+     - There is no zoom, no pan and no selection.
+  6. Switch to the Drawn view, then to French.
+     - The panel is in the same place, and every French row fits.
+  7. Play until only one player has ships, press "End game", and finish the
+     round.
+     - That player's row shows "(+30 at sea)", with their points 30 over
+       their unit value.
+     - Game Over shows the same figures with "(+30 at sea)", and the winner
+       agrees with them.
+  8. Load a save in place with a different player count.
+     - a. Save "Figure gallery (dev)" (4 players) to slot 3. Start Test mode
+       (2 players), then use Save / Load to load slot 3.
+       - The panel shows four rows and grows taller.
+       - No second copy of the panel moves when you pan or zoom.
+     - b. Save that 2-player game to slot 4. Open the gallery and load slot 4
+       from its Board.
+       - The panel shows two rows and is shorter.
+       - Nothing of the old 4-row panel is left above it.
+       - A click on a hex just above the panel works normally.
+
+## Verified myself vs. taken on trust
+- **Coordinator, re-run:** the `scorePanel.ts` mutants. Each was backed up
+  and restored by copy and run against `e2e/score-panel.spec.ts`.
+  - M12b (marker inverted): 5 failed and 1 passed, so it was **killed**.
+  - R1 (rebuild disabled): 1 failed and 5 passed, so it was **killed**.
+  - R2 (grow only), R5 (no destroy), R7 (marker always on) and R8 (no camera
+    exclude): 6 passed each, so all survived.
+
+  All six match the reviewer.
+- **Coordinator, re-run:** M9 and M10 against the full vitest suite. 1704
+  passed each, so both survived, matching the reviewer. `git status --short`
+  was clean after.
+- **Coordinator, re-run:** `npm run verify` at d938ae9. Exit 0, lint 0 errors
+  and 19 warnings (cap 19), 99 files, 1704 passed and 2 skipped. Matches.
+- **Coordinator, re-run:** `npm run check:intent`. The only error is the owed
+  live check. Matches.
+- **Coordinator, re-run:** `npm run e2e`. 38 passed and 1 failed. The failure
+  was `save-load.spec.ts:57`, the pre-existing flake. This matches the
+  reviewer's run 1 on the branch, and the reviewer saw the same failure on
+  main.
+- **Reviewer:**
+  - Verify, check:intent and e2e: 3 full runs on the branch (38/1, 39, 39)
+    and 3 on main (33, 32/1, 33).
+  - `save-load --repeat-each 5`: 5/5 on both.
+  - The mixed set: 24/24.
+  - 12 mutants, all as above. R3, R4 and M12a were killed; R6 is
+    equivalent.
+  - Merge-tree against main is clean.
+  - The Progress numbers were reproduced.
+- **Taken on trust:** round 1's analysis of the unchanged code, and
+  everything visual.
+
+# Round 1 (history)
+
+- verdict: rework
+- tier: reviewed
+- reviewed-commit: 6f12eb9d2eb5b0e96bd51dfea9183fe3e7306f6a
+- round: 1
+- sampled: no
+- run: auto
+- live-check: owed
 
 - **Tier: Reviewed.** `metadata.yml` sets `review_tier: reviewed` because Q1 =
   yes changes the winner rule; the path table alone gives Attested. Once the
@@ -20,7 +229,7 @@ live-check: owed
   implemented, with the quote. Replaying all 66 pinned games shows the
   fixture change flips exactly the three games named.
 
-## Passes
+### Passes
 | # | Pass | Result |
 | --- | --- | --- |
 | 1 | Intent and plan match | pass: the only unplanned change, `messages.test.ts` `SAME_IN_BOTH`, is recorded in Progress |
@@ -34,7 +243,7 @@ live-check: owed
 | 9 | Repo footguns | pass: `harnessPinned` passes on the three-line fixture, so the traces are byte-identical |
 | 10 | Architecture | findings (1, LOW) |
 
-## Type check
+### Type check
 ```
 > heraklios@0.1.0 check:intent
 > node scripts/check-intent.mjs
@@ -43,7 +252,7 @@ type-check: PASS (intent 81, feature)
   note:  22 file(s), 887 line(s) changed outside intents/.
 ```
 
-## Findings
+### Findings
 - **HIGH** `src/ui/scorePanel.ts:48-64, 108, 177-178`: the panel builds its
   rows and rectangle once, from the player count when the scene is created.
   - **The cause.** `BoardScene.loadInPlace` (`BoardScene.ts:985-997`) loads
@@ -117,7 +326,7 @@ type-check: PASS (intent 81, feature)
 - **Nit:** `README.md:671-675`, the one-line "The bonus does not change that"
   paragraph.
 
-## Not checked
+### Not checked
 - **The live check (AC10):**
   - readability and colours;
   - overlap with the Tables panel and the prompts;
@@ -140,7 +349,7 @@ type-check: PASS (intent 81, feature)
   - `MARGIN_RIGHT`;
   - the English `scoreUnits` singular.
 
-## Live check
+### Live check
 - **Owed** under rule 1 (`src/scenes/**`, `src/ui/**`). It is new and visual,
   and it is the only check of Game Over (M9, M10).
 - **Setup:** in `C:/Users/eric/src/heraklios-wt/81-live-score`, run
@@ -180,7 +389,7 @@ type-check: PASS (intent 81, feature)
      first).
      - **Expect:** four rows, a taller panel, and every row fitting.
 
-## Verified myself vs. taken on trust
+### Verified myself vs. taken on trust
 - **Coordinator, re-run:** `npm run verify` at 6f12eb9. Exit 0, lint 0
   errors and 19 warnings (cap 19), 99 files, 1704 passed and 2 skipped.
   Matches.
