@@ -2,14 +2,14 @@
 id: 77
 slug: standard-view-animations
 type: feature
-status: in-review
+status: done
 title: The Standard view animates moves and combats, like the Drawn view
 review_tier:
 intent_accepted: 2026-11-22 by-agent    # owner: "yes and /auto 77"
 spec_accepted: 2026-11-22 by-agent    # owner: "spec accepted 77"
 plan_approved: 2026-11-22 by-agent    # auto: owner "/auto 77 all, Normal, travels" (auto_authorized 2026-11-22)
 live_checked: 2026-11-23 by-agent    # owner: "live checked 77 and 81"
-merged:
+merged: b7758e2    # 2026-11-23, merged by Claude on the owner's explicit request in chat
 konmari:
 auto_authorized: 2026-11-22 by-agent    # owner: "/auto 77 all, Normal, travels"
 auto_round: 3
