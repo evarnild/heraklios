@@ -12,7 +12,7 @@ live_checked:
 merged:
 konmari:
 auto_authorized: 2026-11-22 by-agent    # owner: "/auto 81 Q1 yes"
-auto_round: 2
+auto_round: 3
 auto_stopped:
 follows_up:
 links:
