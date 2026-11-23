@@ -13,7 +13,7 @@ merged:
 konmari:
 auto_authorized: 2026-11-22 by-agent    # owner: "/auto 81 Q1 yes"
 auto_round: 3
-auto_stopped:
+auto_stopped: escalate, owner reads the diff
 follows_up:
 links:
   - intents/43-center-view-on-turn    the Board HUD
