@@ -8,12 +8,12 @@ review_tier:
 intent_accepted: 2026-11-22 by-agent    # owner: "yes and /auto 77"
 spec_accepted: 2026-11-22 by-agent    # owner: "spec accepted 77"
 plan_approved: 2026-11-22 by-agent    # auto: owner "/auto 77 all, Normal, travels" (auto_authorized 2026-11-22)
-live_checked:
+live_checked: 2026-11-23 by-agent    # owner: "live checked 77 and 81"
 merged:
 konmari:
 auto_authorized: 2026-11-22 by-agent    # owner: "/auto 77 all, Normal, travels"
 auto_round: 3
-auto_stopped: live check owed
+auto_stopped:
 follows_up:
 links:
   - intents/66-board-animations    the Drawn view's animations; B17 kept the Standard view still
