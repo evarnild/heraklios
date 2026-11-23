@@ -127,7 +127,8 @@ export function formatAttackLine(
 function estimateParts(attackers: readonly Unit[], m: Messages): string {
   const totals = estimateAttackTotals(attackers);
   if (!totals) return '';
-  return [totals.melee > 0 ? m.log.meleeEstimate(totals.melee) : null, totals.ranged > 0 ? m.log.rangedEstimate(totals.ranged) : null]
-    .filter((p): p is string => p !== null)
-    .join(', ');
+  const parts: string[] = [];
+  if (totals.melee > 0) parts.push(m.log.meleeEstimate(totals.melee));
+  if (totals.ranged > 0) parts.push(m.log.rangedEstimate(totals.ranged));
+  return parts.join(', ');
 }
