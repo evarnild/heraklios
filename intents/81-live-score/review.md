@@ -217,6 +217,31 @@ The only error is the owed live check, which the owner clears.
   - the "first draft made it 20 warnings" line in Progress;
   - everything visual.
 
+## KonMari check
+- **Record:** 1c2eba2, base af58b44, .
+- **Tidied:** 40e62a9 re-wraps two doc comments that §81's edit had left ragged,
+  in  () and . It
+  changes where lines break and no words. The diff is 12 lines in 2 files.
+- **Coordinator, re-run.**
+  - The diff has no changed line that isn't a comment. This was checked by
+    filtering out comment lines from , and nothing
+    was left.
+  - : lint 0 errors and 19 warnings; 99 files, 1704 passed
+    and 2 skipped. Matches.
+  - : the only error is the owed live check.
+  - e2e was not re-run, because no file under , ,
+     or  changed.
+  -  was clean.
+- **Mutants.** None of M1–M18 or R1–R8 touches a line that changed.
+- **Left alone:**  (3169),  (459), the fixture,
+  , every test assertion, and , so
+   is unchanged.
+- **Proposed refactor intent** (in konmari.md): one shared
+   beside  in
+  . The score, Tables and log panels each do this
+  point-in-rectangle test themselves. It was not done, because it means
+  editing two files outside the diff.
+
 # Round 2 (history)
 
 - verdict: rework
