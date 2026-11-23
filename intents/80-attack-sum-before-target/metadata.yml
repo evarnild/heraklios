@@ -2,14 +2,14 @@
 id: 80
 slug: attack-sum-before-target
 type: feature
-status: in-review
+status: done
 title: The attack line shows the attackers' total before a target is chosen
 review_tier:
 intent_accepted: 2026-11-22 by-agent    # owner: "/auto 80", answering "say yes to accept it, or /auto 80 to accept and start the spec"
 spec_accepted: 2026-11-22 by-agent    # owner: "in French distance instead of tir and then spec accepted"
 plan_approved: 2026-11-22 by-agent    # auto: owner "/auto 80" (auto_authorized 2026-11-22)
 live_checked: 2026-11-23 by-agent    # owner: "live checked 80 /ship 80"
-merged:
+merged: e432204    # 2026-11-23, merged by Claude on the owner's explicit request in chat
 konmari:
 auto_authorized: 2026-11-22 by-agent    # owner: "/auto 80"
 auto_round: 1
