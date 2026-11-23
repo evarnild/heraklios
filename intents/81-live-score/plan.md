@@ -549,3 +549,23 @@ and this entry.
 - **Counts:** `BoardScene.ts` still 3169; lint 19 of cap 19; verify 1704 passed, 2 skipped;
   e2e 39 scenarios: 38 passed, 1 failed, again `save-load.spec.ts` (the flake already
   recorded above, outside §81's scope). `check:intent` only reports the owed live check.
+
+### 2026-11-23 — round 2 rework (implementer)
+
+- **R2 (MEDIUM):** new e2e "an in-place load of a save with fewer players shrinks the
+  panel and frees the old area": a 2-player Test mode save (slot 3) loaded in place
+  into the 4-player figure-gallery Board. Rows `[0,1]`, `fits`, `rect.height` smaller
+  than before, rows equal the engine. Mutant `!==` -> `>`: killed (that case fails).
+- **R5:** in the same case, after the load, a hover just above the shrunk panel (inside
+  the old, taller panel's area) must reach a hex (`tooltipText()` non-null at some point
+  along the strip), because a leftover interactive background would swallow it
+  (topOnly input). Mutant "delete `o.destroy()` loop": killed. A hover rather than a click
+  was used: it needs no unit under the strip and shows a swallowed event the same way.
+- **R7:** `snapshot()` reports `marker: r.marker.visible` beside `active: r.highlight.visible`;
+  the e2e `expected()` sets `marker` equal to `active`, so every rows comparison checks it.
+  Mutant `marker.setVisible(true)`: killed (6 of 7 scenarios fail). `DevHook` takes its type from
+  `ScorePanelSnapshot`, so `devHook.ts` is unchanged at 459.
+- The two in-place load scenarios' bodies moved to top-level functions so the `describe`
+  callback stays under 80 lines (the first draft made it 20 warnings; now 19, cap 19).
+- Files backed up and restored by copy for each mutant. `BoardScene.ts` 3169.
+- **Counts:** verify 1704 passed, 2 skipped; e2e 40 passed (the `save-load.spec.ts` flake did not hit).

@@ -31,7 +31,7 @@ export interface ScorePanelSnapshot {
   rect: Rect;
   /** True when every row's text lies inside the rectangle. */
   fits: boolean;
-  rows: { playerId: PlayerId; score: number; atSea: boolean; unitsLeft: number; active: boolean }[];
+  rows: { playerId: PlayerId; score: number; atSea: boolean; unitsLeft: number; active: boolean; marker: boolean }[];
 }
 
 const PANELS = new WeakMap<Phaser.Scene, ScorePanel>();
@@ -159,7 +159,8 @@ export class ScorePanel {
           score: Number(/\d+/.exec(r.points.text)![0]),
           atSea: r.atSea.visible,
           unitsLeft: Number(/\d+/.exec(r.units.text)![0]),
-          active: r.highlight.visible && r.marker.visible,
+          active: r.highlight.visible,
+          marker: r.marker.visible,
         };
       });
     return { rect: this.rect, fits, rows };
