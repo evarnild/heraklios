@@ -1,12 +1,7 @@
-import Phaser from 'phaser';
 import type { Motion } from './animationPlan';
 import { facingAngleRad } from './hexRender';
 import type { HexCoord } from '../data/map';
-
-/** The container's figure layer (base 0, figure 1, badge 2; see `DrawnUnits.make`). */
-export function figureOf(container: Phaser.GameObjects.Container): Phaser.GameObjects.Graphics {
-  return container.list[1] as Phaser.GameObjects.Graphics;
-}
+import type { UnitFigure } from './boardView';
 
 /** One motion playing inside a step: `update` gets the step's elapsed ms, `end` leaves the unit exactly where the motion ends. */
 export interface Runner {
@@ -14,10 +9,10 @@ export interface Runner {
   end(): void;
 }
 
-/** What a runner needs of the view: where a hex is, a unit's container, and removing a faded one for good. */
+/** What a runner needs of a view: where a hex is, a unit's figure (either view's), and removing a faded one for good. */
 export interface MotionHost {
   toScreen(hex: HexCoord): { x: number; y: number };
-  container(id: string): Phaser.GameObjects.Container | undefined;
+  unit(id: string): UnitFigure | undefined;
   dispose(id: string): void;
 }
 
@@ -34,9 +29,15 @@ function progress(elapsed: number, ms: number): number {
   return ms <= 0 ? 1 : Math.min(1, Math.max(0, elapsed / ms));
 }
 
-/** The runner for `motion`, or null when its unit is no longer on the display list. */
+/** Phaser's `Angle.Wrap` formula (to [-pi, pi)), local so this module needs no runtime Phaser (unit tests run in node). */
+export function wrapAngle(angle: number): number {
+  const range = Math.PI * 2;
+  return angle - range * Math.floor((angle + Math.PI) / range);
+}
+
+/** The runner for `motion`, or null when its unit is no longer on the display list (or a turn has no facing part). */
 export function makeRunner(host: MotionHost, motion: Motion): Runner | null {
-  const c = host.container(motion.unitId);
+  const c = host.unit(motion.unitId);
   if (!c || !c.active) return null;
   const sx = c.x;
   const sy = c.y;
@@ -60,20 +61,25 @@ export function makeRunner(host: MotionHost, motion: Motion): Runner | null {
       };
     }
     case 'turn': {
-      const fig = figureOf(c);
+      // Only the facing part turns: the galley figure (Drawn), the facing mark (Standard, I2: the counter stays upright).
+      const fig = c.facingPart;
+      if (!fig) return null;
       const start = fig.rotation;
       const target = facingAngleRad(motion.toFacing);
-      const delta = Phaser.Math.Angle.Wrap(target - start);
+      const delta = wrapAngle(target - start);
       return {
         update: (t) => fig.setRotation(start + delta * smooth(progress(t, motion.ms))),
         end: () => fig.setRotation(target),
       };
     }
-    case 'fade':
+    case 'fade': {
+      // From the figure's current alpha, so a dimmed unit (§76) does not flash to full first.
+      const a0 = c.alpha;
       return {
-        update: (t) => c.setAlpha(1 - progress(t, motion.ms)),
+        update: (t) => c.setAlpha(a0 * (1 - progress(t, motion.ms))),
         end: () => host.dispose(motion.unitId),
       };
+    }
     case 'shake':
       return {
         update: (t) => {

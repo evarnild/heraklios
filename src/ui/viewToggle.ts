@@ -38,7 +38,6 @@ export function createViewToggle(
   x: number,
   y: number,
   view: ViewSwitchable,
-  onChange?: (kind: BoardViewKind) => void,
 ): Phaser.GameObjects.Text {
   const button = hudToggleButton(scene, x, y, viewToggleLabel(view.viewKind)).setInteractive({ useHandCursor: true });
   button.on('pointerdown', () => {
@@ -46,7 +45,6 @@ export function createViewToggle(
     setBoardViewKind(next);
     view.setViewKind(next);
     button.setText(viewToggleLabel(next));
-    onChange?.(next);
   });
   return button;
 }

@@ -1,13 +1,14 @@
 import Phaser from 'phaser';
 import type { HexCoord } from '../data/map';
 import { MAP_TERRAIN, RIVER_HEXSIDES } from '../data/map';
-import { HEX_SIZE, TERRAIN_COLORS, RIVER_COLOR, markerTextureKey, PLAYER_COLORS_HEX } from './hexRender';
+import { HEX_SIZE, TERRAIN_COLORS, RIVER_COLOR, PLAYER_COLORS_HEX } from './hexRender';
 import { allHexes } from './mapBounds';
 import { drawFacingArrowhead, hexPolygonPointsAt, toVec } from './hexDraw';
-import { reconcileUnits, unitAlpha } from './boardView';
-import type { BoardView, FacingShip, UnitDrawing, ViewHost } from './boardView';
-
-type Marker = Phaser.GameObjects.Image | Phaser.GameObjects.Text;
+import type { BoardView, FacingShip, UnitDrawing, UnitMotion, ViewHost } from './boardView';
+import { HeldDriftArrow } from './heldDriftArrow';
+import { makeStandardFigure } from './standardUnits';
+import { UnitLayer } from './unitLayer';
+import type { LayerFigure } from './unitLayer';
 
 /** The Standard view: the hex map as terrain-coloured polygons with the
  * physical-counter images on top. The terrain polygons are not interactive;
@@ -23,8 +24,10 @@ export class StandardBoardView implements BoardView {
   /** The elephant drift-direction arrow (plan.md §21) — see its assignment
    * in the constructor for why this isn't just reused from `facingGraphics`. */
   private driftArrowGraphics: Phaser.GameObjects.Graphics;
-  /** One marker per unit id, with the drawing it was last made from. */
-  private markers = new Map<string, { drawing: UnitDrawing; marker: Marker }>();
+  /** The counters (and ships' facing marks), one figure per unit id, animated by the shared layer (§77). */
+  private units: UnitLayer<LayerFigure>;
+  /** The drift arrow waits for the slide to end (B9), as in the Drawn view. */
+  private driftArrow: HeldDriftArrow<HexCoord>;
   private movementLabel: Phaser.GameObjects.Text | null = null;
   /** Per-hex "A"/"B"/"C" badges drawn during a choice prompt — see
    * `setChoiceLabels`. Its own list, deliberately separate from the unit
@@ -52,6 +55,12 @@ export class StandardBoardView implements BoardView {
     // arrow out on every unrelated re-render unless every such call also
     // remembered to re-supply it.
     this.driftArrowGraphics = scene.add.graphics().setDepth(12);
+    this.driftArrow = new HeldDriftArrow(
+      () => this.units.animating,
+      (a) => this.drawDriftArrow(a.hex, a.facing, a.colorHex),
+      () => this.driftArrowGraphics.clear(),
+    );
+    this.units = new UnitLayer(host, (unit) => makeStandardFigure(host, unit), () => this.driftArrow.release());
 
     for (const hex of allHexes()) {
       const terrain = MAP_TERRAIN.get(`${hex.q},${hex.r}`) ?? 'plain';
@@ -99,74 +108,21 @@ export class StandardBoardView implements BoardView {
       this.riverGraphics,
       this.facingGraphics,
       this.driftArrowGraphics,
-      ...[...this.markers.values()].map((m) => m.marker),
+      ...this.units.objects(),
     ];
   }
 
-  setUnits(units: readonly UnitDrawing[]): void {
-    const prev = new Map([...this.markers].map(([id, entry]) => [id, entry.drawing]));
-    const diff = reconcileUnits(prev, units);
-    for (const id of diff.remove) this.removeMarker(id);
-    for (const unit of diff.add) this.markers.set(unit.id, { drawing: unit, marker: this.makeMarker(unit) });
-    for (const { unit, recreate } of diff.update) {
-      const entry = this.markers.get(unit.id)!;
-      if (recreate) {
-        entry.marker.destroy();
-        entry.marker = this.makeMarker(unit);
-      } else {
-        const center = this.host.toScreen(unit.position);
-        entry.marker.setPosition(center.x, center.y);
-      }
-      entry.drawing = unit;
-    }
-    if (diff.add.length === 0 && diff.update.length === 0) return;
-    // Markers share one depth, so their display-list order decides which of
-    // two stacked counters is on top. Keep it the order of `units`, as when
-    // every render rebuilt them all in that order.
-    for (const unit of units) this.host.scene.children.bringToTop(this.markers.get(unit.id)!.marker);
-    // `bringToTop` moves the item in the array but never queues a depth sort
-    // (Phaser 3.90 List.js); without this the unsorted list draws the depth-10
-    // markers over the rings, facings and labels (depths 11-13).
-    this.host.scene.children.queueDepthSort();
+  /** Draws exactly `units`, animated like the Drawn view (§77): see `UnitLayer.setUnits`. */
+  setUnits(units: readonly UnitDrawing[], motion?: UnitMotion): void {
+    this.units.setUnits(units, motion);
   }
 
-  private removeMarker(id: string): void {
-    this.markers.get(id)?.marker.destroy();
-    this.markers.delete(id);
+  finishAnimations(): void {
+    this.units.finishAnimations();
   }
 
-  /** Renders a unit as its physical-counter marker image (see
-   * public/markers/), falling back to a colored text chip if the texture
-   * somehow isn't loaded. */
-  private makeMarker(unit: UnitDrawing): Marker {
-    const scene = this.host.scene;
-    const center = this.host.toScreen(unit.position);
-    const textureKey = markerTextureKey(unit.owner, unit.typeId);
-    let marker: Marker;
-    if (scene.textures.exists(textureKey)) {
-      const img = scene.add.image(center.x, center.y, textureKey).setDepth(10);
-      const targetWidth = HEX_SIZE * 1.6;
-      const scale = targetWidth / img.width;
-      img.setDisplaySize(img.width * scale, img.height * scale);
-      marker = img;
-    } else {
-      marker = scene.add
-        .text(center.x, center.y, unit.typeId.slice(0, 3).toUpperCase(), {
-          fontSize: '12px',
-          fontStyle: 'bold',
-          color: '#1a1408',
-          backgroundColor: PLAYER_COLORS_HEX[unit.owner] ?? '#ffffff',
-          padding: { x: 4, y: 2 },
-          align: 'center',
-        })
-        .setOrigin(0.5)
-        .setDepth(10);
-    }
-    // Newly-created markers appear after pinUIObjects ran once at scene
-    // setup — keep them out of the fixed HUD camera too.
-    this.host.ignoreOnUiCamera(marker);
-    marker.setAlpha(unitAlpha(unit));
-    return marker;
+  animationsSettled(): Promise<void> {
+    return this.units.animationsSettled();
   }
 
   highlightHexes(hexes: HexCoord[], color: number, alpha = 0.45): void {
@@ -235,19 +191,22 @@ export class StandardBoardView implements BoardView {
   }
 
   /**
-   * Draws a small arrowhead on every ship, pointing in its facing direction
-   * (see `facingAngleRad`) — the visual cue for a ship's bow, since the
-   * marker image itself is a physical-counter icon that must stay upright
-   * for its printed stats to stay readable, so it can't just be rotated in
-   * place. Redraws the whole set each call (paired with `renderAllUnits`),
+   * Draws the staged ship's arrowhead (Placement's `pendingShip`, the entry
+   * with a `ghostTypeId`), pointing in its facing direction (see
+   * `facingAngleRad`). A placed ship's mark is not drawn here: it is part of
+   * its counter's figure (`makeStandardFigure`), made from `UnitDrawing.facing`,
+   * so it travels with the counter and never jumps ahead of it (§77 B6). The
+   * counter image itself must stay upright for its printed stats to stay
+   * readable, so only the mark turns (B7). Redraws the staged set each call,
    * same pattern as `highlightHexGroups`.
    */
   setFacingIndicators(ships: readonly FacingShip[]): void {
     this.facingGraphics.clear();
-    for (const ship of ships) {
-      const center = this.host.toScreen(ship.hex);
-      const colorHex = PLAYER_COLORS_HEX[ship.playerIndex] ?? '#ffffff';
-      drawFacingArrowhead(this.facingGraphics, center, ship.facing, colorHex, 1, unitAlpha(ship));
+    for (const { hex, facing, playerIndex, ghostTypeId } of ships) {
+      if (ghostTypeId === undefined) continue;
+      const center = this.host.toScreen(hex);
+      const colorHex = PLAYER_COLORS_HEX[playerIndex] ?? '#ffffff';
+      drawFacingArrowhead(this.facingGraphics, center, facing, colorHex);
     }
   }
 
@@ -266,13 +225,17 @@ export class StandardBoardView implements BoardView {
    * pattern as `setFacingIndicators`.
    */
   setDriftArrow(hex: HexCoord, facing: number, colorHex: string): void {
+    this.driftArrow.set({ hex, facing, colorHex });
+  }
+
+  private drawDriftArrow(hex: HexCoord, facing: number, colorHex: string): void {
     this.driftArrowGraphics.clear();
     const center = this.host.toScreen(hex);
     drawFacingArrowhead(this.driftArrowGraphics, center, facing, colorHex, 1.15);
   }
 
   clearDriftArrow(): void {
-    this.driftArrowGraphics.clear();
+    this.driftArrow.clear();
   }
 
   /**
@@ -359,7 +322,7 @@ export class StandardBoardView implements BoardView {
   }
 
   destroy(): void {
-    for (const id of [...this.markers.keys()]) this.removeMarker(id);
+    this.units.destroy();
     this.clearChoiceLabels();
     this.clearRangeLabels();
     this.movementLabel?.destroy();

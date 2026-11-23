@@ -7,7 +7,7 @@ import { durationsFor } from './animationSpeed';
 import type { AnimationSpeed } from './animationSpeed';
 
 /**
- * The Drawn view's animation planner (§66): pure, no Phaser. From what is
+ * The animation planner for both views (§66, §77): pure, no Phaser. From what is
  * drawn now, what is wanted, an optional cue and the speed, it lists what to
  * play, in order. It animates the difference between successive committed
  * drawings (spec I1) and nothing re-derives a rule: the cue only adds the path

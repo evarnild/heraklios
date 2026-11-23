@@ -119,7 +119,19 @@ export async function reachable(page: Page, unitId: string): Promise<string[]> {
 
 export const key = (h: Hex) => `${h.q},${h.r}`;
 
-async function frames(page: Page): Promise<void> {
+/** One key press with a frame between each DOM event: Phaser re-processes the frame's queued key events on
+ * every DOM key event, so a press whose down and up land in one frame can fire its handler twice. */
+export async function chord(page: Page, mods: string[], key: string): Promise<void> {
+  for (const m of mods) await page.keyboard.down(m);
+  await frames(page);
+  await page.keyboard.down(key);
+  await frames(page);
+  await page.keyboard.up(key);
+  for (const m of mods.reverse()) await page.keyboard.up(m);
+  await frames(page);
+}
+
+export async function frames(page: Page): Promise<void> {
   // The camera's transform updates on render; let two frames pass.
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 }

@@ -106,7 +106,7 @@ export interface DevHook {
   /**
    * True when the scene's display list is in non-decreasing depth order, i.e.
    * nothing drawn at a lower depth sits after (and so over) a higher one
-   * (the markers re-stacking in `StandardBoardView.setUnits`). Read-only.
+   * (the figures re-stacking in `UnitLayer.setUnits`). Read-only.
    */
   displayListSorted(): boolean;
   /** Which board view the surface is showing (§64). */

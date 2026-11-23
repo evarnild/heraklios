@@ -53,8 +53,8 @@ export interface PendingShip {
 }
 
 /**
- * The Standard view's facing arrows: every living ship of every seat (another
- * seat's dimmed), then the staged ship, if any, as the ghost (never dimmed).
+ * The facing indicators: every living ship of every seat (the views draw only
+ * the staged one, §77: a placed ship's mark dims with its counter), then the staged ship, if any, as the ghost (never dimmed).
  */
 export function placementFacingShips(
   state: GameState,
@@ -64,9 +64,7 @@ export function placementFacingShips(
   const ships: FacingShip[] = [];
   for (const u of state.units) {
     if (u.destroyed || !isShip(u)) continue;
-    const ship: FacingShip = { hex: u.position, facing: u.facing, playerIndex: u.owner };
-    if (u.owner !== playerIndex) ship.dimmed = true;
-    ships.push(ship);
+    ships.push({ hex: u.position, facing: u.facing, playerIndex: u.owner });
   }
   if (pending) ships.push({ hex: pending.hex, facing: pending.facing, playerIndex, ghostTypeId: pending.typeId });
   return ships;

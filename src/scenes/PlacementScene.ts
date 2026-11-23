@@ -437,8 +437,8 @@ export class PlacementScene extends Phaser.Scene {
 
   // --- Ship-facing choice (Feature C) ---
 
-  /** Every placed ship's arrow (other seats' dimmed) plus the staged ship, for one
-   * `setFacingIndicators` call. */
+  /** Every placed ship plus the staged ship, for one `setFacingIndicators` call
+   * (the views draw only the staged one; a placed ship's mark dims with its counter). */
   private shipArrowList(): FacingShip[] {
     return placementFacingShips(session.gameState!, this.playerIndex, this.pendingShip);
   }

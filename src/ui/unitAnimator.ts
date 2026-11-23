@@ -1,13 +1,13 @@
 import type Phaser from 'phaser';
 import { planDuration } from './animationPlan';
 import type { AnimationStep } from './animationPlan';
-import { makeRunner } from './drawnMotions';
-import type { MotionHost, Runner } from './drawnMotions';
+import { makeRunner } from './unitMotions';
+import type { MotionHost, Runner } from './unitMotions';
 
 /** What the animator needs besides the motions' own host: the scene's tweens, and the two ends of a queue. */
 export interface AnimatorHost extends MotionHost {
   scene: Phaser.Scene;
-  /** Puts every unit container on its final drawing and drops the ones that were fading out. */
+  /** Puts every unit figure on its final drawing and drops the ones that were fading out. */
   settleAll(): void;
   /** The queue has drained (played out or cut short). */
   onDrained(): void;
@@ -18,7 +18,7 @@ const WATCHDOG_FACTOR = 2;
 const WATCHDOG_EXTRA_MS = 1000;
 
 /**
- * Plays the planner's steps on the Drawn view's unit containers (§66), one
+ * Plays the planner's steps on either view's unit figures (§66, §77), one
  * step at a time. Each step is one counter tween, so `devHook.idle()` (which
  * counts tweens) waits for it and a step ends exactly once. `finishAll` brings
  * every unit to its final drawing at once, and any pointer press or key press
@@ -27,7 +27,7 @@ const WATCHDOG_EXTRA_MS = 1000;
  * Every waiter is resolved on every exit: drained, cut short, destroyed, or
  * the watchdog, so the computer's driver cannot strand.
  */
-export class DrawnAnimator {
+export class UnitAnimator {
   private queue: AnimationStep[] = [];
   private current: { tween: Phaser.Tweens.Tween; runners: Runner[] } | null = null;
   private waiters: Array<() => void> = [];

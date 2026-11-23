@@ -84,7 +84,7 @@ describe('placementFacingShips', () => {
   it('lists every living ship of every seat and no land unit', () => {
     const ships = placementFacingShips(mixed(), 1, null);
     expect(ships).toEqual([
-      { hex: { q: 0, r: 5 }, facing: 2, playerIndex: 0, dimmed: true },
+      { hex: { q: 0, r: 5 }, facing: 2, playerIndex: 0 },
       { hex: { q: 9, r: 5 }, facing: 4, playerIndex: 1 },
     ]);
   });
@@ -93,6 +93,5 @@ describe('placementFacingShips', () => {
     const ships = placementFacingShips(mixed(), 1, { hex: { q: 8, r: 6 }, facing: 3, typeId: 'galeres' });
     expect(ships).toHaveLength(3);
     expect(ships[2]).toEqual({ hex: { q: 8, r: 6 }, facing: 3, playerIndex: 1, ghostTypeId: 'galeres' });
-    expect('dimmed' in ships[2]!).toBe(false);
   });
 });

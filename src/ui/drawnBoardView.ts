@@ -4,6 +4,7 @@ import { ghostDrawing } from './boardView';
 import type { BoardView, FacingShip, UnitDrawing, UnitMotion, ViewHost } from './boardView';
 import { DrawnOverlays } from './drawnOverlays';
 import { DrawnUnits } from './drawnUnits';
+import { HeldDriftArrow } from './heldDriftArrow';
 import { bakeLandscape } from './landscape/paintLandscape';
 
 /**
@@ -21,12 +22,17 @@ export class DrawnBoardView implements BoardView {
   private landscape: Phaser.GameObjects.RenderTexture;
   private units: DrawnUnits;
   private overlays: DrawnOverlays;
-  private pendingArrow: { hex: HexCoord; facing: number; colorHex: string } | null = null;
+  private arrow: HeldDriftArrow<HexCoord>;
 
   constructor(host: ViewHost) {
     this.landscape = bakeLandscape(host.scene, host.toScreen({ q: 0, r: 0 }));
-    this.units = new DrawnUnits(host, () => this.showPendingArrow());
     this.overlays = new DrawnOverlays(host);
+    this.arrow = new HeldDriftArrow(
+      () => this.units.animating,
+      (a) => this.overlays.setDriftArrow(a.hex, a.facing, a.colorHex),
+      () => this.overlays.clearDriftArrow(),
+    );
+    this.units = new DrawnUnits(host, () => this.arrow.release());
   }
 
   /** Every world object owned right now, so the surface keeps them off the
@@ -90,23 +96,11 @@ export class DrawnBoardView implements BoardView {
   /** The arrow waits for the elephant's slide to end (B4): while an animation
    * plays it is held and shown when the queue drains. */
   setDriftArrow(hex: HexCoord, facing: number, colorHex: string): void {
-    if (this.units.animating) {
-      this.pendingArrow = { hex, facing, colorHex };
-      return;
-    }
-    this.pendingArrow = null;
-    this.overlays.setDriftArrow(hex, facing, colorHex);
+    this.arrow.set({ hex, facing, colorHex });
   }
 
   clearDriftArrow(): void {
-    this.pendingArrow = null;
-    this.overlays.clearDriftArrow();
-  }
-
-  private showPendingArrow(): void {
-    const a = this.pendingArrow;
-    this.pendingArrow = null;
-    if (a) this.overlays.setDriftArrow(a.hex, a.facing, a.colorHex);
+    this.arrow.clear();
   }
 
   setChoiceLabels(labels: readonly { hex: HexCoord; text: string }[]): void {

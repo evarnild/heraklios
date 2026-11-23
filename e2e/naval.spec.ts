@@ -8,6 +8,7 @@
 import { expect, test } from '@playwright/test';
 import { DIRECTIONS, hexAdd } from '../src/engine/hex';
 import { findRammingContacts, reachableNavalHexes } from '../src/engine/navalMovement';
+import { facingAngleRad } from '../src/ui/hexRender';
 import { MENU_CLOSE_COMBAT, activeUnitOfType, clickButton, clickHex, key, startFromMenu, state, unit, waitIdle } from './helpers';
 
 /**
@@ -17,6 +18,30 @@ import { MENU_CLOSE_COMBAT, activeUnitOfType, clickButton, clickHex, key, startF
  * and facing 1 up-right, so a higher facing index is counter-clockwise.
  */
 const TURN_INDEX = { [1]: 0, [-1]: 1 } as const;
+
+// §77 review: the Drawn view turns a galley's figure when its ship turns (the animator's facing part).
+test('the Turn button turns the galley figure in the Drawn view', async ({ page }) => {
+  const errors = await startFromMenu(page, MENU_CLOSE_COMBAT, 'close-combat', 1);
+  await clickButton(page, '🗺 Drawn view');
+  await page.waitForFunction(() => window.__heraklios.boardView() === 'drawn');
+  const ship = await activeUnitOfType(page, 'galeres');
+  const rotation = () => page.evaluate((id) => window.__heraklios.boardObjects().unitRotations[id]!, ship.id);
+  // A turn takes the short way round, so the figure may sit a whole turn off the facing's own angle.
+  const offBy = async (facing: number) => {
+    const d = Math.abs((await rotation()) - facingAngleRad(facing)) % (2 * Math.PI);
+    return Math.min(d, 2 * Math.PI - d);
+  };
+  expect(await offBy(ship.facing), 'drawn at its facing').toBeCloseTo(0, 5);
+
+  await clickHex(page, ship.position);
+  await waitIdle(page);
+  await clickButton(page, 'Turn', TURN_INDEX[1]);
+  await waitIdle(page);
+  const facing = (ship.facing + 1) % 6;
+  expect((await unit(page, ship.id)).facing).toBe(facing);
+  expect(await offBy(facing), 'the figure turned to the new facing').toBeCloseTo(0, 5);
+  expect(errors).toEqual([]);
+});
 
 test('a ship turns once and moves one hex forward', async ({ page }) => {
   const errors = await startFromMenu(page, MENU_CLOSE_COMBAT, 'close-combat', 1);

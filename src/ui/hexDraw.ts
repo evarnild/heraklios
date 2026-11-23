@@ -10,8 +10,7 @@ import { HEX_SIZE, hexPolygonPoints, facingAngleRad } from './hexRender';
  * hex — plan.md §17.2) — a free function rather than a view method
  * since the button glyph has no hex or camera to go through, only a fixed
  * screen point. `scale` shrinks the whole triangle proportionally: a
- * button-sized icon doesn't want a full ship-sized arrowhead. `alpha` draws
- * a dimmed ship's arrow (fill at `alpha`, outline at 0.9 of it).
+ * button-sized icon doesn't want a full ship-sized arrowhead.
  */
 export function drawFacingArrowhead(
   graphics: Phaser.GameObjects.Graphics,
@@ -19,9 +18,18 @@ export function drawFacingArrowhead(
   facing: number,
   colorHex: string,
   scale = 1,
-  alpha = 1,
 ): void {
-  const angle = facingAngleRad(facing);
+  drawArrowheadAt(graphics, center, facingAngleRad(facing), colorHex, scale);
+}
+
+/** The arrowhead triangle pointing at `angle` radians (no facing lookup): the Standard view draws a ship's mark along +x and rotates it (§77). */
+export function drawArrowheadAt(
+  graphics: Phaser.GameObjects.Graphics,
+  center: { x: number; y: number },
+  angle: number,
+  colorHex: string,
+  scale = 1,
+): void {
   const tipRadius = HEX_SIZE * 0.95 * scale;
   const backRadius = HEX_SIZE * 0.5 * scale;
   const spread = 0.4; // radians half-width of the arrowhead's back edge
@@ -37,8 +45,8 @@ export function drawFacingArrowhead(
   };
 
   const color = Phaser.Display.Color.HexStringToColor(colorHex).color;
-  graphics.fillStyle(color, alpha);
-  graphics.lineStyle(1.5, 0x1a1408, 0.9 * alpha);
+  graphics.fillStyle(color, 1);
+  graphics.lineStyle(1.5, 0x1a1408, 0.9);
   graphics.beginPath();
   graphics.moveTo(tip.x, tip.y);
   graphics.lineTo(backLeft.x, backLeft.y);
