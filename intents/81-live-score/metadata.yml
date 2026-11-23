@@ -2,14 +2,14 @@
 id: 81
 slug: live-score
 type: feature
-status: in-review
+status: done
 title: The Board shows every player's current score at all times
 review_tier: reviewed    # Q1 yes: implements the rulebook's +30 naval bonus in the winner rule
 intent_accepted: 2026-11-22 by-agent    # owner: "accept 81 82 83 84 /auto 81 /auto 83"
 spec_accepted: 2026-11-22 by-agent    # owner: "spec accepted 81 and 83"
 plan_approved: 2026-11-22 by-agent    # auto: owner "/auto 81 Q1 yes" (auto_authorized 2026-11-22)
 live_checked: 2026-11-23 by-agent    # owner: "live checked 77 and 81"
-merged:
+merged: b7b7dbd    # 2026-11-23, merged by Claude on the owner's explicit request in chat
 konmari:
 auto_authorized: 2026-11-22 by-agent    # owner: "/auto 81 Q1 yes"
 auto_round: 3
