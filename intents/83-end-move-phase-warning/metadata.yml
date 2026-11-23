@@ -11,9 +11,9 @@ plan_approved: 2026-11-22 by-agent    # auto: owner "/auto 81 /auto 83" (auto_au
 live_checked:
 merged:
 konmari:
-auto_authorized: 2026-11-22 by-agent    # owner: "/auto 81 /auto 83"
+auto_authorized: 2026-11-23 by-agent    # owner: "/auto 83"
 auto_round:
-auto_stopped: too many sessions
+auto_stopped:
 follows_up:
 links:
   - intents/82-unit-status-markers    the same not-moved fact
