@@ -253,6 +253,37 @@ You should see everything above:
   - that §76's live check holds for the pre-merge views. Step 11 re-checks
     it through the new layer.
 
+## KonMari check
+- **Record:** dc1c085, base ac6bf5e, `outcome: kept`.
+- **Tidied:**
+  - 4a79157 drops the arrowhead's `alpha` parameter in `hexDraw.ts`. The
+    merge of §76 had removed its only caller.
+  - 38a5321 corrects `shipArrowList`'s stale doc. It is comment-only, and
+    `PlacementScene.ts` stays at 526, its ceiling.
+- **Killed mutants on changed lines:** none. H1–H3, which were equivalent,
+  sat on the removed `alpha` lines. The `PlacementScene` change is a comment.
+- **Coordinator, re-run:**
+  - `npm run verify`: lint 0 errors and 19 warnings; 100 files, 1708 passed
+    and 2 skipped. Matches.
+  - `npm run check:intent`: the only error is the owed live check.
+  - `npm run e2e`: 37 passed (1.2m).
+  - `git status --short`: clean.
+- **Reviewer's read of the KonMari commits:** no findings.
+  - **Within reach:**
+    - the `alpha` parameter was left dead by this diff's merge;
+    - no caller passes more than the new signature takes (all call sites
+      listed);
+    - the doc is stale prose the diff left behind.
+  - **Behaviour unchanged:** fill 1 and outline 0.9, as every caller
+    already drew.
+  - **No other changes:** no test changed, and no dependency or
+    eslint-disable was added.
+  - **Principles:** 5–12 respected.
+  - **konmari.md:** lists exactly the two tidy-ups.
+- **Proposed refactor intent** (in konmari.md): send only the staged ship
+  to `setFacingIndicators`, in both `placementFacingShips` and
+  `BoardScene.renderAllUnits`. Same as the review's follow-up.
+
 # Round 2 (history)
 
 - verdict: attest
