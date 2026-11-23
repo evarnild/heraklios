@@ -13,7 +13,7 @@ merged:
 konmari:
 auto_authorized: 2026-11-22 by-agent    # owner: "/auto 80"
 auto_round: 1
-auto_stopped:
+auto_stopped: live check owed
 follows_up:
 links:
   - intents/53-log-autosave-and-attack-selection    B3 left the number out before a target
