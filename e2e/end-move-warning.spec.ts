@@ -44,6 +44,8 @@ async function moveOneHex(page: Page, typeId: string) {
   return { id: mover.id, from: mover.position };
 }
 
+/** The state minus the game clock, which ticks every frame while the board is up. */
+const withoutClock = ({ elapsedMs: _clock, ...rest }: Awaited<ReturnType<typeof state>>) => rest;
 const warning = (page: Page) => page.evaluate(() => window.__heraklios.endMoveWarning());
 const camera = async (page: Page) => ({
   zoom: await page.evaluate(() => window.__heraklios.cameraZoom()),
@@ -93,7 +95,7 @@ test('the warning frames, marks and holds every control; Cancel and the keys ans
   // AC12: undo is refused, and a board click selects nothing.
   await chord(page, ['Control'], 'z');
   expect((await logTexts(page)).at(-1)).toBe('Resolve the pending choice before undoing.');
-  expect(await state(page)).toEqual(st);
+  expect(withoutClock(await state(page))).toEqual(withoutClock(st));
   const own = st.units.find((u) => u.id === w.flagged[0]!)!;
   await clickHex(page, own.position);
   expect(await page.evaluate(() => window.__heraklios.selectedUnitId())).toBeNull();

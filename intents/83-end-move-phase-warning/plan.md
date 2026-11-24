@@ -555,3 +555,22 @@ These go beyond the spec. Each one is a decision, not an open question.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-11-24 — implementation (subtasks 1-9)
+
+Commits: `aeb0871` (engine), `bb630dc` (module, framing, layout, i18n, scene hook, dev hook, e2e), the README commit, and the final e2e/progress commit.
+
+Shipped as planned: `src/engine/unmoved.ts` (`hasNotMoved`, `unmovedUnits`), `src/ui/cameraFraming.ts`, `src/ui/endMoveWarningLayout.ts`, `src/ui/endMoveWarning.ts`, `MapView` additions (`cameraView`, `setCameraView`, `frameWorldBox`, `keepOffHud`; 496 lines, under 500), the dev hook reader `endMoveWarning()`, the `endPhase(page)` e2e helper (all End-phase clicks now use it, 12 sites in 7 specs, not the plan's 10, since `score-panel.spec.ts` gained 3 since the plan), `e2e/end-move-warning.spec.ts` (6 tests), README section, and 5 + 1 messages in en/fr.
+
+Results: `npm run verify` green: 106 test files, 1775 passed | 2 skipped; lint 18 warnings, cap 18 (unchanged, no new warning). `npm run check:intent`: `type-check: PASS (intent 83, feature)`. `BoardScene.ts` grew exactly +10 (3169 to 3179), `scripts/size-baseline.json` rewritten to 3179. `npm run e2e`: 51 passed, 1 failed (`placement.spec.ts` "Turn buttons", a 30 s timeout while other worktrees ran; it passed alone, 1 passed). The full suite was run before the last spec tweak; the changed spec passes in its own run.
+
+Deviations from the plan:
+- The lint cap is 18 and the baseline 3169 on today's main (plan said 19 and 3172); the +10 budget line is unchanged and true.
+- AC2 swap-only unit: the plan's "swap-only" position is impossible with enemy ZOC (the swap start-in-ZOC rule forbids it), so the `otherId` test rings the unit with friendly lower-id units plus an outer ring of enemies; it first asserts every action naming the unit is a `landSwap` with it as `otherId`.
+- The module also resets itself on the scene's `shutdown` event, so a stale instance's Escape/Enter listeners cannot act after a scene restart (the keys are registered on a keyboard that outlives the scene).
+- The e2e state comparison strips `elapsedMs` (the clock ticks).
+- The tick-box click is by its label text `☐ Don't warn me again this game`.
+
+Mutants: dropping the `otherId` branch of `unmovedUnits` is killed by `unmoved.test.ts`. Replacing `Math.min(fit, current.zoom)` with `fit` in `frameBox` survives, and is an equivalent mutant: the zoom-out branch is reached only when the box does not fit at the current zoom, so `fit < current.zoom` always. The clamp is kept as a defensive guard for B6.6.
+
+Not run: the live check (owed; mark size, colour and prompt height at `PROMPT_HEIGHT = 150` are untuned).
