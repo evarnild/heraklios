@@ -2,7 +2,7 @@
 id: 88
 slug: canvas-fills-window-width
 type: feature
-status: accepted
+status: in-review
 title: The game canvas takes the browser window's width when the game starts
 review_tier:
 intent_accepted: 2026-11-24 by-agent    # owner: "accept 88 /auto 88"

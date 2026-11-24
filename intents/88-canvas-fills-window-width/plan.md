@@ -186,3 +186,27 @@ Re-read on `main` at `25a5240`.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-11-24 - subtasks 1-7
+
+Commits: 1310f31 (canvasSize, main.ts), 7722139 (army builder offset), ef59139
+(Tables panel `left`, `e2e/wide-canvas.spec.ts`, README, playwright comment, UTF-8 fix of three
+files I had mangled). Plus this Progress commit.
+
+Shipped: `src/ui/canvasSize.ts` (+ test), `main.ts` reads `#app` clientWidth (innerWidth fallback)
+once; `armyLayoutOffset` / `ARMY_LAYOUT_WIDTH` and `armyRowSlot(index, offsetX)`, with
+`ArmyBuilderScene` offsetting every x; `RulesPanel.snapshot()` carries `left`; the new e2e (2
+tests at 1600 x 750); README section "The width of the game"; playwright.config.ts comment.
+
+Results: `npm run verify` green: 104 files, 1758 passed, 2 skipped; lint 18 warnings, cap 18
+(unchanged). `npm run e2e`: 47 passed, 1 failed: `placement.spec.ts` "Turn buttons" (timed out
+at 55.7 s under load); re-run alone it passed (12.0 s). Both `wide-canvas.spec.ts` tests passed.
+Mutants (unit level, restored by copy): dropping `Math.max` fails 3 `canvasSize` tests, dropping
+`Math.floor` fails 2, dropping the offset in `armyRowSlot` fails 1.
+
+Deviations: (1) `rulesPanel().left` is `undefined` while the panel is closed (type `left?:
+number`), so the existing `toEqual({ open: false, tab: null, highlight: null })` in
+`rules-panel.spec.ts` stays unedited (AC4). (2) The e2e reads the score panel through its existing
+`rect` field and compares with `scorePanelRect(1600, ...)`; the Tables margin 12 is repeated in
+the spec because `MARGIN` is not exported. (3) Survey greps re-run: only BoardScene.ts:673,692
+(inside the left panel) and comments; no new literal x.
