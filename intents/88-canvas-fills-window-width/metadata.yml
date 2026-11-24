@@ -1,0 +1,22 @@
+# generated-by: heraklios/intent@0.1.5
+id: 88
+slug: canvas-fills-window-width
+type: feature
+status: accepted
+title: The game canvas takes the browser window's width when the game starts
+review_tier:
+intent_accepted: 2026-11-24 by-agent    # owner: "accept 88 /auto 88"
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+konmari:
+auto_authorized:
+auto_round:
+auto_stopped:
+follows_up:
+links:
+  - intents/73-boardscene-on-session
+  - intents/83-end-move-phase-warning
+  - intents/43-center-view-on-turn
+blocked_by:
