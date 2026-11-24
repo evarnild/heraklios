@@ -21,6 +21,7 @@ import {
   startFromMenu,
   state,
   waitIdle,
+  endPhase,
 } from './helpers';
 
 const en = messagesFor('en');
@@ -77,7 +78,7 @@ test('the Tables panel: tabs, Escape, a highlight that follows the attack, click
   expect(await panel(page)).toMatchObject({ open: true, tab: 'land', highlight: null });
 
   // Build an attack with the panel open: the panel sits above the centre, so the board is clickable.
-  await clickButton(page, 'End phase');
+  await endPhase(page);
   await waitIdle(page);
   const st = await state(page);
   expect(st.phase).toBe('combat');

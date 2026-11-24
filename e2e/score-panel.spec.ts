@@ -23,6 +23,7 @@ import {
   waitIdle,
   waitLoadOnRowOf,
   waitSavePanelLoaded,
+  endPhase,
 } from './helpers';
 import { SAVES_DIR, acquireSaveLock, withSaveLockHeld } from './savesDir';
 
@@ -66,9 +67,9 @@ async function waitLoaded(page: Page): Promise<void> {
 }
 
 async function endTurn(page: Page): Promise<void> {
-  await clickButton(page, 'End phase'); // movement -> combat
+  await endPhase(page); // movement -> combat
   await waitIdle(page);
-  await clickButton(page, 'End phase'); // combat -> the next player
+  await endPhase(page); // combat -> the next player
   await waitIdle(page);
 }
 
@@ -141,7 +142,7 @@ test('the rows follow combat, undo and redo (seed 1)', async ({ page }) => {
   const target = st.units.find(
     (u) => u.owner !== me && u.position.q === archers.position.q && u.position.r === archers.position.r + 2 * step,
   )!;
-  await clickButton(page, 'End phase');
+  await endPhase(page);
   await waitIdle(page);
   await clickHex(page, archers.position);
   await clickHex(page, target.position);

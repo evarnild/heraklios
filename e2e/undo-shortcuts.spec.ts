@@ -17,6 +17,7 @@ import {
   startFromMenu,
   state,
   waitIdle,
+  endPhase,
 } from './helpers';
 
 type Chord = { shift?: boolean; ctrl?: boolean; letter: 'Z' | 'Y' };
@@ -48,7 +49,7 @@ const count = async (page: Page, prefix: string) => (await texts(page)).filter((
 
 test('one undo or redo shortcut on the Board undoes or redoes one step (seed 1)', async ({ page }) => {
   const errors = await startFromMenu(page, MENU_CLOSE_COMBAT, 'close-combat', 1);
-  await clickButton(page, 'End phase');
+  await endPhase(page);
   await waitIdle(page);
   const st = await state(page);
   const me = st.seatOrder[st.activePlayerIndex]!;
