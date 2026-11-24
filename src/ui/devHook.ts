@@ -74,6 +74,10 @@ export interface DevHook {
    * a scenario never depends on whether the roll caused a retreat.
    */
   pendingHexes(): Hex[];
+  /** The retreat or push-target choice being asked, with the hexes it highlights, or null (§73). */
+  pendingChoice(): { kind: 'retreat' | 'pushTarget'; hexes: Hex[] } | null;
+  /** The elephant drift arrow being shown: the hex it starts on and its facing, or null (§73). */
+  driftArrow(): { hex: Hex; facing: number } | null;
   /**
    * While the Placement scene is up: the unit type it is placing now (null
    * once the queue is empty) and the hexes it accepts a click on for it.
@@ -247,6 +251,8 @@ function boardReaders(game: Phaser.Game): Pick<
   | 'busy'
   | 'idle'
   | 'pendingHexes'
+  | 'pendingChoice'
+  | 'driftArrow'
   | 'selectedUnitId'
   | 'logEntries'
   | 'logPanel'
@@ -280,11 +286,9 @@ function boardReaders(game: Phaser.Game): Pick<
     },
     busy,
     idle: () => busy().length === 0,
-    pendingHexes: () => {
-      const choice = (board(game) as unknown as { retreatChoice: PendingChoice | null }).retreatChoice;
-      if (!choice) return [];
-      return choice.kind === 'retreat' ? (choice.legalHexes ?? []) : (choice.pushTargets ?? []).map((u) => u.position);
-    },
+    pendingHexes: () => pendingChoice(game)?.hexes ?? [],
+    pendingChoice: () => pendingChoice(game),
+    driftArrow: () => driftArrow(board(game)),
     selectedUnitId: () => selectedUnitId(board(game)),
     logEntries: () => logInternals(board(game)).logHistory.entries().map((e) => ({ kind: e.kind, text: e.text })),
     logPanel: () => logPanelSnapshot(logInternals(board(game)).logPanel),
@@ -350,6 +354,27 @@ function placementSnapshot(game: Phaser.Game): ReturnType<DevHook['placement']> 
     if (!(m in p)) throw new Error(`devHook: PlacementScene has no "${m}" any more — update PLACEMENT_MEMBERS`);
   }
   return { current: p.queue.find((q) => q.remaining > 0)?.typeId ?? null, legalHexes: p.currentLegalHexes() };
+}
+
+/** `BoardScene.retreatChoice` read by name (§73); `pendingHexes` can't tell a push from a retreat. */
+function pendingChoice(game: Phaser.Game): ReturnType<DevHook['pendingChoice']> {
+  const choice = (board(game) as unknown as { retreatChoice: PendingChoice | null }).retreatChoice;
+  if (!choice) return null;
+  if (choice.kind === 'retreat') return { kind: 'retreat', hexes: choice.legalHexes ?? [] };
+  return { kind: 'pushTarget', hexes: (choice.pushTargets ?? []).map((u) => u.position) };
+}
+
+const DRIFT_ARROW_MEMBERS = ['driftArrowElephant', 'driftArrowFacing'] as const;
+
+/** The drift arrow's fields read by name, guarded like `BUSY_FIELDS` (§73). */
+function driftArrow(scene: Phaser.Scene): ReturnType<DevHook['driftArrow']> {
+  const b = scene as unknown as Record<string, unknown>;
+  for (const m of DRIFT_ARROW_MEMBERS) {
+    if (!(m in b)) throw new Error(`devHook: BoardScene has no "${m}" any more — update DRIFT_ARROW_MEMBERS`);
+  }
+  const elephant = b.driftArrowElephant as { position: Hex } | null;
+  const facing = b.driftArrowFacing as number | undefined;
+  return elephant && facing !== undefined ? { hex: { ...elephant.position }, facing } : null;
 }
 
 /** `BoardScene.selected` read by name, guarded like `BUSY_FIELDS`. */
