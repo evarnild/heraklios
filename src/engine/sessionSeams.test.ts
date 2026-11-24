@@ -1,53 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import type { CombatResult } from '../data/combatTable';
-import type { Action, ActionResult } from './actions';
-import { describeLandAttack, legalRetreatHexes } from './combat';
+import type { ActionResult } from './actions';
+import { legalRetreatHexes } from './combat';
 import { newPending, type AnswerAction, type Question, type ResolutionHooks, type SessionEvent } from './combatResolution';
 import { newSession, sessionApply, sessionBeginResolution, sessionLegalActions, sessionQuestion } from './gameSession';
-import type { GameState, Unit } from './state';
-import { createInitialState } from './turnManager';
+import { attack, dieFor, gameWith, scripted, unit } from './sessionTestKit';
 
 // The §73 seams of the session: the new events, `onEvent`, `onActionApplied` and
 // `askForced`. Small hand-built positions on plain hexes, as `gameSession.test.ts`.
-
-function unit(id: string, typeId: string, q: number, r: number, owner: 0 | 1 = 0): Unit {
-  return { id, owner, typeId, position: { q, r }, movementLeft: 0, facing: 0, defendedThisPhase: false, charged: false, destroyed: false };
-}
-
-function gameWith(units: Unit[]): GameState {
-  const state = createInitialState(
-    [
-      { id: 0, name: 'P0', edge: 'W', purchasePoints: 0, eliminated: false },
-      { id: 1, name: 'P1', edge: 'E', purchasePoints: 0, eliminated: false },
-    ],
-    'multi-defender',
-  );
-  state.units = units;
-  state.phase = 'combat';
-  return state;
-}
-
-function dieFor(attackers: Unit[], defenders: Unit[], result: CombatResult): number {
-  for (let die = 1; die <= 6; die++) {
-    if (describeLandAttack(attackers, defenders, die).result === result) return die;
-  }
-  throw new Error(`No die gives ${result}`);
-}
-
-function scripted(dice: number[]): () => number {
-  const queue = [...dice];
-  return () => {
-    const die = queue.shift();
-    if (die === undefined) throw new Error('scripted rng: no die left');
-    return (die - 1) / 6;
-  };
-}
-
-const attack = (attackers: Unit[], defenders: Unit[]): Action => ({
-  kind: 'landAttack',
-  attackerIds: attackers.map((u) => u.id),
-  defenderIds: defenders.map((u) => u.id),
-});
 
 /** d (11,5) can only go to (12,5): its friends hold the other hexes the attacker's zone leaves open. */
 function singleRetreat() {

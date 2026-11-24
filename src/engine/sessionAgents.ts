@@ -81,7 +81,7 @@ async function settle(
     events.push(...sessionApply(session, answer, rng, hooks).events);
   }
   await Promise.all(kept);
-  return { result: first.result, events, pending: null };
+  return { result: first.result, events, pending: null, paused: false, driftEvents: [] };
 }
 
 /** Applies `action`, then answers every question it provokes with `agent`

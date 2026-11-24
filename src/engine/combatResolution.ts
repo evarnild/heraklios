@@ -11,7 +11,7 @@ import {
   unitAt,
 } from './combat';
 import { rollDie } from './dice';
-import { driftStep, needsInput, startElephantDrift, type DriftInput, type ElephantDriftState } from './drift';
+import { driftStep, needsInput, startElephantDrift, type DriftEvent, type DriftInput, type ElephantDriftState } from './drift';
 import { unitType, type GameState, type PlayerId, type Unit } from './state';
 
 /**
@@ -83,6 +83,14 @@ export interface ResolutionHooks {
    * and the host pass nothing, so their traces do not change.
    */
   askForced?(question: Question): boolean;
+  /**
+   * §73 O4: stop after each drift step. The resolution is then paused, with no
+   * question, the state really at that beat, and the step's `DriftEvent`s in
+   * `SessionStep.driftEvents`; `sessionResume` goes on. Only a presentation
+   * that shows the drift beat by beat sets it: a host and the harness never do,
+   * so for them §72's B7 holds (the session pauses only for a question).
+   */
+  pauseAfterDriftStep?: boolean;
   /** `sessionApply` only: called with a turn action's result right after `applyAction` returns, before any `onForced`, event or question of its resolution (§73). */
   onActionApplied?(result: ActionResult): void;
   /** Called with each `SessionEvent` the moment it is recorded (§73): exactly `SessionStep.events`, in order. */
@@ -122,6 +130,8 @@ export interface Pending {
   /** What the drift gets on its next `driftStep`. */
   driftInput: DriftInput | null;
   question: Question | null;
+  /** §73 O4: stopped after a drift step (`pauseAfterDriftStep`), waiting for `sessionResume`. JSON like the rest. */
+  paused: boolean;
 }
 
 export interface ResolutionItem {
@@ -135,7 +145,7 @@ export interface ResolutionItem {
 // ---------------------------------------------------------------------------
 
 export function newPending(attackerIds: string[], steps: Step[], resolvedIds: string[] = []): Pending {
-  return { attackerIds, steps, resolvedIds, frames: [], drift: null, driftInput: null, question: null };
+  return { attackerIds, steps, resolvedIds, frames: [], drift: null, driftInput: null, question: null, paused: false };
 }
 
 const advanceSteps = (hexes: readonly HexCoord[]): Step[] => hexes.map((hex) => ({ kind: 'advance', hex: { ...hex } }));
@@ -347,8 +357,15 @@ function stepRetreat(game: GameState, pending: Pending, hooks: ResolutionHooks, 
 /** One `driftStep` and what follows it, exactly `resolveElephantDrift`'s loop:
  * its events, then at most one input - a die from `rng`, or a trampled unit's
  * retreat cascade, after which the drift resumes. Never a second `driftStep`
- * before that input is supplied. */
-function stepDrift(game: GameState, pending: Pending, rng: () => number, hooks: ResolutionHooks, events: SessionEvent[]): null {
+ * before that input is supplied. Returns the step's `DriftEvent`s, for a caller
+ * that pauses after it (§73 O4). */
+function stepDrift(
+  game: GameState,
+  pending: Pending,
+  rng: () => number,
+  hooks: ResolutionHooks,
+  events: SessionEvent[],
+): DriftEvent[] {
   const result = driftStep(game, pending.drift!, pending.driftInput ?? undefined);
   pending.drift = result.state;
   pending.driftInput = null;
@@ -363,11 +380,11 @@ function stepDrift(game: GameState, pending: Pending, rng: () => number, hooks: 
   }
   if (result.done) {
     pending.drift = null;
-    return null;
+    return result.events;
   }
 
   const request = needsInput(result.events);
-  if (!request) return null; // a single-hex step that needs nothing: resume
+  if (!request) return result.events; // a single-hex step that needs nothing: resume
   switch (request.kind) {
     case 'directionRollNeeded':
       pending.driftInput = { kind: 'directionRoll', dieRoll: rollDie(rng) };
@@ -381,7 +398,7 @@ function stepDrift(game: GameState, pending: Pending, rng: () => number, hooks: 
       pending.driftInput = { kind: 'retreatResolved' };
       break;
   }
-  return null;
+  return result.events;
 }
 
 /** Starts the next queued step. A question, or null to go on. */
@@ -428,20 +445,32 @@ function beginStep(game: GameState, pending: Pending, step: Step, hooks: Resolut
 }
 
 /** Runs `pending` until it needs an answer (returned, and stored in
- * `pending.question`) or is settled (null). */
+ * `pending.question`), is settled (null), or - with `hooks.pauseAfterDriftStep`
+ * - stops after a drift step (null, with `pending.paused` set and that step's
+ * events appended to `driftEvents`). */
 export function runResolution(
   game: GameState,
   pending: Pending,
   rng: () => number,
   hooks: ResolutionHooks,
   events: SessionEvent[],
+  driftEvents: DriftEvent[],
 ): Question | null {
   for (;;) {
     let question: Question | null = null;
     if (pending.frames.length > 0) {
       question = stepRetreat(game, pending, hooks, events);
     } else if (pending.drift) {
-      stepDrift(game, pending, rng, hooks, events);
+      const stepped = stepDrift(game, pending, rng, hooks, events);
+      // §73 O4, the whole of the pause: it is a `return` taken after `stepDrift`
+      // has finished its one step and stored its one input (or ended the drift),
+      // so a resume can never run a second `driftStep` before that input.
+      if (hooks.pauseAfterDriftStep) {
+        pending.paused = true;
+        pending.question = null;
+        driftEvents.push(...stepped);
+        return null;
+      }
     } else {
       const step = pending.steps.shift();
       if (!step) {

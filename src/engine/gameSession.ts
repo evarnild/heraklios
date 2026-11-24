@@ -11,6 +11,7 @@ import {
   type ResolutionHooks,
   type SessionEvent,
 } from './combatResolution';
+import type { DriftEvent } from './drift';
 import type { GameState } from './state';
 
 export type { AnswerAction, Pending, Question, ResolutionHooks, SessionEvent } from './combatResolution';
@@ -24,7 +25,12 @@ export type { AnswerAction, Pending, Question, ResolutionHooks, SessionEvent } f
  * A land attack whose outcome needs a choice leaves `pending` set with a
  * `question`; while one is open, `sessionLegalActions` lists exactly its
  * answers and `sessionApply` takes one (B2, B3). `BoardScene` and its computer
- * seats do not use this yet (B16); the fuzz harness does.
+ * seats settle every land attack through it since §73; so does the fuzz harness.
+ *
+ * §73 O4 amends B7: a caller may opt into a pause after each drift step
+ * (`hooks.pauseAfterDriftStep`), which leaves `pending` set with `paused` and no
+ * question until `sessionResume`. A host (`engine/host.ts`) never sets the
+ * flag, so with it absent B7 is unchanged: the session pauses only for a question.
  */
 export interface SessionContext {
   /** Units that attacked or boarded this phase. */
@@ -50,6 +56,10 @@ export interface SessionStep {
   events: SessionEvent[];
   /** The open resolution after this step, or null when the combat is settled. */
   pending: Pending | null;
+  /** §73 O4: the resolution stopped after a drift step (`hooks.pauseAfterDriftStep`); `sessionResume` goes on. */
+  paused: boolean;
+  /** The `DriftEvent`s of the step it paused after (live `Unit`s, so never stored in the session); empty otherwise. */
+  driftEvents: DriftEvent[];
 }
 
 /** Wraps `state` (not a copy: the engine mutates a `GameState` in place). */
@@ -79,6 +89,7 @@ export function isAnswerAction(action: SessionAction): action is AnswerAction {
 /** B2: with no question open, exactly `legalActions` (same order); with one
  * open, exactly its answers. */
 export function sessionLegalActions(session: GameSession): SessionAction[] {
+  if (session.pending?.paused) return []; // nothing but `sessionResume` goes on (§73 O4)
   const question = sessionQuestion(session);
   if (question) return questionAnswers(session.state, question);
   return legalActions(session.state, actionContext(session.context));
@@ -112,16 +123,23 @@ function updateContext(session: GameSession, action: Action): void {
   }
 }
 
-/** Runs the open resolution on, storing its question (or clearing it). */
+/** Runs the open resolution on, storing its question (or clearing it), and
+ * returns the `DriftEvent`s of the step it paused after (empty unless it did). */
 function advanceResolution(
   session: GameSession,
   pending: Pending,
   rng: () => number,
   hooks: ResolutionHooks,
   events: SessionEvent[],
-): void {
-  const question = runResolution(session.state, pending, rng, hooks, events);
-  session.pending = question ? pending : null;
+): DriftEvent[] {
+  const driftEvents: DriftEvent[] = [];
+  const question = runResolution(session.state, pending, rng, hooks, events, driftEvents);
+  session.pending = question || pending.paused ? pending : null;
+  return driftEvents;
+}
+
+function stepOf(session: GameSession, result: SessionStep['result'], events: SessionEvent[], driftEvents: DriftEvent[]): SessionStep {
+  return { result, events, pending: session.pending, paused: session.pending?.paused ?? false, driftEvents };
 }
 
 /**
@@ -149,25 +167,43 @@ export function sessionApply(
 
   if (isAnswerAction(action)) {
     const pending = session.pending;
+    if (pending?.paused) throw new Error(`sessionApply: ${action.kind} but no question is open - the resolution is paused`);
     const question = pending?.question;
     if (!pending || !question) throw new Error(`sessionApply: ${action.kind} but no question is open`);
     if (!questionAnswers(session.state, question).some((answer) => sameAnswer(answer, action))) {
       throw new Error(`sessionApply: ${action.kind} is not one of the open ${question.kind} question's answers`);
     }
     applyAnswer(session.state, pending, action, hooks, events);
-    advanceResolution(session, pending, rng, hooks, events);
-    return { result: { kind: 'answer' }, events, pending: session.pending };
+    return stepOf(session, { kind: 'answer' }, events, advanceResolution(session, pending, rng, hooks, events));
   }
 
+  if (session.pending?.paused) throw new Error(`sessionApply: ${action.kind} while the resolution is paused`);
   if (session.pending) throw new Error(`sessionApply: ${action.kind} while a ${session.pending.question?.kind} question is open`);
   const result = applyAction(session.state, action, rng);
   updateContext(session, action);
   hooks.onActionApplied?.(result);
+  let driftEvents: DriftEvent[] = [];
   if (result.kind === 'landAttack') {
     const pending = pendingFromAttack(result);
-    if (pending) advanceResolution(session, pending, rng, hooks, events);
+    if (pending) driftEvents = advanceResolution(session, pending, rng, hooks, events);
   }
-  return { result, events, pending: session.pending };
+  return stepOf(session, result, events, driftEvents);
+}
+
+/**
+ * Goes on from a pause after a drift step (§73 O4). It throws, changing
+ * nothing, unless `session.pending.paused`: a question open, a settled
+ * combat and no combat at all are all "not paused". `rng` is required, as for
+ * `sessionApply`: the next drift die is rolled on the way, as it was before the
+ * pause existed.
+ */
+export function sessionResume(session: GameSession, rng: () => number, hooks: ResolutionHooks = {}): SessionStep {
+  if (typeof rng !== 'function') throw new Error('sessionResume: an rng is required');
+  const pending = session.pending;
+  if (!pending?.paused) throw new Error('sessionResume: the resolution is not paused');
+  pending.paused = false;
+  const events: SessionEvent[] = [];
+  return stepOf(session, { kind: 'answer' }, events, advanceResolution(session, pending, rng, hooks, events));
 }
 
 /** Starts `pending` - a resolution not produced by an attack, such as the
@@ -179,8 +215,7 @@ export function sessionBeginResolution(
   rng: () => number,
   hooks: ResolutionHooks = {},
 ): SessionStep {
-  if (session.pending) throw new Error('sessionBeginResolution: a question is already open');
+  if (session.pending) throw new Error('sessionBeginResolution: a resolution is already open (a question, or paused after a drift step)');
   const events: SessionEvent[] = [];
-  advanceResolution(session, pending, rng, hooks, events);
-  return { result: { kind: 'answer' }, events, pending: session.pending };
+  return stepOf(session, { kind: 'answer' }, events, advanceResolution(session, pending, rng, hooks, events));
 }
