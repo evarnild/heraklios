@@ -298,6 +298,8 @@ export const en = {
     exchangeSacrificed: (units: string[]) =>
       `Exchange: defender(s) destroyed; sacrificed ${units.join(', ') || 'none'}.`,
     selectMoreForce: (required: number) => `Select units totaling at least ${required} attack force before confirming.`,
+    sacrificeNotMinimal: (required: number) =>
+      `Select no more units than needed: the losses must total at least ${required} attack force with no unit to spare.`,
     waitComputerPhase: "Wait for the computer's turn to finish before ending the phase.",
     resolvePendingPhase: 'Resolve the pending retreat/drift before ending the phase.',
     computerError: 'The computer player hit an error and stopped. See the console.',

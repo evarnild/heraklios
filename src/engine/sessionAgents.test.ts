@@ -3,7 +3,7 @@ import type { HexCoord } from '../data/map';
 import type { PlayerAgent } from './agent';
 import { newPending } from './combatResolution';
 import { newSession } from './gameSession';
-import { settleResolutionWithAgent } from './sessionAgents';
+import { isListedSacrifice, settleResolutionWithAgent } from './sessionAgents';
 import type { GameState, Unit } from './state';
 import { createInitialState } from './turnManager';
 
@@ -79,5 +79,28 @@ describe('an agent that fails on a forced step', () => {
     });
     const pending = newPending(['a'], [{ kind: 'retreat', unitId: 'd' }]);
     await expect(settleResolutionWithAgent(newSession(state), pending, agent, () => 0)).rejects.toThrow('agent failed');
+  });
+});
+
+describe('isListedSacrifice (§73 O3)', () => {
+  // Forces 4, 4, 2 against 5: the listed sacrifices are {a,b}, {a,c}, {b,c}.
+  const a = unit('a', 'fantassins-lourds', 10, 5);
+  const b = unit('b', 'fantassins-lourds', 10, 6);
+  const c = unit('c', 'fantassins', 10, 7);
+
+  it('accepts exactly a listed minimal sacrifice, in any order', () => {
+    expect(isListedSacrifice([a, b, c], 5, [a, b])).toBe(true);
+    expect(isListedSacrifice([a, b, c], 5, [c, b])).toBe(true);
+  });
+
+  // Kills accepting any selection that merely meets the force: the player would
+  // lose a unit the exchange never asked for.
+  it('refuses one with a unit to spare', () => {
+    expect(isListedSacrifice([a, b, c], 5, [a, b, c])).toBe(false);
+  });
+
+  it('refuses one below the force, and an empty one', () => {
+    expect(isListedSacrifice([a, b, c], 5, [a, c].slice(0, 1))).toBe(false);
+    expect(isListedSacrifice([a, b, c], 5, [])).toBe(false);
   });
 });

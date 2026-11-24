@@ -1,6 +1,7 @@
 import type { HexCoord } from '../data/map';
 import type { PlayerAgent } from './agent';
 import {
+  minimalSacrifices,
   questionAnswers,
   unitById,
   type AnswerAction,
@@ -28,6 +29,17 @@ function sacrificeAnswer(listed: readonly AnswerAction[], chosen: readonly Unit[
   const answer = listed.find((a) => a.kind === 'answerSacrifice' && a.unitIds.every((id) => chosenIds.has(id)));
   if (!answer) throw new Error('sessionAgents: the chosen sacrifice contains none of the listed minimal sacrifices');
   return answer;
+}
+
+/**
+ * §73 O3: whether `chosen` is exactly one of the listed minimal sacrifices of
+ * `attackers` for `requiredForce` - the only answers the session takes. A human's
+ * exchange panel confirms only such a selection; a larger one (with a unit to
+ * spare) is refused, with its reason.
+ */
+export function isListedSacrifice(attackers: readonly Unit[], requiredForce: number, chosen: readonly Unit[]): boolean {
+  const wanted = chosen.map((u) => u.id).sort().join();
+  return minimalSacrifices(attackers, requiredForce).some((answer) => [...answer].sort().join() === wanted);
 }
 
 /**

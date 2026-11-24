@@ -120,6 +120,7 @@ test('(f) a retreat with one hex still waits for the click, and declining the ad
   expect(asked.hexes).toEqual([hexAt(9, 4)]);
   await page.waitForTimeout(300);
   expect(await choice(page), 'still waiting for the human').not.toBeNull();
+  expect(await unitHex(page, 'fx-def'), 'the unit moves when the player clicks, not before').toEqual(hexAt(10, 4));
   await clickHex(page, asked.hexes[0]!);
 
   await declineAdvance(page);
@@ -138,9 +139,18 @@ test('(b) an exchange: a selection below the force is refused, a minimal one is 
   await expect.poll(async () => (await lines(page)).includes(en.log.selectMoreForce(2))).toBe(true);
   expect((await unit(page, 'fx-a3')).destroyed, 'nothing was lost yet').toBe(false);
 
+  // §73 O3: a selection with a unit to spare (the heavy infantry and the phalanx, when either alone meets 2) is refused, with its reason.
+  const phalanxRow = (checked: boolean) => en.board.exchangeRow(checked, 'A', unitName('phalanges'), 8);
   await waitButton(page, row(false));
   await clickButton(page, row(false));
   await waitButton(page, row(true));
+  await clickButton(page, phalanxRow(false));
+  await waitButton(page, phalanxRow(true));
+  await clickButton(page, en.board.confirmLosses);
+  await expect.poll(async () => (await lines(page)).includes(en.log.sacrificeNotMinimal(2))).toBe(true);
+  expect((await unit(page, 'fx-a3')).destroyed, 'nothing was lost yet').toBe(false);
+  await clickButton(page, phalanxRow(true));
+  await waitButton(page, phalanxRow(false));
   await clickButton(page, en.board.confirmLosses);
 
   const advanceB = en.board.advanceUnit('B', unitName('chars-lourds'));
@@ -322,6 +332,10 @@ test('(g) a computer attacker, a human defender: the human is asked while the co
   expect(await page.evaluate(() => window.__heraklios.busy())).toEqual(expect.arrayContaining(['aiRunning', 'retreatChoice']));
   const asked = (await choice(page))!;
   expect(asked.hexes).toHaveLength(3);
+  // The computer waits for the human: past its own pause between actions it has neither ended its phase nor moved on.
+  await page.waitForTimeout(1500);
+  expect(await page.evaluate(() => window.__heraklios.busy())).toEqual(expect.arrayContaining(['aiRunning', 'retreatChoice']));
+  expect((await state(page)).phase).toBe('combat');
   await clickHex(page, asked.hexes[0]!);
   await waitIdle(page, 30_000);
 
