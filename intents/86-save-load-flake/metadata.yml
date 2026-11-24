@@ -2,7 +2,7 @@
 id: 86
 slug: save-load-flake
 type: fix
-status: accepted
+status: in-review
 title: The save-load e2e scenario reads the game before the load has happened
 review_tier:
 intent_accepted: 2026-11-24 by-agent    # owner: "/auto 86" (offered as the acceptance route)
