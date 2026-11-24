@@ -6,7 +6,7 @@ status: accepted
 title: The game canvas takes the browser window's width when the game starts
 review_tier:
 intent_accepted: 2026-11-24 by-agent    # owner: "accept 88 /auto 88"
-spec_accepted:
+spec_accepted: 2026-11-24 by-agent    # owner: "spec accepted 88 /auto 88"
 plan_approved:
 live_checked:
 merged:
