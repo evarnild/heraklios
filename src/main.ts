@@ -4,12 +4,17 @@ import { ArmyBuilderScene } from './scenes/ArmyBuilderScene';
 import { PlacementScene } from './scenes/PlacementScene';
 import { BoardScene } from './scenes/BoardScene';
 import { GameOverScene } from './scenes/GameOverScene';
+import { canvasSize } from './ui/canvasSize';
+
+// §88: the width is read once, here (no resize listener, so a resized window
+// changes nothing until reload). #app is 100vw; innerWidth is the fallback.
+const { width, height } = canvasSize(document.getElementById('app')?.clientWidth || window.innerWidth);
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.CANVAS,
   parent: 'app',
-  width: 1100,
-  height: 750,
+  width,
+  height,
   backgroundColor: '#1a1408',
   scene: [MenuScene, ArmyBuilderScene, PlacementScene, BoardScene, GameOverScene],
 };
