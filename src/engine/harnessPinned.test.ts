@@ -76,6 +76,15 @@ class WatchingAgent implements DrivingAgent {
 // fixture: ev-vs-ev/seed1 and seed6 (final army values 10 vs 35, only seat 0
 // has ships: 40 > 35) and ev-vs-ev-found/seed12 (25 vs 35: 55 > 35).
 // Nothing else in any game moved.
+//
+// §90: a push may never take a hex under enemy ZOC. Fifteen games were
+// re-pinned with the writer below and nothing else moved. In each, the first
+// call whose answer differs is a refused push into ZOC: either a real
+// retreat (random-default/seed13, random-push-found/seed17) or the EV
+// agent's `retreatCost` pricing a defender as eliminated where the old rule
+// priced a push (ev-vs-ev seeds 3 and 5, ev-vs-ev-found seeds 9, 10, 12, 14,
+// 15, 17, 20, 22, 24, 25, 26). Later play of a game then follows its new
+// start; the trace is not otherwise comparable.
 const SPECS: GameSpec[] = [];
 const range = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => from + i);
 

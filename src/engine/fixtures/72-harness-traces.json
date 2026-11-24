@@ -468,39 +468,38 @@
    "exchangeChoices": 0
   },
   "random-default/seed13": {
-   "length": 136,
-   "sha256": "e388025ec36348a471211d169b6060f5bc4edd14e2a0078ca7dd41759c6f52ae",
+   "length": 132,
+   "sha256": "fa1c0a6b5d642c30c3e40a1b863674b3f693a6cc6beae33e2da322d534a79446",
    "stats": {
     "seed": 13,
     "gameOver": true,
     "winnerIds": [
-     0,
      1
     ],
     "endedByTimeLimit": true,
     "turnsReached": 8,
-    "totalActions": 136,
+    "totalActions": 132,
     "actionsByKind": {
-     "navalMove": 17,
-     "landMove": 81,
+     "navalMove": 21,
+     "landMove": 75,
      "endPhase": 28,
-     "landAttack": 5,
-     "navalRotate": 5
+     "landAttack": 4,
+     "navalRotate": 4
     },
-    "landAttacksResolved": 5,
+    "landAttacksResolved": 4,
     "combatResultCounts": {
      "DR": 3,
-     "AR": 2
+     "AR": 1
     },
     "ramsResolved": 0,
     "ramHits": 0,
     "boardingsResolved": 0,
-    "driftsResolved": 1,
-    "driftCombatsResolved": 1,
-    "pushesResolved": 1,
+    "driftsResolved": 2,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
     "multiAttackerAttacks": 0,
     "finalArmyValues": {
-     "0": 50,
+     "0": 35,
      "1": 50
     }
    },
@@ -1597,8 +1596,8 @@
    "exchangeChoices": 0
   },
   "ev-vs-ev/seed3": {
-   "length": 36,
-   "sha256": "56d5cc3c0abeeb56478a7c37aa1c27115760e2e59434630da2efcafa455fe8b4",
+   "length": 43,
+   "sha256": "b8a619ab08d55d8de2ade0557139517e6b985dc755d0cd96e7db6116c01b6043",
    "stats": {
     "seed": 3,
     "gameOver": true,
@@ -1607,17 +1606,17 @@
     ],
     "endedByTimeLimit": true,
     "turnsReached": 8,
-    "totalActions": 36,
+    "totalActions": 43,
     "actionsByKind": {
      "ram": 2,
-     "landMove": 2,
+     "landMove": 7,
      "endPhase": 28,
-     "landAttack": 3,
+     "landAttack": 5,
      "navalMove": 1
     },
-    "landAttacksResolved": 3,
+    "landAttacksResolved": 5,
     "combatResultCounts": {
-     "DR": 1,
+     "DR": 3,
      "DE": 2
     },
     "ramsResolved": 2,
@@ -1626,9 +1625,9 @@
     "driftsResolved": 0,
     "driftCombatsResolved": 0,
     "pushesResolved": 0,
-    "multiAttackerAttacks": 0,
+    "multiAttackerAttacks": 2,
     "finalArmyValues": {
-     "0": 30,
+     "0": 10,
      "1": 35
     }
    },
@@ -1674,40 +1673,39 @@
    "exchangeChoices": 1
   },
   "ev-vs-ev/seed5": {
-   "length": 56,
-   "sha256": "717dd69d992820024340fafbb70582641578b717e631f8c7c8a8d051cf15ff4d",
+   "length": 35,
+   "sha256": "c6831e1d6eb1532ab57de0b628dbd60e7217aa0ec16700b21fb1439eb7651aa1",
    "stats": {
     "seed": 5,
     "gameOver": true,
     "winnerIds": [
      0
     ],
-    "endedByTimeLimit": true,
-    "turnsReached": 8,
-    "totalActions": 56,
+    "endedByTimeLimit": false,
+    "turnsReached": 5,
+    "totalActions": 35,
     "actionsByKind": {
      "ram": 1,
-     "landMove": 16,
-     "endPhase": 28,
-     "landAttack": 10,
+     "landMove": 9,
+     "endPhase": 18,
+     "landAttack": 6,
      "landSwap": 1
     },
-    "landAttacksResolved": 10,
+    "landAttacksResolved": 6,
     "combatResultCounts": {
-     "DR": 8,
-     "DE": 1,
-     "AR": 1
+     "DR": 5,
+     "DE": 1
     },
     "ramsResolved": 1,
     "ramHits": 1,
     "boardingsResolved": 0,
-    "driftsResolved": 2,
-    "driftCombatsResolved": 3,
+    "driftsResolved": 1,
+    "driftCombatsResolved": 1,
     "pushesResolved": 0,
     "multiAttackerAttacks": 3,
     "finalArmyValues": {
-     "0": 35,
-     "1": 25
+     "0": 40,
+     "1": 0
     }
    },
    "exchangeChoices": 0
@@ -1830,8 +1828,8 @@
    "exchangeChoices": 0
   },
   "random-push-found/seed17": {
-   "length": 118,
-   "sha256": "f0877dd5ffbe095dd808e2dc08495293523997094383f58b5f05eea228332d1d",
+   "length": 117,
+   "sha256": "5086cab6dc05fd69eebc29025e69e5353e4ec858dc3407a009b1667847b80c97",
    "stats": {
     "seed": 17,
     "gameOver": true,
@@ -1840,16 +1838,16 @@
     ],
     "endedByTimeLimit": true,
     "turnsReached": 8,
-    "totalActions": 118,
+    "totalActions": 117,
     "actionsByKind": {
      "endPhase": 28,
      "landAttack": 2,
-     "landMove": 88
+     "landMove": 86,
+     "landSwap": 1
     },
     "landAttacksResolved": 2,
     "combatResultCounts": {
-     "DR": 1,
-     "AR": 1
+     "DR": 2
     },
     "ramsResolved": 0,
     "ramHits": 0,
@@ -2089,8 +2087,8 @@
    "exchangeChoices": 1
   },
   "ev-vs-ev-found/seed9": {
-   "length": 51,
-   "sha256": "20a209e6df73f265d49bc91023e16c548193661d95309d8bec4fd6576d2f0c97",
+   "length": 55,
+   "sha256": "8b4ec5a44c3e6279e679fea965cff61ac7e9359eacbe0a8e7a3ba28b984e5d46",
    "stats": {
     "seed": 9,
     "gameOver": true,
@@ -2099,38 +2097,37 @@
     ],
     "endedByTimeLimit": true,
     "turnsReached": 8,
-    "totalActions": 51,
+    "totalActions": 55,
     "actionsByKind": {
      "navalMove": 1,
      "ram": 1,
-     "landMove": 12,
+     "landMove": 17,
      "endPhase": 28,
-     "landAttack": 8,
-     "landSwap": 1
+     "landAttack": 8
     },
     "landAttacksResolved": 8,
     "combatResultCounts": {
-     "DR": 6,
-     "DE": 1,
-     "EX": 1
+     "DR": 4,
+     "DE": 2,
+     "AR": 2
     },
     "ramsResolved": 1,
     "ramHits": 1,
     "boardingsResolved": 0,
-    "driftsResolved": 1,
-    "driftCombatsResolved": 1,
+    "driftsResolved": 2,
+    "driftCombatsResolved": 0,
     "pushesResolved": 0,
-    "multiAttackerAttacks": 1,
+    "multiAttackerAttacks": 4,
     "finalArmyValues": {
-     "0": 40,
-     "1": 15
+     "0": 35,
+     "1": 25
     }
    },
    "exchangeChoices": 0
   },
   "ev-vs-ev-found/seed10": {
    "length": 35,
-   "sha256": "e016ff57e731fc41ae11fedc7c414bd9c9417db9c057b0a83da08af9fce315ae",
+   "sha256": "e4368c9be88b44aed99ba41a4109b0c99c7ed0602300d02bfb1d52d297c23470",
    "stats": {
     "seed": 10,
     "gameOver": true,
@@ -2158,7 +2155,7 @@
     "driftsResolved": 0,
     "driftCombatsResolved": 0,
     "pushesResolved": 0,
-    "multiAttackerAttacks": 0,
+    "multiAttackerAttacks": 1,
     "finalArmyValues": {
      "0": 30,
      "1": 15
@@ -2167,8 +2164,8 @@
    "exchangeChoices": 0
   },
   "ev-vs-ev-found/seed12": {
-   "length": 53,
-   "sha256": "f100ba3615c4e3e85c80a5e3dd9d386b229a6f6efccf3a3b2faf767deb0a7abb",
+   "length": 52,
+   "sha256": "4680d4f04c6956a169b2d592d558d1d37f0f4b158a79fa2625a30a3b6283d015",
    "stats": {
     "seed": 12,
     "gameOver": true,
@@ -2177,11 +2174,11 @@
     ],
     "endedByTimeLimit": true,
     "turnsReached": 8,
-    "totalActions": 53,
+    "totalActions": 52,
     "actionsByKind": {
      "navalMove": 1,
      "ram": 1,
-     "landMove": 18,
+     "landMove": 17,
      "endPhase": 28,
      "landAttack": 5
     },
@@ -2189,7 +2186,47 @@
     "combatResultCounts": {
      "AR": 1,
      "EX": 1,
-     "DR": 3
+     "DR": 2,
+     "DE": 1
+    },
+    "ramsResolved": 1,
+    "ramHits": 1,
+    "boardingsResolved": 0,
+    "driftsResolved": 0,
+    "driftCombatsResolved": 0,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 2,
+    "finalArmyValues": {
+     "0": 20,
+     "1": 35
+    }
+   },
+   "exchangeChoices": 1
+  },
+  "ev-vs-ev-found/seed14": {
+   "length": 66,
+   "sha256": "1c9dade7e3962e25a614e77ca6286f8d6261b61c277dd46254a7fb801c99eba7",
+   "stats": {
+    "seed": 14,
+    "gameOver": true,
+    "winnerIds": [
+     0
+    ],
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 66,
+    "actionsByKind": {
+     "navalMove": 1,
+     "ram": 1,
+     "landMove": 27,
+     "endPhase": 28,
+     "landAttack": 9
+    },
+    "landAttacksResolved": 9,
+    "combatResultCounts": {
+     "AR": 5,
+     "DE": 2,
+     "DR": 2
     },
     "ramsResolved": 1,
     "ramHits": 1,
@@ -2203,52 +2240,11 @@
      "1": 35
     }
    },
-   "exchangeChoices": 1
-  },
-  "ev-vs-ev-found/seed14": {
-   "length": 64,
-   "sha256": "5f5b04d04b5c0ce7e1349518e28195a27f7f9a06379ef4702097b95c7bfb61d0",
-   "stats": {
-    "seed": 14,
-    "gameOver": true,
-    "winnerIds": [
-     0
-    ],
-    "endedByTimeLimit": true,
-    "turnsReached": 8,
-    "totalActions": 64,
-    "actionsByKind": {
-     "navalMove": 1,
-     "ram": 1,
-     "landMove": 22,
-     "endPhase": 28,
-     "landAttack": 11,
-     "landSwap": 1
-    },
-    "landAttacksResolved": 11,
-    "combatResultCounts": {
-     "AR": 3,
-     "DE": 1,
-     "EX": 1,
-     "DR": 6
-    },
-    "ramsResolved": 1,
-    "ramHits": 1,
-    "boardingsResolved": 0,
-    "driftsResolved": 0,
-    "driftCombatsResolved": 0,
-    "pushesResolved": 1,
-    "multiAttackerAttacks": 3,
-    "finalArmyValues": {
-     "0": 40,
-     "1": 25
-    }
-   },
-   "exchangeChoices": 1
+   "exchangeChoices": 0
   },
   "ev-vs-ev-found/seed15": {
-   "length": 54,
-   "sha256": "b9277cfd329816920dc4d3025c149b58e400b03430650191a456feb4af773145",
+   "length": 56,
+   "sha256": "b2c0ab0b67cd7731d1efea0cfd83bb45c1d61aec1216006fd9aec3eca0d406c5",
    "stats": {
     "seed": 15,
     "gameOver": true,
@@ -2257,17 +2253,17 @@
     ],
     "endedByTimeLimit": true,
     "turnsReached": 8,
-    "totalActions": 54,
+    "totalActions": 56,
     "actionsByKind": {
      "navalMove": 2,
      "ram": 2,
-     "landMove": 14,
+     "landMove": 15,
      "endPhase": 28,
-     "landAttack": 8
+     "landAttack": 9
     },
-    "landAttacksResolved": 8,
+    "landAttacksResolved": 9,
     "combatResultCounts": {
-     "DR": 6,
+     "DR": 7,
      "EX": 1,
      "DE": 1
     },
@@ -2277,17 +2273,17 @@
     "driftsResolved": 0,
     "driftCombatsResolved": 0,
     "pushesResolved": 0,
-    "multiAttackerAttacks": 1,
+    "multiAttackerAttacks": 4,
     "finalArmyValues": {
-     "0": 5,
+     "0": 15,
      "1": 35
     }
    },
    "exchangeChoices": 0
   },
   "ev-vs-ev-found/seed17": {
-   "length": 37,
-   "sha256": "eb705ea5c95cf52a402de5f95fd7f051de4d09c085193b7f8b688ff9e8aa20bf",
+   "length": 46,
+   "sha256": "94d04207ed740a221c1ff231e86306ac31338b8a11394c1527a2618f3866202a",
    "stats": {
     "seed": 17,
     "gameOver": true,
@@ -2296,36 +2292,37 @@
     ],
     "endedByTimeLimit": true,
     "turnsReached": 8,
-    "totalActions": 37,
+    "totalActions": 46,
     "actionsByKind": {
      "ram": 1,
-     "landMove": 4,
+     "landMove": 10,
      "endPhase": 28,
-     "landAttack": 4
+     "landAttack": 7
     },
-    "landAttacksResolved": 4,
+    "landAttacksResolved": 7,
     "combatResultCounts": {
-     "DR": 2,
+     "DR": 4,
      "DE": 1,
+     "AR": 1,
      "EX": 1
     },
     "ramsResolved": 1,
     "ramHits": 1,
     "boardingsResolved": 0,
-    "driftsResolved": 0,
+    "driftsResolved": 1,
     "driftCombatsResolved": 0,
     "pushesResolved": 0,
-    "multiAttackerAttacks": 0,
+    "multiAttackerAttacks": 2,
     "finalArmyValues": {
-     "0": 40,
+     "0": 35,
      "1": 15
     }
    },
    "exchangeChoices": 0
   },
   "ev-vs-ev-found/seed20": {
-   "length": 41,
-   "sha256": "10b27960fc98b95dff27719169ee7c3bed877061d455b5d798b0f348942abd42",
+   "length": 66,
+   "sha256": "be9a193a3325a3b23b17b014325f192d4cad9c616a4e8e94c70df2fb425bc94d",
    "stats": {
     "seed": 20,
     "gameOver": true,
@@ -2334,38 +2331,37 @@
     ],
     "endedByTimeLimit": true,
     "turnsReached": 8,
-    "totalActions": 41,
+    "totalActions": 66,
     "actionsByKind": {
      "navalMove": 1,
      "ram": 1,
-     "landMove": 5,
+     "landMove": 27,
      "endPhase": 28,
-     "landAttack": 6
+     "landAttack": 9
     },
-    "landAttacksResolved": 6,
+    "landAttacksResolved": 9,
     "combatResultCounts": {
-     "AR": 1,
-     "DE": 1,
-     "EX": 1,
-     "DR": 3
+     "AR": 2,
+     "DE": 2,
+     "DR": 5
     },
     "ramsResolved": 1,
     "ramHits": 1,
     "boardingsResolved": 0,
     "driftsResolved": 0,
     "driftCombatsResolved": 0,
-    "pushesResolved": 1,
-    "multiAttackerAttacks": 3,
+    "pushesResolved": 0,
+    "multiAttackerAttacks": 2,
     "finalArmyValues": {
-     "0": 40,
-     "1": 25
+     "0": 25,
+     "1": 35
     }
    },
-   "exchangeChoices": 1
+   "exchangeChoices": 0
   },
   "ev-vs-ev-found/seed22": {
    "length": 35,
-   "sha256": "e016ff57e731fc41ae11fedc7c414bd9c9417db9c057b0a83da08af9fce315ae",
+   "sha256": "e4368c9be88b44aed99ba41a4109b0c99c7ed0602300d02bfb1d52d297c23470",
    "stats": {
     "seed": 22,
     "gameOver": true,
@@ -2393,7 +2389,7 @@
     "driftsResolved": 0,
     "driftCombatsResolved": 0,
     "pushesResolved": 0,
-    "multiAttackerAttacks": 0,
+    "multiAttackerAttacks": 1,
     "finalArmyValues": {
      "0": 30,
      "1": 15
@@ -2402,47 +2398,47 @@
    "exchangeChoices": 0
   },
   "ev-vs-ev-found/seed24": {
-   "length": 31,
-   "sha256": "bc788ce5f7b3ca6e6dbdc79b51017af880660eef35ccc63f54d18098af4b5dbf",
+   "length": 50,
+   "sha256": "a9ad42c27805d786f547b49f39f3f739a5729aff79635f4ca4706ad08fcd7a6d",
    "stats": {
     "seed": 24,
     "gameOver": true,
     "winnerIds": [
      0
     ],
-    "endedByTimeLimit": false,
-    "turnsReached": 4,
-    "totalActions": 31,
+    "endedByTimeLimit": true,
+    "turnsReached": 8,
+    "totalActions": 50,
     "actionsByKind": {
      "navalMove": 3,
      "ram": 3,
-     "landMove": 6,
-     "endPhase": 14,
-     "landAttack": 5
+     "landMove": 10,
+     "endPhase": 28,
+     "landAttack": 6
     },
-    "landAttacksResolved": 5,
+    "landAttacksResolved": 6,
     "combatResultCounts": {
      "DR": 3,
-     "DE": 1,
-     "EX": 1
+     "DE": 2,
+     "AR": 1
     },
     "ramsResolved": 3,
     "ramHits": 1,
     "boardingsResolved": 0,
-    "driftsResolved": 0,
+    "driftsResolved": 1,
     "driftCombatsResolved": 0,
     "pushesResolved": 0,
-    "multiAttackerAttacks": 1,
+    "multiAttackerAttacks": 2,
     "finalArmyValues": {
-     "0": 40,
-     "1": 0
+     "0": 35,
+     "1": 25
     }
    },
    "exchangeChoices": 0
   },
   "ev-vs-ev-found/seed25": {
    "length": 37,
-   "sha256": "0847c6bd2e1c36810f0e89b12fa62bf7a0212e9f253541a952efaf99fa29c159",
+   "sha256": "2f553e38d83bb2b0513659f6ee452a9decc7d6c6b9c83a54a983abe68dc92fc0",
    "stats": {
     "seed": 25,
     "gameOver": true,
@@ -2470,7 +2466,7 @@
     "driftsResolved": 0,
     "driftCombatsResolved": 0,
     "pushesResolved": 0,
-    "multiAttackerAttacks": 0,
+    "multiAttackerAttacks": 1,
     "finalArmyValues": {
      "0": 20,
      "1": 25
@@ -2479,8 +2475,8 @@
    "exchangeChoices": 0
   },
   "ev-vs-ev-found/seed26": {
-   "length": 46,
-   "sha256": "48fe67549c6ae6167aa0fee557f7410668b0b35267f4ccbaae3c52f9cb960c96",
+   "length": 43,
+   "sha256": "734512622b4f0370a0aa4a228a8c84c78c5f972e39ec038fdb74b8c9200e81c9",
    "stats": {
     "seed": 26,
     "gameOver": true,
@@ -2489,30 +2485,29 @@
     ],
     "endedByTimeLimit": true,
     "turnsReached": 8,
-    "totalActions": 46,
+    "totalActions": 43,
     "actionsByKind": {
      "navalMove": 1,
      "ram": 1,
-     "landMove": 10,
+     "landMove": 8,
      "endPhase": 28,
-     "landAttack": 6
+     "landAttack": 5
     },
-    "landAttacksResolved": 6,
+    "landAttacksResolved": 5,
     "combatResultCounts": {
-     "DR": 4,
-     "DE": 1,
-     "EX": 1
+     "DR": 3,
+     "DE": 2
     },
     "ramsResolved": 1,
     "ramHits": 1,
     "boardingsResolved": 0,
-    "driftsResolved": 0,
+    "driftsResolved": 1,
     "driftCombatsResolved": 0,
     "pushesResolved": 0,
-    "multiAttackerAttacks": 0,
+    "multiAttackerAttacks": 2,
     "finalArmyValues": {
      "0": 40,
-     "1": 15
+     "1": 25
     }
    },
    "exchangeChoices": 0
