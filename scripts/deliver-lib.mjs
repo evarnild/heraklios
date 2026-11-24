@@ -1,7 +1,7 @@
-// Pure logic behind `npm run ship` (§46): the merge preconditions of
+// Pure logic behind `npm run deliver` (§46): the merge preconditions of
 // REVIEW-POLICY.md → "Merging", the metadata.yml bookkeeping edit,
 // the resumable step plan and the merge message. No git, no fs: tested in
-// ship-lib.test.mjs. The git half is scripts/ship.mjs.
+// deliver-lib.test.mjs. The git half is scripts/deliver.mjs.
 
 /** The seven steps of a ship run, in order (spec B5). */
 export const STEPS = [
@@ -39,7 +39,7 @@ export function planSteps(s) {
   });
 }
 
-/** Ways a line that mentions a reason says there is none (one alternative each; ship-lib.test.mjs has a phrase per entry). */
+/** Ways a line that mentions a reason says there is none (one alternative each; deliver-lib.test.mjs has a phrase per entry). */
 const NO_REASON = [
   /\b(?:no|not|without|missing)\s+(?:\w+\s+)?reason\b/i, // "no reason found"
   /\breason\s+(?:not|unknown|missing|unclear)\b/i, // "reason unclear"
@@ -117,7 +117,7 @@ function commitAccepted(commit, listed, intentDir) {
 /**
  * REVIEW-POLICY.md → "Merging", preconditions 1 to 3, from values the caller
  * read out of git. `checkIntent` is left out to evaluate precondition 1 alone.
- * `commits` are those after reviewed-commit, `{hash, files}` each (ship.mjs);
+ * `commits` are those after reviewed-commit, `{hash, files}` each (deliver.mjs);
  * `konmariText` is the intent's konmari.md on the branch, if any.
  *
  * @param {{reviewHeader:Record<string,string>|null, isAncestor:boolean,

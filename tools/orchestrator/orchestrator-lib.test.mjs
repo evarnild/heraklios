@@ -314,8 +314,8 @@ describe('autoLaunch: what an Auto click can resume (F13)', () => {
     expect(live.allowed).toBe(true);
     expect(live.confirmText).toContain('live_checked');
   });
-  it('ready for /ship re-runs the dry-run and never ships', () => {
-    const r = autoLaunch('ready for /ship', '52');
+  it('ready for /deliver re-runs the dry-run and never ships', () => {
+    const r = autoLaunch('ready for /deliver', '52');
     expect(r.allowed).toBe(true);
     expect(r.confirmText).toContain('dry-run');
   });

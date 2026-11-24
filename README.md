@@ -921,7 +921,7 @@ overrides the default 5299) serves a local page at `http://127.0.0.1:5299/`
 for running the intent workflow without a terminal coordinator. It lists every
 intent with its gates and the next step (what waits on you first) and every
 worktree with its session state, and wraps the existing scripts: Spawn and
-Remove run `npm run spawn`, Ship shows `npm run ship -- <id> --dry-run` and
+Remove run `npm run spawn`, Ship shows `npm run deliver -- <id> --dry-run` and
 only then, after a confirm dialog, runs the real ship. A gate button writes
 today's date as a bare date (you did it, not an agent) and commits it under
 your git identity, only when the gate's preconditions hold (recording
@@ -942,7 +942,7 @@ bare `/auto <id>` to a headless session, so it can resume only the stops that
 need no answer from you: no run yet, or a session closed mid-run; `spec
 drafted` and `live check owed` (record the gate with its button first, then
 click Auto); `escalate` (the click also means "I have read the diff", and the
-confirm says so); `ready for /ship` (re-runs the dry-run); and a stop whose
+confirm says so); `ready for /deliver` (re-runs the dry-run); and a stop whose
 cause you have cleared (a red verify and the like). A stop that needs your
 answer (`spec questions`, `decision needed`, `spec or plan amendment needed`,
 `critical finding`, `plan exists unapproved`, `plan found the spec

@@ -47,7 +47,7 @@ the diff (`git diff main...HEAD`).
 and the trailers the prompt gives. Commit each as it is verified. Commit
 `konmari.md` last, **in its own commit** (`§<id>: konmari record`, touching
 only that file), never inside a tidy-up commit: a discard `git revert`s the
-tidy-up commits, and must not delete the record. `npm run ship` accepts the
+tidy-up commits, and must not delete the record. `npm run deliver` accepts the
 commits `konmari.md` lists (`## Tidied`, `## Reverted`) and the record's own
 commit, and blocks any other commit after the review.
 
@@ -70,7 +70,7 @@ base: <hash of HEAD before your first tidy-up commit>
 - <or "none">
 ```
 
-The `outcome:` value is alone on its line (`npm run ship --dry-run` reads it
+The `outcome:` value is alone on its line (`npm run deliver --dry-run` reads it
 with an anchored pattern). `outcome: nothing to tidy` means you made no tidy-up
 commit. The coordinator, not you, marks an outcome `discarded`: it sets
 `outcome: discarded`, adds a separate `reason: <why>` line (never text after
@@ -78,7 +78,7 @@ the outcome), and lists the revert commits in a `## Reverted` section in the
 same bullet form as `## Tidied`.
 
 **Safety rules (kept from `/auto` step 10).**
-- Never run `npm run ship`; never merge, push, rebase or delete a branch or
+- Never run `npm run deliver`; never merge, push, rebase or delete a branch or
   worktree. Never rewrite history.
 - Never record a gate, and never edit `intent_accepted`, `spec_accepted`,
   `plan_approved`, `live_checked`, `auto_authorized`, `auto_round`,

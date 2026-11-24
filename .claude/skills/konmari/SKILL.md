@@ -79,7 +79,7 @@ result marked **Coordinator, re-run**, and the reviewer's read. Commit it as
 tidy-up, and pass 1 doesn't count the commits in `konmari.md` as refactoring
 mixed in.
 
-`reviewed-commit` does not move. `npm run ship` and `REVIEW-POLICY.md` →
+`reviewed-commit` does not move. `npm run deliver` and `REVIEW-POLICY.md` →
 "Merging" rule 1 accept, after it, the commits `konmari.md` lists under
 `## Tidied` and `## Reverted`, `konmari.md` itself and the usual `review.md`
 and `metadata.yml` commits, and nothing else. So `konmari.md` is committed in
@@ -108,7 +108,7 @@ Nothing here sends the run back to rework or stops it.
 
 ## Safety
 
-Never run `npm run ship`; never merge, push, rebase or delete a branch or
+Never run `npm run deliver`; never merge, push, rebase or delete a branch or
 worktree; never record a gate; never write `konmari: skip` (only the owner, or
 an agent on the owner's words in a comment); never touch a real `saves/`
 folder; never raise the lint warning cap; restore mutants by copy; finish with

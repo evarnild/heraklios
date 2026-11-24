@@ -76,7 +76,7 @@ refactor)
   section in `review.md`. Your diff read and the live check then cover the
   tidied code.
 - `konmari: skip` in `metadata.yml` (your words in a comment) skips it for one
-  intent. It is not a gate. `npm run ship -- <id> --dry-run` reports `konmari:
+  intent. It is not a gate. `npm run deliver -- <id> --dry-run` reports `konmari:
   kept | discarded | nothing to tidy | skipped | not run`, and never blocks.
 
 The review report also says `live-check: owed` or `not-needed`. It's owed for
@@ -110,8 +110,8 @@ Merging is: `git merge --no-ff` on `main` → `npm run verify` on `main` → set
 `merged:` and `status: done` in `metadata.yml` → push → `npm run spawn -- <id> --remove` if you
 used a worktree. You can ask Claude to do the merge, the push or the
 removal — each only when you ask for it, for that change, in the current
-conversation. `/ship <id>` does all of it in order and stops at the first
-step that fails (`/ship <id> --dry-run`, or "can §N ship?", only reports);
+conversation. `/deliver <id>` does all of it in order and stops at the first
+step that fails (`/deliver <id> --dry-run`, or "can §N ship?", only reports);
 say in the same message that you ran the live check if you did. Run it from
 the main checkout, on `main`. It first checks that nothing but the review, the
 metadata and, for the KonMari step, `konmari.md` and the commits it lists
@@ -126,7 +126,7 @@ to 5 without a prompt between them, and ends at step 6's door:
 
 - **Your message is a request to record one gate.** `/auto <id>` is your
   request to record that intent's `plan_approved` (as `by-agent`, with a
-  comment naming it). `spec_accepted`, `live_checked` and `/ship` stay yours.
+  comment naming it). `spec_accepted`, `live_checked` and `/deliver` stay yours.
 - **A feature stops once, at the spec**, for your `spec_accepted`; a yes
   continues the run. A fix or refactor has no spec; an adjustment or
   experiment has no plan.
@@ -149,7 +149,7 @@ to 5 without a prompt between them, and ends at step 6's door:
   `auto_stopped` into `metadata.yml`, shows in `npm run sessions` and
   `npm run queue` as `auto · r<n> · <reason>`, and sends a push notification
   when the session has the tool.
-- **It ends at "ready: `/ship <id>`"**, after `npm run ship -- <id>
+- **It ends at "ready: `/deliver <id>`"**, after `npm run deliver -- <id>
   --dry-run` shows nothing in the way, and never ships. Closing the session
   pauses it; `/auto <id>` in a new one resumes from the recorded round.
 - Reviews of auto runs say `run: auto`, and every third attested one is
