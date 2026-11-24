@@ -191,6 +191,21 @@ test('(c) a boxed-in defender pushes its friend, who retreats to make room', asy
   expect(errors).toEqual([]);
 });
 
+const COMPUTER_DEFENDS: Scenario = { ...PUSH, fixture: { ...PUSH.fixture, seatControls: ['human', 'ai-greedy'] } };
+
+test("(c) a computer defender's pushed friend: the same wording, the choices made by the computer, no \"retreats.\" line", async ({ page }) => {
+  const errors = await begin(page, COMPUTER_DEFENDS);
+  await attack(page, COMPUTER_DEFENDS);
+  await declineAdvance(page);
+  const friend = unitName('fantassins');
+  expect(await unitHex(page, 'fx-def')).toEqual(hexAt(10, 3));
+  expect(await unitHex(page, 'fx-friend')).toEqual(hexAt(10, 2));
+  const all = await lines(page);
+  expectInOrder(all, [en.log.nowhereToRetreat(DEFENDER, 1), en.log.mustRetreatRoom(friend), en.log.retreatsMakingRoom(friend, DEFENDER)]);
+  expect(all.filter((l) => l === en.log.retreats(friend) || l === en.log.retreats(DEFENDER)), 'a pushed link has no "retreats." line').toEqual([]);
+  expect(errors).toEqual([]);
+});
+
 interface Pause {
   arrow: { hex: Hex; facing: number } | null;
   live: Hex;
@@ -259,6 +274,9 @@ test('(d) a drift: one Continue per beat showing the board at that beat, and the
       pauses.push(await observePause(page));
       await clickButton(page, '▶ Continue');
     } else if (stop === 'advance') {
+      // The drift's last step is over: its display has ended.
+      expect(await page.evaluate(() => window.__heraklios.driftArrow()), 'no drift arrow at the advance offer').toBeNull();
+      expect(await page.evaluate(() => window.__heraklios.busy()), 'no drift state at the advance offer').not.toContain('driftState');
       await clickButton(page, "Don't advance");
     } else {
       await clickHex(page, (await choice(page))!.hexes[0]!);

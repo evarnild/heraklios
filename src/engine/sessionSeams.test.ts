@@ -122,6 +122,30 @@ describe('the new events (§73)', () => {
     expect(all.length).toBeGreaterThan(2);
     expect(seen).toEqual(all);
   });
+
+  // Kills a `driftStarted` or `driftCombat` event emitted by `events.push` instead of `emit`: only
+  // `emit` reaches `onEvent`, so the list `onEvent` saw would lack it.
+  it('onEvent receives exactly the events of each step on a drift with a trample', () => {
+    const elephant = unit('e', 'elephants', 14, 5, 1);
+    const attacker = unit('c', 'chars-lourds', 13, 5, 0);
+    const trampled = unit('p', 'phalanges', 15, 5, 0);
+    const state = gameWith([elephant, attacker, trampled]);
+    const rng = scripted([dieFor([attacker], [elephant], 'DR'), 1, dieFor([elephant], [trampled], 'DR'), 1, 1, 1, 1, 1, 1, 1, 1]);
+    const session = newSession(state);
+    const seen: SessionEvent[] = [];
+    const hooks: ResolutionHooks = { onEvent: (e) => seen.push(e) };
+    const all: SessionEvent[] = [];
+    let step = sessionApply(session, attack([attacker], [elephant]), rng, hooks);
+    all.push(...step.events);
+    while (session.pending) {
+      step = sessionApply(session, (sessionLegalActions(session) as AnswerAction[])[0]!, rng, hooks);
+      all.push(...step.events);
+    }
+    const kinds = all.map((e) => e.kind);
+    expect(kinds).toContain('driftStarted');
+    expect(kinds).toContain('driftCombat');
+    expect(seen).toEqual(all);
+  });
 });
 
 describe('onActionApplied (§73)', () => {

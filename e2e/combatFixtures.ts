@@ -103,6 +103,17 @@ export async function loadFixture(page: Page, base: GameState, fixture: Fixture,
   await beforeLoad?.(); // a computer seat attacks as the game loads: the dice are seeded just before
   await clickButton(page, 'Load', load);
   await page.waitForFunction(() => window.__heraklios.scenes().includes('Board'));
+  // The Board scene is up before the save arrives over HTTP: wait for the load itself (the crafted
+  // phase and units), reading the hook as "not yet" while the scene restarts.
+  const ids = fixture.units.map((u) => u.id).sort();
+  await page.waitForFunction((want) => {
+    try {
+      const st = window.__heraklios.state() as GameState;
+      return st.phase === 'combat' && JSON.stringify(st.units.map((u) => u.id).sort()) === JSON.stringify(want);
+    } catch {
+      return false;
+    }
+  }, ids);
   // A computer seat starts its turn on load, and may be waiting on a human answer: not idle.
   if (!(fixture.seatControls ?? []).some((c) => c !== 'human')) await waitIdle(page);
   const loaded = await page.evaluate(() => window.__heraklios.state()) as GameState;
