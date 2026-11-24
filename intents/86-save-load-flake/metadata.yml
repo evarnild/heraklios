@@ -7,7 +7,7 @@ title: The save-load e2e scenario reads the game before the load has happened
 review_tier:
 intent_accepted: 2026-11-24 by-agent    # owner: "/auto 86" (offered as the acceptance route)
 spec_accepted:
-plan_approved:
+plan_approved: 2026-11-24 by-agent    # auto: owner "/auto 86" (auto_authorized 2026-11-24)
 live_checked:
 merged:
 konmari:
