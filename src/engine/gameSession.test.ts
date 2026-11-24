@@ -5,7 +5,6 @@ import { applyAction, legalActions, type Action } from './actions';
 import { describeLandAttack, eligibleAdvanceCandidates, legalRetreatHexes, unitAt } from './combat';
 import { newPending, stepsForItems, type AnswerAction, type Question } from './combatResolution';
 import { rollDie } from './dice';
-import { resolveElephantDrift } from './drift';
 import {
   buildElephantScenarioGameState,
 } from './fuzzHarness';
@@ -20,7 +19,7 @@ import {
   type SessionEvent,
 } from './gameSession';
 import { RandomAgent } from './randomAgent';
-import { resolveUnitRetreat } from './retreat';
+import { resolveElephantDrift, resolveUnitRetreat } from './driftReference';
 import { createSeededRng } from './rng';
 import { settleWithAgent } from './sessionAgents';
 import { unitType, type GameState, type Unit } from './state';
@@ -626,7 +625,7 @@ describe('the drift runs inside the session (B7, B8)', () => {
 
   /**
    * The BoardScene-path reference: `applyAction`, then `resolveElephantDrift` and
-   * `engine/retreat.ts` with the same agent, as `processDrifts` and
+   * `driftReference.ts`'s two pumps with the same agent, as `processDrifts` and
    * `processRetreats` drove them before §72. It is kept here so the parity
    * check survives the harness moving onto the session.
    */
@@ -681,7 +680,7 @@ describe('the drift runs inside the session (B7, B8)', () => {
   // Kills a die rolled out of order, an extra `driftStep` before the first
   // request is answered, and resuming the drift before a trampled unit's
   // retreat is resolved: any of them changes the final state or the draws.
-  it('ends in the same state, with the same draws, as resolveElephantDrift and retreat.ts', async () => {
+  it('ends in the same state, with the same draws, as resolveElephantDrift and resolveUnitRetreat', async () => {
     let drifts = 0;
     for (let seed = 1; seed <= 24; seed++) {
       const attack: Action = { kind: 'landAttack', attackerIds: ['attacker'], defenderIds: ['defender'] };

@@ -7,7 +7,7 @@ import type { CombatResult } from '../data/combatTable';
 import type { Action } from './actions';
 import type { DrivingAgent, PlayerAgent } from './agent';
 import { RandomAgent } from './randomAgent';
-import { resolveUnitRetreat as resolveEngineUnitRetreat, type RetreatHooks } from './retreat';
+import { resolveUnitRetreat as resolveEngineUnitRetreat, type RetreatHooks } from './driftReference';
 import { createSeededRng } from './rng';
 import { attackerCanJoin } from './combat';
 import { stepsForItems, newPending, type ResolutionItem, type SessionEvent } from './combatResolution';
@@ -630,15 +630,14 @@ function assertNoActionTargetsADeadUnit(state: GameState, legal: Action[]): void
 }
 
 // ---------------------------------------------------------------------------
-// Mid-resolution decision plumbing — mirrors BoardScene's
-// beginRetreatChoices/beginUnitRetreatChoice/promptAdvanceChoice sequencing
-// (see BoardScene.ts:1034-1150, :1364-1402) exactly, just driven by a
+// Mid-resolution decision plumbing — the retreat, push and advance sequencing
+// BoardScene settles through engine/combatResolution.ts, here driven by a
 // `PlayerAgent` synchronously awaited instead of Phaser click callbacks.
 // ---------------------------------------------------------------------------
 
 /**
  * Resolves one unit's forced retreat, cascading through pushes exactly like
- * `BoardScene.beginUnitRetreatChoice` (see that function's doc comment for
+ * `combatResolution.ts`'s `stepRetreat` (see its doc comment for
  * the shared design, and `combat.ts`'s `pushCandidates`/`completePush` for
  * why the recursion needs `visited` threaded through it): a direct legal
  * retreat if one exists; otherwise a friendly is chosen to push, ITS OWN
@@ -692,7 +691,6 @@ function countEvents(stats: HarnessStats | undefined, events: readonly SessionEv
     if (event.kind === 'push') stats.pushesResolved++;
     else if (event.kind === 'driftStarted') stats.driftsResolved++;
     else if (event.kind === 'driftCombat') stats.driftCombatsResolved++;
-    // retreat, eliminated, advance and sacrifice events (§73) are not counted
   }
 }
 

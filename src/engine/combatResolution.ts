@@ -209,7 +209,7 @@ export function unitById(game: GameState, id: string): Unit {
  * unit's value is positive on the shipped roster (`exchangeSacrificeForce`),
  * so a subset that meets the threshold always contains a minimal one.
  */
-function minimalSacrifices(attackers: readonly Unit[], requiredForce: number): string[][] {
+export function minimalSacrifices(attackers: readonly Unit[], requiredForce: number): string[][] {
   const n = attackers.length;
   if (n > 20) throw new Error(`session: cannot list the sacrifices of ${n} attackers`);
   const forces = attackers.map(exchangeSacrificeForce);
@@ -315,7 +315,7 @@ function beginPush(pending: Pending, frame: PushFrame, pushed: Unit): void {
   pending.frames.push(newFrame(pending, pushed.id, [...frame.visited, frame.unitId]));
 }
 
-/** One step of the retreat-or-push cascade (`engine/retreat.ts`'s
+/** One step of the retreat-or-push cascade (`engine/driftReference.ts`'s
  * `resolveUnitRetreat`, unrolled onto `pending.frames`). A question, or null
  * when it made progress and the caller should go on. */
 function stepRetreat(game: GameState, pending: Pending, hooks: ResolutionHooks, events: SessionEvent[]): Question | null {

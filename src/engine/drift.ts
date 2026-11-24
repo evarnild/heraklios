@@ -1,6 +1,5 @@
 import { MAP_TERRAIN, hexKey as mapHexKey, type HexCoord } from '../data/map';
 import { directionForDie, hexAdd } from './hex';
-import type { PlayerAgent } from './agent';
 import {
   applyLandCombatResult,
   canElephantEnterHex,
@@ -9,7 +8,6 @@ import {
   type LandAttackDetail,
   type LandCombatOutcome,
 } from './combat';
-import { resolveUnitRetreat, type RetreatHooks } from './retreat';
 import { type GameState, type Unit, unitType } from './state';
 
 /**
@@ -119,61 +117,6 @@ export interface DriftStepResult {
   done: boolean;
 }
 
-export interface DriftHooks extends RetreatHooks {
-  onDriftStart?(elephant: Unit): void;
-  /** Fired at each beat worth a line in the combat log — `driftStarted`,
-   * `directionRolled`, `moved`, `stopped`, `eliminatedLeavingLandZone`,
-   * `driftElephantDestroyed` and `repelled` — with the event itself; the
-   * presentation words it (the engine produces no display text). */
-  onNarrate?(event: DriftEvent): void;
-  onRender?(): void;
-  onCombat?(detail: LandAttackDetail, outcome: LandCombatOutcome, elephant: Unit, occupant: Unit, hex: HexCoord): void;
-  /** Fired once a direction die has resolved into an actual `direction`
-   * (plan.md §21) — a lower-friction way for a presentation layer to track
-   * "which way is this elephant currently drifting" than re-parsing the
-   * narrated text, so it can draw a direction arrow without caring about
-   * log text at all. */
-  onDirectionRolled?(elephant: Unit, direction: HexCoord): void;
-  /** Fired whenever the drifting elephant's `position` actually changes —
-   * `moved` and `enteredVacatedHex` both qualify. Paired with
-   * `onDirectionRolled` above so a presentation layer can redraw a
-   * direction arrow at the elephant's new hex without needing to inspect
-   * `GameState` itself to find "the" drifting unit. */
-  onDriftMoved?(elephant: Unit, hex: HexCoord): void;
-  /**
-   * Optional per-step pause point (plan.md §21 — "pause between steps and
-   * show the drift direction on the map"). Awaited, if present, once after
-   * every event that shows something (§57: not after the input requests
-   * `directionRollNeeded`/`combatRollNeeded`/`retreatResolutionNeeded` or
-   * a refused `directionForbidden`) -- i.e. once per visible beat (drift
-   * started, direction rolled, a hex entered, a trample resolved, the drift
-   * stopping or an elephant/occupant being destroyed) — never inside
-   * `driftStep` itself, which stays a pure, uninterrupted state machine.
-   * `resolveElephantDrift`'s own loop is the only place this is awaited, so:
-   *   - every existing headless caller (the fuzz harness, `drift.test.ts`,
-   *     `heuristicSoak.test.ts`, and AI-vs-AI turns in `BoardScene`, none of
-   *     which supply this hook) sees IDENTICAL event sequences and timing to
-   *     before this hook existed — `drift.test.ts`'s "resolves within the
-   *     same task when no onStep hook is supplied" test proves no
-   *     *macrotask* delay is added, and the "identical event trace and
-   *     stats" test proves the output is unchanged either way. The
-   *     `if (hooks.onStep)` guard below (rather than an unconditional
-   *     `await hooks.onStep?.()`) is written on the reasoning that `await`ing
-   *     a plain `undefined` still costs a *microtask* tick per the language
-   *     spec, where skipping the `await` statement entirely costs nothing —
-   *     but that finer-grained claim isn't itself pinned by a test here (it
-   *     would need to distinguish microtask-tick counts between the two
-   *     forms specifically, which no test in this file currently does).
-   *   - only a human-seat-facing caller (`BoardScene`, when the seat
-   *     currently free to interact with the board is human — see
-   *     `BoardScene.beginDrift`'s comment on why it gates this on
-   *     `!this.aiRunning` rather than "the drifting elephant's owner") would
-   *     ever supply a hook that returns a Promise resolved by a player's
-   *     explicit "continue" action.
-   */
-  onStep?(): void | Promise<void>;
-}
-
 /** Events that only ask for an input (or refuse a direction): they show nothing, so nothing waits on them (§57). */
 export const SILENT_PAUSE_KINDS: ReadonlySet<DriftEvent['kind']> = new Set<DriftEvent['kind']>([
   'directionRollNeeded',
@@ -181,11 +124,6 @@ export const SILENT_PAUSE_KINDS: ReadonlySet<DriftEvent['kind']> = new Set<Drift
   'retreatResolutionNeeded',
   'directionForbidden',
 ]);
-
-export interface DriftStats {
-  driftsResolved: number;
-  driftCombatsResolved: number;
-}
 
 export function startElephantDrift(
   elephant: Unit,
@@ -544,125 +482,4 @@ export function driftStep(game: GameState, drift: ElephantDriftState, input?: Dr
   }
 
   return { state: next, events, done: false };
-}
-
-/**
- * Convenience driver for current callers. It pumps the exported
- * `driftStep` state machine, supplying dice and PlayerAgent retreat/push
- * answers, but keeps the resumable state/events available for tests and
- * future callers.
- */
-export async function resolveElephantDrift(
-  state: GameState,
-  elephant: Unit,
-  remainingSteps: number,
-  agent: PlayerAgent,
-  rollDie: () => number,
-  hooks: DriftHooks = {},
-  forbiddenDirection?: HexCoord,
-  stats?: DriftStats,
-  resolvedIds?: Set<string>,
-): Promise<void> {
-  let drift = startElephantDrift(elephant, remainingSteps, forbiddenDirection);
-  let input: DriftInput | undefined;
-
-  while (true) {
-    const result = driftStep(state, drift, input);
-    drift = result.state;
-    input = undefined;
-
-    for (const event of result.events) {
-      switch (event.kind) {
-        case 'driftStarted':
-          if (stats) stats.driftsResolved += 1;
-          hooks.onDriftStart?.(event.elephant);
-          hooks.onNarrate?.(event);
-          break;
-        case 'directionRolled':
-          hooks.onNarrate?.(event);
-          hooks.onDirectionRolled?.(event.elephant, event.direction);
-          break;
-        case 'directionResumed':
-          // No die was rolled — this elephant's frame is just resuming its
-          // already-known direction after a nested trampled elephant's own
-          // drift finished (see the doc comment where this event is pushed).
-          // No `onNarrate` either: nothing happened worth logging,
-          // only the arrow needs to catch up.
-          hooks.onDirectionRolled?.(event.elephant, event.direction);
-          break;
-        case 'moved':
-          hooks.onNarrate?.(event);
-          hooks.onDriftMoved?.(event.elephant, event.hex);
-          hooks.onRender?.();
-          break;
-        case 'enteredVacatedHex':
-          hooks.onDriftMoved?.(event.elephant, event.hex);
-          hooks.onRender?.();
-          break;
-        case 'stopped':
-          hooks.onNarrate?.(event);
-          break;
-        case 'eliminatedLeavingLandZone':
-          hooks.onNarrate?.(event);
-          hooks.onRender?.();
-          break;
-        case 'combatResolved':
-          if (stats) stats.driftCombatsResolved += 1;
-          hooks.onCombat?.(event.detail, event.outcome, event.elephant, event.occupant, event.hex);
-          break;
-        case 'driftElephantDestroyed':
-          hooks.onNarrate?.(event);
-          // Unlike the other `destroyed` branch above (`eliminatedLeavingLandZone`),
-          // this one previously had no `onRender` call of its own — a gap that
-          // went unnoticed because nothing rendered again until the NEXT event
-          // anyway. Adding the per-step pause below made that gap visible: a
-          // paused presentation would sit there showing a marker for a unit
-          // that combat has already flagged `destroyed`, which is exactly the
-          // kind of stale-frame bug this whole feature exists to prevent.
-          hooks.onRender?.();
-          break;
-        case 'repelled':
-          hooks.onNarrate?.(event);
-          break;
-      }
-
-      // See `DriftHooks.onStep`'s doc comment: only paces a presentation
-      // layer that opts in, never `driftStep` itself. §57: events that only
-      // ask this driver for input (or refuse a rolled direction) show
-      // nothing, so pausing on them gave a "continue" that did nothing;
-      // `directionForbidden` is silent rather than narrated (no new text).
-      if (hooks.onStep && !SILENT_PAUSE_KINDS.has(event.kind)) {
-        await hooks.onStep();
-      }
-    }
-
-    if (result.done) return;
-
-    const request = needsInput(result.events);
-    if (!request) {
-      // Plan.md §21 (review-2 CRITICAL fix): `driftStep` can now legitimately
-      // pause with `done: false` and no direction/combat/retreat request at
-      // all — that's the new single-hex "moved" (or an elimination) step
-      // returning on its own, needing nothing from this driver but to be
-      // resumed. The `onStep` await above already gave a
-      // presentation layer its pacing pause for every event in
-      // `result.events`, including this one, so there's nothing left to do
-      // here except call `driftStep` again with no input.
-      input = undefined;
-      continue;
-    }
-
-    switch (request.kind) {
-      case 'directionRollNeeded':
-        input = { kind: 'directionRoll', dieRoll: rollDie() };
-        break;
-      case 'combatRollNeeded':
-        input = { kind: 'combatRoll', dieRoll: rollDie() };
-        break;
-      case 'retreatResolutionNeeded':
-        await resolveUnitRetreat(state, request.unit, agent, hooks, undefined, resolvedIds);
-        input = { kind: 'retreatResolved' };
-        break;
-    }
-  }
 }

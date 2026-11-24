@@ -88,7 +88,7 @@ describe('eligibleAdvanceCandidates', () => {
   // with no terrain check — since that filter existed only in the harness
   // (not as a shared, tested engine function), it silently prevented the
   // harness's OWN terrain invariant from ever seeing the same bug in
-  // `BoardScene.ts`'s `promptAdvanceChoice`. Extracted here so both callers
+  // `BoardScene.ts`'s advance prompt. Extracted here so both callers
   // share one tested implementation.
   // Every candidate below stands ADJACENT to the vacated hex it is being
   // tested against, so each test isolates the filter it is named for rather

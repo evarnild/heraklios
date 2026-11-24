@@ -243,10 +243,13 @@ and rendering.
   JSON questions; `sessionAgents.ts` answers them with a `PlayerAgent`, calling
   the agents in the order they always were (the harness's traces are pinned);
   `host.ts` is the one JSON entry (`newGame`/`load` with a required seed).
-  The fuzz harness settles its combats through the session. `BoardScene` and
-  the computer seats in it still use `engine/retreat.ts` and
-  `resolveElephantDrift` (two drivers until the follow-up intent, recorded in
-  `docs/architecture.md`).
+  The fuzz harness settles its combats through the session, and so does
+  `BoardScene` (§73): one session per land attack, driven by a loop that answers
+  each question with the seat's agent (its own prompts for a human, a
+  `HeuristicAgent` for a computer seat) and, with `pauseAfterDriftStep`, shows
+  each drift step and waits for Continue (`sessionResume`). A host never sets
+  that flag. `engine/driftReference.ts` keeps the old pump
+  (`resolveElephantDrift`, `resolveUnitRetreat`) for tests only.
 - The board's **Tables panel** (§55): `engine/ruleTables.ts` turns the rule data into
   rows and cells (and the land-table highlight) and is unit-tested; `ui/rulesPanel.ts`
   only draws them, placed by `ui/rulesPanelLayout.ts`, which keeps it clear of the ram and
@@ -261,10 +264,10 @@ and rendering.
   naval rotation/ramming/boarding UI; it implements `PlayerAgent` and
   `ActionObserver` via those same prompts, and delegates its movement,
   attack, ram, boarding and end-phase mutations to `engine/actions.ts`'s
-  `applyAction`. The elephant drift/trample cascade is no longer the
-  scene's — it pumps `engine/drift.ts` — but the post-combat
-  advance/elimination bookkeeping is still not extracted and mutates
-  `GameState` inline.
+  `applyAction`, and settles every land attack's consequences (exchange,
+  retreat, push, drift with trample, advance) through the engine session
+  (`engine/gameSession.ts`), keeping only the presentation: prompts, log lines,
+  the drift's arrow and Continue (`ui/driftBeats.ts`), cues and renders.
 - `src/ui/` — shared, Phaser-adjacent helpers used across scenes:
   `MapView.ts` (the shared surface and facade: origin, cameras, drag, zoom,
   hit-testing through one `Zone` and the pure `hexHitTest.ts`, hover, tooltip;
