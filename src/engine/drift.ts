@@ -174,7 +174,8 @@ export interface DriftHooks extends RetreatHooks {
   onStep?(): void | Promise<void>;
 }
 
-const SILENT_PAUSE_KINDS: ReadonlySet<DriftEvent['kind']> = new Set<DriftEvent['kind']>([
+/** Events that only ask for an input (or refuse a direction): they show nothing, so nothing waits on them (§57). */
+export const SILENT_PAUSE_KINDS: ReadonlySet<DriftEvent['kind']> = new Set<DriftEvent['kind']>([
   'directionRollNeeded',
   'combatRollNeeded',
   'retreatResolutionNeeded',
