@@ -826,3 +826,28 @@ re-pointing for the moved pump, and the event-list expectations of the new event
 
 Not checked: the live check (owed by rule 1, `src/scenes/**`); the Drawn view at Normal speed was
 not run by hand (the e2e runs with animations off).
+
+### Round 1 rework (69523c2)
+
+Fixes the four "Needs rework:" findings of review round 1, nothing else.
+
+- **MEDIUM, `e2e/combatFixtures.ts`:** `loadFixture` now waits (locally; §86's `waitLoaded` is not on
+  main) until `state().phase === 'combat'` and the unit ids equal the fixture's, reading the hook as
+  "not yet" while the scene restarts, before its asserts. Scenario (g) goes through the same helper.
+- **LOW, push wording for a computer seat:** new scenario (c) variant in `combat-resolution.spec.ts`
+  (`PUSH`, seats `['human', 'ai-greedy']`): `nowhereToRetreat`, `mustRetreatRoom`, `retreatsMakingRoom`
+  in order, no `retreats.` line.
+- **LOW, drift display:** scenario (d) asserts at the `'advance'` stop that `driftArrow()` is null and
+  `busy()` has no `driftState`.
+- **LOW, `onEvent` on a drift:** `sessionSeams.test.ts` gains "onEvent receives exactly the events of each
+  step on a drift with a trample" (elephant, chariot, phalanx; asserts `driftStarted` and `driftCombat`
+  occur, and that `seen` equals the steps' events).
+- Optional: the two stale comments (`combat.test.ts`, `fuzzHarness.test.ts`) reworded; comments only.
+
+Mutants (backup/restore by copy): S07 killed by e2e "(c) a computer defender's pushed friend ..."; S15 killed
+by e2e "(d) a drift ..."; E10 and E11 each killed by the new sessionSeams test (1 failed in `src/engine`).
+Tests: `npm run verify` green (107 files, 1793 passed, 2 skipped), lint 17 warnings (cap unchanged).
+check:intent: FAIL only for the owed live check (owner's), plus the expected ROUTE (now also naming
+`combat.test.ts` and `fuzzHarness.test.ts`, whose edits are comments).
+Full `npm run e2e` x3: each run 55 passed, 1 failed, the failure being `placement.spec.ts:39` "Turn
+buttons" (the known §89 flake) every time; no other failure.
