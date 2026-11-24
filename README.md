@@ -247,7 +247,7 @@ Two boundaries deliberately limit how far back it reaches:
   from an empty history when your own phase begins.
 
 Undo is also refused while a retreat, elephant drift, post-combat advance
-offer, or exchange-sacrifice choice is still awaiting an answer — resolve it
+offer, exchange-sacrifice choice or End-phase warning is still awaiting an answer — resolve it
 first, the same rule "End phase" already follows. The advance-offer and
 exchange-sacrifice panels are properly modal for the same reason: clicking
 the board while one is open is ignored rather than (as in earlier builds)
@@ -539,6 +539,35 @@ land unit left leaves the view where it is. The same happens when the Board
 opens on a game or a save is loaded. It doesn't happen between the
 movement and combat phases or on undo/redo, and dragging and zooming stay
 yours.
+
+### Ending the movement phase with units unmoved
+
+Clicking **End phase** in a human player's movement phase, while some of
+their units have not moved at all and could have, asks first. A unit counts
+as unmoved when it still has its full printed movement (a ship that only
+turned has moved), and it is flagged only if the game offers it something to
+do: a unit that is boxed in is not. A swap counts for both units. Land units
+and ships are treated alike.
+
+- **The view.** The camera moves the least that shows every flagged unit:
+  nothing if they are all visible, a pan if they fit at the current zoom,
+  else the smallest zoom-out (never past the wheel's limit, never zooming in).
+  A magenta rectangle is drawn on each flagged unit, in both views.
+- **The prompt.** It sits over the top of the log in the left panel, with the
+  count of unmoved units, **End phase anyway**, **Cancel** and a "Don't warn
+  me again this game" box. Cancel (or Escape) puts the camera back and
+  changes nothing: the units, the phase and Undo are as they were. End phase
+  anyway (or Enter) puts the camera back and ends the phase as usual.
+- **While it is open**, board clicks, Undo/Redo, Save/Load, End game and End
+  phase answer with "Resolve the pending choice first", and the Tables panel
+  hides and returns as it was. Dragging, zooming and the view toggle still
+  work, and Abandon still works.
+- **Switching it off.** Ticking the box switches the warning off for that
+  player, for the rest of the game; the other players are still warned. It
+  is kept in memory only, not in the save file, so a new game, a load or an
+  abandon warns again.
+- **Not warned:** the combat phase, computer players, and a player with
+  nothing to flag.
 
 ### The Standard view and the Drawn view
 
