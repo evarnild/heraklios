@@ -736,8 +736,11 @@ describe('pushCandidates', () => {
     const enemy = makeUnit({ typeId: 'fantassins', position: NEIGHBORS[5]!, owner: 1 });
     const state = makeState([unit, ...friendlies, enemy]);
 
+    // §90 (a, re-stated): the enemy at (10,6) projects ZOC onto its own
+    // neighbours (11,5) = f0 and (9,6) = f4, so those two friendlies' hexes
+    // can't be taken by a push. f1, f2 and f3 are out of its reach.
     const candidates = pushCandidates(state, unit);
-    expect(candidates.map((u) => u.id).sort()).toEqual(friendlies.map((u) => u.id).sort());
+    expect(candidates.map((u) => u.id).sort()).toEqual(['f1', 'f2', 'f3']);
   });
 
   it('excludes a friendly neighbor that has no room anywhere, even after considering ITS OWN cascade — pushing must make real room, not just swap', () => {
@@ -885,8 +888,14 @@ describe('retreatUnitTo / completePush', () => {
  * simply not a candidate" branch). The LAST unit in the chain is left with
  * its other 5 neighbors open, so it has a real, direct legal retreat — the
  * base case every cascade must eventually reach.
+ *
+ * §90 (b, re-fixtured): the blockers are NAVAL placeholders (`galeres`) by
+ * default. A land enemy beside a link projects ZOC onto that link's own hex
+ * (and onto the next one), and a push may never take a hex under enemy ZOC;
+ * naval units project none (`hexesUnderZoc`), so the cascade tests keep
+ * proving the cascade mechanic, not ZOC. Pass 'fantassins' for land blockers.
  */
-function buildChain(length: number): { chain: Unit[]; state: GameState } {
+function buildChain(length: number, blockerType = 'galeres'): { chain: Unit[]; state: GameState } {
   const start = { q: 10, r: 5 };
   const chain: Unit[] = [];
   for (let i = 0; i < length; i++) {
@@ -899,13 +908,33 @@ function buildChain(length: number): { chain: Unit[]; state: GameState } {
       if (dirIndex === 0) return; // forward, toward chain[i+1] — leave open for the friendly link
       const neighbor = hexAdd(pos, d);
       if (chain.some((u) => u.position.q === neighbor.q && u.position.r === neighbor.r)) return; // already a chain unit (e.g. chain[i-1] behind it)
-      enemies.push(makeUnit({ id: `enemy${i}-${dirIndex}`, typeId: 'fantassins', position: neighbor, owner: 1 }));
+      enemies.push(makeUnit({ id: `enemy${i}-${dirIndex}`, typeId: blockerType, position: neighbor, owner: 1 }));
     });
   }
   return { chain, state: makeState([...chain, ...enemies]) };
 }
 
 describe('cascading push', () => {
+  it("§90 (a): with LAND blockers the chain is refused at its first link, since the next link's hex is under their ZOC", () => {
+    const { chain, state } = buildChain(2, 'fantassins');
+    const [a, b] = chain as [Unit, Unit];
+    expect(legalRetreatHexes(state, a)).toHaveLength(0);
+    expect(legalRetreatHexes(state, b).length).toBeGreaterThan(0); // b could retreat, but a may not take its hex
+    expect(pushCandidates(state, a)).toEqual([]);
+  });
+
+  it("§90: a link may not inherit a hex under enemy ZOC — only the SECOND link's hex is covered, by a land enemy beside it", () => {
+    const { chain, state } = buildChain(3);
+    const [a, b, c] = chain as [Unit, Unit, Unit];
+    // (13,4) touches c's hex (12,5) but neither a's (10,5) nor b's (11,5).
+    state.units.push(makeUnit({ id: 'zoc', typeId: 'fantassins', position: { q: 13, r: 4 }, owner: 1 }));
+    expect(legalRetreatHexes(state, a)).toHaveLength(0);
+    expect(legalRetreatHexes(state, b)).toHaveLength(0);
+    expect(legalRetreatHexes(state, c).length).toBeGreaterThan(0);
+    expect(pushCandidates(state, b)).toEqual([]); // top-level filter: c's hex is in ZOC
+    expect(pushCandidates(state, a)).toEqual([]); // fixpoint edge: b could only make room by taking c's hex
+  });
+
   it('single push: a boxed unit pushes its one friendly neighbor, which has a direct retreat of its own', () => {
     const { chain, state } = buildChain(2);
     const [a, b] = chain as [Unit, Unit];
