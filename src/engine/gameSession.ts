@@ -154,7 +154,7 @@ export function sessionApply(
     if (!questionAnswers(session.state, question).some((answer) => sameAnswer(answer, action))) {
       throw new Error(`sessionApply: ${action.kind} is not one of the open ${question.kind} question's answers`);
     }
-    applyAnswer(session.state, pending, action);
+    applyAnswer(session.state, pending, action, hooks, events);
     advanceResolution(session, pending, rng, hooks, events);
     return { result: { kind: 'answer' }, events, pending: session.pending };
   }
@@ -162,6 +162,7 @@ export function sessionApply(
   if (session.pending) throw new Error(`sessionApply: ${action.kind} while a ${session.pending.question?.kind} question is open`);
   const result = applyAction(session.state, action, rng);
   updateContext(session, action);
+  hooks.onActionApplied?.(result);
   if (result.kind === 'landAttack') {
     const pending = pendingFromAttack(result);
     if (pending) advanceResolution(session, pending, rng, hooks, events);

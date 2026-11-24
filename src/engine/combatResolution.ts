@@ -1,5 +1,5 @@
 import type { HexCoord } from '../data/map';
-import type { LandAttackResult } from './actions';
+import type { ActionResult, LandAttackResult } from './actions';
 import {
   applyExchangeSacrifice,
   completePush,
@@ -25,13 +25,17 @@ import { unitType, type GameState, type PlayerId, type Unit } from './state';
  * retreats one at a time and then the drifts, an advance offer follows each
  * DEFENDER's item - including an item skipped because the unit was already
  * moved or destroyed - and a DE or EX offers the advance per defender hex.
- * `BoardScene` differs a little (it offers no advance after a skipped item);
- * reconciling it is the follow-up intent's job.
+ * `BoardScene` settles through this same machine since §73, and it always
+ * ordered a skipped item the same way (its skipped queue item went on to the
+ * advance offer too; §73 O1 recorded that §72's I1 premise, that the scene
+ * differed, was wrong), so there is no ordering difference to reconcile.
  *
  * It asks only when there is a choice (I2): a retreat or push with a single
  * option and a sacrifice with a single minimal subset are applied at once and
  * reported through `ResolutionHooks.onForced`, which an agent adapter uses to
- * keep drawing its rng exactly where it always did.
+ * keep drawing its rng exactly where it always did. A caller that wants such a
+ * step asked anyway (a human seat, §73 O2) says so through `askForced`, and
+ * gets it back as a question with a single answer.
  */
 
 // ---------------------------------------------------------------------------
@@ -58,12 +62,36 @@ export type SessionEvent =
   /** `unitId` took over the hex `pushedId` vacated (one link of a push). */
   | { kind: 'push'; unitId: string; pushedId: string }
   | { kind: 'driftStarted'; elephantId: string }
-  | { kind: 'driftCombat'; elephantId: string; occupantId: string };
+  | { kind: 'driftCombat'; elephantId: string; occupantId: string }
+  /** `unitId` moved to `hex`, answered or forced (a pushed unit's move too; §73). */
+  | { kind: 'retreat'; unitId: string; hex: HexCoord }
+  /** `unitId` had neither a hex nor a friend to push, and is gone. */
+  | { kind: 'eliminated'; unitId: string }
+  /** `unitId` took the vacated `hex` (a declined advance is no event). */
+  | { kind: 'advance'; unitId: string; hex: HexCoord }
+  /** These attackers were lost to an exchange, answered or forced. */
+  | { kind: 'sacrifice'; unitIds: string[] };
 
 export interface ResolutionHooks {
   /** A step applied without asking, reported at the moment it is applied (A2):
    * a retreat or push with one option, a sacrifice with one minimal subset. */
   onForced?(question: Question): void;
+  /**
+   * §73 O2: asked synchronously about each step that would be applied without
+   * asking. When it returns true the step is returned as a question instead
+   * (with a single answer) and `onForced` is not called for it. The harness
+   * and the host pass nothing, so their traces do not change.
+   */
+  askForced?(question: Question): boolean;
+  /** `sessionApply` only: called with a turn action's result right after `applyAction` returns, before any `onForced`, event or question of its resolution (§73). */
+  onActionApplied?(result: ActionResult): void;
+  /** Called with each `SessionEvent` the moment it is recorded (§73): exactly `SessionStep.events`, in order. */
+  onEvent?(event: SessionEvent): void;
+}
+
+function emit(events: SessionEvent[], hooks: ResolutionHooks, event: SessionEvent): void {
+  events.push(event);
+  hooks.onEvent?.(event);
 }
 
 type Step =
@@ -217,7 +245,13 @@ export function sameAnswer(a: AnswerAction, b: AnswerAction): boolean {
 }
 
 /** Applies a listed answer to the open question (the caller has checked it). */
-export function applyAnswer(game: GameState, pending: Pending, answer: AnswerAction): void {
+export function applyAnswer(
+  game: GameState,
+  pending: Pending,
+  answer: AnswerAction,
+  hooks: ResolutionHooks,
+  events: SessionEvent[],
+): void {
   const question = pending.question;
   if (!question) throw new Error('session: no question is open');
   switch (answer.kind) {
@@ -225,6 +259,7 @@ export function applyAnswer(game: GameState, pending: Pending, answer: AnswerAct
       const frame = topFrame(pending);
       const hex = (question as Extract<Question, { kind: 'retreat' }>).options.find((h) => h.q === answer.hex.q && h.r === answer.hex.r)!;
       retreatUnitTo(unitById(game, frame.unitId), { ...hex });
+      emit(events, hooks, { kind: 'retreat', unitId: frame.unitId, hex: { ...hex } });
       pending.frames.pop();
       break;
     }
@@ -233,11 +268,14 @@ export function applyAnswer(game: GameState, pending: Pending, answer: AnswerAct
       break;
     case 'answerAdvance':
       if (answer.unitId !== null) {
-        unitById(game, answer.unitId).position = { ...(question as Extract<Question, { kind: 'advance' }>).vacatedHex };
+        const hex = { ...(question as Extract<Question, { kind: 'advance' }>).vacatedHex };
+        unitById(game, answer.unitId).position = hex;
+        emit(events, hooks, { kind: 'advance', unitId: answer.unitId, hex });
       }
       break;
     case 'answerSacrifice':
       applyExchangeSacrifice(answer.unitIds.map((id) => unitById(game, id)));
+      emit(events, hooks, { kind: 'sacrifice', unitIds: [...answer.unitIds] });
       break;
   }
   pending.question = null;
@@ -276,7 +314,7 @@ function stepRetreat(game: GameState, pending: Pending, hooks: ResolutionHooks, 
 
   if (frame.pushedId !== undefined) {
     completePush(unit, frame.vacatedHex!);
-    events.push({ kind: 'push', unitId: unit.id, pushedId: frame.pushedId });
+    emit(events, hooks, { kind: 'push', unitId: unit.id, pushedId: frame.pushedId });
     pending.frames.pop();
     return null;
   }
@@ -284,9 +322,10 @@ function stepRetreat(game: GameState, pending: Pending, hooks: ResolutionHooks, 
   const legalHexes = legalRetreatHexes(game, unit);
   if (legalHexes.length > 0) {
     const question: Question = { kind: 'retreat', player: unit.owner, unitId: unit.id, options: legalHexes };
-    if (legalHexes.length > 1) return question;
+    if (legalHexes.length > 1 || hooks.askForced?.(question)) return question;
     hooks.onForced?.(question);
     retreatUnitTo(unit, legalHexes[0]!);
+    emit(events, hooks, { kind: 'retreat', unitId: unit.id, hex: { ...legalHexes[0]! } });
     pending.frames.pop();
     return null;
   }
@@ -294,11 +333,12 @@ function stepRetreat(game: GameState, pending: Pending, hooks: ResolutionHooks, 
   const targets = pushCandidates(game, unit, new Set(frame.visited));
   if (targets.length === 0) {
     unit.destroyed = true; // neither a hex to go to nor a friend to push
+    emit(events, hooks, { kind: 'eliminated', unitId: unit.id });
     pending.frames.pop();
     return null;
   }
   const question: Question = { kind: 'pushTarget', player: unit.owner, unitId: unit.id, candidateIds: targets.map((u) => u.id) };
-  if (targets.length > 1) return question;
+  if (targets.length > 1 || hooks.askForced?.(question)) return question;
   hooks.onForced?.(question);
   beginPush(pending, frame, targets[0]!);
   return null;
@@ -308,7 +348,7 @@ function stepRetreat(game: GameState, pending: Pending, hooks: ResolutionHooks, 
  * its events, then at most one input - a die from `rng`, or a trampled unit's
  * retreat cascade, after which the drift resumes. Never a second `driftStep`
  * before that input is supplied. */
-function stepDrift(game: GameState, pending: Pending, rng: () => number, events: SessionEvent[]): null {
+function stepDrift(game: GameState, pending: Pending, rng: () => number, hooks: ResolutionHooks, events: SessionEvent[]): null {
   const result = driftStep(game, pending.drift!, pending.driftInput ?? undefined);
   pending.drift = result.state;
   pending.driftInput = null;
@@ -316,9 +356,9 @@ function stepDrift(game: GameState, pending: Pending, rng: () => number, events:
   for (const event of result.events) {
     if (event.kind === 'driftStarted') {
       if (!pending.resolvedIds.includes(event.elephant.id)) pending.resolvedIds.push(event.elephant.id);
-      events.push({ kind: 'driftStarted', elephantId: event.elephant.id });
+      emit(events, hooks, { kind: 'driftStarted', elephantId: event.elephant.id });
     } else if (event.kind === 'combatResolved') {
-      events.push({ kind: 'driftCombat', elephantId: event.elephant.id, occupantId: event.occupant.id });
+      emit(events, hooks, { kind: 'driftCombat', elephantId: event.elephant.id, occupantId: event.occupant.id });
     }
   }
   if (result.done) {
@@ -345,7 +385,7 @@ function stepDrift(game: GameState, pending: Pending, rng: () => number, events:
 }
 
 /** Starts the next queued step. A question, or null to go on. */
-function beginStep(game: GameState, pending: Pending, step: Step, hooks: ResolutionHooks): Question | null {
+function beginStep(game: GameState, pending: Pending, step: Step, hooks: ResolutionHooks, events: SessionEvent[]): Question | null {
   switch (step.kind) {
     case 'retreat':
     case 'drift': {
@@ -378,9 +418,10 @@ function beginStep(game: GameState, pending: Pending, step: Step, hooks: Resolut
       if (answers.length === 0) {
         throw new Error(`session: no combination of ${attackers.length} attacker(s) reaches the required force ${step.requiredForce} - CRT invariant violated`);
       }
-      if (answers.length > 1) return question;
+      if (answers.length > 1 || hooks.askForced?.(question)) return question;
       hooks.onForced?.(question);
       applyExchangeSacrifice(answers[0]!.map((id) => unitById(game, id)));
+      emit(events, hooks, { kind: 'sacrifice', unitIds: [...answers[0]!] });
       return null;
     }
   }
@@ -400,14 +441,14 @@ export function runResolution(
     if (pending.frames.length > 0) {
       question = stepRetreat(game, pending, hooks, events);
     } else if (pending.drift) {
-      stepDrift(game, pending, rng, events);
+      stepDrift(game, pending, rng, hooks, events);
     } else {
       const step = pending.steps.shift();
       if (!step) {
         pending.question = null;
         return null;
       }
-      question = beginStep(game, pending, step, hooks);
+      question = beginStep(game, pending, step, hooks, events);
     }
     if (question) {
       pending.question = question;

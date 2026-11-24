@@ -691,7 +691,8 @@ function countEvents(stats: HarnessStats | undefined, events: readonly SessionEv
   for (const event of events) {
     if (event.kind === 'push') stats.pushesResolved++;
     else if (event.kind === 'driftStarted') stats.driftsResolved++;
-    else stats.driftCombatsResolved++;
+    else if (event.kind === 'driftCombat') stats.driftCombatsResolved++;
+    // retreat, eliminated, advance and sacrifice events (§73) are not counted
   }
 }
 

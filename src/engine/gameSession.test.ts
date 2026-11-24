@@ -316,7 +316,8 @@ describe('question sequences (B4, B5)', () => {
     expect(played.forced.some((q) => q.kind === 'pushTarget' && q.unitId === 'b')).toBe(true);
     expect(cOptions.length > 1 ? played.questions.some((q) => q.kind === 'retreat' && q.unitId === 'c') : played.forced.some((q) => q.kind === 'retreat' && q.unitId === 'c')).toBe(true);
     expect(played.questions.at(-1)).toEqual({ kind: 'advance', player: 1, vacatedHex: { q: 2, r: 18 }, candidateIds: [attacker.id] });
-    expect(played.events).toEqual([
+    // §73 added the retreat, advance... events: the pushes are still these two, in order.
+    expect(played.events.filter((e) => e.kind === 'push')).toEqual([
       { kind: 'push', unitId: 'b', pushedId: 'c' },
       { kind: 'push', unitId: 'a', pushedId: 'b' },
     ]);
@@ -351,7 +352,8 @@ describe('question sequences (B4, B5)', () => {
 
     expect(played.questions[0]).toEqual({ kind: 'retreat', player: 0, unitId: 'p', options });
     expect(played.questions[1]).toEqual({ kind: 'advance', player: 0, vacatedHex: { q: 14, r: 5 }, candidateIds: ['c'] });
-    expect(played.events.map((e) => e.kind)).toEqual(['driftStarted', 'driftCombat']);
+    // The trampled unit's retreat is an event too (§73).
+    expect(played.events.map((e) => e.kind)).toEqual(['driftStarted', 'driftCombat', 'retreat']);
     expect(trampled.position).toEqual(options.at(-1)); // moved by its owner's answer
     expect(elephant.position).toEqual({ q: 14 + unitType(elephant).movement, r: 5 }); // its whole move, east: it carried on
   });
@@ -379,7 +381,8 @@ describe('question sequences (B4, B5)', () => {
       if (session.pending) asked.push(sessionQuestion(session)!);
     }
     expect(asked.map((q) => q.kind)).toEqual(['retreat', 'advance', 'advance']);
-    expect(events.map((e) => e.kind)).toEqual(['driftStarted']);
+    // The foot's answered retreat, then the drift (a declined advance is no event).
+    expect(events.map((e) => e.kind)).toEqual(['retreat', 'driftStarted']);
   });
 
   // I1: an item skipped because its unit is already gone still gets its
