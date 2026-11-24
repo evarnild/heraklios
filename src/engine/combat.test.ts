@@ -697,6 +697,35 @@ describe('pushCandidates', () => {
     expect(candidates.map((u) => u.id).sort()).toEqual(friendlies.map((u) => u.id).sort());
   });
 
+  // §90 — the owner's reported position (2026-11-24). All plain, no river.
+  // The defender at (34,-11) is boxed: four yellow neighbours, (33,-11) empty
+  // but under (34,-12)'s ZOC, and a green friend at (33,-10) that stands in
+  // (34,-10)'s ZOC. Taking that hex would enter enemy ZOC, which a retreat
+  // may never do ("il est interdit de faire retraite dans une zone de
+  // contrôle ennemie"), so no push is offered.
+  describe('§90 reported position', () => {
+    const yellowAt = (q: number, r: number) => makeUnit({ typeId: 'fantassins', position: { q, r }, owner: 1 });
+    const build = (withAttackerAt3410: boolean) => {
+      const defender = makeUnit({ id: 'def', typeId: 'fantassins', position: { q: 34, r: -11 } });
+      const friend = makeUnit({ id: 'friend', typeId: 'fantassins', position: { q: 33, r: -10 } });
+      const yellows = [yellowAt(34, -12), yellowAt(35, -12), yellowAt(35, -11)];
+      if (withAttackerAt3410) yellows.push(yellowAt(34, -10));
+      return { defender, friend, state: makeState([defender, friend, ...yellows]) };
+    };
+
+    it("a DR with the only friend's hex in enemy ZOC offers no push", () => {
+      const { defender, state } = build(true);
+      expect(legalRetreatHexes(state, defender)).toEqual([]);
+      expect(pushCandidates(state, defender)).toEqual([]);
+    });
+
+    it("control: without the attacker at (34,-10) the friend's hex is ZOC-free and the push is still offered (mixed reading stays)", () => {
+      const { defender, friend, state } = build(false);
+      expect(legalRetreatHexes(state, defender)).toEqual([]);
+      expect(pushCandidates(state, defender).map((u) => u.id)).toEqual([friend.id]);
+    });
+  });
+
   // Plan.md §12.2 — the widened, permissive reading: a neighbor that ISN'T
   // friendly-occupied (enemy-held, here) simply isn't itself a push
   // candidate, but no longer voids every OTHER neighbor's candidacy the way
