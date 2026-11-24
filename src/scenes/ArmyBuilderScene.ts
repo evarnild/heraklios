@@ -7,7 +7,7 @@ import { showConfirmDialog } from '../ui/confirmDialog';
 import { messages } from '../ui/i18n';
 import { formatArmyError } from '../ui/i18n/format';
 import { edgeName, unitName } from '../ui/i18n/names';
-import { armyBottomY, armyRowSlot, counterDisplaySize, counterTextureKey } from '../ui/armyBuilderLayout';
+import { ARMY_LAYOUT_WIDTH, armyBottomY, armyLayoutOffset, armyRowSlot, counterDisplaySize, counterTextureKey } from '../ui/armyBuilderLayout';
 
 export class ArmyBuilderScene extends Phaser.Scene {
   private playerIndex = 0;
@@ -40,6 +40,7 @@ export class ArmyBuilderScene extends Phaser.Scene {
     this.playerIndex = firstHumanSeat;
 
     const { width } = this.scale;
+    const ox = armyLayoutOffset(width);
     const t = messages();
     const playerName = session.playerNames[this.playerIndex]!;
     const edge = session.edges[this.playerIndex]!;
@@ -51,7 +52,7 @@ export class ArmyBuilderScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    this.addAbandonButton();
+    this.addAbandonButton(ox);
 
     const selection = session.armySelections[this.playerIndex]!;
 
@@ -59,7 +60,7 @@ export class ArmyBuilderScene extends Phaser.Scene {
     // controls below remain fully live afterward, so this is just a
     // starting point the player can still hand-adjust like any other.
     const defaultArmyBtn = this.add
-      .text(width - 20, 24, t.builder.useDefault, {
+      .text(ox + ARMY_LAYOUT_WIDTH - 20, 24, t.builder.useDefault, {
         fontSize: '14px',
         color: '#fff',
         backgroundColor: '#3a3a55',
@@ -73,22 +74,22 @@ export class ArmyBuilderScene extends Phaser.Scene {
       this.refresh();
     });
 
-    UNIT_TYPES.forEach((unit, i) => this.drawRow(unit, i, selection));
+    UNIT_TYPES.forEach((unit, i) => this.drawRow(unit, i, selection, ox));
 
     const bottom = armyBottomY(UNIT_TYPES.length);
-    this.totalText = this.add.text(20, bottom.total, '', {
+    this.totalText = this.add.text(ox + 20, bottom.total, '', {
       fontSize: '18px',
       color: '#ffe08a',
     });
 
-    this.errorText = this.add.text(20, bottom.error, '', {
+    this.errorText = this.add.text(ox + 20, bottom.error, '', {
       fontSize: '13px',
       color: '#ff9a9a',
-      wordWrap: { width: width - 40 },
+      wordWrap: { width: ARMY_LAYOUT_WIDTH - 40 },
     });
 
     this.confirmBtn = this.add
-      .text(width - 20, bottom.confirm, t.builder.confirm, {
+      .text(ox + ARMY_LAYOUT_WIDTH - 20, bottom.confirm, t.builder.confirm, {
         fontSize: '18px',
         color: '#fff',
         backgroundColor: '#2a5a2a',
@@ -112,10 +113,10 @@ export class ArmyBuilderScene extends Phaser.Scene {
     this.refresh();
   }
 
-  private addAbandonButton(): void {
+  private addAbandonButton(ox: number): void {
     const t = messages();
     const abandonBtn = this.add
-      .text(20, 24, t.common.abandon, {
+      .text(ox + 20, 24, t.common.abandon, {
         fontSize: '14px',
         color: '#fff',
         backgroundColor: '#5a2a2a',
@@ -138,9 +139,9 @@ export class ArmyBuilderScene extends Phaser.Scene {
   }
 
   // One unit's row: its counter, name, cost/max and the `«` `-` count `+` `»` controls (§79).
-  private drawRow(unit: UnitType, index: number, selection: Record<string, number>): void {
+  private drawRow(unit: UnitType, index: number, selection: Record<string, number>, ox: number): void {
     const t = messages();
-    const { x, centreY: y } = armyRowSlot(index);
+    const { x, centreY: y } = armyRowSlot(index, ox);
     // Menu's preload loaded every player's colour already.
     const counter = this.add.image(x.counter, y, counterTextureKey(this.playerIndex, unit.id)).setOrigin(0, 0.5);
     const size = counterDisplaySize(counter.width, counter.height);
