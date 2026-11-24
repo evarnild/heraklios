@@ -22,6 +22,7 @@ import {
   state,
   waitIdle,
   waitLoadOnRowOf,
+  waitLoaded,
   waitSavePanelLoaded,
 } from './helpers';
 import { SAVES_DIR, acquireSaveLock, withSaveLockHeld } from './savesDir';
@@ -56,13 +57,6 @@ function expectInBottomRight(rect: { left: number; top: number; width: number; h
   expect(rect.left).toBeGreaterThanOrEqual(788);
   expect(rect.left + rect.width).toBeLessThanOrEqual(1088);
   expect(rect.top + rect.height).toBeLessThanOrEqual(742);
-}
-
-/** The load is async (an HTTP read): wait for the message the Board logs once it has applied. */
-async function waitLoaded(page: Page): Promise<void> {
-  await page.waitForFunction(() => window.__heraklios.logEntries().some((e) => e.text === 'Game loaded.'));
-  await waitIdle(page);
-  await frames(page);
 }
 
 async function endTurn(page: Page): Promise<void> {

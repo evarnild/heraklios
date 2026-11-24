@@ -19,8 +19,10 @@ import {
   unit,
   waitIdle,
   waitLoadOnRowOf,
+  waitLoaded,
   waitSavePanelLoaded,
 } from './helpers';
+import { messagesFor } from '../src/ui/i18n/index';
 import { SAVES_DIR, acquireSaveLock, withSaveLockHeld } from './savesDir';
 
 const DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]] as const;
@@ -79,15 +81,22 @@ test('a saved game loads back to the saved position', async ({ page }) => {
 
   await clickButton(page, SAVE_LOAD);
   await waitSavePanelLoaded(page);
+  // §86: the load is an async HTTP read. Hold the slot's GET (only it: the
+  // save write is a POST/PUT and the list read has no slot) so the scenario
+  // cannot win the race by luck.
+  await page.route('**/api/saves/1', async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    await new Promise((r) => setTimeout(r, 500));
+    await route.fallback();
+  });
   await clickButton(page, 'Load', await loadOnSameRowAs(page, savePoint));
-  await page.waitForFunction(() => window.__heraklios.scenes().includes('Board'));
-  await waitIdle(page);
+  await waitLoaded(page);
 
   expect(withoutClock(await state(page)), 'the loaded game equals the one saved').toEqual(withoutClock(saved));
   expect((await unit(page, second)).position, 'the second move is undone').toEqual(saved.units.find((u) => u.id === second)!.position);
   // §49 B8: a loaded game starts with an empty log whose first entry is "Game loaded.".
   const log = await page.evaluate(() => window.__heraklios.logEntries());
   expect(log.map((e) => e.kind)).toEqual(['heading', 'entry']);
-  expect(log[1]!.text).toBe('Game loaded.');
+  expect(log[1]!.text).toBe(messagesFor('en').log.gameLoaded);
   expect(errors).toEqual([]);
 });
