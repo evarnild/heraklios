@@ -1,0 +1,22 @@
+# generated-by: heraklios/intent@0.1.5
+id: 89
+slug: placement-turn-buttons-timeout
+type: fix
+status: accepted
+title: The placement Turn buttons scenario times out in full e2e runs under load
+review_tier:
+intent_accepted: 2026-11-24 by-agent    # owner: "accept 89 /auto 89"
+spec_accepted:
+plan_approved:
+live_checked:
+merged:
+konmari:
+auto_authorized:
+auto_round:
+auto_stopped:
+follows_up: 40
+links:
+  - intents/40-naval-turn-buttons
+  - intents/41-e2e-dev-server-first-load
+  - intents/86-save-load-flake
+blocked_by:
