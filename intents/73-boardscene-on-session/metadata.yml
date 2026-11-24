@@ -2,7 +2,7 @@
 id: 73
 slug: boardscene-on-session
 type: refactor
-status: accepted
+status: in-review
 title: The Board scene and its computer seats settle combats through the engine session
 review_tier:
 intent_accepted: 2026-11-22 by-agent    # owner: "accept 75 and 73, /auto 75 then 73"
