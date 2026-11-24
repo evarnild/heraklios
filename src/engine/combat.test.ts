@@ -730,7 +730,7 @@ describe('pushCandidates', () => {
   // friendly-occupied (enemy-held, here) simply isn't itself a push
   // candidate, but no longer voids every OTHER neighbor's candidacy the way
   // the old strict "entourée" (all six must be friendly) reading did.
-  it('a neighbor occupied by an enemy is simply not a candidate — the other 5 friendlies still are', () => {
+  it('a neighbor occupied by an enemy is not a candidate — only f1, f2 and f3 remain; f0 and f4 stand in its ZOC', () => {
     const unit = makeUnit({ typeId: 'fantassins', position: CENTER });
     const friendlies = NEIGHBORS.slice(0, 5).map((pos, i) => makeUnit({ typeId: 'fantassins', position: pos, id: `f${i}` }));
     const enemy = makeUnit({ typeId: 'fantassins', position: NEIGHBORS[5]!, owner: 1 });

@@ -248,7 +248,8 @@ describe('question sequences (B4, B5)', () => {
    * a (2,18) is boxed in, with two friends that could be pushed: b (3,18) and
    * d (1,18). b is boxed too, with c (4,18) behind it, which can retreat. The
    * same shape `fuzzHarness.test.ts` uses for the visited-set test, moved to
-   * where a river runs between e0 (3,17) and b.
+   * where a river runs between e0 (3,17) and b, and another between a (2,18)
+   * and b (3,18), which the push crosses (rivers don't affect a push).
    *
    * §90: a push may never take a hex under enemy ZOC. The attacker e0 touches
    * a and b, so it would ZOC b's hex - except that the river along (3,17)-(3,18)

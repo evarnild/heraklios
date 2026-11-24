@@ -297,3 +297,12 @@ load timeout); rerun alone: passed.
 **Divergences from the plan:** the `:744` test did not break; all chain blockers (not two)
 went naval; extra tests in `fuzzHarness.test.ts`, `gameSession.test.ts` and `heuristicSoak.test.ts`
 needed re-fixturing, which the plan did not list.
+
+### 2026-11-25 — round 1 rework
+
+Correction to the entry above: the fixture holds 66 games, so 15 of 66 changed and 51
+(not "55 of 70") are byte-identical. Also fixed from review.md, comments and titles only,
+no assertion or code changed: the greedy-swap comment now reads "1 in 60 greedy mirror
+games, seed 25"; the test whose expectation is `f1,f2,f3` is retitled; the `gameSession.test.ts`
+fixture comment names the river between a and b that the push crosses; the README says
+"A retreating unit never takes a hex...".

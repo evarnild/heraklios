@@ -406,7 +406,7 @@ describe('HeuristicAgent: difficulty tiers are ordered by strength', () => {
     // Greedy values a swap by contact alone, and a plain move toward the enemy
     // nearly always outscores it, so natural games hold few: 1 game in 500 as
     // seat 0 against EV (seed 211 since §90 refused pushes into enemy ZOC, which
-    // moved the old seed 24's game; none in 60 greedy mirror games). The seed is
+    // moved the old seed 24's game; 1 in 60 greedy mirror games, seed 25). The seed is
     // pinned so the series proves the tier CAN reach a swap in play, which the
     // targeted tests in `heuristicAgent.test.ts` cover position by position.
     // This is a presence check on one game: if a change moves the swap away,

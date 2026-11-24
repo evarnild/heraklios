@@ -114,7 +114,7 @@ To make a change — intent, plan, build, review, merge — see
    one to have it retreat and make room. If *that* unit also has no direct
    retreat, the same choice repeats for it, cascading through as many links
    as needed until someone reaches a real hex; only once the whole chain is
-   resolved does the original unit take the first hex vacated. A unit never
+   resolved does the original unit take the first hex vacated. A retreating unit never
    takes a hex that is in an enemy zone of control, not even by pushing, and
    this holds at every link of the chain (rivers still block zone of control,
    and ships project none): a friendly unit whose hex is under enemy zone of
