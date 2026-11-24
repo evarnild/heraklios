@@ -114,9 +114,13 @@ To make a change — intent, plan, build, review, merge — see
    one to have it retreat and make room. If *that* unit also has no direct
    retreat, the same choice repeats for it, cascading through as many links
    as needed until someone reaches a real hex; only once the whole chain is
-   resolved does the original unit take the first hex vacated. A unit with
-   no legal retreat and no friendly anywhere nearby able to make room is
-   eliminated instead. **Elephants** are the exception: instead
+   resolved does the original unit take the first hex vacated. A unit never
+   takes a hex that is in an enemy zone of control, not even by pushing, and
+   this holds at every link of the chain (rivers still block zone of control,
+   and ships project none): a friendly unit whose hex is under enemy zone of
+   control is not offered. A unit with no legal retreat and no friendly
+   anywhere nearby able to make room, in a hex free of enemy zone of
+   control, is eliminated instead. **Elephants** are the exception: instead
    of a chosen retreat, a die roll picks a random direction and the elephant
    drifts that way, hex by hex, for its full movement allowance — the panel
    narrates each step, and every hex it enters that's occupied triggers a
