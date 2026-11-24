@@ -2,7 +2,7 @@
 id: 87
 slug: queue-docs-bundle
 type: feature
-status: accepted
+status: abandoned    # owner: "Let's cancel this intent, I will create an intent map application on the side"
 title: npm run queue -- --docs writes the intent documents the Intent Map reads
 review_tier:
 intent_accepted: 2026-11-24 by-agent    # owner: "accept 87 and /auto 87"
@@ -13,7 +13,7 @@ merged:
 konmari:
 auto_authorized: 2026-11-24 by-agent    # owner: "accept 87 and /auto 87"
 auto_round:
-auto_stopped: spec drafted, waiting for spec_accepted
+auto_stopped:
 follows_up:
 links:
   - intents/47-queue-from-metadata
