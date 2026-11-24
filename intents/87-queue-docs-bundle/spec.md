@@ -46,7 +46,7 @@ tooling, so the rulebook sources do not apply.
   intent, whichever of `intent.md`, `spec.md`, `plan.md` and `review.md`
   exist at its ref. A missing one is left out, not written as empty.
 - **B5 — `<id>.json`.** One JSON object: the intent's `queueData` entry
-  (B5's fields as `--json` prints them), plus `group` (`inFlight`,
+  (the fields `--json` prints), plus `group` (`inFlight`,
   `queued`, `shipped`, `stopped` or `other`), `ref` (the branch name or
   `main`), `has` (the names present, in the order intent, spec, plan,
   review) and `docs` (name → text).
