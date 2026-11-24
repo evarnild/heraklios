@@ -1,13 +1,125 @@
 <!-- generated-by: heraklios/review@0.2.0 -->
 # §90 review — A retreating unit never pushes its way into a hex in enemy zone of control
 
-verdict: rework
+verdict: escalate
 tier: reviewed
-reviewed-commit: d2d6a79
-round: 1
+reviewed-commit: 211887f
+round: 2
 sampled: no
 run: auto
 live-check: not-needed
+
+All three round 1 "Needs rework:" findings are fixed as written, and the two
+optional edits are accurate. The rework commit `b6f2b91` changes no assertion
+and no production code: one test title, two test comments, one README word,
+and a Progress correction appended. Round 1's proof still holds. All five
+mutants were killed, all 15 re-pinned harness games are explained, and the
+rulebook reading checks out. No finding needs rework or a decision. The tier
+is `reviewed`, so the owner reads the diff.
+
+## Passes (over the rework diff `d2d6a79..HEAD`; the rest carried from round 1)
+| # | Pass | Result |
+| --- | --- | --- |
+| 1 | Intent and plan match | pass. The rework does exactly round 1's three findings plus the two optional edits. |
+| 2 | Type check | pass |
+| 3 | Rulebook fidelity | pass, carried. The README now says "A retreating unit never takes a hex…", matching "il est interdit de faire retraite dans une zone de contrôle ennemie". |
+| 4 | Tests prove the rule, not only pass | pass, carried: M1–M5 all killed. The only changed test line is the title, now matching its assertion `['f1','f2','f3']`. |
+| 5 | Boundary and conventions | pass. No production file changed in the rework. |
+| 6 | Numbers in prose | pass. 66/15/51 corrected; the river claims re-measured. |
+| 7 | Documentation | pass |
+| 8 | Guardrails and hygiene | pass. 18 warnings at a cap of 18; `combat.ts` 1135 lines at its ceiling. |
+| 9 | Repository footguns | pass |
+| 10 | Architecture | pass |
+
+## Type check
+```
+type-check: PASS (intent 90, fix)
+  note:  8 file(s), 520 line(s) changed outside intents/.
+exit: 0
+```
+Round 1 showed 517 lines. The 3 more are the rework's comment, title and
+README lines.
+
+## Findings
+- **LOW (carried, worth a look)** `src/engine/fuzzHarness.test.ts`, "plays 100
+  seeded games headlessly end to end with no invariant violations": it runs
+  close to its 60 s timeout.
+  - The reviewer's first round 2 `verify` failed on it under load (61355 ms),
+    and the re-run passed.
+  - This is not a defect of the rule. Timed alone it passes in about 35 s,
+    some 10% slower than before §90 (round 1).
+  - If it recurs on `main`, a later intent can pass the ZOC set into
+    `combatOdds.retreatCost`.
+
+**Round 1's findings, status:**
+- `heuristicSoak.test.ts:409`: fixed ("1 in 60 greedy mirror games, seed
+  25").
+- Progress 70/55: fixed by an appended, dated "round 1 rework" entry (15 of
+  66, 51 identical). The old line is untouched; the plan.md diff is
+  additions only.
+- `combat.test.ts:733` title: fixed ("… only f1, f2 and f3 remain; f0 and
+  f4 stand in its ZOC").
+- The optional `gameSession.test.ts:251-252` comment is accurate:
+  `riverBetween` gives a(2,18)–b(3,18) true, e0(3,17)–b true, e0–a false.
+- The optional `README.md:117` wording is done.
+- The round 1 nit is resolved.
+
+## Not checked
+- **`npm run e2e`.** No scene, ui or e2e path changed in either round.
+- **The swap-seed scans** (greedy mirror seed 25, greedy vs EV seed 211) were
+  not re-run in round 2. They are round 1 measurements.
+- **That `legalRetreatHexes` ignores rivers** was not re-read in round 2. It
+  is round 1's reading.
+- **Carried from round 1:** the owner's position played in the browser, the
+  interaction with §73's e2e push scenario (c) (whichever merges second
+  re-runs it), and greedy's second divergence point.
+
+## Live check
+Not needed. Only `src/engine/**` tests, `README.md` and the intent folder
+changed in the rework, and only `src/engine/**` code over the whole intent.
+No path rule applies, and rule 3 doesn't either: the scene only displays
+`pushCandidates`, which is unit-tested on the reported position.
+
+## Verified myself vs. taken on trust
+
+**Ran by the reviewer, at `211887f`:**
+- `git diff --stat d2d6a79..HEAD -- src` lists only `combat.test.ts` (2
+  lines), `gameSession.test.ts` (3) and `heuristicSoak.test.ts` (2). Every
+  changed `src` line is a title or a comment.
+- `npm run verify`, run 1: exit 1, `Tests 1 failed | 1750 passed | 2 skipped
+  (1753)`. The failure was the 100-game soak, `Test timed out in 60000ms`
+  (61355 ms), under another worktree's load.
+- `npm run verify`, run 2: exit 0, `✖ 18 problems (0 errors, 18 warnings)`,
+  `Test Files 103 passed (103)`, `Tests 1751 passed | 2 skipped (1753)`.
+- `npm run check:intent`: the PASS above.
+- The river adjacencies were checked with the worktree's own `combat.ts`,
+  loaded through a throwaway script. No tracked file was edited.
+- `git status --short` was clean.
+
+**Coordinator, re-run, at `211887f` (2026-11-25):**
+- **Coordinator, re-run:** `npm run verify`. Exit 0 on the first run, `✖ 18
+  problems (0 errors, 18 warnings)`, `Test Files 103 passed (103)`, `Tests
+  1751 passed | 2 skipped (1753)`. Matches.
+- **Coordinator, re-run:** `npm run check:intent`. `type-check: PASS
+  (intent 90, fix)`, `note: 8 file(s), 520 line(s) changed outside
+  intents/.` Matches.
+- No mutant to re-run: none survived round 1, and the rework changed no
+  behavioural line.
+- `git status --short` clean.
+
+**Taken on trust (from round 1):** mutants M1–M5, the 15 trace re-pins, the
+rulebook pass, the swap-seed scans, `legalRetreatHexes` ignoring rivers, and
+the implementer's e2e run.
+
+# Round 1 (history)
+
+- verdict: rework
+- tier: reviewed
+- reviewed-commit: d2d6a79
+- round: 1
+- sampled: no
+- run: auto
+- live-check: not-needed
 
 The rule change is correct and its tests prove it:
 
@@ -20,7 +132,7 @@ measurement in a test comment, a wrong count in Progress, and a test title
 that no longer matches its assertion. Once they are fixed, the tier
 (`reviewed`) caps the verdict at `escalate`, and the owner reads the diff.
 
-## Passes
+### Passes
 | # | Pass | Result |
 | --- | --- | --- |
 | 1 | Intent and plan match | pass. The three departures from the plan are judged below; all are mechanical. |
@@ -34,7 +146,7 @@ that no longer matches its assertion. Once they are fixed, the tier
 | 9 | Repository footguns | pass |
 | 10 | Architecture | pass |
 
-## Type check
+### Type check
 ```
 type-check: PASS (intent 90, fix)
   note:  8 file(s), 517 line(s) changed outside intents/.
@@ -43,7 +155,7 @@ exit: 0
 The plan expected a ROUTE because existing tests change. The checker
 printed PASS, so no ROUTE reason is needed.
 
-## Findings
+### Findings
 - **LOW** `src/engine/heuristicSoak.test.ts:409`: the rewritten comment still
   says "none in 60 greedy mirror games".
   - Under the new rule, greedy-mirror seeds 1..60 hold one swapping game,
@@ -123,7 +235,7 @@ because its ZOC source touches only the empty 10,6.
   - the friend that makes room takes its own hex through
     `legalRetreatHexes`, which already checks ZOC.
 
-## Not checked
+### Not checked
 - **`npm run e2e`.** No scene, ui or e2e path changed. The implementer reports
   45 passed, plus the known placement timeout, which passed on its own.
 - **The owner's position played in the browser.** `BoardScene.ts:2259` uses
@@ -133,13 +245,13 @@ because its ZOC source touches only the empty 10,6.
 - **Greedy's second divergence point** ("p1-cav-h at 16,0" in the
   heuristicSoak comment). The first point (p0-phalanx 13,3) is confirmed.
 
-## Live check
+### Live check
 Not needed. No path rule applies (only `src/engine/**`, tests, `README.md` and
 the intent changed). Rule 3 doesn't apply either: the scene's push UI only
 displays `pushCandidates`, which is unit-tested on the exact reported
 position.
 
-## Verified myself vs. taken on trust
+### Verified myself vs. taken on trust
 
 **Ran by the reviewer, at `d2d6a79`:**
 - `npm run verify`: exit 0, `✖ 18 problems (0 errors, 18 warnings)` (cap 18),
