@@ -92,7 +92,7 @@ describe('counter', () => {
   });
 });
 
-describe('armyLayoutOffset and the offset slot (ง88)', () => {
+describe('armyLayoutOffset and the offset slot (ยง88)', () => {
   it('centres the 1100-wide block, never negative, rounding down', () => {
     expect(armyLayoutOffset(1100)).toBe(0);
     expect(armyLayoutOffset(1101)).toBe(0);

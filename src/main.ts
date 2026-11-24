@@ -6,7 +6,7 @@ import { BoardScene } from './scenes/BoardScene';
 import { GameOverScene } from './scenes/GameOverScene';
 import { canvasSize } from './ui/canvasSize';
 
-// ง88: the width is read once, here (no resize listener, so a resized window
+// ยง88: the width is read once, here (no resize listener, so a resized window
 // changes nothing until reload). #app is 100vw; innerWidth is the fallback.
 const { width, height } = canvasSize(document.getElementById('app')?.clientWidth || window.innerWidth);
 

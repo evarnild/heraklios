@@ -81,8 +81,14 @@ export class RulesPanel {
   }
 
   /** What a smoke test reads: whether it is shown, the tab, and the highlight. */
-  snapshot(): { open: boolean; tab: RulesTab | null; highlight: LandCombatHighlight | null } {
-    return { open: this.state.shown, tab: this.state.tab, highlight: this.highlight() };
+  snapshot(): { open: boolean; tab: RulesTab | null; highlight: LandCombatHighlight | null; left?: number } {
+    return {
+      open: this.state.shown,
+      tab: this.state.tab,
+      highlight: this.highlight(),
+      // §88: the panel's x, only while it is drawn (undefined when closed, so a `toEqual` of the closed state holds)
+      left: this.state.shown ? this.bounds.left : undefined,
+    };
   }
 
   /** True for a screen point on the panel (the map must not pan or zoom there). */

@@ -569,6 +569,16 @@ and ships are treated alike.
 - **Not warned:** the combat phase, computer players, and a player with
   nothing to flag.
 
+### The width of the game
+
+The game canvas is 750 pixels tall and as wide as the browser window was
+when the page loaded, never under 1100. A wider window shows more of the map
+on the Board and in Placement (once the whole map fits, it is centred), keeps
+the Tables and score panels at the right edge, and centres the army builder
+as one block. A window 1100 pixels wide or less looks as it always did. The
+width is read once: resizing the window changes nothing until the page is
+reloaded.
+
 ### The Standard view and the Drawn view
 
 The Board and Placement can show the map two ways, and a button at the
