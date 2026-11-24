@@ -2,7 +2,7 @@
 // `npm run orchestrator [-- --port <n>]` (§52, spec B1): the local page that
 // lists the intents and worktrees, spawns, launches headless Claude Code
 // sessions, records gates on the owner's click and ships. It runs from the
-// main checkout, on main, like `npm run ship`, and listens on 127.0.0.1 only.
+// main checkout, on main, like `npm run deliver`, and listens on 127.0.0.1 only.
 // The logic is in orchestrator-lib.mjs, state.mjs, server.mjs and
 // sdk-sessions.mjs; this file only wires the real seams together.
 import { dirname, resolve } from 'node:path';

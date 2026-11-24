@@ -37,7 +37,7 @@ function setup({ sessions, hold, queueDelays = [] } = {}) {
       if (name.endsWith('queue.mjs')) await new Promise((r) => setTimeout(r, queueDelays[queues++] ?? 0));
       if (name.endsWith('queue.mjs')) return { code: 0, stdout: JSON.stringify(QUEUE), stderr: '' };
       if (name.endsWith('sessions.mjs')) return { code: 0, stdout: JSON.stringify(SESSIONS), stderr: '' };
-      if (hold && name.endsWith('ship.mjs') && args.length === 2 && args[1] === hold.id) await hold.promise;
+      if (hold && name.endsWith('deliver.mjs') && args.length === 2 && args[1] === hold.id) await hold.promise;
       return { code: 0, stdout: 'ok', stderr: '' };
     },
   };
@@ -51,7 +51,7 @@ function setup({ sessions, hold, queueDelays = [] } = {}) {
 }
 
 const post = (url, body) => ({ method: 'POST', url, host: HOST, origin: `http://${HOST}`, body: body === undefined ? undefined : JSON.stringify(body) });
-const shipCalls = (calls) => calls.filter((c) => norm(c[1] ?? '').endsWith('ship.mjs'));
+const shipCalls = (calls) => calls.filter((c) => norm(c[1] ?? '').endsWith('deliver.mjs'));
 
 /** A manager whose running state flips to true after `n` checks: a session launched in a gap. */
 const flipping = (n) => {

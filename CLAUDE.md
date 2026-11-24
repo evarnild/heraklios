@@ -27,7 +27,7 @@ npm run check:intent  # does this branch's change match its intent? (intents/REA
 npm run sdlc:scan  # the evidence behind docs/sdlc-grid.md
 npm run size:baseline  # measure the size budget; --write rewrites scripts/size-baseline.json (a shrinking change runs it, §61)
 npm run spawn -- <id>  # parallel session for an intent (see "Parallel sessions")
-npm run ship -- <id>  # merge a reviewed intent, bookkeep, push, remove worktree and branch (the /ship skill)
+npm run deliver -- <id>  # merge a reviewed intent, bookkeep, push, remove worktree and branch (the /deliver skill)
 npm run queue      # the intent queue, generated from metadata.yml (--next-id, --json); nobody edits it
 npm run sessions   # what every worktree/session is doing (--json for data, --log for the event tail)
 npm run orchestrator  # local page (127.0.0.1:5299, --port): intents, worktrees, headless Claude sessions, gate and ship buttons (§52)
@@ -72,7 +72,7 @@ and in `intents/README.md` / `REVIEW-POLICY.md` win if they disagree.
 - `/intent` drafts an intent, `/spec` a feature's spec, `/build-plan` a
   plan, `/review` runs `REVIEW-POLICY.md` and writes
   `review.md`, `/grid` refreshes `docs/sdlc-grid.md`, `/spawn` and
-  `/sessions` run parallel work (below), and `/ship <id>` merges a reviewed
+  `/sessions` run parallel work (below), and `/deliver <id>` merges a reviewed
   intent when the owner asks (`REVIEW-POLICY.md` → "Merging").
 - `/auto <id>` (coordinator only) carries one accepted intent through the
   steps above: spec (a feature stops once, for the owner's `spec_accepted`),
@@ -86,7 +86,7 @@ and in `intents/README.md` / `REVIEW-POLICY.md` win if they disagree.
   blocker or a broken record (before it spawns), a ship dry-run that
   is blocked, a worktree held by another session, a sixth open session or an
   agent error, and ends at "ready:
-  `/ship <id>`"; it never ships, and never records `spec_accepted` or
+  `/deliver <id>`"; it never ships, and never records `spec_accepted` or
   `live_checked` without the owner's yes; the `/auto` authorisation covers neither. A stop shows in `npm run sessions` as `auto · r<n> · <reason>`.
 - An agent records a gate (`metadata.yml`) only on the owner's request in
   the current conversation, with `by-agent` after the date; a subagent never
@@ -138,7 +138,7 @@ npm run sessions -- --log 30    # the raw event tail
   only your next prompt, the turn ending or the session ending clears it.
 - **The orchestrator** (`npm run orchestrator`, §52; `tools/orchestrator/`)
   is a local web page that wraps these same scripts (`queue --json`,
-  `sessions --json`, `spawn`, `ship`) and launches headless Claude Code
+  `sessions --json`, `spawn`, `deliver`) and launches headless Claude Code
   sessions through the Agent SDK. A reviewer or `/auto` session it launches
   in the main checkout **is** the coordinator for that run, so "only the
   coordinator" below holds unchanged. A click on one of its gate buttons is
@@ -155,7 +155,7 @@ npm run sessions -- --log 30    # the raw event tail
   answer: no run yet or a closed session; `spec drafted` and `live check owed`
   (record the gate with its button first); `blocked by <n>` and `blocked_by record broken` (it spawns only once
   every blocker is merged or the record is fixed); `escalate` (the click also means
-  "I have read the diff"); `ready for /ship`; a cause you have cleared. A
+  "I have read the diff"); `ready for /deliver`; a cause you have cleared. A
   stop that needs your answer (`spec questions`, `decision needed`, `spec or
   plan amendment needed`, `critical finding`, `plan exists unapproved`, `plan found the spec incomplete`) is
   answered in a coordinator terminal with `/auto <id>` plus the answer; the

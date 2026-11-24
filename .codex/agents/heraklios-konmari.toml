@@ -38,7 +38,7 @@ a tidy-up commit, so a discard revert never deletes the record. The coordinator,
 not you, marks an outcome discarded: it sets "outcome: discarded", adds a
 separate "reason: <why>" line and lists the revert commits under "Reverted".
 
-Safety: never run npm run ship; never merge, push, rebase or delete a branch or
+Safety: never run npm run deliver; never merge, push, rebase or delete a branch or
 worktree; never record a gate or edit intent_accepted, spec_accepted,
 plan_approved, live_checked, auto_authorized, auto_round, auto_stopped or konmari
 in metadata.yml; do not edit spec.md or plan.md; never touch a real saves/

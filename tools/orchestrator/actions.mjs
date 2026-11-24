@@ -43,7 +43,7 @@ export function createActions({ deps, sessions, today, json, refuse, output, par
     if (dry) {
       return exclusive([id, 'main'], async () => {
         if (running(id)) return stopFirst(id); // re-checked inside the lock: a session may have launched meanwhile
-        const res = await script('ship.mjs', [id, '--dry-run']);
+        const res = await script('deliver.mjs', [id, '--dry-run']);
         if (JSON.parse(res.body).ok) dryRuns.add(id);
         else dryRuns.delete(id);
         return res;
@@ -57,7 +57,7 @@ export function createActions({ deps, sessions, today, json, refuse, output, par
     return exclusive([id, 'main'], async () => {
       if (running(id)) return stopFirst(id);
       dryRuns.delete(id);
-      return script('ship.mjs', words ? [id, '--live-checked', words] : [id]);
+      return script('deliver.mjs', words ? [id, '--live-checked', words] : [id]);
     });
   }
 

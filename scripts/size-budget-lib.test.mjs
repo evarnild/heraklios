@@ -20,13 +20,13 @@ describe('countLines', () => {
 });
 
 describe('isBudgeted', () => {
-  it.each(['src/engine/combat.ts', 'server/saveApi.ts', 'scripts/ship.mjs', 'tools/orchestrator/orchestrator.mjs', 'src/x.js'])(
+  it.each(['src/engine/combat.ts', 'server/saveApi.ts', 'scripts/deliver.mjs', 'tools/orchestrator/orchestrator.mjs', 'src/x.js'])(
     'budgets %s',
     (p) => expect(isBudgeted(p)).toBe(true),
   );
   it.each([
     ['a test', 'src/engine/combat.test.ts'],
-    ['an mjs test', 'scripts/ship.test.mjs'],
+    ['an mjs test', 'scripts/deliver.test.mjs'],
     ['e2e', 'e2e/smoke.ts'],
     ['the generated map', 'src/data/map.ts'],
     ['map-extract', 'tools/map-extract/x.js'],

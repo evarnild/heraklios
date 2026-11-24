@@ -6,7 +6,7 @@
 // intents/README.md, REVIEW-POLICY.md and the skills; this only reads them.
 import { GATE_FIELDS, parseGate, TYPE_RULES } from '../../scripts/intent-check-lib.mjs';
 import { blockedText } from '../../scripts/queue-lib.mjs';
-import { setKeys } from '../../scripts/ship-lib.mjs';
+import { setKeys } from '../../scripts/deliver-lib.mjs';
 
 /** The roles a session can be launched in (spec B5). Anything else is refused. */
 export const ROLES = ['implementer', 'reviewer', 'auto'];
@@ -246,7 +246,7 @@ export function autoLaunch(autoStopped, id = '<id>') {
   else if (stop.startsWith('live check owed')) tail = 'Record live_checked with its button first, once you have run the live check and it passed.';
   else if (stop.startsWith('escalate')) tail = 'It ALSO means "I have read the diff": the run goes on to the live-check or ship stop with no further review. Click only if you have read it.';
   else if (startsWithAny(stop, BLOCKER_STOPS)) tail = 'The run spawns only if every blocked_by intent is merged into main, or the blocked_by record is fixed; otherwise it stops again at the same place. It starts no new round.';
-  else if (stop.startsWith('ready for /ship')) tail = 'It re-runs the ship dry-run and reports; it never ships.';
+  else if (/^ready for \/(deliver|ship)/.test(stop)) tail = 'It re-runs the ship dry-run and reports; it never ships.';
   else tail = `The run stopped at "${stop}". Click only if you have cleared that cause: the run redoes the step that stopped.`;
   return { allowed: true, confirmText: `${base} ${tail} Launch it?` };
 }

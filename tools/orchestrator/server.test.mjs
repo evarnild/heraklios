@@ -339,7 +339,7 @@ describe('gate buttons (spec B8)', () => {
 });
 
 describe('ship (spec B9)', () => {
-  const dry = ['ship.mjs', '52', '--dry-run'];
+  const dry = ['deliver.mjs', '52', '--dry-run'];
   it('refuses the real ship without a successful dry-run first, running nothing', async () => {
     const { runner, handle } = setup();
     const res = await handle(post('/api/ship/52', { live: 'ran it' }));
@@ -354,7 +354,7 @@ describe('ship (spec B9)', () => {
     expect(payload(res).ok).toBe(true);
     expect(runner.calls).toEqual([
       { cmd: script(...dry), cwd: ROOT },
-      { cmd: script('ship.mjs', '52', '--live-checked', words), cwd: ROOT },
+      { cmd: script('deliver.mjs', '52', '--live-checked', words), cwd: ROOT },
     ]);
     expect((await handle(post('/api/ship/52', {}))).status).toBe(409); // the dry-run was consumed
     expect(runner.calls).toHaveLength(2);
@@ -363,7 +363,7 @@ describe('ship (spec B9)', () => {
     const { runner, handle } = setup();
     await handle(post('/api/ship/52?dry=1'));
     await handle(post('/api/ship/52', {}));
-    expect(runner.calls[1].cmd).toEqual(script('ship.mjs', '52'));
+    expect(runner.calls[1].cmd).toEqual(script('deliver.mjs', '52'));
   });
   it('a dry-run that fails does not unlock the real ship', async () => {
     const { runner, handle } = setup({ answer: () => ({ code: 1, stdout: 'precondition: not reviewed', stderr: '' }) });
