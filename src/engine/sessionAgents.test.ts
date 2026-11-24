@@ -3,7 +3,8 @@ import type { HexCoord } from '../data/map';
 import type { PlayerAgent } from './agent';
 import { newPending } from './combatResolution';
 import { newSession } from './gameSession';
-import { isListedSacrifice, settleResolutionWithAgent } from './sessionAgents';
+import { settleResolutionWithAgent } from './sessionAgents';
+import { isListedSacrifice } from './sessionAgents';
 import type { GameState, Unit } from './state';
 import { createInitialState } from './turnManager';
 

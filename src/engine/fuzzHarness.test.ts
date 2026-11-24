@@ -142,7 +142,7 @@ describe('playRandomGame', () => {
 // resolveUnitRetreat — HIGH-3 finding from adversarial review: combat.test.ts
 // exercises pushCandidates/completePush as isolated primitives, hand-writing
 // the retreat/push sequence in the test body; it never drives the actual
-// glue (this function, mirrored in combatResolution.ts's stepRetreat) that
+// glue (this function, mirrored in BoardScene.beginUnitRetreatChoice) that
 // captures each vacated hex and threads `visited` through the recursion.
 // This exercises that glue directly, with a scripted (non-random)
 // PlayerAgent, against a real 3-link cascade.
