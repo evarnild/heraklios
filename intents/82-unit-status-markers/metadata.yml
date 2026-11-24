@@ -7,16 +7,17 @@ title: Each unit shows whether it has moved, charged, attacked or been attacked 
 review_tier:
 intent_accepted: 2026-11-22 by-agent    # owner: "accept 81 82 83 84 /auto 81 /auto 83"
 spec_accepted: 2026-11-24 by-agent    # owner: "spec accepted 82"
-plan_approved:
+plan_approved: 2026-11-24 by-agent    # auto: owner "/auto 82" (auto_authorized 2026-11-24)
 live_checked:
 merged:
 konmari:
 auto_authorized: 2026-11-24 by-agent    # owner: "/auto 82"
 auto_round:
-auto_stopped:
+auto_stopped: blocked by 83
 follows_up:
 links:
   - intents/74-unit-hover-stats    the tooltip's state line shows the same facts on hover
   - intents/77-standard-view-animations    the markers must follow animated counters
 blocked_by:
   - 77    it rebuilds both views' unit layers; markers must ride on them
+  - 83    reuses hasNotMoved from src/engine/unmoved.ts, which is only on the §83 branch
