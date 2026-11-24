@@ -13,7 +13,7 @@ merged:
 konmari:
 auto_authorized: 2026-11-24 by-agent    # owner: "/auto 73" (resume after re-check mismatch)
 auto_round: 1
-auto_stopped: re-check mismatch
+auto_stopped:
 follows_up:
 links:
   - intents/72-engine-host-seams
