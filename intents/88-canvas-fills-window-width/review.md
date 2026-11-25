@@ -196,6 +196,48 @@ The live check is the only error.
 - the reviewer's P2–P9 and W1–W3 kills;
 - the round 1 width probe (W1 reproduces its "gaps 200 / 514").
 
+## KonMari check
+**outcome: kept** (`konmari.md`, record `7aeb591`, base `b82bc98`). Three
+tidy-ups:
+- `ea7f23f`: `MapView.ts` imports `./panBounds` below `phaser`, beside its
+  neighbours.
+- `4816456`: the Tables panel margin exported as `RULES_PANEL_MARGIN` from
+  `rulesPanelLayout.ts`. `e2e/wide-canvas.spec.ts` imports it instead of its
+  own `TABLES_MARGIN = 12` (principle 6); the assertion's value is still 812.
+- `095cda9`: `armyBuilderLayout.ts`'s header comment wrapped like its
+  neighbours.
+
+Moved mutant lines: `armyBuilderLayout.ts` +1 (M6–M10), and the B5 e2e at
+`wide-canvas.spec.ts:51`.
+
+**The B16 check, at `7aeb591` (2026-11-25 16:37–16:45):**
+- **Coordinator, re-run:** `npm run verify`. Exit 0, `✖ 17 problems (0 errors,
+  17 warnings)`, `Test Files 112 passed (112)`, `Tests 1847 passed | 2 skipped
+  (1849)`. The counts are unchanged.
+- **Coordinator, re-run:** `npm run check:intent`. FAIL on the owed live check
+  only (`15 file(s), 269 line(s)`).
+- **Coordinator, re-run:** full `npm run e2e`. `66 passed (3.9m)`.
+- **Coordinator, re-run:** the killed mutants in the tidied files, re-applied
+  by line text.
+  - **`armyBuilderLayout.ts`**, against `armyBuilderLayout.test.ts`: M6, M7,
+    M8, M9 and M10 all **KILLED**.
+  - **Against `e2e/wide-canvas.spec.ts`** (its margin now imported):
+    - W1, W2 and W3 at `MapView.ts:136`: KILLED by `:51`;
+    - E1 at `main.ts:11`: KILLED by `:19`, `:37` and `:51`;
+    - E3 at `rulesPanel.ts:124`: KILLED by `:19`, so the imported margin
+      still pins the right edge.
+  - The tree was `clean` after each.
+
+**The reviewer's read of `b82bc98..7aeb591`: pass.**
+- `ea7f23f` and `095cda9` touch only §88's own lines.
+- `4816456` removes §88's copy of the margin by exporting the original;
+  `RULES_PANEL_MARGIN` is still 12, and its one use is `rulesPanelRect`.
+- The e2e still expects 812 at 1600, so E3 and E4 stay killed.
+  `rulesPanelLayout.test.ts:28` pins the literal 12 independently, so the
+  test is not weakened and no assertion changed.
+- `MapView.ts` is at 492 lines. No size, lint or dependency change.
+  `konmari.md` is exact.
+
 # Round 1 (history)
 
 verdict: rework
