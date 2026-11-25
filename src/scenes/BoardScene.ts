@@ -115,8 +115,8 @@ const AI_COMBAT_DELAY_MS = 700;
  *   "boxed in by friendlies" — that was the strict `entourée` reading
  *   plan.md §12.2 rejected; one friendly neighbour among five enemies is
  *   the common case.)
- * `onChosen` fires with the player's pick — shared by the normal post-combat
- * retreat queue and, mid-drift, a trampled unit's own retreat. */
+ * `onChosen` fires with the player's pick — the answer to the session's
+ * retreat or push question, a trampled unit's mid-drift one included. */
 type RetreatChoice =
   | { kind: 'retreat'; legalHexes: HexCoord[]; onChosen: (hex: HexCoord) => void }
   | { kind: 'choosePushTarget'; pushTargets: Unit[]; onChosen: (pushed: Unit) => void };
@@ -896,8 +896,8 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   }
 
   private openSaveLoad(): void {
-    // A pending retreat/drift can't be captured at all: those sequences carry
-    // `onComplete` closures, which don't survive serialization. An AI turn
+    // A pending retreat/drift can't be captured at all: the combat's session is
+    // never saved (the save format has no place for it). An AI turn
     // can't either — not because of serialization, but because the board is
     // being mutated between frames, so a save taken mid-turn would capture an
     // arbitrary half-finished position.
