@@ -2,14 +2,14 @@
 id: 73
 slug: boardscene-on-session
 type: refactor
-status: in-review
+status: done
 title: The Board scene and its computer seats settle combats through the engine session
 review_tier:
 intent_accepted: 2026-11-22 by-agent    # owner: "accept 75 and 73, /auto 75 then 73"
 spec_accepted:
 plan_approved: 2026-11-22 by-agent    # auto: owner "/auto 73" (auto_authorized 2026-11-22)
 live_checked: 2026-11-25 by-agent    # owner: "live checked 73 /auto 73"
-merged:
+merged: 2662dd7    # 2026-11-25, merged by Claude on the owner's explicit request in chat
 konmari:
 auto_authorized: 2026-11-25 by-agent    # owner: "live checked 73 /auto 73"
 auto_round: 3
