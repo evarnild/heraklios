@@ -1,0 +1,238 @@
+<!-- generated-by: heraklios/review@0.2.0 -->
+# §84 review — The Tables panel stays available while a combat is being resolved
+
+verdict: rework
+tier: attested
+reviewed-commit: d575efa
+round: 1
+sampled: no
+run: auto
+live-check: owed
+
+The rolled cell, the choosers' placement, the removed suppression and the
+panel never answering a decision all work and are proven. Of 21 mutants, 17
+are killed.
+
+The rebase onto §83 left three gaps:
+- the full e2e is red, because §83's scenario still expects the panel to hide
+  during the End-phase warning;
+- Escape over that warning closes the panel **and** cancels the warning;
+- the warning's marks can sit under the open panel.
+
+The owner decided the last one in this conversation: **accept it** (the
+answer is below). The rest is mechanical rework.
+
+## Passes
+| # | Pass | Result |
+| --- | --- | --- |
+| 1 | Intent and plan match | findings: F1 and F2 (B3/B6 not carried through to §83's warning after the rebase), F7 |
+| 2 | Type check | pass. PASS, with no ROUTE. |
+| 3 | Rulebook fidelity | pass. Display only. The rolled cell uses the engine's `rawDieRoll + terrainModifier`, clamped to 1–6, as `combat.ts:183-185` and `:368-369` do. |
+| 4 | Tests prove the rule | findings: E5 and E10 survive (F4, F5), E8 is equivalent (F8) |
+| 5 | Boundary and conventions | pass. Pure helpers in `ruleTables.ts` and `rulesPanelLayout.ts`; the scene only wires them. No `GameState`, save or undo change. |
+| 6 | Numbers in prose | findings: F7, F10 |
+| 7 | Documentation | findings: F1's README and comment staleness for §83 |
+| 8 | Guardrails and hygiene | pass. 17 lint warnings, cap 17; no dependency. |
+| 9 | Repository footguns | pass |
+| 10 | Architecture | finding: F12 (LOW, principle 6) |
+
+## Type check
+```
+type-check: PASS (intent 84, feature)
+  note:  14 file(s), 405 line(s) changed outside intents/.
+exit: 0
+```
+
+## Findings
+- **F1 MEDIUM** `e2e/end-move-warning.spec.ts:252-264`: the full `npm run e2e`
+  is red. "The Tables panel hides while the warning is open and returns as it
+  was (seed 1)" fails at `:259` (`expect((await panel()).open).toBe(false)`,
+  received `true`).
+  - The rebase onto §83 was not followed by an e2e run.
+  - Stale text from the same cause:
+    - `README.md:562-563` ("the Tables panel hides and returns as it was");
+    - `src/ui/endMoveWarning.ts:12` ("the Tables suppression");
+    - `e2e/end-move-warning.spec.ts:57`.
+  - Spec B3 includes "§83's End-phase warning, once merged".
+  - Needs rework:
+    - rewrite that scenario to assert the panel stays open, on its tab, while
+      the warning is open and after Cancel;
+    - fix the README bullet and the two comments.
+- **F2 MEDIUM** `src/scenes/BoardScene.ts:701` and `src/ui/endMoveWarning.ts:66`:
+  Escape with the Tables panel open over the End-phase warning closes the
+  panel **and** cancels the warning.
+  - Two independent `keydown-ESC` listeners both fire.
+  - Reproduced by a throwaway probe (seed 1): before Escape
+    `{"warnOpen":true,"marked":5,"panel":true}`, after
+    `{"warnOpen":false,"panel":false}`.
+  - This breaks spec B6 ("closes the panel and does nothing else") and the
+    spec's Out of scope, which applies B6 to the warning.
+  - Needs rework:
+    - one Escape route: with the panel open, close it and stop; otherwise the
+      warning's Escape cancels it;
+    - an e2e assertion for it.
+- **F3 MEDIUM, decided** `src/ui/endMoveWarning.ts:94-97` with
+  `src/ui/MapView.ts:474-483`: with the panel open, the warning's magenta marks
+  can sit under it. `frameWorldBox` ignores the panel rectangle; in the probe,
+  3 of 5 flagged units are under it at seeds 1–5.
+  - **The owner's decision (2026-11-25, in this conversation): "Accept it"**,
+    as B5 accepts retreat highlights under the panel. After F2's fix, a first
+    Escape closes only the panel. No code change; the spec stands.
+- **F4 MEDIUM** `src/scenes/BoardScene.ts:2596` (B7, "or the phase ends"):
+  mutant E5 (the `commitEndPhase` `clearRolled()` removed) survives the full
+  e2e.
+  - Needs rework: after a resolved attack, end the phase and assert that
+    `rulesPanel().highlight` is `null`.
+- **F5 LOW** `src/ui/rulesPanel.ts:156` (`reset()` drops the roll; B8): mutant
+  E10 survives the full e2e.
+  - Needs rework: assert `rulesPanel().highlight === null` after a load that
+    follows a rolled attack.
+- **F6 LOW** `e2e/rules-panel.spec.ts:37-47,137,144` (AC6, "unchanged").
+  - The edit is what B1 and B7 force. Keeping the spec unchanged would mean
+    failing B1 and B7, which the owner chose, so this is not a decision.
+  - But the post-settle tab-button-count check was dropped, and the comment
+    at `:137` ("Resolving the attack clears the highlight") is now false.
+  - Needs rework: keep the button-count assertion after `settle`, and fix the
+    comment.
+  - Correcting AC6's wording is optional and the owner's.
+- **F7 LOW** `plan.md` Progress: the hashes `e59780c`… `ef594f2` and the
+  counts ("2824 → 2823", "1800 passed", "e2e 61 passed") are pre-rebase.
+  - Needs rework: append a dated Progress note with the post-rebase values
+    (commits `c7a2b4b`…`a7cb274`; 2834 → 2833; 1828 tests in 110 files; 68
+    e2e scenarios).
+- **F8 LOW** `src/ui/rulesPanel.ts:132` (`if (attack) this.rolled = null;`):
+  mutant E8 is an equivalent survivor, because `syncRulesPanel:1862` always
+  clears first.
+  - Worth a look: drop the line, or say in its comment that the scene's line
+    acts.
+- **F9 LOW** `src/ui/rulesPanelState.test.ts:17`: the name says "a tab can be
+  chosen while closed", but the test never calls `setTab` while closed.
+  - Needs rework: add the call and its assertion, or shorten the name.
+- **F10 LOW** `spec.md:55`: "15 advance rows" is off by one (76 + 15·26 = 466 >
+  464, so 14 fit). It has no code effect; the clamp handles it.
+  - Worth a look; the spec is the owner's.
+- **F11 LOW** `e2e/tables-during-combat.spec.ts:16-17`: the dice doc comment is
+  orphaned above `WITH_SPARE` instead of above `DIE`. Nit.
+- **F12 LOW** `src/ui/rulesPanelLayout.test.ts:40-52` (principle 6): the
+  chooser sizes are copied by hand from `BoardScene.ts:2022-2024` and
+  `:2335-2337`. The e2e pins the real boxes (y 368, 452).
+  - Worth a look: export the sizes from `boardPrompts.ts`, as
+    `RAM_PROMPT`/`BOARD_PROMPT` are.
+
+**The coordinator's specific points**, as the reviewer answered them:
+- **The extra `clearRolled()` in `syncRulesPanel`** (`:1862`) matches B7's
+  "a new attacker or target click". It never clears during the same attack's
+  resolution, and never on a computer seat's turn: `applyAiAction` never fills
+  `attackGroup`. E2 and E3 are killed.
+- **B4:** `chooserRect` is top = max(0, min(286, H − h)), with unit cases at
+  1100 and 1600 wide and both clamps. All five `chooserRect` mutants, plus E6
+  and E7, are killed.
+- **The rebase resolution:** at the merge base 209f2da, `BoardScene.ts` is
+  2834 lines with a 2834 ceiling. The branch has 2833 lines and a 2833
+  ceiling, a net change of −1. Correct.
+- **The plan's missing Progress marker and its wrapped `budget:` line** don't
+  matter: Progress is a pure append, and no script reads it. A future plan
+  should write `budget:` as a bare `- budget: …` line (`BUDGET_RE`,
+  `scripts/size-budget-lib.mjs:52`).
+- **The deviations:** `WITH_SPARE`, `rawDieRoll` and no budget line are all
+  fine.
+
+## Mutants
+**Engine and layout, full vitest suite:** all KILLED.
+- U1, U2 and U3 in `ruleTables.ts:150`, killed by `ruleTables.test.ts`.
+- U5–U9 in `rulesPanelLayout.ts:46-47`, killed by `rulesPanelLayout.test.ts`.
+
+**Scene and panel, against `tables-during-combat.spec.ts` and `rules-panel.spec.ts`:**
+- E1 (the suppression restored): KILLED.
+- E2 and E3 (the `syncRulesPanel` clear removed, then made unconditional): KILLED by `:117`.
+- E4 (`setRolled` after the exchange return): KILLED by `:140`.
+- E6 and E7 (the choosers centred): KILLED.
+- E9: KILLED.
+- E12: KILLED.
+- E5 and E10, against the full e2e: **SURVIVED** (F4, F5).
+- E8: **SURVIVED**, equivalent (F8).
+- E11 (the marked cell not drawn): **SURVIVED**. It's visual only, so the live
+  check covers it.
+
+The rework is expected to kill E5, E10, and a new mutant: Escape over the
+warning reaching the warning while the panel is open (F2).
+
+## Not checked
+- **The look:** the rolled cell's outline and fill, the choosers' lower
+  position, and the Drawn view. Live check.
+- **"Never cuts an animation short"** (B6): e2e runs with animations off.
+- **Enter continuing a drift with the panel open,** and a click on the panel
+  body during a drift.
+- **B9 with a computer seat:** traced in code only.
+- **A 1600-wide canvas in the browser:** §88 is not merged; only the geometry
+  is unit-tested.
+
+## Live check
+- **owed:** rule 1 (`src/scenes/**`, `src/ui/**`); the change is new and visual.
+- **steps:**
+  1. In `C:/Users/eric/src/heraklios-wt/84-tables-during-combat`, run `npm
+     run dev -- --port 5284`, open http://127.0.0.1:5284/, and choose
+     **Combat test mode (units face to face, 2 hexes)**.
+  2. Click **Tables**, then **End phase** into combat. The panel is on Land
+     combat.
+  3. Build and resolve attacks. Test mode keeps Undo across the roll, so undo
+     and resolve until you have seen a DR retreat, a push, an advance offer,
+     an EX exchange and an elephant drift. `__heraklios.seed(n)` in the
+     console varies the die.
+  4. At each prompt: switch tabs, click on the panel, press Escape, reopen
+     with Tables, then answer the prompt.
+  5. Toggle to the **Drawn** view and repeat at least the retreat and the
+     drift.
+  6. In Test mode (2 players): Tables open, a few moves, **End phase** with
+     units unmoved, then Escape, then Escape again.
+- **you should see:**
+  - the panel stays open on its tab through every prompt, and never opens or
+    changes tab by itself;
+  - highlights outside the panel stay clickable;
+  - the advance and exchange boxes sit with their top at about y 286, whether
+    or not the panel is open;
+  - drift Continue, Space and Enter work with the panel open;
+  - clicks on the panel and Escape never answer or skip anything;
+  - the Land combat tab keeps the rolled attack's column and one outlined
+    bright cell at the die face's row after the modifier, until a new
+    attacker is clicked or the phase ends;
+  - in step 6, the first Escape closes only the panel (the warning and its
+    marks stay), and the second cancels the warning;
+  - the look and spacing are acceptable in both views.
+
+## Verified myself vs. taken on trust
+
+**Ran by the reviewer, at `d575efa`:**
+- `npm run verify`: exit 0, `✖ 17 problems (0 errors, 17 warnings)`, `Test
+  Files 110 passed (110)`, `Tests 1828 passed | 2 skipped (1830)`.
+- `npm run check:intent`: PASS.
+- Full `npm run e2e`: `1 failed` (`end-move-warning.spec.ts:252`), `67 passed
+  (3.9m)`.
+- Two throwaway probes, created and deleted, never committed: the Escape
+  double action (F2), and the marks under the panel (F3).
+- 21 mutants: 17 killed, 4 survived (E5, E8, E10, E11), each restored by copy.
+- The rebase arithmetic, the append-only `plan.md` diff, and `sampled: no`.
+  `git status --short` was clean.
+
+**Coordinator, re-run, at `d575efa` (2026-11-25 13:55–14:45):**
+- **Coordinator, re-run:** `npm run verify`. Exit 0, `✖ 17 problems (0 errors,
+  17 warnings)`, `Test Files 110 passed (110)`, `Tests 1828 passed | 2 skipped
+  (1830)`. Matches.
+- **Coordinator, re-run:** `npm run check:intent`. `type-check: PASS (intent
+  84, feature)`, the same note. Matches.
+- **Coordinator, re-run:** full `npm run e2e`. `✘ end-move-warning.spec.ts:252`
+  (the Tables panel scenario), `1 failed`, `67 passed (3.2m)`. Matches.
+- **Coordinator, re-run:** E5 and E10 against the full e2e, without the known
+  red scenario.
+  - First run: each `1 failed ; 66 passed`, with the failing test not
+    captured.
+  - Second run: E5 **SURVIVED** and E10 **SURVIVED**, each `67 passed`.
+  - The second run matches the reviewer; the first run's single failures were
+    unnamed flakes.
+- **Coordinator, re-run:** E8 and E11 against the two specs: both **SURVIVED**,
+  `6 passed` each. Matches.
+- The tree was `clean` after each.
+
+**Taken on trust:**
+- the reviewer's two probes (F2, F3);
+- the seeds' die faces (checked in `combatScenarios.test.ts`, inside verify).
