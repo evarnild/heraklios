@@ -1859,6 +1859,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     const naval = this.attackGroup.length > 0 && unitType(this.attackGroup[0]!).domain === 'naval';
     const preview =
       !naval && this.defenderGroup.length > 0 ? previewLandAttack(this.attackGroup, this.defenderGroup) : null;
+    if (this.attackGroup.length + this.defenderGroup.length > 0) this.rulesPanel?.clearRolled(); // a new attacker or target (B7)
     this.rulesPanel?.setAttack(preview);
     return preview;
   }

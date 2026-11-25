@@ -253,10 +253,10 @@ and rendering.
 - The board's **Tables panel** (§55): `engine/ruleTables.ts` turns the rule data into
   rows and cells (and the land-table highlight) and is unit-tested; `ui/rulesPanel.ts`
   only draws them, placed by `ui/rulesPanelLayout.ts`, which keeps it clear of the ram and
-  boarding prompts sized in `ui/boardPrompts.ts`; `ui/rulesPanelState.ts` holds
-  open/tab/hidden. While a decision (retreat, push, advance, exchange, drift) is pending,
-  `BoardScene.update` hides the panel through `RulesPanel.setSuppressed`, and it returns
-  as it was.
+  boarding prompts sized in `ui/boardPrompts.ts` and places the advance and exchange choosers
+  below it (`chooserRect`); `ui/rulesPanelState.ts` holds open/tab. The panel is never
+  suppressed while a decision is pending (§84); `RulesPanel.setRolled` keeps the rolled
+  attack so its cell stays marked.
 - `src/scenes/` — the Phaser scenes, run in sequence: `MenuScene` →
   `ArmyBuilderScene` → `PlacementScene` → `BoardScene` → `GameOverScene`.
   `BoardScene.ts` is by far the largest file in the repo (~3000 lines) and
