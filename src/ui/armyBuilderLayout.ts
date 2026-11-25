@@ -1,10 +1,11 @@
+import { BASE_WIDTH } from './canvasSize';
 import { markerTextureKey } from './hexRender';
 
 // §79: the army builder's row geometry, in canvas pixels, an 1100-wide block (offset into the middle of a wider canvas, §88). Pure, so
 // the numbers are unit-tested; ArmyBuilderScene only draws from it.
 
 /** The width the builder is designed for. */
-export const ARMY_LAYOUT_WIDTH = 1100;
+export const ARMY_LAYOUT_WIDTH = BASE_WIDTH;
 
 /** §88: the x offset that centres the 1100-wide block on a canvas `canvasWidth` wide (0 at 1100 or less). */
 export function armyLayoutOffset(canvasWidth: number): number {

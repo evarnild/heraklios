@@ -1,3 +1,4 @@
+import { panBounds } from './panBounds';
 import Phaser from 'phaser';
 import { scanCameras, type CameraObject, type CameraScan } from './cameraStrays';
 import type { HexCoord } from '../data/map';
@@ -132,12 +133,7 @@ export class MapView {
     // slack) rather than a fixed margin sized for the old centering — so the
     // board can't be scrolled away into empty space next to the panel.
     const boundsPadding = 200;
-    this.enableDrag({
-      x: this.originX + minX - boundsPadding,
-      y: this.originY + minY - boundsPadding,
-      width: boardWidth + boundsPadding * 2,
-      height: boardHeight + boundsPadding * 2,
-    });
+    this.enableDrag(panBounds({ x: this.originX + minX, y: this.originY + minY, width: boardWidth, height: boardHeight }, availableWidth, boundsPadding));
     this.enableZoom();
     const mainCam = scene.cameras.main;
     mainCam.setViewport(leftPanelWidth, 0, availableWidth, viewportHeight);
