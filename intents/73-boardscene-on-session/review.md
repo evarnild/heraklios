@@ -3,11 +3,187 @@
 
 verdict: attest
 tier: attested
-reviewed-commit: a562325
-round: 2
+reviewed-commit: c1609bf
+round: 3
 sampled: no
 run: auto
 live-check: owed
+
+**Why a third round.** Round 2 attested at `a562325`, KonMari kept its
+tidy-up, and the owner recorded the live check. `/deliver 73` then hit a merge
+conflict with §90, which had merged first (`gameSession.test.ts`). On the
+owner's "rebase 73", the branch was rebased onto `main` at `de2af05`, which
+moves past the reviewed commit.
+
+**The rebase changed none of §73's production code.** Against the reviewed
+tree, §73's patch is byte-identical for every file under `src/scenes`,
+`src/ui`, the engine modules, the e2e specs, README, docs and the size
+baseline. `git range-diff` shows one changed commit (the `gameSession.test.ts`
+conflict) and three new ones (the fixture moves, Progress, the round start).
+No assertion changed meaning. Each fixture move is needed, box by box, to make
+the push legal under §90's rule, and was measured. Every push mutant is killed
+by a test on the moved fixtures. Nothing new needs rework or a decision. The
+live check recorded on 2026-11-25 still covers this branch (see "Live
+check").
+
+## Passes (full `git diff main...HEAD`, 41 files)
+| # | Pass | Result |
+| --- | --- | --- |
+| 1 | Intent and plan match | pass. The Progress entry "Rebase onto main after §90" matches the diff and the range-diff. |
+| 2 | Type check | ROUTE accepted, reason stated below: the same four files as round 2, and the lost lines are §73's own. |
+| 3 | Rulebook fidelity | pass. §73 changes no rule. §90's ZOC rule comes through `main`, reviewed under §90. Round 1's LOW on O3 is carried. |
+| 4 | Tests prove the rule | pass. The push mutants are killed by tests on the moved fixtures. |
+| 5 | Boundary and conventions | pass. The rebase added only test-fixture edits. |
+| 6 | Numbers in prose | pass. The Progress numbers reproduced; the shift and the "one friend, one hex" claims measured. |
+| 7 | Documentation | pass. Round 1's LOW notes are carried. |
+| 8 | Guardrails and hygiene | pass. 17 warnings at a cap of 17. Ceilings: `combat.ts` 1135/1135, `BoardScene.ts` 2824/2824, `fuzzHarness.ts` 1275/1275. |
+| 9 | Repository footguns | pass |
+| 10 | Architecture | pass. Round 1's `driftReference.ts` note is carried. |
+
+## Type check
+```
+type-check: ROUTE (intent 73, refactor)
+  route: Declared refactor, but existing tests lost lines (src/engine/combat.test.ts, src/engine/drift.test.ts, src/engine/fuzzHarness.test.ts, src/engine/gameSession.test.ts). Behaviour may have changed — check, or route to feature.
+  note:  36 file(s), 3239 line(s) changed outside intents/.
+exit: 2
+```
+**ROUTE accepted, reason as in round 2:**
+- moved imports (`driftReference.ts`);
+- the new `retreat` events in the expected event lists;
+- the push-filtered list;
+- two comment-only edits.
+
+The `gameSession.test.ts` lost lines are §73's own; the conflict resolution
+kept §90's coordinates and §73's edits.
+
+## The rebase delta, checked
+- **The `gameSession.test.ts` conflict.** The resolved hunk at `:315-322` keeps
+  §90's `vacatedHex: { q: 2, r: 18 }` and §73's `played.events.filter((e) =>
+  e.kind === 'push')` with its comment. Before the rebase, §73's hunk was the
+  same edit on `{ q: 10, r: 5 }`. The file's other §73 hunks are unchanged.
+- **`combat.ts`.** `git diff main...HEAD` shows four comment hunks (`:35-36`,
+  `:112`, `:821`, `:946`), identical to the pre-rebase patch. `pushCandidates`
+  is not touched.
+- **`sessionSeams.test.ts`, `singlePush()` (`c53a092`).** Only the fixture body
+  and its comment changed; no assertion in the tests that use it was
+  touched. Measured against the real `legalRetreatHexes`/`pushCandidates`:
+  - a has retreat `[]`, push `[b]`;
+  - b has retreat `[]`, push `[c]`;
+  - c has retreat `[4,19]`.
+
+  Each added naval box is needed: without (1,18), a gains a retreat; without
+  (5,17) or (5,18), c has two hexes. The old fixture under §90 gives `a push
+  = []`.
+- **`e2e/combatScenarios.ts`, `PUSH` (`c53a092`).** Measured the same way:
+  - fx-def has retreat `[]`, push `[fx-friend]`;
+  - fx-friend has retreat `[10,2]`.
+
+  Without fx-b3 or fx-b4 the friend has two hexes. The old archer fixture
+  under §90 gives `push = []`, so (c) was refused. `combatScenarios.test.ts`
+  (c) and both browser (c) specs are unchanged and pass.
+- Both moves use §90's own device: galleys, which project no ZOC, plus a
+  river. The files only §90 changed are equal to `main`.
+
+## Findings
+None new. Carried from rounds 1–2, LOW, no rework:
+- **LOW** `README.md:398-404`: O3 narrows "au moins égale". Worth a look:
+  whether it belongs in "Known simplifications".
+- **LOW** `src/engine/driftReference.ts`: the test-only copy of the old pump,
+  with no follow-up intent filed. Worth a look.
+- **Nit** `e2e/combatScenarios.ts:4-5`: the header says every hex is "the
+  open land at q 8-14, r 3-6", but `PUSH` uses (11,2) and (10,2).
+
+## Not checked
+- **Round 2's list is carried:**
+  - Drawn-view drift pacing;
+  - the exchange render timing (S09);
+  - a human retreat prompt during a computer drift;
+  - a throwing computer agent (S04);
+  - the characterisation scenarios at `01daea6`.
+- **Mutants whose targets and killing tests the rebase left byte-identical**
+  were not re-run this round: E01, E03–E04, E06, E10–E33, S01, S05, S06,
+  S11–S18. They are recorded in rounds 1–2 and the KonMari check.
+- **`main` moved after the rebase** (`de2af05` → `ea57415`: §91 merged, §89's
+  plan), touching only `intents/` and `package-lock.json`. `git merge-tree
+  --write-tree main refactor/73-boardscene-on-session` exits 0. `verify` on
+  that merge result was not run; `/deliver` runs it after the merge.
+
+## Live check
+- **owed** by rule 1 over the whole diff (`src/scenes/**`, `src/ui/**`), and
+  **already recorded**: `live_checked: 2026-11-25 by-agent` (owner: "live
+  checked 73"), on the pre-rebase tree.
+- **That record still covers this branch:**
+  - The rebase changed no file under `src/scenes`, `src/ui`, `src/main.ts` or
+    the e2e specs; their §73 patches are byte-identical.
+  - It changed only two test fixtures and brought in §90's engine rule, which
+    is `main`'s reviewed code.
+  - The behaviour the owner checked (retreat and advance, exchange with O3's
+    refusal, drift beats, guards, computer seat) runs through unchanged scene
+    code.
+  - The only in-game difference from the checked build is §90's (a push into
+    enemy ZOC is refused), which is `main`'s and not §73's to check.
+  - Both (c) push scenarios pass in the browser on the new rule.
+
+  Not owed again.
+
+## Verified myself vs. taken on trust
+
+**Ran by the reviewer, at `c1609bf`:**
+- `npm run verify`: exit 0, `✖ 17 problems (0 errors, 17 warnings)`, `Test
+  Files 107 passed (107)`, `Tests 1797 passed | 2 skipped (1799)`.
+- `npm run check:intent`: the ROUTE above, exit 2.
+- Full `npm run e2e`: `1 failed`, `55 passed (4.3m)`. The failure was
+  `placement.spec.ts:39` (`Test timeout of 30000ms exceeded`, 45.5 s), the §89
+  flake; alone it passed in 32.7 s.
+- `npx playwright test e2e/combat-resolution.spec.ts --repeat-each=2`: `20
+  passed`, both (c) scenarios twice.
+- **Scene mutants** with `--retries=1`:
+  - S03 is KILLED by `:171` (c).
+  - S07 is KILLED by `:196` (c, computer defender).
+  - S10 is KILLED by `:171` and `:196`.
+- **Engine mutants** against the full vitest suite: E02, E05, E07, E08, E09
+  and E27 are all KILLED, each by a test on the moved `singlePush` fixture or
+  a push path.
+- The range-diff, the per-file patch identity and the geometry measurements
+  described above. `git status --short` was clean.
+
+**Coordinator, re-run, at `c1609bf` (2026-11-25 09:55–10:17):**
+- **Coordinator, re-run:** `npm run verify`. Exit 0, `✖ 17 problems (0 errors,
+  17 warnings)`, `Test Files 107 passed (107)`, `Tests 1797 passed | 2 skipped
+  (1799)`. Matches.
+- **Coordinator, re-run:** `npm run check:intent`. The same ROUTE, exit 2.
+  Matches.
+- **Coordinator, re-run:** full `npm run e2e`. `1 failed`, `55 passed (2.7m)`.
+  The failure was `save-load.spec.ts:57`, §86's known flake, where the
+  reviewer hit §89's. Both are known flakes outside §73's changes. Matches in
+  substance.
+  - A first attempt at 10:01 couldn't start: port 5232 was used by §89's run.
+    It was re-run at 10:11.
+- **Coordinator, re-run:** scene mutants against
+  `e2e/combat-resolution.spec.ts` with `--retries=1`.
+  - S03 KILLED by `:171` (both tries).
+  - S07 KILLED by `:196` (both tries).
+  - S10 KILLED by `:171` and `:196` (both tries).
+  - Matches.
+- **Coordinator, re-run:** engine mutants against the full vitest suite. E05
+  KILLED and E09 KILLED (`1 failed | 1796 passed`). Matches.
+- After every mutant the tree was `clean`, and HEAD stayed `c1609bf`.
+
+**Taken on trust:**
+- §90's own review of its rule and re-pins;
+- rounds 1–2 and the KonMari check, for everything the rebase left
+  byte-identical;
+- the owner's recorded live check.
+
+# Round 2 (history)
+
+- verdict: attest
+- tier: attested
+- reviewed-commit: a562325
+- round: 2
+- sampled: no
+- run: auto
+- live-check: owed
 
 All four round 1 "Needs rework:" findings are fixed as the review specified,
 and all four target mutants (S07, S15, E10, E11) are now killed. The
@@ -22,7 +198,7 @@ unpinned:
 - the drift display ending;
 - `onEvent` on a drift.
 
-## Passes (over the rework diff `1ea16c9..a562325`; the rest carried from round 1)
+### Passes (over the rework diff `1ea16c9..a562325`; the rest carried from round 1)
 | # | Pass | Result |
 | --- | --- | --- |
 | 1 | Intent and plan match | pass. The rework does the four findings plus the optional comment fix; Progress "Round 1 rework (69523c2)" matches the diff. |
@@ -36,7 +212,7 @@ unpinned:
 | 9 | Repository footguns | pass |
 | 10 | Architecture | pass. Round 1's `driftReference.ts` note is carried. |
 
-## Type check
+### Type check
 ```
 type-check: FAIL (intent 73, refactor)
   error: A live check is owed and not recorded. Do the steps in intents/73-boardscene-on-session/review.md → ## Live check, then set live_checked: <date> in intents/73-boardscene-on-session/metadata.yml.
@@ -58,7 +234,7 @@ entries:
 
 Both are comment-only (1 line each, both `//`). No assertion or code changed.
 
-## Findings
+### Findings
 None new. Carried unchanged from round 1:
 
 - **LOW** `README.md:398-400`: O3's refusal narrows the rulebook's "unités
@@ -85,7 +261,7 @@ None new. Carried unchanged from round 1:
 - **E10/E11: fixed.** `src/engine/sessionSeams.test.ts:128-148`.
 - **The stale comments: fixed** (see the ROUTE above).
 
-## Not checked
+### Not checked
 Carried from round 1; nothing in the rework affects these.
 
 - **Visual drift pacing in the Drawn view at Normal speed.** e2e runs with
@@ -98,7 +274,7 @@ Carried from round 1; nothing in the rework affects these.
 - **New this round:** the reviewer didn't re-run round 1's survivors; the
   coordinator did (below).
 
-## Live check
+### Live check
 - **owed:** rule 1 (`src/scenes/**`, `src/ui/**`). The smoke suite can't stand
   in: O3's refusal is new behaviour, and the drift beats are visual.
 - **steps:**
@@ -132,7 +308,7 @@ Carried from round 1; nothing in the rework affects these.
 - **you should see:** the same play as on `main`, except that the exchange
   panel refuses a selection with a unit to spare.
 
-## Verified myself vs. taken on trust
+### Verified myself vs. taken on trust
 
 **Ran by the reviewer, at `a562325`:**
 - `npm run verify`: exit 0, `✖ 17 problems (0 errors, 17 warnings)`,
@@ -179,7 +355,7 @@ Carried from round 1; nothing in the rework affects these.
 - round 1's results for areas the rework didn't touch;
 - that the nine characterisation scenarios were green at `01daea6`.
 
-## KonMari check
+### KonMari check
 **outcome: kept** (`konmari.md`, base `deb5a58`). The tidy-up commits:
 - `f865bce`: `driftBeats.ts` reuses `format.ts`'s existing `unitNameIn`
   instead of its own copy `unitIn`.
