@@ -116,6 +116,8 @@ export function boardingTable(): BoardingTable {
 }
 
 
+const clampRow = (row: number): number => Math.min(6, Math.max(1, row));
+
 export interface LandCombatHighlight {
   attackForce: number;
   defenseForce: number;
@@ -124,6 +126,8 @@ export interface LandCombatHighlight {
   column: number;
   /** For each die face 1-6, the CRT row (1-6) it lands on after the modifier. */
   cells: { face: number; row: number }[];
+  /** The cell a roll landed on (B7), or null before a roll. */
+  rolled: { face: number; row: number } | null;
 }
 
 /**
@@ -133,6 +137,7 @@ export interface LandCombatHighlight {
  */
 export function landCombatHighlight(
   preview: { attackForce: number; defenseForce: number; terrainModifier: number } | null,
+  dieRoll?: number,
 ): LandCombatHighlight | null {
   if (!preview) return null;
   const { attackForce, defenseForce, terrainModifier } = preview;
@@ -141,6 +146,7 @@ export function landCombatHighlight(
     defenseForce,
     modifier: terrainModifier,
     column: ratioToColumnIndex(attackForce, defenseForce),
-    cells: DIE_FACES.map((face) => ({ face, row: Math.min(6, Math.max(1, face + terrainModifier)) })),
+    cells: DIE_FACES.map((face) => ({ face, row: clampRow(face + terrainModifier) })),
+    rolled: dieRoll === undefined ? null : { face: dieRoll, row: clampRow(dieRoll + terrainModifier) },
   };
 }

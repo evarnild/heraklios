@@ -151,4 +151,18 @@ describe('landCombatHighlight (§55)', () => {
       expect(table.rows[row - 1]![h.column]).toBe(resolveLandCombat(4, 2, face + 3));
     }
   });
+  it('has no rolled cell without a roll', () => {
+    expect(landCombatHighlight({ attackForce: 4, defenseForce: 2, terrainModifier: 0 })!.rolled).toBeNull();
+  });
+  it('marks the rolled cell: face as rolled, row after the modifier', () => {
+    const p = { attackForce: 4, defenseForce: 2 };
+    expect(landCombatHighlight({ ...p, terrainModifier: 0 }, 4)!.rolled).toEqual({ face: 4, row: 4 });
+    expect(landCombatHighlight({ ...p, terrainModifier: 2 }, 3)!.rolled).toEqual({ face: 3, row: 5 });
+    expect(landCombatHighlight({ ...p, terrainModifier: -2 }, 4)!.rolled).toEqual({ face: 4, row: 2 });
+  });
+  it('clamps the rolled row to 1-6 at both ends', () => {
+    const p = { attackForce: 4, defenseForce: 2 };
+    expect(landCombatHighlight({ ...p, terrainModifier: 3 }, 6)!.rolled).toEqual({ face: 6, row: 6 });
+    expect(landCombatHighlight({ ...p, terrainModifier: -3 }, 1)!.rolled).toEqual({ face: 1, row: 1 });
+  });
 });

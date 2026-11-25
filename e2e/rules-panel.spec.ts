@@ -34,22 +34,17 @@ const attackLines = (page: Page) =>
 
 const canvasBox = async (page: Page) => (await page.locator('canvas').boundingBox())!;
 
-/** The seeded roll leaves a retreat, push or advance choice pending: the panel is hidden meanwhile,
- * the Tables button does not bring it back, and it returns on the same tab once the choice is made. */
-async function expectHiddenWhileDecisionPending(page: Page, tab: unknown): Promise<void> {
+/** §84: the seeded roll leaves a retreat, push or advance choice pending, and the panel stays open on the same tab throughout
+ * (it used to hide, §55). */
+async function expectOpenWhileDecisionPending(page: Page, tab: unknown): Promise<void> {
   await page.waitForFunction(() => window.__heraklios.busy().includes('decisionPending'), undefined, { timeout: 5000 });
   await frames(page);
-  const drawn = (label: string) => page.evaluate((l) => window.__heraklios.buttonCount(l), label);
-  expect((await panel(page)).open, 'hidden while a decision is pending').toBe(false);
-  expect(await drawn(en.rules.tabs.land), 'the tab buttons are gone while hidden').toBe(0);
-  await clickButton(page, en.board.tables);
-  await frames(page);
-  expect((await panel(page)).open, 'the Tables button does not open it meanwhile').toBe(false);
-  expect(await drawn(en.rules.tabs.land), 'still not drawn after the Tables button').toBe(0);
+  expect(await panel(page), 'open while a decision is pending').toMatchObject({ open: true, tab: tab });
+  expect(await page.evaluate((l) => window.__heraklios.buttonCount(l), en.rules.tabs.land), 'the tab buttons stay drawn').toBe(1);
   await settle(page);
   await frames(page);
-  expect(await panel(page), 'back as it was').toMatchObject({ open: true, tab: tab });
-  expect(await drawn(en.rules.tabs.land), 'drawn again once the choice is made').toBe(1);
+  expect(await panel(page), 'as it was').toMatchObject({ open: true, tab: tab });
+  expect(await page.evaluate((l) => window.__heraklios.buttonCount(l), en.rules.tabs.land), 'drawn after the choice').toBe(1);
 }
 
 test('the Tables panel: tabs, Escape, a highlight that follows the attack, clicks that stay on the panel', async ({ page }) => {
@@ -140,14 +135,14 @@ test('the Tables panel: tabs, Escape, a highlight that follows the attack, click
   await frames(page);
   expect(await page.evaluate(() => window.__heraklios.cameraZoom()), 'a closed panel does not block the wheel').not.toBe(zoom);
 
-  // Resolving the attack clears the highlight: reopen, build it again, resolve.
+  // Resolving the attack swaps the built attack for the rolled one (§84): reopen, build it again, resolve.
   await clickButton(page, en.board.tables);
   await clickHex(page, target.position); // the archers are still selected
   await page.waitForFunction(() => window.__heraklios.rulesPanel().highlight !== null);
   const tabBefore = (await panel(page)).tab;
   await clickButton(page, 'Resolve attack');
-  await expectHiddenWhileDecisionPending(page, tabBefore);
-  expect((await panel(page)).highlight, 'cleared by the resolution').toBeNull();
+  await expectOpenWhileDecisionPending(page, tabBefore);
+  expect((await panel(page)).highlight?.rolled, 'the roll is marked (§84), the built attack no longer is').not.toBeNull();
 
   await page.keyboard.press('Escape');
   expect((await panel(page)).open).toBe(false);

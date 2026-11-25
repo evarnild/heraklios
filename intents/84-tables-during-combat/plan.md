@@ -217,3 +217,61 @@ Mutants for the implementer to run and report, each restored by copy:
   leaves a retreat pending for a human.
 - **The suppression is removed outright,** with its tests, rather than left as
   dead API. A later `/konmari` would remove it anyway.
+
+## Progress
+
+- **2026-11-25 — subtasks 1-6** (commits `e59780c`, `d9c4f9a`, `4d0ddcf`, `54adb44`, `c1494ec`, `ef594f2`).
+  - Shipped: `landCombatHighlight(preview, dieRoll?)` with `rolled`; `chooserRect`
+    in `rulesPanelLayout.ts` (both header comments updated); `RulesPanel.setRolled`
+    / `clearRolled`, the outlined accent cell; the suppression removed
+    (`setSuppressed`, `RulesPanelState`'s `suppressed`, the `update` call); the
+    choosers placed by `chooserRect`; `e2e/tables-during-combat.spec.ts` (5
+    tests); README and CLAUDE.md.
+  - Tests: verify green, 1800 passed, 2 skipped (107 files); lint 17 (cap held);
+    full `npm run e2e` 61 passed, no flakes; `check:intent` PASS, no ROUTE shown.
+  - Removed tests (`rulesPanelState.test.ts`), all four suppression tests plus one
+    reworded: "is hidden while suppressed and comes back open on the same tab";
+    "stays closed when it was closed before the suppression"; "ignores open,
+    toggle, close and tab changes while suppressed"; "reset forgets everything,
+    suppression included" (replaced by "reset forgets everything"). Added: "keeps
+    its tab through close and reopen ...".
+  - The die field on `LandAttackDetail` is `rawDieRoll`.
+  - Size: `BoardScene.ts` 2824 -> 2823 (ceiling lowered to 2823).
+  - Mutants, each restored by copy: suppression restored (as `close()` while
+    `decisionPending`) killed by e2e tests 1, 3, 4, 5; `chooserRect` centred
+    killed by `rulesPanelLayout.test.ts` (2 tests) and the e2e box-top asserts;
+    `setRolled` after the early return killed by the exchange e2e;
+    `setAttack(null)` clearing the roll killed by the rolled-cell e2e;
+    clamp removed killed by 3 `ruleTables.test.ts` tests.
+  - Divergences from the plan:
+    1. `e2e/rules-panel.spec.ts` was edited (AC6 said unchanged), because its
+       `expectHiddenWhileDecisionPending` asserted the §55 hiding that B1
+       removes; it now asserts the panel stays open on its tab, and the
+       "cleared by the resolution" assertion became "the roll is marked".
+    2. A new attacker click (not only a built attack with a target) clears the
+       roll, as spec B7 says: `syncRulesPanel` calls `clearRolled` when either
+       group is non-empty (`setAttack(null)` alone would not).
+    3. The plan's `budget:` line is wrapped over lines, so
+       `check:intent` could not match it; the scene growth was removed
+       instead (`panelY` inlined), so no budget line is needed.
+    4. The chooser e2e asserts the exact button y (368, 452) rather than
+       "below the panel", since a centred box also cleared the panel's bottom
+       edge; a spare attacker fixture (`WITH_SPARE`) starts the next attack.
+
+### 2026-11-25 — rework after review round 1 (post-rebase values)
+
+Commits since `main`: `c7a2b4b`, `cdd7b49`, `61d8355`, `98ec294`, `98d1ebf`,
+`a7cb274` (the earlier hashes and the "2824 → 2823", "1800 passed", "e2e 61
+passed" figures above are pre-rebase). After the rebase onto §83: `BoardScene`
+2834 → 2833 (ceiling 2833), 1828 tests in 110 files, 68 e2e scenarios.
+
+Rework commit `3eac13d`: F1 §83's e2e now asserts the panel stays open over
+the warning (README and two comments fixed); F2 one Escape route in
+`BoardScene` (panel open: close only it; else `EndMoveWarning.cancel()`; the
+warning's own listener is gone), e2e asserts the warning and its marks survive
+the first Escape; F3 accepted by the owner, no change; F4/F5 two new e2e
+scenarios (end phase and load drop the rolled mark); F6 button-count assertion
+restored, comment fixed; F8 comment; F9 `setTab` while closed tested; F11 dice
+comment moved. F10 and F12 not done (spec is the owner's; F12 skipped to keep
+the scene's ceiling). Now 1828 tests in 110 files, 70 e2e scenarios (all
+pass), `BoardScene` still 2833.

@@ -560,8 +560,8 @@ and ships are treated alike.
   anyway (or Enter) puts the camera back and ends the phase as usual.
 - **While it is open**, board clicks, Undo/Redo, Save/Load, End game and End
   phase answer with "Resolve the pending choice first", and the Tables panel
-  hides and returns as it was. Dragging, zooming and the view toggle still
-  work, and Abandon still works.
+  stays open (Escape closes only the panel first, then cancels the warning).
+  Dragging, zooming and the view toggle still work, and Abandon still works.
 - **Switching it off.** Ticking the box switches the warning off for that
   player, for the rest of the game; the other players are still warned. It
   is kept in memory only, not in the save file, so a new game, a load or an
@@ -877,11 +877,18 @@ last tab chosen. While you build a land attack (attackers and a target), the
 Land combat tab names the forces and highlights the ratio column and, in it,
 the row each die face lands on after the terrain and river modifier (a
 modified roll above 6 counts as 6). Ramming and boarding are not highlighted:
-they resolve as soon as the target is picked. The computer's attacks are not
-highlighted. While a retreat, push, advance or exchange choice (or an
-elephant's drift) is pending the panel hides, and the Tables button and Escape
-do nothing; it comes back as it was, on the same tab, once the choice is made.
-Opening it changes nothing in the game.
+they resolve as soon as the target is picked. The panel is available during
+every decision too (a retreat, push, advance or exchange choice, an elephant's
+drift): it never hides, never opens by itself and never changes tab, and
+clicking it, a tab or the Tables button never answers a question or continues a
+drift. **Escape** with the panel open only closes it; Space and Enter still
+continue a drift. The advance and exchange boxes are drawn below the panel's
+area (whether or not it is open), so it never covers them; a retreat or push
+highlight under the open panel is reached by dragging the map or closing the
+panel. Once an attack is rolled, the Land combat tab keeps its ratio column and
+marks, with an outlined bright cell, the one cell the roll landed on (the
+computer's attacks too), until you start building another attack or the phase
+ends. Opening it changes nothing in the game.
 
 ### Combat log detail
 
