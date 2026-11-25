@@ -43,8 +43,16 @@ keep today's behaviour**.
   (≈1386 px of hex centres plus a hex each side) is wider than the room
   right of the side panel, it starts flush against the panel and the
   extra width shows more of it. Once it fits, it is centred in that room.
-  Pan bounds and zoom limits are unchanged, and so is the §43 turn-start
-  centring, which works through the same camera.
+  **Amended 2026-11-25** (the owner, answering review round 1's F1:
+  "Centre it (amend spec)"): when the room right of the panel is wider than
+  the board plus its 200-px pan padding, the horizontal pan bounds widen,
+  symmetrically about the board, to the room's width at zoom 1. So a board
+  that fits stays centred instead of being clamped 200 px from the panel,
+  with the extra width on the right. Placement follows the same rule over
+  its full width. At widths where the board doesn't fit, the bounds are as
+  before (so nothing changes at ≤1100). Zoom limits and the vertical bounds
+  are unchanged, and so is the §43 turn-start centring, which works through
+  the same camera.
 - **B6 — Right-edge items follow the right edge.** Everything placed from
   the canvas width keeps its offset from the new right edge or centre:
   - the Tables panel (`rulesPanelRect`);
@@ -93,6 +101,14 @@ keep today's behaviour**.
   1600 × 750). The canvas is 1600 wide. The Board's main camera viewport is
   1300 wide (1600 − the 300-px panel). The Tables panel's right edge is
   within its margin of 1600.
+- **AC3b — B5 centring on very wide windows** (amended 2026-11-25).
+  - A pure bounds helper (unit test) gives today's bounds when the room is
+    at most board + 2 × 200, and bounds the room's width wide, centred on the
+    board, when it is wider. Its cases cover widths 1100, 1600, 2086, 2400
+    and 3440, Board and Placement.
+  - An e2e at 2400 × 750 asserts the Board's leftmost and rightmost hex
+    centres are equally far (within one hex) from the edges of the room
+    right of the panel. The test must fail on the old bounds.
 - **AC4 — Nothing changes at 1100** (e2e: the whole existing suite at the
   pinned 1100 × 750 viewport). It passes with no scenario edited for this
   intent.

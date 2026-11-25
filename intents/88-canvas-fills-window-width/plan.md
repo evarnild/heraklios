@@ -181,6 +181,17 @@ Re-read on `main` at `25a5240`.
 - **No `blocked_by`.** §73 and §83 overlap in files (BoardScene, MapView)
   but nothing here depends on them. The later merge rebases.
 
+## Amendment 2026-11-25 (owner: "Centre it (amend spec)", review round 1, F1)
+
+Written by the coordinator on the owner's answer in the coordinator session; spec B5 and AC3b amended to match.
+
+8. **Pan bounds centre a board that fits.**
+   - Add a pure helper, `panBounds(board, roomWidth, padding)` or similar, in `src/ui/` (e.g. beside `canvasSize.ts`). When `roomWidth > boardWidth + 2 × padding`, it returns bounds `roomWidth` wide, centred on the board; otherwise it returns today's `board ± padding`. Vertical bounds are unchanged.
+   - `MapView` uses it where it builds `enableDrag`'s bounds (`MapView.ts:134-141`), with `roomWidth = availableWidth`. `MapView.ts` is at its 500-line cap, so the helper must carry the logic.
+   - Unit test per AC3b; an e2e at 2400 × 750 per AC3b, which fails on the old bounds.
+   - Correct README:576 only if the wording no longer matches.
+   - Budget: none expected; if `MapView.ts` or `BoardScene.ts` must grow past its cap, stop and report.
+
 ## Progress
 
 <!-- The implementer appends here, one entry per phase: date, commits, what
