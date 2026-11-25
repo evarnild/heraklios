@@ -179,6 +179,83 @@ Carried from round 1; nothing in the rework affects these.
 - round 1's results for areas the rework didn't touch;
 - that the nine characterisation scenarios were green at `01daea6`.
 
+## KonMari check
+**outcome: kept** (`konmari.md`, base `deb5a58`). The tidy-up commits:
+- `f865bce`: `driftBeats.ts` reuses `format.ts`'s existing `unitNameIn`
+  instead of its own copy `unitIn`.
+- `ff24f1a`: one `dropCombat()` replaces the two identical inline combat
+  resets (`resetSceneState` and the undo restore), and `BoardScene.ts`'s
+  ceiling goes from 2835 to 2824.
+- `e4db807`: two comments that still named removed code.
+
+The record is `f3a843f`. Every scene mutant target from about `:1101` on
+moved up 11 lines with its text unchanged. S15 stays at `:234`.
+
+**The B16 check, at `f3a843f` (2026-11-25):**
+- **Coordinator, re-run:** `npm run verify`. Exit 0, `✖ 17 problems (0
+  errors, 17 warnings)`, `Test Files 107 passed (107)`, `Tests 1793 passed
+  | 2 skipped (1795)`. The test count didn't fall and the warning count
+  didn't rise.
+- **Coordinator, re-run:** `npm run check:intent`. FAIL on the owed live
+  check only, as in round 2.
+- **Coordinator, re-run:** full `npm run e2e`. `2 failed`, `54 passed
+  (3.6m)`.
+  - The failures: `save-load.spec.ts:57` (§86's load race) and
+    `board-view.spec.ts:95` "in Placement the Drawn view shows the staged
+    ship as a ghost…", which timed out at 42.8 s under load.
+  - `board-view.spec.ts` alone, `--repeat-each=2`: `4 passed`.
+  - The tidy-up touches no Placement code, so neither failure is the
+    tidy-up's.
+- **Coordinator, re-run:** every killed scene mutant in `BoardScene.ts`,
+  re-applied by its line text on the moved line. Each ran against
+  `combat-resolution.spec.ts` and `rules-panel.spec.ts` with `--retries=1`
+  (baseline 11 passed), and each is still **KILLED**:
+
+  | Mutant | Killed by (both tries) |
+  | --- | --- |
+  | S01 | `combat-resolution.spec.ts:336` (e) "nothing to undo" |
+  | S03 | `:171` (c) |
+  | S05 | `:115` (f) and `:171` (c) |
+  | S06 | `:265` (d) and `:327` (e) |
+  | S07 | `:196` (c) computer defender |
+  | S10 | `:171` and `:196` |
+  | S11 | `:265` (d) |
+  | S12 | `:265` (d) |
+  | S13 | `:132` (b) |
+  | S14 | `:347` (g) |
+  | S15 | `:265` (d) |
+  | S16 | `:265` (d) and `:327` (e) |
+  | S18 | `rules-panel.spec.ts:54` |
+
+  S11's and S18's two-line patterns first matched nothing ("PATTERN COUNT 0",
+  not run). The working copy of `BoardScene.ts` now has CRLF line endings
+  after the tidy-up commit (git normalises them, so `status` is clean).
+  Re-run with CRLF patterns, both are killed.
+- **Engine mutants:** no engine file changed in the tidy-up, so E01–E33 stand
+  as recorded.
+- **Ceiling:** `scripts/size-baseline.json` has `BoardScene.ts` at 2824 (it
+  was 2835) and the file is 2824 lines. Only that entry changed.
+- After every mutant the tree was `clean`, and HEAD stayed `f3a843f`.
+
+The first attempt at this check was stopped by Claude Code for low system
+memory after `verify` and `check:intent`. On the owner's word it was re-run
+alone; the e2e and mutant results above are from that re-run.
+
+**The reviewer's read of `deb5a58..f3a843f`: pass.**
+- **Reach.** Every change is within §73's diff or the pre-existing code it
+  duplicated. `unitNameIn` existed on `main`, and `driftBeats.ts`'s `unitIn`
+  was §73's copy.
+- **No behaviour change.** `dropCombat()` plus `endDriftDisplay(false)` clear
+  exactly the 11 fields the two old blocks did, and the order changes
+  nothing. The added `?.` only matters before `create`, which a restore
+  can't reach.
+- **Tests and dependencies.** No test assertion or case changed, and no
+  dependency or `eslint-disable` was added.
+- **Principles.** 5–12 hold.
+- **The record.** `konmari.md` matches the commits.
+- **A LOW wording gap.** The record doesn't place the surviving mutants S02,
+  S04, S08, S09 and S17. They are matched by text, so the gap is harmless.
+
 # Round 1 (history)
 
 - verdict: rework
