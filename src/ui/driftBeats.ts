@@ -4,7 +4,7 @@ import { SILENT_PAUSE_KINDS, type DriftEvent } from '../engine/drift';
 import { facingForDirection } from '../engine/hex';
 import type { Unit } from '../engine/state';
 import { messages, type Messages } from './i18n';
-import { formatDriftEvent } from './i18n/format';
+import { formatDriftEvent, unitNameIn } from './i18n/format';
 
 /**
  * What the Board shows for one `DriftEvent` of an elephant's drift (§73), as
@@ -47,10 +47,6 @@ function silent(): DriftBeat {
   return { lines: [], arrow: null, move: null, clash: null, render: false, pause: false };
 }
 
-function unitIn(m: Messages, unit: Unit): string {
-  return (m.units as Record<string, string>)[unit.typeId] ?? unit.typeId;
-}
-
 /** The beat of one drift event. A kind that only asks for an input (or refuses a direction) is silent. */
 export function driftBeat(event: DriftEvent, ctx: BeatContext): DriftBeat {
   if (SILENT_PAUSE_KINDS.has(event.kind)) return silent();
@@ -79,7 +75,7 @@ export function driftBeat(event: DriftEvent, ctx: BeatContext): DriftBeat {
         ...beat,
         clash: { elephantId: event.elephant.id, hex: event.hex },
         lines: [
-          m.log.tramples(unitIn(m, event.elephant), unitIn(m, event.occupant), event.hex.q, event.hex.r),
+          m.log.tramples(unitNameIn(m, event.elephant.typeId), unitNameIn(m, event.occupant.typeId), event.hex.q, event.hex.r),
           ctx.formatCombat(event.elephant, event.occupant, event.detail, event.outcome),
         ],
       };

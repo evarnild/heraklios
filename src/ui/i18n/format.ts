@@ -79,7 +79,8 @@ export function roundLimitText(rounds: number | null, m: Messages = messages()):
   return rounds === null ? m.menu.off : m.menu.roundCount(rounds);
 }
 
-function unitNameIn(m: Messages, typeId: string): string {
+/** A unit type's name in `m`'s language (`names.ts`'s `unitName`, for a given table). */
+export function unitNameIn(m: Messages, typeId: string): string {
   return (m.units as Record<string, string>)[typeId] ?? typeId;
 }
 
