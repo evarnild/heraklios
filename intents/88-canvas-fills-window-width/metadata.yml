@@ -11,7 +11,7 @@ plan_approved: 2026-11-24 by-agent    # auto: owner "spec accepted 88 /auto 88" 
 live_checked: 2026-11-25 by-agent    # owner: "live checked 88 /auto 88"
 merged:
 konmari:
-auto_authorized: 2026-11-24 by-agent    # owner: "spec accepted 88 /auto 88"
+auto_authorized: 2026-11-25 by-agent    # owner: "live checked 88 /auto 88"
 auto_round: 3
 auto_stopped: live check owed
 follows_up:
