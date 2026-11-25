@@ -5,9 +5,9 @@ outcome: kept
 base: deb5a58
 
 ## Tidied
-- f865bce — `src/ui/driftBeats.ts`, `src/ui/i18n/format.ts` — `driftBeats.ts`'s private `unitIn(m, unit)` computed the same name from the same table as `format.ts`'s `unitNameIn(m, typeId)`; `unitNameIn` is exported and the copy removed (principle 6).
-- ff24f1a — `src/scenes/BoardScene.ts`, `scripts/size-baseline.json` — `resetSceneState` and `restoreSnapshot` each cleared the combat, the prompt and every drift-display field inline, and the drift half was `endDriftDisplay(false)` line for line. Both now call a new `dropCombat()` (combat, `pushedThisCombat`, `retreatChoice`, `decisionPending`, then `endDriftDisplay(false)`). `endDriftDisplay` became null-safe on `driftContinueBtn` and `mapView`, as the reset's copy was. `BoardScene.ts` is 2835 → 2824 lines, and its ceiling is lowered to 2824.
-- e4db807 — `src/scenes/BoardScene.ts` — two comments that still named what §73 removed: `RetreatChoice`'s doc ("the normal post-combat retreat queue") and `openSaveLoad`'s ("`onComplete` closures"). Comment-only.
+- f865bce (now 81d720a after the rebase) — `src/ui/driftBeats.ts`, `src/ui/i18n/format.ts` — `driftBeats.ts`'s private `unitIn(m, unit)` computed the same name from the same table as `format.ts`'s `unitNameIn(m, typeId)`; `unitNameIn` is exported and the copy removed (principle 6).
+- ff24f1a (now ca21a69 after the rebase) — `src/scenes/BoardScene.ts`, `scripts/size-baseline.json` — `resetSceneState` and `restoreSnapshot` each cleared the combat, the prompt and every drift-display field inline, and the drift half was `endDriftDisplay(false)` line for line. Both now call a new `dropCombat()` (combat, `pushedThisCombat`, `retreatChoice`, `decisionPending`, then `endDriftDisplay(false)`). `endDriftDisplay` became null-safe on `driftContinueBtn` and `mapView`, as the reset's copy was. `BoardScene.ts` is 2835 → 2824 lines, and its ceiling is lowered to 2824.
+- e4db807 (now fdd98a4 after the rebase) — `src/scenes/BoardScene.ts` — two comments that still named what §73 removed: `RetreatChoice`'s doc ("the normal post-combat retreat queue") and `openSaveLoad`'s ("`onComplete` closures"). Comment-only.
 
 **Mutant target lines.** No recorded mutant's target line changed text. Lines are numbered as at `deb5a58`.
 - `BoardScene.ts` is unchanged above line 259. S15's `if (!this.combat?.pending?.drift) this.endDriftDisplay(true)` stays at :234.
@@ -30,3 +30,14 @@ base: deb5a58
 - **Retire `src/engine/driftReference.ts`.** The test-only copy of the old drift pump and `resolveUnitRetreat` would move into the tests that pin against it, or be dropped once the session's pinned traces stand alone. `fuzzHarness.ts:10` would stop importing it. That ends the asymmetry `review.md` notes under principle 10, and removes `resolveElephantDrift`'s complexity-40 warning, so the lint cap can go down.
 - **One set of session test helpers.** `gameSession.test.ts` would import `unit`, `gameWith`, `dieFor`, `scripted` and `attack` from `sessionTestKit.ts` (giving `gameWith` the optional `phase`), and drop its copies.
 - **A `requireMembers(scene, members, listName)` guard in `src/ui/devHook.ts`.** It would replace the six hand-written "BoardScene has no … any more" loops.
+
+## Second pass (after the rebase onto main)
+
+outcome: nothing to tidy
+base: 09354a9
+
+Covers the commits after the rebased `§73: konmari record` (2e20861): c53a092 (`§73: move the push fixtures onto §90's rule`), 3f69246 (Progress), c1609bf (auto round 3 started) and 09354a9 (round 3 review). Only c53a092 touches code: `src/engine/sessionSeams.test.ts`'s `singlePush()` and `e2e/combatScenarios.ts`'s `PUSH`.
+
+Reason: both are fixture data, each new box earns its place under §90's rule (checked box by box in round 3). `singlePush()` resembles `gameSession.test.ts`'s local `pushPosition()`, but the two are different positions (a friend `d` at (1,18) there; three more naval boxes and no friend here), so they are not one computation, and sharing a builder would mean editing `gameSession.test.ts` beyond a forced change. Already covered by the first pass's "one set of session test helpers" proposal.
+
+The rebase rewrote the first pass's tidy-up hashes. Under `## Tidied`, the old hash is followed by the new one, matched by subject: f865bce → 81d720a (`driftBeats reuses format.ts's unitNameIn`), ff24f1a → ca21a69 (`one dropCombat for the scene reset and the undo restore`), e4db807 → fdd98a4 (`two comments that still named the removed retreat queue and drift closures`). The first record's own commit is now 2e20861. The first pass's `base: deb5a58` is the pre-rebase hash.
