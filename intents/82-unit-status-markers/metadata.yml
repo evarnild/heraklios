@@ -2,7 +2,7 @@
 id: 82
 slug: unit-status-markers
 type: feature
-status: accepted
+status: in-review
 title: Each unit shows whether it has moved, charged, attacked or been attacked this phase
 review_tier:
 intent_accepted: 2026-11-22 by-agent    # owner: "accept 81 82 83 84 /auto 81 /auto 83"

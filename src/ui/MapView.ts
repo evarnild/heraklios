@@ -190,10 +190,8 @@ export class MapView {
     return { ...this.boardView.inspect(), hudLeaks };
   }
 
-  /** Dev-hook reader (read-only; §82): the marker each drawn unit shows, by id, in whichever view is active. */
-  unitMarks(): Record<string, UnitMark> {
-    return this.boardView.unitMarks();
-  }
+  /** Dev-hook reader (§82): the marker each drawn unit shows, in the active view. */
+  unitMarks(): Record<string, UnitMark> { return this.boardView.unitMarks(); }
 
   /** Dev-hook reader (read-only; §67): the display-list objects both cameras would render. */
   cameraStrays(): CameraScan {

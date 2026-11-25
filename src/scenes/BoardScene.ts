@@ -2613,6 +2613,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       // crash or closed tab then costs at most that one turn.
       this.autosave();
     }
+    this.renderAllUnits(); // §82: the phase changed, so every unit's marker did (no unit moved, so no cue renders it)
     this.refreshStatus();
     this.log('');
   }

@@ -61,6 +61,7 @@ const activity = async (page: Page, id: string) => (await shown(page))[id]?.acti
 const hexDistance = (a: Hex, b: Hex) => (Math.abs(a.q - b.q) + Math.abs(a.q + a.r - b.q - b.r) + Math.abs(a.r - b.r)) / 2;
 
 async function toView(page: Page, view: 'standard' | 'drawn'): Promise<void> {
+  if ((await page.evaluate(() => window.__heraklios.boardView())) === view) return;
   await clickButton(page, view === 'drawn' ? DRAWN : STANDARD);
   await page.waitForFunction((v) => window.__heraklios.boardView() === v, view);
   await frames(page);
