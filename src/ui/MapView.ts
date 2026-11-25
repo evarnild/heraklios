@@ -9,7 +9,7 @@ import { formatHexTooltip } from './hexTooltip';
 import { hexAtPoint } from './hexHitTest';
 import { StandardBoardView } from './standardBoardView';
 import { DrawnBoardView } from './drawnBoardView';
-import type { BoardView, FacingShip, UnitDrawing, UnitMotion, ViewHost } from './boardView';
+import type { BoardView, FacingShip, UnitDrawing, UnitMark, UnitMotion, ViewHost } from './boardView';
 import { boardViewKind } from './boardViewPreference';
 import type { BoardViewKind } from './boardViewPreference';
 import { ViewDrawingState } from './viewDrawingState';
@@ -185,6 +185,9 @@ export class MapView {
     const hudLeaks = ui ? this.boardView.mapObjects().filter((o) => (o.cameraFilter & ui.id) === 0).length : 0;
     return { ...this.boardView.inspect(), hudLeaks };
   }
+
+  /** Dev-hook reader (§82): the marker each drawn unit shows, in the active view. */
+  unitMarks(): Record<string, UnitMark> { return this.boardView.unitMarks(); }
 
   /** Dev-hook reader (read-only; §67): the display-list objects both cameras would render. */
   cameraStrays(): CameraScan {

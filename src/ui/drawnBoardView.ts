@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import type { HexCoord } from '../data/map';
 import { ghostDrawing } from './boardView';
-import type { BoardView, FacingShip, UnitDrawing, UnitMotion, ViewHost } from './boardView';
+import type { BoardView, FacingShip, UnitDrawing, UnitMark, UnitMotion, ViewHost } from './boardView';
 import { DrawnOverlays } from './drawnOverlays';
 import { DrawnUnits } from './drawnUnits';
 import { HeldDriftArrow } from './heldDriftArrow';
@@ -86,6 +86,10 @@ export class DrawnBoardView implements BoardView {
 
   clearFacingIndicators(): void {
     this.units.setGhost(null);
+  }
+
+  unitMarks(): Record<string, UnitMark> {
+    return this.units.marks();
   }
 
   /** Dev-hook reading: the unit figures drawn, and the ghost's real rotation (null if none). */

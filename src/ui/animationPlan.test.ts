@@ -22,6 +22,11 @@ describe('planAnimation (AC4)', () => {
     expect(planAnimation(drawn(...a), a, NO_CUE, 'normal')).toEqual([]);
   });
 
+  it('a status-only change plans no motion (§82 AC5)', () => {
+    const before = [u('a', 1, 1)];
+    expect(planAnimation(drawn(...before), [{ ...u('a', 1, 1), status: 'done', charged: true }], NO_CUE, 'normal')).toEqual([]);
+  });
+
   it('a cued path is one slide per hex, in order, at the hex duration', () => {
     const cue = empty({ moves: [{ unitId: 'a', steps: [{ hex: { q: 2, r: 1 } }, { hex: { q: 3, r: 1 } }, { hex: { q: 4, r: 1 } }] }] });
     const steps = planAnimation(drawn(u('a', 1, 1)), [u('a', 4, 1)], cue, 'normal');

@@ -39,6 +39,7 @@ const MEMBERS = [
   'tooltipBox',
   'tooltipText',
   'unitCanvas',
+  'unitMarks',
   'viewCentre',
 ];
 

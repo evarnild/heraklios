@@ -18,7 +18,7 @@ import type { LandCombatHighlight } from '../engine/ruleTables';
 import type { RulesTab } from './rulesPanel';
 import type { EndMoveWarningSnapshot } from './endMoveWarning';
 import { scorePanelSnapshot, type ScorePanelSnapshot } from './scorePanel';
-import { GHOST_SHIP_ID } from './boardView';
+import { GHOST_SHIP_ID, type UnitMark } from './boardView';
 import { landscapeBuilds } from './landscape/paintLandscape';
 import { animationSpeed, type AnimationSpeed } from './animationSpeed';
 import type { CameraScan } from './cameraStrays';
@@ -40,6 +40,7 @@ interface BoardInternals extends Phaser.Scene {
     tooltipText(): string | null;
     tooltipBox(): { x: number; y: number; width: number; height: number } | null;
     cameraStrays(): CameraScan;
+    unitMarks(): Record<string, UnitMark>;
     drawnInspect(): { unitDrawings: number; ghostRotation: number | null; unitRotations: Record<string, number>; hudLeaks: number } | null;
   };
 }
@@ -134,6 +135,12 @@ export interface DevHook {
    * is each unit figure's rotation by id.
    */
   boardObjects(): BoardObjects;
+  /**
+   * The phase marker (§82) each drawn unit is showing, by unit id: its status
+   * and charge flag, and where the mark and its counter are drawn (the same
+   * point while the mark rides its counter). In Placement no unit has a status.
+   */
+  unitMarks(): Record<string, UnitMark>;
   /**
    * Display-list objects both cameras would render (read-only; §67), each as
    * its type and depth (`strays`), with how many objects it `examined` and how
@@ -313,6 +320,7 @@ function mapReaders(game: Phaser.Game): Pick<
   | 'displayListSorted'
   | 'boardView'
   | 'boardObjects'
+  | 'unitMarks'
   | 'hudStrays'
   | 'unitCanvas'
   | 'tooltipText'
@@ -337,6 +345,7 @@ function mapReaders(game: Phaser.Game): Pick<
     displayListSorted: () => displayListSorted(mapScene(game)),
     boardView: () => mapScene(game).mapView.viewKind,
     boardObjects: () => boardObjects(mapScene(game)),
+    unitMarks: () => mapScene(game).mapView.unitMarks(),
     hudStrays: () => mapScene(game).mapView.cameraStrays(),
     unitCanvas: (unitId) => unitCanvas(mapScene(game), unitId),
     tooltipText: () => mapScene(game).mapView.tooltipText(),

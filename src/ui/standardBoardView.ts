@@ -4,7 +4,7 @@ import { MAP_TERRAIN, RIVER_HEXSIDES } from '../data/map';
 import { HEX_SIZE, TERRAIN_COLORS, RIVER_COLOR, PLAYER_COLORS_HEX } from './hexRender';
 import { allHexes } from './mapBounds';
 import { drawFacingArrowhead, hexPolygonPointsAt, toVec } from './hexDraw';
-import type { BoardView, FacingShip, UnitDrawing, UnitMotion, ViewHost } from './boardView';
+import type { BoardView, FacingShip, UnitDrawing, UnitMark, UnitMotion, ViewHost } from './boardView';
 import { HeldDriftArrow } from './heldDriftArrow';
 import { makeStandardFigure } from './standardUnits';
 import { UnitLayer } from './unitLayer';
@@ -115,6 +115,10 @@ export class StandardBoardView implements BoardView {
   /** Draws exactly `units`, animated like the Drawn view (§77): see `UnitLayer.setUnits`. */
   setUnits(units: readonly UnitDrawing[], motion?: UnitMotion): void {
     this.units.setUnits(units, motion);
+  }
+
+  unitMarks(): Record<string, UnitMark> {
+    return this.units.marks();
   }
 
   finishAnimations(): void {

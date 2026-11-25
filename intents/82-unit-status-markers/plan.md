@@ -345,3 +345,64 @@ layer test.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-11-25 - subtasks 1 to 7 (the README line of subtask 8; the live-check tuning is the owner's)
+
+Commits: `657c5e1` (engine `unitStatuses`), `8a65dcb` (the drawing carries the
+status; the layer shows it outside the animation plan), `d430389` (mark spec
+and drawers, both figures, drawings helper, dev-hook reader `unitMarks`, e2e,
+README), plus the follow-up commit that renders on End phase and keeps
+`MapView.ts` under 500 lines.
+
+Shipped: as planned. `src/engine/unitStatus.ts` (14 tests),
+`UnitDrawing.status/charged` + `sameMark` in `reconcileUnits`,
+`LayerFigure.setStatus?/markAt?`, a non-rotating badge in `jointFigure`
+(Standard) and a third container child (Drawn), `unitMarkSpec.ts` (3 tests) and
+`unitMarkGraphics.ts`, `unitDrawings.ts` (1 test) used by `renderAllUnits`,
+`BoardView.unitMarks()` / `MapView.unitMarks()` / dev hook `unitMarks`, and
+`e2e/unit-status-markers.spec.ts` (7 scenarios). `npm run verify` green (113
+files, 1850 tests passed, 2 skipped); `npm run e2e` 70 passed; lint cap stays 17.
+
+Subtask 1: `src/engine/unmoved.ts` with `hasNotMoved` is on `main` (bf80d3a),
+imported unchanged. BoardScene.ts: 2834 on main, 2827 now; the baseline is
+lowered to 2827.
+
+Divergences from the plan:
+- `commitEndPhase` now calls `renderAllUnits()` (one line). The plan's risk
+  "renders that don't follow a state change" was real: End phase changes no
+  unit, so no cue rendered, and the markers stayed on the old phase's reading
+  (found by the combat e2e). The attack and ram paths already render.
+- The dev-hook reader is `unitMarks()` returning, per unit id, `{ status,
+  charged, mark, counter }` (the last two are the drawn positions, for AC10).
+  It is on the `BoardView` interface (both views implement it through
+  `UnitLayer.marks()`); the existing `memberSnapshot` pattern is for scene
+  members, so it was not used. `e2e/dev-hook-members.spec.ts` lists it.
+- `MapView.ts` was at 496 lines; the reader is two lines there so it stays
+  under 500.
+- AC11 (view switch and load) and AC12 (Placement) are covered by e2e for the
+  view switch and the load; AC12 is by construction (Placement's own drawings
+  carry no status) with no extra test.
+- The look (AC13, size, corners, colours) is untuned: it is the owner's live
+  check. All constants are in `src/ui/unitMarkSpec.ts`.
+
+
+2026-11-25, rework after review round 1 (commit 7c060a5). The branch was
+rebased onto the new `main` first (commits 5d5d884, 2e22606, f830cab, bd3c29e);
+`BoardScene.ts` is 2826 lines (`main` had 2833), baseline 2826. The suite was
+1853 tests before the rework, 77 e2e.
+- F1: `unitStatus.test.ts` pins `seatOrder[activePlayerIndex]` with
+  `seatOrder = [1, 0]` (movement and combat); the mutant
+  `const active = state.activePlayerIndex;` now fails 2 tests (E17 killed).
+- F2: `unitDrawings.test.ts` combat case with `attackedThisPhase` and
+  `rammedThisTurn` expects `hasAttacked` on both; the mutant
+  `unitStatuses(state, {})` fails it (D6 killed).
+- F3: `placementDrawings.test.ts` asserts no drawing has `status` or `charged`
+  (AC12); a mutant adding `charged: true` fails it.
+- F4: e2e "at Off speed": the mark equals the counter right after the click
+  (Standard view).
+- F5: `unitStatus.test.ts` B3/I6 row: an archer at range 2 and infantry beside
+  the same enemy both read `canAttack`.
+- F7, F8: `sameMark` comment and the dead ternary in `unitMarkGraphics.ts`.
+- F9: the `key(to)` assertion and its import removed from the e2e spec.
+- Numbers: `npm run verify` green, 113 files, 1858 tests passed (2 skipped),
+  lint cap 17; `npm run e2e` 78 passed.
