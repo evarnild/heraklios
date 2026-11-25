@@ -13,7 +13,7 @@ merged:
 konmari:
 auto_authorized: 2026-11-25 by-agent    # owner: "accept 91 /auto 91"
 auto_round:
-auto_stopped:
+auto_stopped: spec or plan amendment needed
 follows_up:
 links:
   - intents/63-minimatch-advisory
