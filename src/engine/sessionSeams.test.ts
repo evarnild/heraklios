@@ -18,13 +18,20 @@ function singleRetreat() {
   return { a, d, state, rng: scripted([dieFor([a], [d], 'DR')]) };
 }
 
-/** a (10,5) is boxed in and has one friend, b (11,5), which is boxed in too, with c (12,5) behind it. */
+/**
+ * a (2,18) is boxed in and has one friend, b (3,18), which is boxed in too, with c (4,18) behind it,
+ * and c has one hex to go to. §90: a push may not take a hex under enemy ZOC, so this is the shape of
+ * `gameSession.test.ts`'s `pushPosition` (the §73 geometry shifted by (-8,+13)): a river between e0 (3,17)
+ * and b blocks e0's ZOC there. The other boxes are naval placeholders, which block a hex but project no
+ * ZOC, so (1,18) (where `pushPosition` has a friend, here none) and two of c's hexes are blocked by them
+ * rather than left to ZOC, which is what boxed the old position in.
+ */
 function singlePush() {
-  const a = unit('a', 'fantassins', 10, 5);
-  const b = unit('b', 'fantassins', 11, 5);
-  const c = unit('c', 'fantassins', 12, 5);
-  const enemyHexes = [{ q: 11, r: 4 }, { q: 10, r: 4 }, { q: 9, r: 6 }, { q: 10, r: 6 }, { q: 12, r: 4 }, { q: 11, r: 6 }];
-  const enemies = enemyHexes.map((h, i) => unit(`e${i}`, 'fantassins', h.q, h.r, 1));
+  const a = unit('a', 'fantassins', 2, 18);
+  const b = unit('b', 'fantassins', 3, 18);
+  const c = unit('c', 'fantassins', 4, 18);
+  const enemyHexes = [{ q: 3, r: 17 }, { q: 2, r: 17 }, { q: 1, r: 19 }, { q: 2, r: 19 }, { q: 4, r: 17 }, { q: 3, r: 19 }, { q: 1, r: 18 }, { q: 5, r: 17 }, { q: 5, r: 18 }];
+  const enemies = enemyHexes.map((h, i) => unit(`e${i}`, i === 0 ? 'fantassins' : 'galeres', h.q, h.r, 1));
   const state = gameWith([a, b, c, ...enemies]);
   state.activePlayerIndex = 1;
   return { a, b, c, attacker: enemies[0]!, state, rng: scripted([dieFor([enemies[0]!], [a], 'DR')]) };

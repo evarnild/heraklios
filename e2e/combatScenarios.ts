@@ -64,9 +64,14 @@ export const EXCHANGE: Scenario = {
 };
 
 /**
- * (c) The defender's three hexes behind it are taken: two by enemy archers
- * (which also put the friend's other hexes in their zone of control), one by
- * a friend. It has nowhere to go and pushes the friend, who has one hex.
+ * (c) The defender's three hexes behind it are taken: two by the attacker's side's
+ * galleys and one by a friend. It has nowhere to go and pushes the friend, who has one hex.
+ *
+ * §90: a push may not take a hex under enemy zone of control. The two hexes were
+ * archers (owner 0), whose zone reached the friend's hex (10,3), so the push would be
+ * refused. Galleys block a hex but project no zone (as in `gameSession.test.ts`'s
+ * `pushPosition`), and two more (fx-b3, fx-b4) close the friend's other two hexes, which
+ * the archers' zone used to close, so it still has the one hex (10,2).
  */
 export const PUSH: Scenario = {
   fixture: {
@@ -74,8 +79,10 @@ export const PUSH: Scenario = {
     units: [
       ...ADVANCE.fixture.units,
       { id: 'fx-friend', owner: 1, typeId: 'fantassins', at: at(10, 3) },
-      { id: 'fx-b1', owner: 0, typeId: 'archers', at: at(11, 3) },
-      { id: 'fx-b2', owner: 0, typeId: 'archers', at: at(9, 4) },
+      { id: 'fx-b1', owner: 0, typeId: 'galeres', at: at(11, 3) },
+      { id: 'fx-b2', owner: 0, typeId: 'galeres', at: at(9, 4) },
+      { id: 'fx-b3', owner: 0, typeId: 'galeres', at: at(9, 3) },
+      { id: 'fx-b4', owner: 0, typeId: 'galeres', at: at(11, 2) },
     ],
   },
   attackerIds: ['fx-att'],
