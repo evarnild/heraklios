@@ -11,7 +11,7 @@ plan_approved:
 live_checked:
 merged:
 konmari:
-auto_authorized:
+auto_authorized: 2026-11-25 by-agent    # owner: "accept 91 /auto 91"
 auto_round:
 auto_stopped:
 follows_up:
