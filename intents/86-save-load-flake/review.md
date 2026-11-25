@@ -124,3 +124,34 @@ rule-2 path is touched, and no Not-checked item needs a live run.
 **Taken on trust:**
 - the implementer's 46/46 second full run;
 - its earlier standalone pass of `placement.spec.ts`.
+
+## KonMari check
+**outcome: kept** (`konmari.md`, record `8fa37ac`, base `d19115b`). Two tidy-ups,
+both in `e2e/save-load.spec.ts`, and both only lines §86 added:
+- `5d65c30`: the route comment now names the API's real methods (the save is
+  a PUT, the clear a DELETE). This was round 1's LOW 1.
+- `3184b5d`: the `messagesFor` import moved beside `@playwright/test`, the
+  order the neighbouring specs use.
+
+**The B16 check, at `8fa37ac` (2026-11-25 13:00–13:05):**
+- **Coordinator, re-run:** `npm run verify`. Exit 0, `✖ 18 problems (0
+  errors, 18 warnings)`, `Test Files 103 passed (103)`, `Tests 1747 passed |
+  2 skipped (1749)`. The test and warning counts are unchanged.
+- **Coordinator, re-run:** `npm run check:intent`. `type-check: PASS (intent
+  86, fix)`.
+- **Coordinator, re-run:** full `npm run e2e`. `46 passed (2.3m)`.
+- **Coordinator, re-run:** the killed mutant in the touched file, re-applied
+  by line text. The old wait came back in `save-load.spec.ts` with the 500 ms
+  hold kept, run with `--repeat-each=3`: **KILLED**, `3 failed`. The tree was
+  `clean` afterwards.
+- `git diff -U0 d19115b..3184b5d -- e2e/save-load.spec.ts` shows only the
+  comment lines and the moved import.
+
+**The reviewer's read of `d19115b..8fa37ac`: pass.**
+- Both tidy-ups stay inside §86's own lines.
+- The comment matches `saveStorage.ts` (`writeSave` is a PUT, `clearSave` a
+  DELETE).
+- Only a comment and one import's position changed; no assertion, case or
+  dependency changed.
+- The import order matches `attack-log`, `rules-panel` and `score-panel`.
+- `konmari.md` lists exactly the two tidy-ups.
