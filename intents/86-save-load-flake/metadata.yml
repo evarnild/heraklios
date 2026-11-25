@@ -2,7 +2,7 @@
 id: 86
 slug: save-load-flake
 type: fix
-status: accepted
+status: in-review
 title: The save-load e2e scenario reads the game before the load has happened
 review_tier:
 intent_accepted: 2026-11-24 by-agent    # owner: "/auto 86" (offered as the acceptance route)
@@ -12,8 +12,8 @@ live_checked:
 merged:
 konmari:
 auto_authorized: 2026-11-24 by-agent    # owner: "/auto 83 /auto 86"
-auto_round:
-auto_stopped:
+auto_round: 1
+auto_stopped: ready for /deliver
 follows_up:
 links:
   - intents/45-save-api    saves became asynchronous HTTP reads (the likely origin; not verified)

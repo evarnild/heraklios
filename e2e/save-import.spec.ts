@@ -12,8 +12,8 @@ import {
   loadOnSameRowAs,
   startFromMenu,
   state,
-  waitIdle,
   waitLoadOnRowOf,
+  waitLoaded,
   waitSavePanelLoaded,
 } from './helpers';
 import { SAVES_DIR, acquireSaveLock, withSaveLockHeld } from './savesDir';
@@ -73,8 +73,7 @@ test('a browser save is copied into its empty file slot and loads from there', a
   // 3. Load it back from the file slot (slot 5 = the fifth Save button's row).
   const savePoint = await fresh.evaluate(() => window.__heraklios.buttonToCanvas('Save', 4));
   await clickButton(fresh, 'Load', await loadOnSameRowAs(fresh, savePoint));
-  await fresh.waitForFunction(() => window.__heraklios.scenes().includes('Board'));
-  await waitIdle(fresh);
+  await waitLoaded(fresh);
   expect(withoutClock(await state(fresh))).toEqual(withoutClock(saved));
   expect(errors).toEqual([]);
 });

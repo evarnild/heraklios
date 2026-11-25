@@ -204,3 +204,16 @@ Re-read on `main` at `54ccccd`.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-11-24 — implementation (one phase)
+
+Commit: see `git log` on `fix/86-save-load-flake` (code commit "§86: waitLoaded helper ..."; this entry and `status: in-review` in a second commit).
+
+- **Red first.** Added the 500 ms hold on `GET /api/saves/1` (method-checked, `route.fallback()` otherwise) to `save-load.spec.ts` with the old `scenes()`/`waitIdle` wait: `npx playwright test e2e/save-load.spec.ts` failed 3 of 3 runs at the "loaded game equals the one saved" assertion (pre-load position).
+- **Shipped.** `waitLoaded(page)` in `e2e/helpers.ts` (waits for a log entry equal to `messagesFor('en').log.gameLoaded`, then `waitIdle`, then `frames`). Used in `save-load.spec.ts` (delay kept; log assertion now reads the text from `messagesFor('en')`), `save-import.spec.ts` (now-unused `waitIdle` import removed) and `score-panel.spec.ts` (local copy deleted). Nothing under `src/` changed.
+- **Green.** `save-load.spec.ts --repeat-each=3`: 3 passed. `score-panel.spec.ts`: 7 passed. `save-import.spec.ts`: passed.
+- **save-import manual pair (delay on slot 5 GET, not left in the spec).** With `waitLoaded`: passed. With the old wait: also passed. Interpretation: that scenario's pre-load state already equals the saved one, so the race cannot show there; the change is correct but not provable red/green for that spec. Recorded, not a plan deviation in code.
+- **Gates.** `npm run verify`: 103 files, 1747 passed | 2 skipped; lint 0 errors, 18 warnings (cap 18, unchanged); `npm run check:intent`: `type-check: PASS (intent 86, fix)`. No leftover `'Game loaded.'` literal in `e2e/` (only comments).
+- **Full `npm run e2e`.** Run 1: 45 passed, 1 failed (`placement.spec.ts:39`, "the Turn buttons turn a ship being placed", no Load involved; passed alone). Run 2: 46 passed. The placement failure is an unrelated flake, not investigated here.
+- **Mutants.** The old-wait swap (plan's mutant) is subtask 1's red run. No other mutants run.
+- **Deviations.** None in code. Port 5232 was busy at times; waited and retried.
