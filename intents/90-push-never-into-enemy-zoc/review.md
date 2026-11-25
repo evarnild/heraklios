@@ -111,6 +111,21 @@ No path rule applies, and rule 3 doesn't either: the scene only displays
 rulebook pass, the swap-seed scans, `legalRetreatHexes` ignoring rivers, and
 the implementer's e2e run.
 
+## KonMari check
+- **outcome: nothing to tidy** (`konmari.md`, commit `616f942`, base
+  `f92d994`). There are no `§90 konmari:` tidy-up commits, and `git diff
+  --stat f92d994..HEAD` touches only `konmari.md`.
+- **Coordinator, re-run:** no B16 item applies. No code, test or ceiling
+  changed after the review (`git log f92d994..HEAD` is the record commit
+  alone), so verify, mutants, ceilings and counts stand as above: 1751
+  passed, 18 warnings, `combat.ts` 1135 at its ceiling.
+- The KonMari agent's own `npm run verify` at `f92d994`: 0 errors, 18
+  warnings, `Test Files 103 passed`, `Tests 1751 passed | 2 skipped (1753)`.
+- **Reviewer's read:** not run, as there are no tidy-up commits to read.
+  `konmari.md` records why the code stays as it is. For example,
+  `pushCandidates`' terrain-and-ZOC check stays on two lines so that
+  mutants M1 (`:926`) and M2 (`:901`) can still be re-applied separately.
+
 # Round 1 (history)
 
 - verdict: rework
