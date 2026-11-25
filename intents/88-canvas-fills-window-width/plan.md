@@ -221,3 +221,25 @@ number`), so the existing `toEqual({ open: false, tab: null, highlight: null })`
 `rect` field and compares with `scorePanelRect(1600, ...)`; the Tables margin 12 is repeated in
 the spec because `MARGIN` is not exported. (3) Survey greps re-run: only BoardScene.ts:673,692
 (inside the left panel) and comments; no new literal x.
+
+### 2026-11-25 - rework round 1 (F1, F2, F3)
+
+Rebase note (F2): the 2026-11-24 entry's hashes are pre-rebase. The branch's commits are now
+f25a063, b409c8a, e7e34b8 and 8ff85d2 (rebased onto main); at that point 1836 tests passed with 2
+skipped, and lint was 17 warnings with cap 17 (the 1758 / 18 above are stale).
+
+Commit 5a1bdb6: subtask 8 (F1). `src/ui/panBounds.ts` (+ `panBounds.test.ts`): when the room is wider
+than board + 2 x 200 the horizontal bounds are the room's width, centred on the board; else board
++- 200; vertical unchanged. `MapView` calls it with `availableWidth` (496 lines, was 499; Placement
+gets it through MapView). The initial `setScroll` and the §43 turn-start centring need no change: with
+bounds exactly the room's width the clamp leaves one scroll value, the centred one. E2E
+`wide-canvas.spec.ts` at 2400 x 750: left and right gaps within one hex. F3: `ARMY_LAYOUT_WIDTH =
+BASE_WIDTH`. README:576 ("once the whole map fits, it is centred") already matches; unchanged.
+
+Results: `npm run verify` green: 112 files, 1847 passed, 2 skipped; lint 17, cap 17. `npm run e2e`:
+70 passed. Red on the old bounds (wiring temporarily reverted, restored by copy): the new e2e fails
+with "gaps 200 / 514", the reviewer's probe numbers.
+
+Divergence: the e2e derives the rightmost hex's canvas x from one visible hex's canvas x plus the
+world distance, because the rightmost hex can be outside the 750-px view vertically
+(`hexToCanvas` returns null there).
