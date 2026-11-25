@@ -134,3 +134,15 @@ No unit test covers a dependency version. The checks are:
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-11-25 — implementation (commit 19483b1)
+
+- **Red (before):** `npm audit` exit 1, "2 moderate severity vulnerabilities" (`@hono/node-server 2.0.0 - 2.1.5`, 2 advisories; `hono <=4.13.15`, 5 advisories). `npm ls`: SDK 0.3.309 -> `@modelcontextprotocol/sdk@1.32.2` -> `@hono/node-server@2.1.5` and `hono@4.13.13`.
+- **Method:** the amended subtask 2 (add the two overrides to §63's block, relock, delete exactly those two keys, relock). `package.json` is byte-identical to main (`git diff --exit-code main -- package.json` clean). An earlier attempt (plan as first written, `npm pkg delete overrides`) stopped and was reverted; nothing from it remains.
+- **Lockfile diff:** `package-lock.json` only, 113 insertions, 26 deletions. Version changes: `hono` 4.13.13 -> 4.13.18, `@hono/node-server` 2.1.5 -> 2.1.7 (resolved and integrity updated). No new dependency. Every other changed line is a `"peer": true` flag (93 added, 6 removed; the added ones across about 90 packages, the removed ones are moves of the flag), plus the comma added to the preceding line. §63's minimatch entries unchanged.
+- **Green (after), `npm ci`:** `found 0 vulnerabilities`; `npm audit` exit 0. `npm ls`: `@modelcontextprotocol/sdk@1.32.2` -> `@hono/node-server@2.1.7` (`hono@4.13.18` deduped) and `hono@4.13.18`.
+- **verify:** green. 103 files, 1751 passed, 2 skipped; lint 18 warnings (cap 18).
+- **check:intent:** `type-check: ROUTE (intent 91, fix)`, "Declared fix, but no test changed. A fix carries a test so the defect cannot come back." (note: 1 file(s), 139 line(s) changed outside intents/). Expected per the plan: a lockfile-only fix with `npm audit` as its check.
+- **Fresh clone** of the branch at 19483b1 into the session scratchpad: `npm ci --ignore-scripts` reported `found 0 vulnerabilities`; the clone was deleted.
+- **Orchestrator smoke, divergence:** `npm run orchestrator` refuses to start in a worktree ("run it from the main checkout"), and the brief said to leave the main checkout alone, so it was not started. Substitute run in the worktree: Node imported `hono`, `@hono/node-server`, `@anthropic-ai/claude-agent-sdk` (34 exports) and `@modelcontextprotocol/sdk/server/mcp.js`, then served a Hono app on 127.0.0.1:5391 through `@hono/node-server` and fetched it: 200 "ok". No real SDK session was launched. The coordinator or owner may run `npm run orchestrator` from main after the merge.
+- **e2e:** port 5232 was held by another process for several minutes; waited until free. One run: 45 passed, 1 failed (`unit-tooltip.spec.ts:113`, a 30 s `waitForFunction` timeout in `startFromMenu`, not one of the listed flakes). Re-run alone: all 4 tests in that file passed. Read as a load flake.

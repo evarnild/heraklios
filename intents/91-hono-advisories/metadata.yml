@@ -2,7 +2,7 @@
 id: 91
 slug: hono-advisories
 type: fix
-status: accepted
+status: in-review
 title: npm audit clears the hono advisories in the orchestrator's Agent SDK
 review_tier:
 intent_accepted: 2026-11-25 by-agent    # owner: "accept 91 /auto 91"
