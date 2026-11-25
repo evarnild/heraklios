@@ -5,10 +5,11 @@
 //
 // Route: Menu "2" -> seat 0 buys a small, ship-heavy army through the `»`
 // fills (see the "build armies" step) and seat 1 takes the default army,
-// each with "Confirm army" -> player 0's Placement. The queue follows UNIT_TYPES order, so the scenario reads
-// the current item from the hook rather than assuming land or ships come
-// first: it clicks the first free legal hex for every land unit until the
-// current item is a ship, then places two ships, one per Turn button.
+// each with "Confirm army" -> player 0's Placement. The queue follows
+// UNIT_TYPES order, so the scenario reads the current item from the hook
+// rather than assuming land or ships come first: it clicks the first free
+// legal hex for every land unit until the current item is a ship, then
+// places two ships, one per Turn button.
 import { expect, test, type Page } from '@playwright/test';
 import { UNIT_TYPES, getUnitType } from '../src/data/units';
 import { clickButton, clickHex, collectErrors, key, state, type Hex } from './helpers';
