@@ -838,22 +838,19 @@ export function legalRetreatHexes(state: GameState, unit: Unit): HexCoord[] {
  * pushing at that link — see the fixpoint's terrain check below, applied
  * per-edge rather than just at the top level.
  *
- * NOT checked here, unlike `legalRetreatHexes`: whether the inherited hex
- * sits under enemy ZOC. `legalRetreatHexes` refuses to send a normally
- * retreating unit into an empty ZOC hex, but a hex a friendly unit is
- * ALREADY standing on can perfectly well be under enemy ZOC too (ZOC
- * doesn't prevent occupying a hex, only entering one uninvited) — the
- * rulebook's own push sentence (`:242-243`) says nothing about ZOC at all,
- * so applying `legalRetreatHexes`'s exclusion here would be ANOTHER
- * invented extension, not obviously more or less licensed than leaving it
- * out. Pre-existing before this change (the single-level version never
- * checked it either) but worth flagging explicitly now that the widened,
- * cascading version makes a mixed friendly/ZOC-blocked-empty neighbor set
- * the headline scenario rather than an edge case: a unit could in principle
- * be pushed into a hex under enemy ZOC that it could never have retreated
- * into directly. Left as-is rather than silently "fixed" one way or the
- * other — a real design decision for whoever picks this up next, not this
- * comment's call to make unilaterally.
+ * INTERPRETATION, ZOC (§90, the owner's ruling of 2026-11-24) — a unit never
+ * takes a hex under its enemies' zone of control, at ANY link of a cascade.
+ * Before, this was left open (the push sentence `:242-243` is silent on ZOC,
+ * and ZOC doesn't stop a unit already standing in a hex). It rests on
+ * `05-rules-french-original.md:136`, "il est interdit de faire retraite dans
+ * une zone de contrôle ennemie" (`02-rules-transcription.md:98`). Of three
+ * readings offered, the owner chose "mixed, never into ZOC"; rejected: push
+ * only when no neighbour is an enemy or enemy-ZOC-blocked, and push only
+ * when all six neighbours are friends. So the mixed widening above STAYS:
+ * a friend whose hex is ZOC-free is still offered. The fixpoint edge and the
+ * top-level filter both skip a taken hex in `hexesUnderZoc(state, owner)`
+ * (rivers block ZOC, naval units project none); one set serves the chain,
+ * as every link has one owner and enemies don't move mid-cascade.
  *
  * PERFORMANCE — this used to be a plain recursive DFS re-deriving each
  * candidate's viability by enumerating simple paths through the friendly-
@@ -881,6 +878,7 @@ export function pushCandidates(state: GameState, unit: Unit, visited: ReadonlySe
 
   // Every OTHER friendly unit still eligible to be part of this chain.
   const pool = state.units.filter((u) => !u.destroyed && u.owner === unit.owner && !excluded.has(u.id));
+  const enemyZoc = hexesUnderZoc(state, unit.owner);
 
   // Fixpoint: start from units with a direct legal retreat, then repeatedly
   // absorb any pool unit adjacent to an already-"can make room" friendly
@@ -900,6 +898,7 @@ export function pushCandidates(state: GameState, unit: Unit, visited: ReadonlySe
           neighbor.owner === u.owner &&
           !excluded.has(neighbor.id) &&
           canMakeRoom.has(neighbor.id) &&
+          !enemyZoc.has(mapHexKey(neighbor.position.q, neighbor.position.r)) &&
           canEnterTerrain(terrainAt(neighbor.position), uCategory)
         ) {
           canMakeRoom.add(u.id);
@@ -924,6 +923,7 @@ export function pushCandidates(state: GameState, unit: Unit, visited: ReadonlySe
     const f = unitAt(state, hexAdd(unit.position, d));
     if (!f || f.owner !== unit.owner || excluded.has(f.id)) continue;
     if (!canEnterTerrain(terrainAt(f.position), category)) continue;
+    if (enemyZoc.has(mapHexKey(f.position.q, f.position.r))) continue;
     if (canMakeRoom.has(f.id)) candidates.push(f);
   }
   return candidates;
