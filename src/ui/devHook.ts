@@ -151,7 +151,7 @@ export interface DevHook {
   /** The tooltip's screen box while it is visible, else null (§74). */
   tooltipBox(): { x: number; y: number; width: number; height: number } | null;
   /** The Board's Tables panel: open or not, its tab, and the land table's highlight (§55). Read-only. */
-  rulesPanel(): { open: boolean; tab: RulesTab | null; highlight: LandCombatHighlight | null };
+  rulesPanel(): { open: boolean; tab: RulesTab | null; highlight: LandCombatHighlight | null; left?: number };
   /** The End-phase warning (§83): open or not, the flagged and marked unit ids, the seats switched off. Read-only. */
   endMoveWarning(): EndMoveWarningSnapshot;
   /** The Board's score panel: its rectangle, whether every row fits, and per row what is drawn (§81). */

@@ -11,7 +11,7 @@ import { BOARD_PROMPT, RAM_PROMPT, centredPromptRect } from './boardPrompts';
 export const SIDE_PANEL_WIDTH = 300;
 export const RULES_PANEL_W = 776;
 export const RULES_PANEL_H = 266;
-const MARGIN = 12;
+export const RULES_PANEL_MARGIN = 12;
 const TOP = 8;
 
 export interface Rect {
@@ -28,7 +28,7 @@ export function visiblePromptRects(canvasWidth: number, canvasHeight: number): R
 
 /** The panel's rectangle: the top right of the game area, above the prompts. */
 export function rulesPanelRect(canvasWidth: number): Rect {
-  return { left: canvasWidth - RULES_PANEL_W - MARGIN, top: TOP, width: RULES_PANEL_W, height: RULES_PANEL_H };
+  return { left: canvasWidth - RULES_PANEL_W - RULES_PANEL_MARGIN, top: TOP, width: RULES_PANEL_W, height: RULES_PANEL_H };
 }
 
 export function rectsIntersect(a: Rect, b: Rect): boolean {
@@ -43,6 +43,6 @@ export function rectsIntersect(a: Rect, b: Rect): boolean {
  * its top part).
  */
 export function chooserRect(size: { width: number; height: number }, canvasWidth: number, canvasHeight: number): Rect {
-  const top = Math.max(0, Math.min(TOP + RULES_PANEL_H + MARGIN, canvasHeight - size.height));
+  const top = Math.max(0, Math.min(TOP + RULES_PANEL_H + RULES_PANEL_MARGIN, canvasHeight - size.height));
   return { left: canvasWidth / 2 - size.width / 2, top, ...size };
 }

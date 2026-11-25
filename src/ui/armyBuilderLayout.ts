@@ -1,7 +1,17 @@
+import { BASE_WIDTH } from './canvasSize';
 import { markerTextureKey } from './hexRender';
 
-// §79: the army builder's row geometry, in canvas pixels at 1100x750. Pure, so
-// the numbers are unit-tested; ArmyBuilderScene only draws from it.
+// §79: the army builder's row geometry, in canvas pixels, an 1100-wide block
+// (offset into the middle of a wider canvas, §88). Pure, so the numbers are
+// unit-tested; ArmyBuilderScene only draws from it.
+
+/** The width the builder is designed for. */
+export const ARMY_LAYOUT_WIDTH = BASE_WIDTH;
+
+/** §88: the x offset that centres the 1100-wide block on a canvas `canvasWidth` wide (0 at 1100 or less). */
+export function armyLayoutOffset(canvasWidth: number): number {
+  return Math.max(0, Math.floor((canvasWidth - ARMY_LAYOUT_WIDTH) / 2));
+}
 
 export const ARMY_COLUMN_X = [20, 565] as const;
 export const ARMY_ROW_TOP = 56;
@@ -37,11 +47,11 @@ export interface ArmyRowSlot {
  * (devHookMatch.ts sorts by y, then x) stays its UNIT_TYPES index, and the
  * four ships land in the bottom two rows.
  */
-export function armyRowSlot(index: number): ArmyRowSlot {
+export function armyRowSlot(index: number, offsetX = 0): ArmyRowSlot {
   const column = index % 2;
   const row = Math.floor(index / 2);
   const centreY = ARMY_ROW_TOP + ARMY_ROW_HEIGHT * row + ARMY_ROW_HEIGHT / 2;
-  const left = ARMY_COLUMN_X[column]!;
+  const left = offsetX + ARMY_COLUMN_X[column]!;
   const x = {} as ArmyRowX;
   for (const key of Object.keys(ARMY_ROW_OFFSETS) as (keyof ArmyRowX)[]) x[key] = left + ARMY_ROW_OFFSETS[key];
   return { column, row, centreY, x };

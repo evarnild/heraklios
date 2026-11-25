@@ -4,6 +4,7 @@ import type { HexCoord } from '../data/map';
 import { HEX_SIZE, hexToPixel } from './hexRender';
 import { allHexes } from './mapBounds';
 import { MAX_ZOOM, MIN_ZOOM, frameBox, type Box, type CameraView } from './cameraFraming';
+import { panBounds } from './panBounds';
 import { formatHexTooltip } from './hexTooltip';
 import { hexAtPoint } from './hexHitTest';
 import { StandardBoardView } from './standardBoardView';
@@ -132,12 +133,7 @@ export class MapView {
     // slack) rather than a fixed margin sized for the old centering — so the
     // board can't be scrolled away into empty space next to the panel.
     const boundsPadding = 200;
-    this.enableDrag({
-      x: this.originX + minX - boundsPadding,
-      y: this.originY + minY - boundsPadding,
-      width: boardWidth + boundsPadding * 2,
-      height: boardHeight + boundsPadding * 2,
-    });
+    this.enableDrag(panBounds({ x: this.originX + minX, y: this.originY + minY, width: boardWidth, height: boardHeight }, availableWidth, boundsPadding));
     this.enableZoom();
     const mainCam = scene.cameras.main;
     mainCam.setViewport(leftPanelWidth, 0, availableWidth, viewportHeight);
