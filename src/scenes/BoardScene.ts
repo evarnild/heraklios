@@ -259,11 +259,20 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.driftArrowElephant = null;
     this.driftArrowFacing = undefined;
     this.driftContinueResolve = null;
-    this.driftContinueBtn.setVisible(false);
+    this.driftContinueBtn?.setVisible(false);
     this.driftState = null;
     this.inDrift = false;
     if (render && shown) this.renderAllUnits();
-    else this.mapView.clearDriftArrow();
+    else this.mapView?.clearDriftArrow();
+  }
+
+  /** No combat open and nothing showing one: a reset or a restore (`settleLandAttack` stops at its next check). */
+  private dropCombat(): void {
+    this.combat = null;
+    this.pushedThisCombat.clear();
+    this.retreatChoice = null;
+    this.decisionPending = false;
+    this.endDriftDisplay(false);
   }
 
   /**
@@ -435,17 +444,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.attackGroup = [];
     this.defenderGroup = [];
     this.attackedThisPhase = new Set();
-    this.combat = null;
-    this.pushedThisCombat.clear();
-    this.inDrift = false;
-    this.retreatChoice = null;
-    this.driftState = null;
-    this.decisionPending = false;
-    this.driftArrowElephant = null;
-    this.driftArrowFacing = undefined;
-    this.driftContinueResolve = null;
-    this.driftContinueBtn?.setVisible(false);
-    this.mapView?.clearDriftArrow();
+    this.dropCombat();
     this.logHistory = new LogHistory();
     this.rulesPanel?.reset();
     this.history = new History();
@@ -1101,17 +1100,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // Interactive sequences never span a snapshot — undo is refused while one
     // is pending — so these are already empty. Reset them anyway so a restore
     // can never leave a reference to a unit from the discarded state.
-    this.combat = null;
-    this.pushedThisCombat.clear();
-    this.inDrift = false;
-    this.retreatChoice = null;
-    this.driftState = null;
-    this.decisionPending = false;
-    this.driftArrowElephant = null;
-    this.driftArrowFacing = undefined;
-    this.driftContinueResolve = null;
-    this.driftContinueBtn.setVisible(false);
-    this.mapView.clearDriftArrow();
+    this.dropCombat();
     this.navalContacts = [];
 
     this.renderAllUnits(true);
