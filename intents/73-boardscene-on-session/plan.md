@@ -851,3 +851,26 @@ check:intent: FAIL only for the owed live check (owner's), plus the expected ROU
 `combat.test.ts` and `fuzzHarness.test.ts`, whose edits are comments).
 Full `npm run e2e` x3: each run 55 passed, 1 failed, the failure being `placement.spec.ts:39` "Turn
 buttons" (the known §89 flake) every time; no other failure.
+
+### Rebase onto main after §90 (2026-11-25)
+
+Rebased the 26 commits onto `main` (de2af05, which has §90's rule: `pushCandidates` refuses a push whose
+taken hex is under enemy ZOC). `combat.ts`, `combat.test.ts`, `fuzzHarness.test.ts` and `README.md` merged
+cleanly; `git diff main -- src/engine/combat.ts` is only §73's comment edits (it does not touch `pushCandidates`).
+- Conflict 1, `src/engine/gameSession.test.ts` (commit "engine seams that do not pause"), the push-sequence
+  test: kept §90's coordinates (`vacatedHex` {2,18}, §90's shifted `pushPosition`) and §73's change (the
+  expected list is the `push`-filtered events, with its comment). No assertion changed in meaning.
+- Not a conflict but broken by §90, in two §73 files, found by `verify` and moved the way §90 moved its own
+  (to make the push legal, no assertion loosened):
+  - `src/engine/sessionSeams.test.ts` `singlePush()`: now §90's `pushPosition` shape (a (2,18), b (3,18),
+    c (4,18), e0 (3,17) with the river, naval boxes). Naval boxes project no ZOC, so a's (1,18) and two of
+    c's hexes (5,17), (5,18) are blocked by galleys, to keep "a has one friend, c one hex". Three tests use it.
+  - `e2e/combatScenarios.ts` `PUSH`: the owner-0 archers at (11,3), (9,4) projected ZOC onto the friend's
+    hex (10,3), so the push was refused (`combatScenarios.test.ts` (c) failed). They are now galleys, and two more
+    (fx-b3 (9,3), fx-b4 (11,2)) close the friend's other hexes, which the archers' ZOC used to close. All
+    assertions of (c) and of the browser spec are unchanged and pass.
+- Results: `npm run verify` green (107 files, 1797 passed, 2 skipped; lint cap 17 unchanged). Full
+  `npm run e2e`: 55 passed, 1 failed, `placement.spec.ts:39` (known §89 flake), which fails alone too.
+  `combat-resolution.spec.ts --repeat-each=2`: 20 passed, both (c) scenarios included.
+  `check:intent`: ROUTE only (a refactor whose existing tests "lost lines", now incl. `combat.test.ts`,
+  `drift.test.ts`, `fuzzHarness.test.ts`, `gameSession.test.ts`), no FAIL printed.
