@@ -43,6 +43,6 @@ export function rectsIntersect(a: Rect, b: Rect): boolean {
  * its top part).
  */
 export function chooserRect(size: { width: number; height: number }, canvasWidth: number, canvasHeight: number): Rect {
-  const top = Math.max(0, Math.min(TOP + RULES_PANEL_H + MARGIN, canvasHeight - size.height));
+  const top = Math.max(0, Math.min(TOP + RULES_PANEL_H + RULES_PANEL_MARGIN, canvasHeight - size.height));
   return { left: canvasWidth / 2 - size.width / 2, top, ...size };
 }
