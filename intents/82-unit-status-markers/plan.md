@@ -385,3 +385,24 @@ Divergences from the plan:
 - The look (AC13, size, corners, colours) is untuned: it is the owner's live
   check. All constants are in `src/ui/unitMarkSpec.ts`.
 
+
+2026-11-25, rework after review round 1 (commit 7c060a5). The branch was
+rebased onto the new `main` first (commits 5d5d884, 2e22606, f830cab, bd3c29e);
+`BoardScene.ts` is 2826 lines (`main` had 2833), baseline 2826. The suite was
+1853 tests before the rework, 77 e2e.
+- F1: `unitStatus.test.ts` pins `seatOrder[activePlayerIndex]` with
+  `seatOrder = [1, 0]` (movement and combat); the mutant
+  `const active = state.activePlayerIndex;` now fails 2 tests (E17 killed).
+- F2: `unitDrawings.test.ts` combat case with `attackedThisPhase` and
+  `rammedThisTurn` expects `hasAttacked` on both; the mutant
+  `unitStatuses(state, {})` fails it (D6 killed).
+- F3: `placementDrawings.test.ts` asserts no drawing has `status` or `charged`
+  (AC12); a mutant adding `charged: true` fails it.
+- F4: e2e "at Off speed": the mark equals the counter right after the click
+  (Standard view).
+- F5: `unitStatus.test.ts` B3/I6 row: an archer at range 2 and infantry beside
+  the same enemy both read `canAttack`.
+- F7, F8: `sameMark` comment and the dead ternary in `unitMarkGraphics.ts`.
+- F9: the `key(to)` assertion and its import removed from the e2e spec.
+- Numbers: `npm run verify` green, 113 files, 1858 tests passed (2 skipped),
+  lint cap 17; `npm run e2e` 78 passed.
