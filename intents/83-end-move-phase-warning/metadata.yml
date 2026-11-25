@@ -13,7 +13,7 @@ merged:
 konmari:
 auto_authorized: 2026-11-24 by-agent    # owner: "/auto 83 /auto 86"
 auto_round: 2
-auto_stopped:
+auto_stopped: live check owed
 follows_up:
 links:
   - intents/82-unit-status-markers    the same not-moved fact
