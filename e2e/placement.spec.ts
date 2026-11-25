@@ -42,25 +42,31 @@ test('the Turn buttons turn a ship being placed the way they sit', async ({ page
   await page.goto('/');
   await page.waitForFunction(() => window.__heraklios?.buttonCount('2') === 1);
   await clickButton(page, '2');
-  for (let seat = 0; seat < 2; seat++) {
-    await page.waitForFunction(() => window.__heraklios.buttonCount('Use default army') === 1);
-    await clickButton(page, 'Use default army');
-    await clickButton(page, 'Confirm army');
-  }
-  await page.waitForFunction(() => window.__heraklios.scenes().includes('Placement'));
-  await page.waitForFunction(() => window.__heraklios.state() !== null);
+  await test.step('build armies', async () => {
+    for (let seat = 0; seat < 2; seat++) {
+      await page.waitForFunction(() => window.__heraklios.buttonCount('Use default army') === 1);
+      await clickButton(page, 'Use default army');
+      await clickButton(page, 'Confirm army');
+    }
+    await page.waitForFunction(() => window.__heraklios.scenes().includes('Placement'));
+    await page.waitForFunction(() => window.__heraklios.state() !== null);
+  });
 
-  for (let guard = 0; guard < 200; guard++) {
-    const { current } = await page.evaluate(() => window.__heraklios.placement());
-    if (!current || getUnitType(current).domain === 'naval') break;
-    const before = await unitCount(page);
-    await clickHex(page, await freeLegalHex(page));
-    await page.waitForFunction((n) => (window.__heraklios.state() as { units: unknown[] }).units.length === n + 1, before);
-  }
+  await test.step('place land units', async () => {
+    for (let guard = 0; guard < 200; guard++) {
+      const { current } = await page.evaluate(() => window.__heraklios.placement());
+      if (!current || getUnitType(current).domain === 'naval') break;
+      const before = await unitCount(page);
+      await clickHex(page, await freeLegalHex(page));
+      await page.waitForFunction((n) => (window.__heraklios.state() as { units: unknown[] }).units.length === n + 1, before);
+    }
+  });
 
-  const left = await placeShip(page, 0);
-  expect(left.facing, 'left Turn turns the new ship counter-clockwise').toBe(1);
-  const right = await placeShip(page, 1);
-  expect(right.facing, 'right Turn turns the new ship clockwise').toBe(5);
+  await test.step('place ships', async () => {
+    const left = await placeShip(page, 0);
+    expect(left.facing, 'left Turn turns the new ship counter-clockwise').toBe(1);
+    const right = await placeShip(page, 1);
+    expect(right.facing, 'right Turn turns the new ship clockwise').toBe(5);
+  });
   expect(errors).toEqual([]);
 });
