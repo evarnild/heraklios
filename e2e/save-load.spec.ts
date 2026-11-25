@@ -82,8 +82,8 @@ test('a saved game loads back to the saved position', async ({ page }) => {
   await clickButton(page, SAVE_LOAD);
   await waitSavePanelLoaded(page);
   // §86: the load is an async HTTP read. Hold the slot's GET (only it: the
-  // save write is a POST/PUT and the list read has no slot) so the scenario
-  // cannot win the race by luck.
+  // save write is a PUT, the clear a DELETE, and the list read has no slot)
+  // so the scenario cannot win the race by luck.
   await page.route('**/api/saves/1', async (route) => {
     if (route.request().method() !== 'GET') return route.fallback();
     await new Promise((r) => setTimeout(r, 500));
