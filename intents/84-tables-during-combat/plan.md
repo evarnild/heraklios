@@ -257,3 +257,21 @@ Mutants for the implementer to run and report, each restored by copy:
     4. The chooser e2e asserts the exact button y (368, 452) rather than
        "below the panel", since a centred box also cleared the panel's bottom
        edge; a spare attacker fixture (`WITH_SPARE`) starts the next attack.
+
+### 2026-11-25 — rework after review round 1 (post-rebase values)
+
+Commits since `main`: `c7a2b4b`, `cdd7b49`, `61d8355`, `98ec294`, `98d1ebf`,
+`a7cb274` (the earlier hashes and the "2824 → 2823", "1800 passed", "e2e 61
+passed" figures above are pre-rebase). After the rebase onto §83: `BoardScene`
+2834 → 2833 (ceiling 2833), 1828 tests in 110 files, 68 e2e scenarios.
+
+Rework commit `3eac13d`: F1 §83's e2e now asserts the panel stays open over
+the warning (README and two comments fixed); F2 one Escape route in
+`BoardScene` (panel open: close only it; else `EndMoveWarning.cancel()`; the
+warning's own listener is gone), e2e asserts the warning and its marks survive
+the first Escape; F3 accepted by the owner, no change; F4/F5 two new e2e
+scenarios (end phase and load drop the rolled mark); F6 button-count assertion
+restored, comment fixed; F8 comment; F9 `setTab` while closed tested; F11 dice
+comment moved. F10 and F12 not done (spec is the owner's; F12 skipped to keep
+the scene's ceiling). Now 1828 tests in 110 files, 70 e2e scenarios (all
+pass), `BoardScene` still 2833.
