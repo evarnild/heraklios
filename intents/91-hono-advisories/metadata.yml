@@ -2,7 +2,7 @@
 id: 91
 slug: hono-advisories
 type: fix
-status: accepted
+status: in-review
 title: npm audit clears the hono advisories in the orchestrator's Agent SDK
 review_tier:
 intent_accepted: 2026-11-25 by-agent    # owner: "accept 91 /auto 91"
@@ -12,8 +12,8 @@ live_checked:
 merged:
 konmari:
 auto_authorized: 2026-11-25 by-agent    # owner: "accept 91 /auto 91"
-auto_round:
-auto_stopped:
+auto_round: 1
+auto_stopped: ready for /deliver
 follows_up:
 links:
   - intents/63-minimatch-advisory
