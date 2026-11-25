@@ -124,6 +124,11 @@ Re-read on `main` at `f18affa`.
    - Commit.
 3. **Measure again.** The same two `--repeat-each=5` runs, quiet and loaded,
    recorded in Progress. Target: quiet under 10 s, loaded never near 30 s.
+   **Amended 2026-11-25 (owner: "/auto 89 accept the margin"):** the target
+   is quiet about 11 s on this machine (which is never idle), loaded under
+   15 s, and at least 2× under the 30 s cap. Round 1 measured quiet 3.8–10.8 s
+   and loaded 8.6–14.5 s, so the plan's fallback (a test-mode shortcut) is
+   not taken.
 4. **Full-suite proof (the intent's outcome).** Five consecutive full
    `npm run e2e` runs, each with `npx vitest run` running alongside in a
    second shell. All green on this scenario. Record each run's pass/fail
