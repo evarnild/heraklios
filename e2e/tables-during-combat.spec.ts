@@ -13,8 +13,6 @@ import { acquireSaveLock, withSaveLockHeld } from './savesDir';
 
 const en = messagesFor('en');
 const tabs = en.rules.tabs;
-/** The panel's bottom edge at the game size (8 + 266); a chooser's buttons must sit below it. */
-const PANEL_BOTTOM = 274;
 /** The seeds' dice (`combatScenarios.test.ts` checks them against the engine): ONE_OPTION rolls a 2, EXCHANGE a 5. */
 /** ONE_OPTION plus a spare attacker far away, to start the next attack with. */
 const WITH_SPARE: Scenario = {
@@ -124,7 +122,8 @@ test('the rolled cell stays marked after the roll and is cleared by the next att
   expect((await panel(page)).highlight!.rolled, 'row = face with no modifier').toEqual({ face: DIE.one, row: DIE.one });
   await clickHex(page, (await choice(page))!.hexes[0]!);
   await waitButton(page, "Don't advance");
-  expect(await buttonY(page, "Don't advance"), 'the advance chooser is below the panel').toBeGreaterThan(PANEL_BOTTOM);
+  // One candidate: a 102-high box whose top is 286 (below the panel's area), its decline button 20 above the bottom.
+  expect(await buttonY(page, "Don't advance"), 'the advance chooser is below the panel').toBe(286 + 102 - 20);
   expect(await panel(page)).toMatchObject({ open: true, tab: 'land' });
   await clickButton(page, "Don't advance");
   await waitIdle(page);
@@ -145,7 +144,8 @@ test('on an exchange the rolled cell is marked while the chooser is open, below 
   await waitButton(page, en.board.confirmLosses);
   expect((await panel(page)).highlight!.rolled).toEqual({ face: DIE.exchange, row: DIE.exchange });
   expect(await panel(page)).toMatchObject({ open: true, tab: 'land' });
-  expect(await buttonY(page, en.board.confirmLosses), 'the exchange chooser is below the panel').toBeGreaterThan(PANEL_BOTTOM);
+  // Three attackers: a 182-high box whose top is 286, its confirm button 16 above the bottom.
+  expect(await buttonY(page, en.board.confirmLosses), 'the exchange chooser is below the panel').toBe(286 + 182 - 16);
   // Escape closes the panel and leaves the chooser.
   await page.keyboard.press('Escape');
   await frames(page);
