@@ -2022,10 +2022,9 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       const rowHeight = 26;
       const panelHeight = 76 + candidates.length * rowHeight;
       const { top } = chooserRect({ width: 320, height: panelHeight }, width, height);
-      const panelY = top + panelHeight / 2;
 
       const panel = this.add
-        .rectangle(width / 2, panelY, 320, panelHeight, 0x1a1408, 0.97)
+        .rectangle(width / 2, top + panelHeight / 2, 320, panelHeight, 0x1a1408, 0.97)
         .setScrollFactor(0)
         .setDepth(20);
       const title = this.add
@@ -2336,10 +2335,9 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       const rowHeight = 24;
       const panelHeight = 110 + attackers.length * rowHeight;
       const { top } = chooserRect({ width: 340, height: panelHeight }, width, height);
-      const panelY = top + panelHeight / 2;
 
       const panel = this.add
-        .rectangle(width / 2, panelY, 340, panelHeight, 0x1a1408, 0.97)
+        .rectangle(width / 2, top + panelHeight / 2, 340, panelHeight, 0x1a1408, 0.97)
         .setScrollFactor(0)
         .setDepth(20);
       const title = this.add
