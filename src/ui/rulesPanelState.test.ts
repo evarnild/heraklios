@@ -14,43 +14,18 @@ describe('the Tables panel visibility (§55)', () => {
     expect(s).toMatchObject({ shown: true, tab: 'boarding' });
   });
 
-  it('is hidden while suppressed and comes back open on the same tab', () => {
+  it('keeps its tab through close and reopen, and a tab can be chosen while closed (§84: no suppression)', () => {
     const s = new RulesPanelState();
     s.open('terrain');
     s.setTab('ramming');
-    s.setSuppressed(true);
-    expect(s.shown).toBe(false);
-    s.setSuppressed(false);
+    s.close();
+    s.open('land');
     expect(s).toMatchObject({ shown: true, tab: 'ramming' });
   });
 
-  it('stays closed when it was closed before the suppression', () => {
-    const s = new RulesPanelState();
-    s.setSuppressed(true);
-    s.setSuppressed(false);
-    expect(s.shown).toBe(false);
-  });
-
-  it('ignores open, toggle, close and tab changes while suppressed', () => {
-    const s = new RulesPanelState();
-    s.setSuppressed(true);
-    s.toggle('terrain');
-    s.open('terrain');
-    expect(s.shown).toBe(false);
-    s.setSuppressed(false);
-    expect(s.shown).toBe(false);
-    s.open('land');
-    s.setSuppressed(true);
-    s.close();
-    s.setTab('boarding');
-    s.setSuppressed(false);
-    expect(s).toMatchObject({ shown: true, tab: 'land' });
-  });
-
-  it('reset forgets everything, suppression included', () => {
+  it('reset forgets everything', () => {
     const s = new RulesPanelState();
     s.open('land');
-    s.setSuppressed(true);
     s.reset();
     expect(s).toMatchObject({ shown: false, tab: null });
     s.open('terrain');

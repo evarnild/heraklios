@@ -12,7 +12,7 @@ import { SaveLoadPanel } from '../ui/saveLoadPanel';
 import { RulesPanel } from '../ui/rulesPanel';
 import { createScorePanel } from '../ui/scorePanel';
 import { BOARD_PROMPT, RAM_PROMPT } from '../ui/boardPrompts';
-import { SIDE_PANEL_WIDTH } from '../ui/rulesPanelLayout';
+import { SIDE_PANEL_WIDTH, chooserRect } from '../ui/rulesPanelLayout';
 import { applySavedGame, captureCurrentGame, consumePendingLoad, writeSave } from '../ui/saveStorage';
 import type { SavedGame } from '../engine/saveGame';
 import {
@@ -1290,8 +1290,6 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * `update` doesn't need to check `paused` here.
    */
   update(_time: number, delta: number): void {
-    // The Tables panel is hidden while a decision is pending (§55).
-    this.rulesPanel?.setSuppressed(this.decisionPending);
     const state = session.gameState;
     if (!state || state.gameOver) return;
     const wasPending = state.pendingGameEnd;
@@ -2022,8 +2020,8 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       const { width, height } = this.scale;
       const rowHeight = 26;
       const panelHeight = 76 + candidates.length * rowHeight;
-      const panelY = height / 2;
-      const top = panelY - panelHeight / 2;
+      const { top } = chooserRect({ width: 320, height: panelHeight }, width, height);
+      const panelY = top + panelHeight / 2;
 
       const panel = this.add
         .rectangle(width / 2, panelY, 320, panelHeight, 0x1a1408, 0.97)
@@ -2209,6 +2207,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     const defenders = action.defenderIds.map((id) => unitById(state, id));
     const { outcome } = result;
     this.logCombatOutcome(result.attackers, defenders, result.detail, outcome.requiredSacrificeForce, outcome.requiresExchangeChoice);
+    this.rulesPanel?.setRolled(result.detail, result.detail.rawDieRoll); // before the exchange return: B7
     // With an exchange to choose, the board is drawn once the losses are chosen (`showEvent`).
     if (outcome.requiresExchangeChoice) return;
     this.renderAllUnits();
@@ -2335,8 +2334,8 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       const { width, height } = this.scale;
       const rowHeight = 24;
       const panelHeight = 110 + attackers.length * rowHeight;
-      const panelY = height / 2;
-      const top = panelY - panelHeight / 2;
+      const { top } = chooserRect({ width: 340, height: panelHeight }, width, height);
+      const panelY = top + panelHeight / 2;
 
       const panel = this.add
         .rectangle(width / 2, panelY, 340, panelHeight, 0x1a1408, 0.97)
@@ -2595,6 +2594,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   private commitEndPhase(): void {
     this.deselectMovement();
     this.clearCombatSelection();
+    this.rulesPanel?.clearRolled();
     // Undo reaches back only within the current phase: rewinding across the
     // handoff would let one player rewrite another's committed turn.
     this.history.clear();

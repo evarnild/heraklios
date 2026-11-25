@@ -1,31 +1,28 @@
 import type { RulesTab } from './rulesPanel';
 
 /**
- * Whether the Tables panel is drawn (§55), apart from Phaser. The player's
- * wish (open or closed, which tab) is kept separate from a suppression the
- * Board applies while a decision is pending: suppressed, the panel is hidden
- * and its controls do nothing, and when the suppression ends it is back as it
- * was, open or closed, on the same tab.
+ * Whether the Tables panel is drawn (§55), apart from Phaser: the player's
+ * wish, open or closed and which tab. Nothing else changes it (§84 removed the
+ * suppression while a decision is pending): the panel is as available during a
+ * retreat, push, advance, exchange or drift as outside one.
  */
 export class RulesPanelState {
   private wantOpen = false;
-  private suppressed = false;
   tab: RulesTab | null = null;
 
   /** True when the panel should be on screen. */
   get shown(): boolean {
-    return this.wantOpen && !this.suppressed;
+    return this.wantOpen;
   }
 
-  /** Opens on `defaultTab` the first time, then the last tab chosen. Ignored while suppressed. */
+  /** Opens on `defaultTab` the first time, then the last tab chosen. */
   open(defaultTab: RulesTab): void {
-    if (this.suppressed || this.wantOpen) return;
+    if (this.wantOpen) return;
     this.wantOpen = true;
     this.tab ??= defaultTab;
   }
 
   close(): void {
-    if (this.suppressed) return;
     this.wantOpen = false;
   }
 
@@ -35,17 +32,11 @@ export class RulesPanelState {
   }
 
   setTab(tab: RulesTab): void {
-    if (this.suppressed) return;
     this.tab = tab;
-  }
-
-  setSuppressed(suppressed: boolean): void {
-    this.suppressed = suppressed;
   }
 
   reset(): void {
     this.wantOpen = false;
-    this.suppressed = false;
     this.tab = null;
   }
 }

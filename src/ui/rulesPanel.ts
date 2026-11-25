@@ -38,12 +38,15 @@ const CELL_FILL = 0x241b0c;
 const HEADER_FILL = 0x3a2f18;
 const COLUMN_FILL = 0x4a3f1a;
 const HIT_FILL = 0x9a7a1a;
+const ROLLED_FILL = 0xf0d070;
 const NO_RESULT_FILL = 0x7a3a4a;
 
 interface Cell {
   text: string;
   fill?: number;
   color?: string;
+  /** The cell a roll landed on (§84): outlined, in the accent. */
+  marked?: boolean;
 }
 
 /**
@@ -63,6 +66,8 @@ export class RulesPanel {
   /** True while the objects are built (the state says shown). */
   private built = false;
   private attack: RulesAttack | null = null;
+  /** The attack just rolled and its die face (§84): kept until the next attack is built or the phase ends. */
+  private rolled: { attack: RulesAttack; dieRoll: number } | null = null;
   private bounds = { left: 0, top: 0 };
 
   constructor(scene: Phaser.Scene, config: RulesPanelConfig) {
@@ -77,7 +82,7 @@ export class RulesPanel {
 
   /** What a smoke test reads: whether it is shown, the tab, and the highlight. */
   snapshot(): { open: boolean; tab: RulesTab | null; highlight: LandCombatHighlight | null } {
-    return { open: this.state.shown, tab: this.state.tab, highlight: landCombatHighlight(this.attack) };
+    return { open: this.state.shown, tab: this.state.tab, highlight: this.highlight() };
   }
 
   /** True for a screen point on the panel (the map must not pan or zoom there). */
@@ -103,12 +108,6 @@ export class RulesPanel {
     this.sync();
   }
 
-  /** Hides the panel while a decision is pending and brings it back as it was when it clears. */
-  setSuppressed(suppressed: boolean): void {
-    this.state.setSuppressed(suppressed);
-    this.sync();
-  }
-
   /** Builds or destroys the objects to match what the state says is shown. */
   private sync(): void {
     const shown = this.state.shown;
@@ -129,7 +128,24 @@ export class RulesPanel {
   /** The attack being built, or null: the land tab highlights it while open. */
   setAttack(attack: RulesAttack | null): void {
     this.attack = attack;
+    // Building the next attack drops the rolled mark; clearing the selection keeps it.
+    if (attack) this.rolled = null;
     if (this.built) this.render();
+  }
+
+  /** The attack that was just rolled: its column and the cell the roll landed on stay marked. */
+  setRolled(attack: RulesAttack, dieRoll: number): void {
+    this.rolled = { attack, dieRoll };
+    if (this.built) this.render();
+  }
+
+  clearRolled(): void {
+    this.rolled = null;
+    if (this.built) this.render();
+  }
+
+  private highlight(): LandCombatHighlight | null {
+    return this.rolled ? landCombatHighlight(this.rolled.attack, this.rolled.dieRoll) : landCombatHighlight(this.attack);
   }
 
   /** Back to a fresh state (a new game or a load: nothing carries over). */
@@ -137,6 +153,7 @@ export class RulesPanel {
     this.state.reset();
     this.sync();
     this.attack = null;
+    this.rolled = null;
   }
 
   private track<T extends Phaser.GameObjects.GameObject>(list: Phaser.GameObjects.GameObject[], object: T): T {
@@ -226,6 +243,7 @@ export class RulesPanel {
           .setOrigin(0, 0)
           .setScrollFactor(0)
           .setDepth(DEPTH + 1);
+        if (cell.marked) rect.setStrokeStyle(2, 0xffffff);
         this.track(this.content, rect);
         const label = this.scene.add
           .text(cx + w / 2 - 1, y + rowHeight / 2 - 1, cell.text, {
@@ -272,7 +290,7 @@ export class RulesPanel {
   private renderLand(at: { x: number; y: number }): void {
     const t = messages().rules;
     const table = landCombatTable();
-    const hl = landCombatHighlight(this.attack);
+    const hl = this.highlight();
     if (hl) {
       const column = table.columns[hl.column]!;
       this.text(at.x, at.y, t.highlight(hl.attackForce, hl.defenseForce, column, hl.modifier), '#f0d070');
@@ -284,6 +302,7 @@ export class RulesPanel {
       { text: String(d + 1), fill: HEADER_FILL },
       ...row.map((code, c): Cell => {
         if (hl?.column !== c) return { text: code };
+        if (hl.rolled?.row === d + 1) return { text: code, fill: ROLLED_FILL, color: '#1a1206', marked: true };
         return { text: code, fill: hitRows.has(d + 1) ? HIT_FILL : COLUMN_FILL };
       }),
     ]);
