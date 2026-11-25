@@ -11,9 +11,9 @@ plan_approved:
 live_checked:
 merged:
 konmari:
-auto_authorized: 2026-11-25 by-agent    # owner: "/auto 84"
+auto_authorized: 2026-11-25 by-agent    # owner: "spec accepted 84 /auto 84"
 auto_round:
-auto_stopped: spec drafted, waiting for spec_accepted
+auto_stopped:
 follows_up:
 links:
   - intents/55-rule-tables-panel    hid the panel during a pending decision
