@@ -594,3 +594,15 @@ Mutants (backup and restore by copy), each killed:
 - E1 `onOpen` made a no-op: e2e test 1 (selection null once open).
 
 Results: `npm run verify` green (106 files, 1775 passed | 2 skipped; lint 18 warnings, cap 18). `npm run check:intent`: `type-check: FAIL ... A live check is owed and not recorded` (the owner's gate, not recorded by me; no other error). `npm run e2e`: 52 passed, 1 failed (`placement.spec.ts` "Turn buttons", the same 30 s timeout as round 0 when run in the full suite; passes alone).
+
+### 2026-11-25 - rebase onto main after §73
+
+Rebased `feat/83-end-move-phase-warning` onto `main` (28c15d3, after §73, §90, §91) at the owner's request ("rebase 83"). Only the first commit conflicted; three files:
+- `src/scenes/BoardScene.ts`: in `resetSceneState` §83's `this.endMoveWarning?.reset();` sits after `rulesPanel?.reset()` and `dropCombat()`, beside §73's consolidated reset, not inside it. The old `advanceEligibleAttackers = []` / `advanceOfferQueue = []` lines on §83's side were dropped, since §73 removed those fields. Every other §83 hook auto-merged: the `endPhase` hook (after the `decisionPending` guard), the undo-restore reset and `onOpen` clearing the selection.
+- `scripts/size-baseline.json`: the `BoardScene.ts` ceiling is 2834 (§73's 2824 + §83's +10), the measured length of the rebased file.
+- `e2e/dev-hook-members.spec.ts`: the union, sorted: `driftArrow` (§73) and `endMoveWarning` (§83); `pendingChoice` was already pinned by §73's side of the merge.
+Auto-merged files checked: `devHook.ts` has `pendingChoice`, `driftArrow` and `endMoveWarning`; `en.ts`/`fr.ts` keep both message sets. The six reworded `resolvePending*` lines ("choice"/"choix") collide with nothing §73 added or changed (it did not touch them).
+
+Results: `npm run verify` green (110 files, 1825 passed | 2 skipped; lint 17 warnings, cap 18, so §73 lowered the count by one and the cap is left alone). `npm run check:intent`: only `type-check: FAIL ... A live check is owed and not recorded`. `npm run e2e`: 62 passed, 1 failed (`placement.spec.ts:39`, the known 30 s flake; it passes alone). `end-move-warning.spec.ts` + `combat-resolution.spec.ts` with `--repeat-each=2`: 34 passed (7 + 10 scenarios, twice).
+
+Round 1 mutants re-run on the rebased code (backup and restore by copy), each killed: M3 and E13 and E1 by e2e test 1 ("the warning frames, marks and holds every control ..."); M2 by "the camera stays put when every flagged unit is already in view"; C5 and C8 by `cameraFraming.test.ts` "treats a box 1 px inside the margin as visible and 1 px over as not".
