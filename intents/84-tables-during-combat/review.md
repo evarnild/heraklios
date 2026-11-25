@@ -1,6 +1,191 @@
 <!-- generated-by: heraklios/review@0.2.0 -->
 # §84 review — The Tables panel stays available while a combat is being resolved
 
+verdict: attest
+tier: attested
+reviewed-commit: 9995386
+round: 2
+sampled: no
+run: auto
+live-check: owed
+
+The rework resolves every round 1 finding that needed rework:
+- **F1:** the full e2e is green.
+- **F2:** Escape has one route. With the Tables panel open it closes only the
+  panel; with the panel closed it still cancels the End-phase warning (§83
+  AC7); with no warning it does nothing.
+- **F4, F5:** E5 and E10 are now killed.
+- **F3:** decided by the owner in round 1 (accept).
+
+Every new mutant on the changed lines is killed. E8 survives as an
+equivalent mutant, and E11 because it is visual only. One new LOW is left:
+two stale doc comments (F13), for the KonMari step.
+
+## Passes
+| # | Pass | Result |
+| --- | --- | --- |
+| 1 | Intent and plan match | pass. B6's Escape rule now holds for §83's warning too; F3 was accepted by the owner. |
+| 2 | Type check | pass. The only error is the owed live check, which is the owner's. |
+| 3 | Rulebook fidelity | pass. Display only. |
+| 4 | Tests prove the rule | pass. 9 mutants: 7 KILLED, plus E8 (equivalent) and E11 (visual, covered by the live check). |
+| 5 | Boundary and conventions | pass. The scene only routes the key; `EndMoveWarning.cancel()` is a one-line delegate. |
+| 6 | Numbers in prose | pass. The Progress note's 1828 tests in 110 files, 70 e2e scenarios and `BoardScene` 2833 (main 2834) all reproduce. |
+| 7 | Documentation | finding F13 (LOW). README `:562-563` and `:880-891` and CLAUDE.md are accurate. |
+| 8 | Guardrails and hygiene | pass. `✖ 17 problems (0 errors, 17 warnings)`, cap 17. |
+| 9 | Repository footguns | pass |
+| 10 | Architecture | F12 left (LOW, principle 6); fine, see below. |
+
+## Type check
+```
+type-check: FAIL (intent 84, feature)
+  error: A live check is owed and not recorded. Do the steps in intents/84-tables-during-combat/review.md → ## Live check, then set live_checked: <date> in intents/84-tables-during-combat/metadata.yml.
+  note:  16 file(s), 473 line(s) changed outside intents/.
+exit: 1
+```
+The live check is the only error: it is the owner's gate, not a rework finding.
+
+## Findings
+- **F13 LOW** `src/ui/rulesPanel.ts:78` and `:95`: two doc comments still
+  describe the removed suppression.
+  - `:78` says "Shown now: open and not hidden by a pending decision.";
+    `:95` ends "No effect while hidden."
+  - No hidden state remains, and `isOpen()` now drives Escape at
+    `BoardScene.ts:701`.
+  - Worth a look: a two-line mechanical fix, for the KonMari step.
+- **F12 LOW, left** `src/ui/rulesPanelLayout.test.ts:40-52`: the chooser sizes
+  are still copied by hand. The e2e pins the real boxes (y 368, 452), so leaving
+  it is acceptable. The skip's reason doesn't hold, though: the change replaces
+  `320` and `340` in place, so `BoardScene` would grow by 0 lines.
+  - Worth a look, not blocking.
+- **F10 LOW, left:** the owner's spec text (line 55, "15 advance rows"). No
+  code effect.
+- **Round 1, resolved:**
+  - F1: `end-move-warning.spec.ts:252` passes; the README and both comments
+    are fixed.
+  - F2: fixed (below).
+  - F4 and F5: E5 and E10 KILLED.
+  - F6: `rules-panel.spec.ts:47` asserts the button count after settle; the
+    `:138` comment is true.
+  - F7: the figures reproduce.
+  - F8: the comment is rewritten; the line stays as an equivalent survivor.
+  - F9: S1 KILLED.
+  - F11: fixed.
+- **F2's behaviour checks:**
+  - Escape with the panel closed over the warning cancels it
+    (`end-move-warning.spec.ts:116-120`; C1 and C2 fail it).
+  - Escape with no warning reaches `cancel()` → `close(false)`, which
+    returns at once (`endMoveWarning.ts:216`), as before.
+  - Escape during a retreat or exchange prompt still only closes the panel
+    (`tables-during-combat.spec.ts:90-93`, `:180`).
+  - Enter still confirms (`endMoveWarning.ts:68`, `:121-124`).
+  - `grep` finds no other ESC listener in `src/`.
+
+## Mutants
+| Mutant | Target | Result | Killed by |
+| --- | --- | --- | --- |
+| E5 `clearRolled()` removed from `commitEndPhase` | `BoardScene.ts:2596` | KILLED | `tables-during-combat.spec.ts:152` "ending the phase drops the rolled mark (B7)" |
+| E10 `reset()` keeps the roll | `rulesPanel.ts` | KILLED | `tables-during-combat.spec.ts:161` "a load drops the rolled mark (B8)" |
+| F2a the warning's own ESC re-added | `endMoveWarning.ts:68` | KILLED | `end-move-warning.spec.ts:252` |
+| F2b close the panel AND cancel | `BoardScene.ts:701` | KILLED | `end-move-warning.spec.ts:252` |
+| C1 `cancel()` emptied | `endMoveWarning.ts:205-207` | KILLED | `end-move-warning.spec.ts:71` and `:252` |
+| C2 else-branch dropped | `BoardScene.ts:701` | KILLED | `end-move-warning.spec.ts:71` and `:252` |
+| E8 `setAttack` keeps the roll | `rulesPanel.ts:132` | SURVIVED (equivalent, as in round 1) | — |
+| E11 the marked-cell stroke removed | `rulesPanel.ts:246` | SURVIVED (visual only; live check) | — |
+| S1 `setTab` ignored while closed | `rulesPanelState.ts` | KILLED | `rulesPanelState.test.ts` |
+
+## Not checked
+- **The look:** the rolled cell, the choosers' lower position, the Drawn view.
+  Live check.
+- **"Never cuts an animation short"** (B6): e2e runs with animations off.
+- **Enter continuing a drift with the panel open,** and a click on the panel
+  body during a drift.
+- **B9 with a computer seat:** traced in code in round 1.
+- **A 1600-wide canvas in the browser:** §88 is not merged.
+- **Enter with the warning and the panel both open:** the warning confirms and
+  the scene's `resolveDriftContinue` also fires, a no-op outside a drift. This
+  is as on `main`; no scenario has the panel open here.
+
+## Live check
+- **owed:** rule 1 (`src/scenes/**`, `src/ui/**`); the change is new and visual.
+- **steps:**
+  1. In `C:/Users/eric/src/heraklios-wt/84-tables-during-combat`, run `npm
+     run dev -- --port 5284`, open http://127.0.0.1:5284/, and choose
+     **Combat test mode (units face to face, 2 hexes)**.
+  2. Click **Tables**, then **End phase** into combat. The panel opens on
+     Land combat.
+  3. Build and resolve attacks. Test mode keeps Undo across the roll, so undo
+     and resolve until you have seen a DR retreat, a push, an advance offer,
+     an EX exchange and an elephant drift. `__heraklios.seed(n)` in the
+     console varies the die.
+  4. At each prompt: switch tabs, click on the panel, press Escape, reopen
+     with **Tables**, then answer the prompt.
+  5. Toggle to the **Drawn** view and repeat at least the retreat and the
+     drift.
+  6. After a rolled attack, click **End phase**.
+  7. Menu → **Test mode (2 players)**. Click **Tables**, move one or two
+     units, then **End phase** with units unmoved.
+     - Press Escape, then Escape again.
+     - With the panel closed: End phase, then Escape once.
+     - End phase, then Enter.
+     - With the panel open: End phase, then **Cancel**.
+- **you should see:**
+  - The panel stays open on its tab through every prompt, and never opens or
+    changes tab by itself.
+  - Highlights outside the panel stay clickable.
+  - The advance and exchange boxes sit with their top at about y 286, whether
+    or not the panel is open.
+  - Drift Continue, Space and Enter work with the panel open.
+  - Clicks on the panel and Escape never answer or skip anything.
+  - The Land combat tab keeps the rolled attack's column and one outlined
+    bright cell at the die face's row after the modifier, until a new
+    attacker is clicked or the phase ends (step 6: it goes).
+  - In step 7:
+    - the first Escape closes only the panel, and the warning and its marks
+      stay; the second cancels the warning, and you're still in movement;
+    - with the panel closed, one Escape cancels the warning;
+    - Enter ends the phase;
+    - Cancel leaves the panel open on its tab.
+  - The marks may sit under the open panel (F3, accepted).
+  - The look and spacing are acceptable in both views.
+
+## Verified myself vs. taken on trust
+
+**Ran by the reviewer, at `9995386`:**
+- `npm run verify`: exit 0, `✖ 17 problems (0 errors, 17 warnings)`, `Test
+  Files 110 passed (110)`, `Tests 1828 passed | 2 skipped (1830)`.
+- `npm run check:intent`: the FAIL above (live check only).
+- Full `npm run e2e`: `1 failed` (`save-load.spec.ts:57`, §86's flake, whose
+  fix is on `main` and not on this branch), `69 passed (2.8m)`. Re-run alone:
+  `1 passed`.
+- 9 mutants as above, each restored by copy; the tree was clean after each.
+- The rework diff, the append-only `plan.md`, `BoardScene.ts` 2833 vs `main`
+  2834, and no other ESC listener in `src/`.
+
+**Coordinator, re-run, at `9995386` (2026-11-25 15:45–16:03):**
+- **Coordinator, re-run:** `npm run verify`. Exit 0, `✖ 17 problems (0 errors,
+  17 warnings)`, `Test Files 110 passed (110)`, `Tests 1828 passed | 2 skipped
+  (1830)`. Matches.
+- **Coordinator, re-run:** `npm run check:intent`. FAIL on the owed live check
+  only, the same note. Matches.
+- **Coordinator, re-run:** full `npm run e2e`. `70 passed (4.4m)`. Matches;
+  the reviewer's single failure was the §86 flake, which did not recur.
+- **Coordinator, re-run:** the mutants against `end-move-warning.spec.ts`,
+  `tables-during-combat.spec.ts` and `rules-panel.spec.ts`:
+  - E5 KILLED by `tables-during-combat.spec.ts:152`;
+  - E10 KILLED by `:161`;
+  - F2a and F2b KILLED by `end-move-warning.spec.ts:252`;
+  - C1 and C2 KILLED by `end-move-warning.spec.ts:71` and `:252`;
+  - E8 SURVIVED and E11 SURVIVED (`15 passed` each).
+
+  All match. The tree was `clean` after each.
+
+**Taken on trust:**
+- round 1's probes (F2, F3) and B9's code trace;
+- S1 (unit only, killed in the reviewer's run inside a full vitest pass);
+- the seeds' die faces (checked by `combatScenarios.test.ts`, inside verify).
+
+# Round 1 (history)
+
 verdict: rework
 tier: attested
 reviewed-commit: d575efa
