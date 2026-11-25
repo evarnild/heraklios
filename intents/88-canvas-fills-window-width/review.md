@@ -3,6 +3,208 @@
 
 verdict: attest
 tier: attested
+reviewed-commit: 645df2d
+round: 3
+sampled: no
+run: auto
+live-check: owed
+
+Round 3 exists because, after round 2 attested and KonMari, §84 (the Tables
+panel during combat) merged into `main`. On the owner's "rebase 88" the
+branch was rebased onto `main` at `d1814ce`. The rebase is sound.
+
+- **The `rulesPanel.ts` `snapshot()` conflict was resolved correctly.** The
+  result is exactly `main`'s §84 body (`highlight: this.highlight()`, which
+  returns the rolled cell when there is one) plus §88's `left?: number`.
+- **The rebase fix `b54101d` is correct.** §84's `chooserRect`
+  (`rulesPanelLayout.ts:46`) now uses `RULES_PANEL_MARGIN`, the name §88's
+  KonMari gave the margin. Four mutants on it are killed by §84's own unit
+  test.
+- **§84's choosers centre on the real canvas width** (`left: canvasWidth/2 −
+  w/2`; the scene draws at `this.scale.width / 2`), and the Tables panel's
+  x follows the canvas (E3 and E4 killed).
+- **§84's scenarios pass at a 1600 viewport.** The suite as pinned, at 1100,
+  passes 73/73.
+
+Only round 2's LOW notes remain.
+
+## Passes
+| # | Pass | Result |
+| --- | --- | --- |
+| 1 | Intent and plan match | pass. Spec B1–B9 (B5 and AC3b as amended) and plan subtask 8; the rebase adds no behaviour. |
+| 2 | Type check | pass. The only error is the owed live check (the owner's). |
+| 3 | Rulebook fidelity | not run: screen layout only |
+| 4 | Tests prove the rule | pass. `canvasSize`, `panBounds` (P1 equivalent), the Tables x, and the rebase-fixed `chooserRect` are all killed. The army builder wiring (E5–E8) is left to the live check. |
+| 5 | Boundary and conventions | pass |
+| 6 | Numbers in prose | F4 (LOW, carried) |
+| 7 | Documentation | pass. README "The width of the game" is accurate. |
+| 8 | Guardrails and hygiene | pass. `✖ 17 problems (0 errors, 17 warnings)`, cap 17. |
+| 9 | Repository footguns | pass |
+| 10 | Architecture | pass |
+
+## Type check
+```
+type-check: FAIL (intent 88, feature)
+  error: A live check is owed and not recorded. Do the steps in intents/88-canvas-fills-window-width/review.md → ## Live check, then set live_checked: <date> in intents/88-canvas-fills-window-width/metadata.yml.
+  note:  15 file(s), 271 line(s) changed outside intents/.
+exit: 1
+```
+The live check is the only error.
+
+## Findings
+- **Rebase item 1, checked:** `src/ui/rulesPanel.ts:84-92`. It is `main`'s
+  snapshot body plus `left`. §84's e2e reads the snapshot with `toMatchObject`
+  or `.highlight`. The only `toEqual` is on the closed state
+  (`rules-panel.spec.ts:55`), where `left` is `undefined`. No action.
+- **Rebase item 2, checked:** `src/ui/rulesPanelLayout.ts:46`. `TOP +
+  RULES_PANEL_H + RULES_PANEL_MARGIN` = 286, the value §84 pins; R1–R4 are
+  killed. No action.
+- **§84 on a wide canvas, checked.** The reviewer ran §84's and §55's
+  scenarios through a scratch Playwright config.
+  - At 1600: `8 passed`.
+  - At 2400: 7 passed, and `rules-panel.spec.ts:50` failed at `:119`
+    (`Expected: 3 / Received: 4`).
+  - That is §55's test geometry, not a defect. At 2400 the pan bounds equal
+    the room (B5), so `centerOn` cannot slide the archers' hex under the
+    panel, and the test's guard only checks `under.x > 330`. The suite is
+    pinned at 1100 (AC4), where it passes. No action; see the live check.
+- **F4 LOW (carried):** `plan.md` Progress, "rework round 1". "70 passed" and
+  "496 lines, was 499" don't reproduce: `MapView.ts` is 492, and the full
+  e2e is now 73. Bookkeeping, not rework.
+- **F5 LOW (carried):** below zoom 1 on a wide window, the board slides toward
+  the panel. It follows the spec. Live check step 10.
+- **F6 LOW (carried):** `e2e/wide-canvas.spec.ts:51-66` assumes zoom 1 and
+  doesn't assert it. A wrong zoom would fail the test, not pass it.
+
+No finding needs rework or a decision.
+
+## Mutants
+| Mutant | Target | Result |
+| --- | --- | --- |
+| R1 no margin | `rulesPanelLayout.ts:46` | KILLED by "places the advance and exchange choosers below the panel, centred, at 1100 and 1600 wide (§84)" |
+| R2 margin → `TOP` | `rulesPanelLayout.ts:46` | KILLED by the same test |
+| R3 chooser centred on 550 | `rulesPanelLayout.ts:47` | KILLED by the same test |
+| R4 `RULES_PANEL_MARGIN = 13` | `rulesPanelLayout.ts:14` | KILLED by "sits at 312..1088 x 8..274 …" and the §84 chooser test |
+| P1 `>` → `>=` | `panBounds.ts:18` | SURVIVED, equivalent |
+| P2, P3, P5, P8, P9 | `panBounds.ts` | KILLED by `panBounds.test.ts` |
+| W1, W2, W3 | `MapView.ts:136` | KILLED by `wide-canvas.spec.ts:51` |
+| E1 `canvasSize(0)` | `main.ts:11` | KILLED by `:19`, `:37` and `:51` |
+| E2 `window.innerWidth` only | `main.ts:11` | SURVIVED, equivalent |
+| E3 `rulesPanelRect(1100)` | `rulesPanel.ts:123` | KILLED by `:19` |
+| E4 `left + 1` | `rulesPanel.ts:90` | KILLED by `:19` |
+| E5–E8 (the army builder wiring) | `ArmyBuilderScene.ts` | SURVIVED (live check) |
+
+## KonMari
+KonMari ran after round 2 (`outcome: kept`; record and check in round 2
+below). The only commit since then outside `intents/` is the rebase fix
+`b54101d`, a one-word rename to the name that KonMari introduced. There is
+nothing in it to tidy, so no second KonMari pass ran.
+
+## Not checked
+- The army builder at 1600 or 2400 (E5–E8): live check.
+- Zooming out and dragging on a wide window in a real browser (F5).
+- A click on the open Tables panel at 2400 staying off the map. It's
+  inferred from `contains()` using the same bounds that E3 and E4 prove; it
+  wasn't observed.
+- The choosers' x position in the browser. It's proven at unit level (R3)
+  and by reading the code.
+- Resizing after load (B3), and a window under 1100.
+
+## Live check
+- **owed:** rule 1 (`src/main.ts`, `src/ui/**`,
+  `src/scenes/ArmyBuilderScene.ts`) and rule 3.
+- **steps:**
+  1. In `C:/Users/eric/src/heraklios-wt/88-canvas-fills-window-width`, run
+     `npm run dev -- --port 5288 --strictPort --host 127.0.0.1`, and open
+     http://127.0.0.1:5288/ in a window about 1900 px wide.
+  2. Look at the Menu.
+  3. Click **2**, then for both players **Use default army** and **Confirm**.
+  4. Placement: place a few units; find **Done placing**.
+  5. Board: drag the map, open **Tables**, open an attack prompt, and **End
+     phase** with units unmoved (§83's warning).
+  6. Menu → **Combat test mode (units face to face, 2 hexes)**.
+     - Open **Tables**, build an attack, and roll.
+     - Keep the panel open through any retreat, advance or exchange prompt.
+     - Press Escape while a chooser is up.
+     - Attack again.
+  7. Menu → **Test mode (2 players, armies ready)**, then **End game**, and
+     look at Game over.
+  8. Narrow the window without reloading, then reload.
+  9. Repeat the walk at 1100 or narrower, including step 6.
+  10. Very wide: a 2400+ px screen, or browser zoom at 50 % then reload.
+      - Look at the Board in Test mode, and at Placement in a normal
+        2-player game.
+      - On each, try a horizontal drag, a vertical drag, a wheel zoom in and
+        out, and ending a turn.
+      - On the Board, also click on the open Tables panel over the map.
+- **you should see:**
+  - The Menu centred, with English/Français top-right.
+  - The army builder as one centred block, looking as today.
+  - On the Board: the map fills the area right of the panel, the score panel
+    is bottom-right, the Tables panel top-right, and prompts and Game over
+    are centred.
+  - §83's warning frames the unmoved units, with its prompt over the log.
+  - In step 6:
+    - the Tables panel stays open at the top right, on its tab;
+    - the rolled cell stays marked until the next attack is built;
+    - the choosers sit below the panel, centred on the canvas;
+    - Escape closes only the panel and leaves the chooser.
+  - Resizing changes nothing until a reload.
+  - At 1100 or narrower, everything exactly as today, §84 included.
+  - In step 10:
+    - the board is centred in the room on the Board, and on the whole canvas
+      in Placement;
+    - a horizontal drag does nothing at normal zoom, and a vertical drag
+      pans;
+    - zooming in lets you pan the whole board;
+    - zooming out keeps the board fully visible but slides it toward the
+      left (F5; say if that bothers you);
+    - ending a turn doesn't shift the board sideways;
+    - a click on the open panel doesn't act on the map.
+
+## Verified myself vs. taken on trust
+
+**Ran by the reviewer, at `645df2d`:**
+- `npm run verify`: exit 0, `✖ 17 problems (0 errors, 17 warnings)`, `Test
+  Files 112 passed (112)`, `Tests 1850 passed | 2 skipped (1852)`.
+- `npm run check:intent`: the FAIL above (live check only).
+- Full `npm run e2e`: `73 passed (3.1m)`, with no flakes.
+- §84's and §55's scenarios at 1600 (`8 passed`) and at 2400 (7 passed, plus
+  the `rules-panel.spec.ts:50` geometry failure explained above). Both runs
+  used a scratch config that touched no tracked file.
+- The mutants above.
+  - The reviewer's first e2e batch was invalid: the port was busy, and an
+    escaping bug stacked mutations. The four files were restored to their
+    HEAD blobs, and every e2e mutant was re-run with a fixed harness.
+  - `git status --short` was empty after each and at the end.
+- Sampling, from the main checkout: `nth attested auto change = 22, every 3,
+  sampled: no`.
+
+**Coordinator, re-run, at `645df2d` (2026-11-25 17:25–17:32):**
+- **Coordinator, re-run:** `npm run verify`. Exit 0, `✖ 17 problems (0 errors,
+  17 warnings)`, `Test Files 112 passed (112)`, `Tests 1850 passed | 2 skipped
+  (1852)`. Matches.
+- **Coordinator, re-run:** `npm run check:intent`. FAIL on the owed live check
+  only, the same note. Matches.
+- **Coordinator, re-run:** R1, R2, R3 and R4 against `rulesPanelLayout.test.ts`:
+  all **KILLED**. Matches.
+- **Coordinator, re-run:** P1 against `panBounds.test.ts`: **SURVIVED** (`11
+  passed`). Matches.
+- **Coordinator, re-run:** full `npm run e2e`. `73 passed (3.1m)`. Matches.
+- **Coordinator, re-run:** E2, E5, E6, E7 and E8 against
+  `e2e/wide-canvas.spec.ts`: all **SURVIVED** (`3 passed` each). Matches.
+- The tree was `clean` after each. The worktree was clean before the
+  re-check, after the reviewer's restore.
+
+**Taken on trust:**
+- P2–P9, W1–W3, E1, E3 and E4 in this round (the reviewer's; the same results
+  as round 2 and its KonMari check, which the coordinator re-ran);
+- Phaser's `clampX` behaviour behind F5.
+
+# Round 2 (history)
+
+verdict: attest
+tier: attested
 reviewed-commit: d21ff8b
 round: 2
 sampled: no
