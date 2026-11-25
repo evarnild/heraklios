@@ -212,6 +212,51 @@ machine:**
 - the reviewer's vitest-only survivors E11b, L8, L9, M3 and M7, which round 1's
   coordinator re-check also saw survive.
 
+## KonMari check
+**outcome: kept** (`konmari.md`, record `041712d`, base `f659280`). Two
+tidy-ups:
+- `63f2935`: one unit drawing for the Board and Placement. `drawingOf(u)` and
+  `isShip(u)` are exported from `src/ui/unitDrawings.ts`, and
+  `placementDrawings.ts` uses them in place of its private `isShip` and its
+  inline literal, which §82's `buildUnitDrawings` had copied (principle 6).
+- `2b8ed1c`: one `boardView` import in `devHook.ts`.
+
+Moved mutant lines: D6 is now at `unitDrawings.ts:26`; P1/P2 go after
+`placementDrawings.ts:32`.
+
+**The B16 check, at `041712d` (2026-11-25 19:00–19:21):**
+- **Coordinator, re-run:** `npm run verify`. Exit 0, `✖ 17 problems (0 errors,
+  17 warnings)`, `Test Files 113 passed (113)`, `Tests 1858 passed | 2 skipped
+  (1860)`. The counts are unchanged.
+- **Coordinator, re-run:** `npm run check:intent`. FAIL on the owed live check
+  only (`26 file(s), 1029 line(s)`).
+- **Coordinator, re-run:** every killed mutant in the tidied drawing code,
+  plus new ones on the shared helper, against the full vitest suite. All
+  **KILLED**:
+  - D1 (status dropped), D2 (charge dropped), D3 (the destroyed skip
+    dropped), D4 (facing for every unit, in `drawingOf`), D5 (the ships list
+    dropped) and D6 (context → `{}`);
+  - P1 (Placement adds a status), P2 (Placement copies the charge) and P3
+    (Placement's dimming dropped);
+  - P4 (`isShip` always false), `4 failed`.
+
+  The tree was `clean` after each.
+- **Coordinator, re-run:** full `npm run e2e`. `78 passed (3.9m)`.
+- `BoardScene.ts` 2826 and `MapView.ts` 499 are untouched; no baseline
+  change.
+
+**The reviewer's read of `f659280..041712d`: pass.**
+- Within reach: `placementDrawings.ts` is untouched by §82, and §82's
+  `buildUnitDrawings` had copied its base literal.
+- Behaviour is identical field by field: the key order and the explicit
+  `facing: undefined` for land are kept. `drawingOf` never writes a `status`
+  or `charged` key, so AC12's `'status' in d` assertions hold.
+- `unitType(u)` is `getUnitType(u.typeId)` (`state.ts:44-46`).
+- There is no import cycle. Placement now reaches `engine/unitStatus`
+  through the module graph, still in the ui → engine direction (principle
+  2), and calls no status code (principle 5).
+- No test, config or `eslint-disable` change; `konmari.md` is exact.
+
 # Round 1 (history)
 
 verdict: rework
