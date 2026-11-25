@@ -9,7 +9,7 @@
 // first: it clicks the first free legal hex for every land unit until the
 // current item is a ship, then places two ships, one per Turn button.
 import { expect, test, type Page } from '@playwright/test';
-import { getUnitType } from '../src/data/units';
+import { UNIT_TYPES, getUnitType } from '../src/data/units';
 import { clickButton, clickHex, collectErrors, key, state, type Hex } from './helpers';
 
 async function unitCount(page: Page): Promise<number> {
@@ -43,11 +43,24 @@ test('the Turn buttons turn a ship being placed the way they sit', async ({ page
   await page.waitForFunction(() => window.__heraklios?.buttonCount('2') === 1);
   await clickButton(page, '2');
   await test.step('build armies', async () => {
-    for (let seat = 0; seat < 2; seat++) {
-      await page.waitForFunction(() => window.__heraklios.buttonCount('Use default army') === 1);
-      await clickButton(page, 'Use default army');
-      await clickButton(page, 'Confirm army');
+    // §89: seat 0 buys a small, ship-heavy army instead of the default one, so
+    // the land loop below places 8 units, not 43. Measured before the change,
+    // that loop took 17-31 s of the 30 s test timeout (playwright.config.ts)
+    // and every click costs more on a busy machine. `»` fills a row to its
+    // cap or to what the budget allows (§51); rows are addressed by
+    // UNIT_TYPES index, as army-builder.spec.ts does. Fills in order:
+    // quintiremes 1, triremes 3, biremes 5, galeres 6 (300 pt), phalanges 5
+    // (375), elephants 2 (395), archers 1 (400): 8 land units, 15 ships.
+    await page.waitForFunction(() => window.__heraklios.buttonCount('»') > 0);
+    for (const id of ['quintiremes', 'triremes', 'biremes', 'galeres', 'phalanges', 'elephants', 'archers']) {
+      await clickButton(page, '»', UNIT_TYPES.findIndex((u) => u.id === id));
     }
+    expect((await page.evaluate(() => window.__heraklios.armyBuilder())).total, 'the small army costs exactly 400').toBe(400);
+    await clickButton(page, 'Confirm army');
+    // Seat 1 keeps the default army: its placement is never reached.
+    await page.waitForFunction(() => window.__heraklios.buttonCount('Use default army') === 1);
+    await clickButton(page, 'Use default army');
+    await clickButton(page, 'Confirm army');
     await page.waitForFunction(() => window.__heraklios.scenes().includes('Placement'));
     await page.waitForFunction(() => window.__heraklios.state() !== null);
   });
