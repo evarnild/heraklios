@@ -13,7 +13,7 @@ merged:
 konmari:
 auto_authorized: 2026-11-25 by-agent    # owner: "spec accepted 84 /auto 84"
 auto_round: 2
-auto_stopped:
+auto_stopped: live check owed
 follows_up:
 links:
   - intents/55-rule-tables-panel    hid the panel during a pending decision
