@@ -13,7 +13,7 @@ merged:
 konmari:
 auto_authorized: 2026-11-25 by-agent    # owner: "live checked 82 /auto 82"
 auto_round: 2
-auto_stopped: live check owed
+auto_stopped: ready for /deliver
 follows_up:
 links:
   - intents/74-unit-hover-stats    the tooltip's state line shows the same facts on hover
