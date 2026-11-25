@@ -7,7 +7,7 @@ title: The Tables panel stays available while a combat is being resolved
 review_tier:
 intent_accepted: 2026-11-22 by-agent    # owner: "accept 81 82 83 84 /auto 81 /auto 83"
 spec_accepted: 2026-11-25 by-agent    # owner: "spec accepted 84 /auto 84"
-plan_approved:
+plan_approved: 2026-11-25 by-agent    # auto: owner "spec accepted 84 /auto 84" (auto_authorized 2026-11-25)
 live_checked:
 merged:
 konmari:
