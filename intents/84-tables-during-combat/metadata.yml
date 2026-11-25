@@ -6,7 +6,7 @@ status: accepted
 title: The Tables panel stays available while a combat is being resolved
 review_tier:
 intent_accepted: 2026-11-22 by-agent    # owner: "accept 81 82 83 84 /auto 81 /auto 83"
-spec_accepted:
+spec_accepted: 2026-11-25 by-agent    # owner: "spec accepted 84 /auto 84"
 plan_approved:
 live_checked:
 merged:
