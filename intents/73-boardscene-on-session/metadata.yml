@@ -12,8 +12,8 @@ live_checked: 2026-11-25 by-agent    # owner: "live checked 73 /auto 73"
 merged:
 konmari:
 auto_authorized: 2026-11-25 by-agent    # owner: "live checked 73 /auto 73"
-auto_round: 2
-auto_stopped: ready for /deliver
+auto_round: 3
+auto_stopped:
 follows_up:
 links:
   - intents/72-engine-host-seams
