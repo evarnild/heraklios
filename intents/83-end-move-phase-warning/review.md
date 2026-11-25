@@ -196,6 +196,65 @@ Lines are in `src/scenes/BoardScene.ts` at `fe10933`.
 - round 1's rule-fidelity and equivalent-mutant judgements (code unchanged);
 - that the live check will settle the visual items.
 
+## KonMari check
+**outcome: kept** (`konmari.md`, record `43f1a79`, base `84babef`). The tidy-up
+commits:
+- `7d4d20a`: one `memberSnapshot` dev-hook reader for the Tables panel's and the
+  warning's snapshots (`devHook.ts` 499 → 487 lines).
+- `ba256ef`: one `CameraView` type, used three times.
+- `8927402`: drops the warning's redundant `shutdown` reset (equivalent
+  mutant E11).
+
+`|| this.isOpen` (E12) is kept, with its reason in the record. Moved mutant
+lines, all matched by their text: E12 `:84`, E1 `:86`, E13 `:131`, the restore
+line `:215`. The C mutants moved down 7 lines with unchanged text.
+
+**The B16 check, at `43f1a79` (2026-11-25 12:27–13:00):**
+- **Coordinator, re-run:** `npm run verify`. `✖ 17 problems (0 errors, 17
+  warnings)`, `Tests 1 failed | 1824 passed | 2 skipped (1827)`.
+  - The one failure was `server/fileSaveFs.test.ts › the retry inside a real
+    write › a write whose rename fails transiently still succeeds, after a
+    real pause`, a real-time test in the save server.
+  - The KonMari commits touch no `server/` file (`git diff --name-only
+    84babef..HEAD -- server` is empty).
+  - The file alone passed 5 of 5 (`Tests 25 passed (25)` each), and the full
+    vitest baseline of the mutant run at 12:34 passed.
+  - So it's a timing flake under load, not the tidy-up. The test count is
+    unchanged (1825 when green) and the warning count is unchanged (17).
+  - Worth a look as a separate flake: its 25/50 ms pauses are tight on a busy
+    machine.
+- **Coordinator, re-run:** `npm run check:intent`. FAIL on the owed live check
+  only, as in round 2.
+- **Coordinator, re-run:** full `npm run e2e`. `1 failed`, `62 passed (4.2m)`.
+  The failure was `placement.spec.ts:39` (§89's flake, fixed on `main`, not
+  on this branch).
+- **Coordinator, re-run:** every killed mutant in the files the tidy-up
+  touched, plus round 2's, re-applied by line text:
+  - **`cameraFraming.ts`**, against the full vitest suite: C2, C3, C4, C5, C6,
+    C7, C8 and C9, all **KILLED**.
+  - **`endMoveWarning.ts`, `MapView.ts` and `BoardScene.ts`**, against
+    `e2e/end-move-warning.spec.ts` with `--retries=1`: E1, E2, E3, E4, E5, E6,
+    E7, E8, E9, E10, E13, E14, E15, E16, M1, M2, M3, B1 and B2, all
+    **KILLED**.
+  - M1 is the `cam.setZoom(view.zoom)` line in `MapView.setCameraView`
+    (`:465`), unchanged by the tidy-up.
+  - After each the tree was `clean`.
+- **Ceilings:** `BoardScene.ts` 2834 and `MapView.ts` 496, both unchanged;
+  `devHook.ts` shrank and isn't budgeted. No baseline entry changed.
+
+**The reviewer's read of `84babef..43f1a79`: pass.**
+- `rulesPanelSnapshot` (on `main`) and §83's `endMoveWarningSnapshot` were
+  true duplicates. The merged reader keeps the same member, throw and
+  return. Only the dev-only error text changed, and no test reads it.
+- The shutdown reset was redundant. In Phaser 3.90.0, `KeyboardPlugin.shutdown`
+  calls `removeAllListeners()` (`KeyboardPlugin.js:880-883`), `create` →
+  `resetSceneState` resets the old instance first, and a second `destroy()` is
+  a no-op.
+- `CameraView` is type-only.
+- No test assertion, case, dependency or `eslint-disable` changed.
+  Principles 5–12 hold.
+- `konmari.md` lists exactly the three tidy-ups.
+
 # Round 1 (history)
 
 - verdict: rework
