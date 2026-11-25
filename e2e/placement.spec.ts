@@ -3,8 +3,9 @@
 // (facing -1), by canvas clicks only (see naval.spec.ts and hexToPixel for
 // why a higher facing index is counter-clockwise).
 //
-// Route: Menu "2" -> default army + "Confirm army" for each seat -> player
-// 0's Placement. The queue follows UNIT_TYPES order, so the scenario reads
+// Route: Menu "2" -> seat 0 buys a small, ship-heavy army through the `»`
+// fills (see the "build armies" step) and seat 1 takes the default army,
+// each with "Confirm army" -> player 0's Placement. The queue follows UNIT_TYPES order, so the scenario reads
 // the current item from the hook rather than assuming land or ships come
 // first: it clicks the first free legal hex for every land unit until the
 // current item is a ship, then places two ships, one per Turn button.

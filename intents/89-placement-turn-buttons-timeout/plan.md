@@ -216,3 +216,12 @@ this line is the implementer's to edit. -->
   stops at the first failed `expect`; so one of the two facing assertions
   reports, the second is guarded only by being the same code path.
 - **`npm run verify`, `npm run check:intent`:** see the final report.
+
+### 2026-11-25 — round 1 rework
+
+- Fixed F3: the header comment of `e2e/placement.spec.ts` now says seat 0 buys
+  a small, ship-heavy army through the `»` fills and seat 1 takes the default
+  army. Comment only. The quiet-target decision is the owner's ("accept the
+  margin"; plan amended in b4c7ed4), so no timing work.
+- `npm run verify`, `npm run check:intent` and one run of the placement
+  scenario: see the commit and the report.
