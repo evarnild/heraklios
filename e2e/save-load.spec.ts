@@ -6,6 +6,7 @@
 import { readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import { messagesFor } from '../src/ui/i18n/index';
 import {
   MENU_TEST,
   activeUnitOfType,
@@ -22,7 +23,6 @@ import {
   waitLoaded,
   waitSavePanelLoaded,
 } from './helpers';
-import { messagesFor } from '../src/ui/i18n/index';
 import { SAVES_DIR, acquireSaveLock, withSaveLockHeld } from './savesDir';
 
 const DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]] as const;
