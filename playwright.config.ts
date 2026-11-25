@@ -26,7 +26,7 @@ export default defineConfig({
   reporter: [['list'], ['./scripts/sleep-reporter.mjs']],
   use: {
     baseURL: `http://${HOST}:${PORT}`,
-    // The game's own size (1100×750); the HUD is laid out for it.
+    // The game's default size (1100×750); a wider window widens the canvas (§88).
     viewport: { width: 1100, height: 750 },
     browserName: 'chromium',
     trace: 'retain-on-failure',

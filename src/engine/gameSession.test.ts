@@ -5,7 +5,6 @@ import { applyAction, legalActions, type Action } from './actions';
 import { describeLandAttack, eligibleAdvanceCandidates, legalRetreatHexes, unitAt } from './combat';
 import { newPending, stepsForItems, type AnswerAction, type Question } from './combatResolution';
 import { rollDie } from './dice';
-import { resolveElephantDrift } from './drift';
 import {
   buildElephantScenarioGameState,
 } from './fuzzHarness';
@@ -20,7 +19,7 @@ import {
   type SessionEvent,
 } from './gameSession';
 import { RandomAgent } from './randomAgent';
-import { resolveUnitRetreat } from './retreat';
+import { resolveElephantDrift, resolveUnitRetreat } from './driftReference';
 import { createSeededRng } from './rng';
 import { settleWithAgent } from './sessionAgents';
 import { unitType, type GameState, type Unit } from './state';
@@ -245,19 +244,27 @@ describe('question sequences (B4, B5)', () => {
   });
 
   /**
-   * a (10,5) is boxed in, with two friends that could be pushed: b (11,5) and
-   * d (9,5). b is boxed too, with c (12,5) behind it, which can retreat. The
-   * same geometry `fuzzHarness.test.ts` uses for the visited-set test.
+   * a (2,18) is boxed in, with two friends that could be pushed: b (3,18) and
+   * d (1,18). b is boxed too, with c (4,18) behind it, which can retreat. The
+   * same shape `fuzzHarness.test.ts` uses for the visited-set test, moved to
+   * where a river runs between e0 (3,17) and b, and another between a (2,18)
+   * and b (3,18), which the push crosses (rivers don't affect a push).
+   *
+   * §90: a push may never take a hex under enemy ZOC. The attacker e0 touches
+   * a and b, so it would ZOC b's hex - except that the river along (3,17)-(3,18)
+   * blocks ZOC (`hexesUnderZoc`), and an advance ignores rivers. The other
+   * five boxes are naval placeholders (`galeres`): they block a retreat but
+   * project no ZOC. The map's ground here is all plain.
    */
   function pushPosition() {
-    const a = unit('a', 'fantassins', 10, 5);
-    const b = unit('b', 'fantassins', 11, 5);
-    const c = unit('c', 'fantassins', 12, 5);
-    const d = unit('d', 'fantassins', 9, 5);
+    const a = unit('a', 'fantassins', 2, 18);
+    const b = unit('b', 'fantassins', 3, 18);
+    const c = unit('c', 'fantassins', 4, 18);
+    const d = unit('d', 'fantassins', 1, 18);
     const enemyHexes = [
-      { q: 11, r: 4 }, { q: 10, r: 4 }, { q: 9, r: 6 }, { q: 10, r: 6 }, { q: 12, r: 4 }, { q: 11, r: 6 },
+      { q: 3, r: 17 }, { q: 2, r: 17 }, { q: 1, r: 19 }, { q: 2, r: 19 }, { q: 4, r: 17 }, { q: 3, r: 19 },
     ];
-    const enemies = enemyHexes.map((h, i) => unit(`e${i}`, 'fantassins', h.q, h.r, 1));
+    const enemies = enemyHexes.map((h, i) => unit(`e${i}`, i === 0 ? 'fantassins' : 'galeres', h.q, h.r, 1));
     const state = gameWith([a, b, c, d, ...enemies]);
     state.activePlayerIndex = 1;
     return { a, b, c, d, attacker: enemies[0]!, state };
@@ -270,14 +277,14 @@ describe('question sequences (B4, B5)', () => {
   // already stands on).
   it('offers no advance into a defender hex that is occupied again', () => {
     const { a, b, state } = pushPosition();
-    const e0 = state.units.find((u) => u.id === 'e0')!; // (11,4), next to both a and b
+    const e0 = state.units.find((u) => u.id === 'e0')!; // (3,17), next to both a and b (a river lies between e0 and b)
     const session = newSession(state);
     const pending = newPending(
       [e0.id],
       stepsForItems(
         [
-          { kind: 'retreat', unitId: 'a', originalHex: { q: 10, r: 5 } },
-          { kind: 'retreat', unitId: 'b', originalHex: { q: 11, r: 5 } },
+          { kind: 'retreat', unitId: 'a', originalHex: { q: 2, r: 18 } },
+          { kind: 'retreat', unitId: 'b', originalHex: { q: 3, r: 18 } },
         ],
         'defender',
       ),
@@ -291,9 +298,9 @@ describe('question sequences (B4, B5)', () => {
       const choice = question.kind === 'pushTarget' ? answers.find((x) => x.kind === 'answerPushTarget' && x.unitId === 'b')! : answers.at(-1)!;
       sessionApply(session, choice, scripted([]));
     }
-    expect(a.position).toEqual({ q: 11, r: 5 }); // a took b's hex
-    expect(b.position).not.toEqual({ q: 11, r: 5 });
-    expect(advances.map((q) => (q as { vacatedHex: HexCoord }).vacatedHex)).toEqual([{ q: 10, r: 5 }]);
+    expect(a.position).toEqual({ q: 3, r: 18 }); // a took b's hex
+    expect(b.position).not.toEqual({ q: 3, r: 18 });
+    expect(advances.map((q) => (q as { vacatedHex: HexCoord }).vacatedHex)).toEqual([{ q: 2, r: 18 }]);
   });
 
   it('a push asks which friend to push, resolves the chain, then offers the advance', () => {
@@ -307,13 +314,14 @@ describe('question sequences (B4, B5)', () => {
     // b has only c to push (forced); c's own retreat is a question only when it has a choice.
     expect(played.forced.some((q) => q.kind === 'pushTarget' && q.unitId === 'b')).toBe(true);
     expect(cOptions.length > 1 ? played.questions.some((q) => q.kind === 'retreat' && q.unitId === 'c') : played.forced.some((q) => q.kind === 'retreat' && q.unitId === 'c')).toBe(true);
-    expect(played.questions.at(-1)).toEqual({ kind: 'advance', player: 1, vacatedHex: { q: 10, r: 5 }, candidateIds: [attacker.id] });
-    expect(played.events).toEqual([
+    expect(played.questions.at(-1)).toEqual({ kind: 'advance', player: 1, vacatedHex: { q: 2, r: 18 }, candidateIds: [attacker.id] });
+    // §73 added the retreat, advance... events: the pushes are still these two, in order.
+    expect(played.events.filter((e) => e.kind === 'push')).toEqual([
       { kind: 'push', unitId: 'b', pushedId: 'c' },
       { kind: 'push', unitId: 'a', pushedId: 'b' },
     ]);
-    expect(b.position).toEqual({ q: 12, r: 5 });
-    expect(a.position).toEqual({ q: 11, r: 5 });
+    expect(b.position).toEqual({ q: 4, r: 18 });
+    expect(a.position).toEqual({ q: 3, r: 18 });
   });
 
   /**
@@ -343,7 +351,8 @@ describe('question sequences (B4, B5)', () => {
 
     expect(played.questions[0]).toEqual({ kind: 'retreat', player: 0, unitId: 'p', options });
     expect(played.questions[1]).toEqual({ kind: 'advance', player: 0, vacatedHex: { q: 14, r: 5 }, candidateIds: ['c'] });
-    expect(played.events.map((e) => e.kind)).toEqual(['driftStarted', 'driftCombat']);
+    // The trampled unit's retreat is an event too (§73).
+    expect(played.events.map((e) => e.kind)).toEqual(['driftStarted', 'driftCombat', 'retreat']);
     expect(trampled.position).toEqual(options.at(-1)); // moved by its owner's answer
     expect(elephant.position).toEqual({ q: 14 + unitType(elephant).movement, r: 5 }); // its whole move, east: it carried on
   });
@@ -371,7 +380,8 @@ describe('question sequences (B4, B5)', () => {
       if (session.pending) asked.push(sessionQuestion(session)!);
     }
     expect(asked.map((q) => q.kind)).toEqual(['retreat', 'advance', 'advance']);
-    expect(events.map((e) => e.kind)).toEqual(['driftStarted']);
+    // The foot's answered retreat, then the drift (a declined advance is no event).
+    expect(events.map((e) => e.kind)).toEqual(['retreat', 'driftStarted']);
   });
 
   // I1: an item skipped because its unit is already gone still gets its
@@ -615,7 +625,7 @@ describe('the drift runs inside the session (B7, B8)', () => {
 
   /**
    * The BoardScene-path reference: `applyAction`, then `resolveElephantDrift` and
-   * `engine/retreat.ts` with the same agent, as `processDrifts` and
+   * `driftReference.ts`'s two pumps with the same agent, as `processDrifts` and
    * `processRetreats` drove them before §72. It is kept here so the parity
    * check survives the harness moving onto the session.
    */
@@ -670,7 +680,7 @@ describe('the drift runs inside the session (B7, B8)', () => {
   // Kills a die rolled out of order, an extra `driftStep` before the first
   // request is answered, and resuming the drift before a trampled unit's
   // retreat is resolved: any of them changes the final state or the draws.
-  it('ends in the same state, with the same draws, as resolveElephantDrift and retreat.ts', async () => {
+  it('ends in the same state, with the same draws, as resolveElephantDrift and resolveUnitRetreat', async () => {
     let drifts = 0;
     for (let seed = 1; seed <= 24; seed++) {
       const attack: Action = { kind: 'landAttack', attackerIds: ['attacker'], defenderIds: ['defender'] };

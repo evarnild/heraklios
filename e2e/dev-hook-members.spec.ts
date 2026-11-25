@@ -16,12 +16,15 @@ const MEMBERS = [
   'cameraZoom',
   'centerOn',
   'displayListSorted',
+  'driftArrow',
+  'endMoveWarning',
   'hexToCanvas',
   'hudStrays',
   'idle',
   'landscapeBuilds',
   'logEntries',
   'logPanel',
+  'pendingChoice',
   'pendingHexes',
   'placement',
   'reachable',
@@ -36,6 +39,7 @@ const MEMBERS = [
   'tooltipBox',
   'tooltipText',
   'unitCanvas',
+  'unitMarks',
   'viewCentre',
 ];
 

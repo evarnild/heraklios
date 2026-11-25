@@ -3,11 +3,13 @@ import { scanCameras, type CameraObject, type CameraScan } from './cameraStrays'
 import type { HexCoord } from '../data/map';
 import { HEX_SIZE, hexToPixel } from './hexRender';
 import { allHexes } from './mapBounds';
+import { MAX_ZOOM, MIN_ZOOM, frameBox, type Box, type CameraView } from './cameraFraming';
+import { panBounds } from './panBounds';
 import { formatHexTooltip } from './hexTooltip';
 import { hexAtPoint } from './hexHitTest';
 import { StandardBoardView } from './standardBoardView';
 import { DrawnBoardView } from './drawnBoardView';
-import type { BoardView, FacingShip, UnitDrawing, UnitMotion, ViewHost } from './boardView';
+import type { BoardView, FacingShip, UnitDrawing, UnitMark, UnitMotion, ViewHost } from './boardView';
 import { boardViewKind } from './boardViewPreference';
 import type { BoardViewKind } from './boardViewPreference';
 import { ViewDrawingState } from './viewDrawingState';
@@ -131,12 +133,7 @@ export class MapView {
     // slack) rather than a fixed margin sized for the old centering — so the
     // board can't be scrolled away into empty space next to the panel.
     const boundsPadding = 200;
-    this.enableDrag({
-      x: this.originX + minX - boundsPadding,
-      y: this.originY + minY - boundsPadding,
-      width: boardWidth + boundsPadding * 2,
-      height: boardHeight + boundsPadding * 2,
-    });
+    this.enableDrag(panBounds({ x: this.originX + minX, y: this.originY + minY, width: boardWidth, height: boardHeight }, availableWidth, boundsPadding));
     this.enableZoom();
     const mainCam = scene.cameras.main;
     mainCam.setViewport(leftPanelWidth, 0, availableWidth, viewportHeight);
@@ -188,6 +185,9 @@ export class MapView {
     const hudLeaks = ui ? this.boardView.mapObjects().filter((o) => (o.cameraFilter & ui.id) === 0).length : 0;
     return { ...this.boardView.inspect(), hudLeaks };
   }
+
+  /** Dev-hook reader (§82): the marker each drawn unit shows, in the active view. */
+  unitMarks(): Record<string, UnitMark> { return this.boardView.unitMarks(); }
 
   /** Dev-hook reader (read-only; §67): the display-list objects both cameras would render. */
   cameraStrays(): CameraScan {
@@ -247,8 +247,6 @@ export class MapView {
    * a trackpad is reported by the browser as wheel events). */
   private enableZoom(): void {
     const cam = this.scene.cameras.main;
-    const MIN_ZOOM = 0.4;
-    const MAX_ZOOM = 2.5;
 
     this.scene.input.on(
       'wheel',
@@ -452,6 +450,40 @@ export class MapView {
   centerOn(hex: HexCoord): void {
     const p = this.toScreen(hex);
     this.scene.cameras.main.centerOn(p.x, p.y);
+  }
+
+  /** The main camera's zoom and scroll, to restore later (§83). */
+  cameraView(): CameraView {
+    const cam = this.scene.cameras.main;
+    return { zoom: cam.zoom, scrollX: cam.scrollX, scrollY: cam.scrollY };
+  }
+
+  /** Puts the main camera back as `cameraView()` read it (zoom first: the bounds clamp depends on it). */
+  setCameraView(view: CameraView): void {
+    const cam = this.scene.cameras.main;
+    cam.setZoom(view.zoom);
+    cam.setScroll(view.scrollX, view.scrollY);
+  }
+
+  /**
+   * Moves the main camera the least that shows a world box (§83, `frameBox`).
+   * The centre is `scroll + viewport / 2` (Phaser's `centerOn`); the zoom is
+   * set before `centerOn`, because the bounds clamp depends on it.
+   */
+  frameWorldBox(box: Box): void {
+    const cam = this.scene.cameras.main;
+    const next = frameBox(
+      box,
+      { zoom: cam.zoom, centerX: cam.scrollX + cam.width * 0.5, centerY: cam.scrollY + cam.height * 0.5 },
+      { width: cam.width, height: cam.height },
+    );
+    cam.setZoom(next.zoom);
+    cam.centerOn(next.centerX, next.centerY);
+  }
+
+  /** Keeps world objects created later off the HUD camera (they stay on the main one). */
+  keepOffHud(objects: Phaser.GameObjects.GameObject[]): void {
+    this.uiCamera?.ignore(objects);
   }
 
   /** Like `centerOn`, for a point in `hexToPixel` space (the camera's bounds clamp it). */

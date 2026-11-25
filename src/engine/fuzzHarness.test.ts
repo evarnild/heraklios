@@ -142,17 +142,24 @@ describe('playRandomGame', () => {
 // resolveUnitRetreat — HIGH-3 finding from adversarial review: combat.test.ts
 // exercises pushCandidates/completePush as isolated primitives, hand-writing
 // the retreat/push sequence in the test body; it never drives the actual
-// glue (this function, mirrored in BoardScene.beginUnitRetreatChoice) that
+// glue (this function, formerly mirrored in the Board scene) that
 // captures each vacated hex and threads `visited` through the recursion.
 // This exercises that glue directly, with a scripted (non-random)
 // PlayerAgent, against a real 3-link cascade.
 // ---------------------------------------------------------------------------
 
-function makeChainUnit(id: string, position: HexCoord, owner: 0 | 1 = 0): Unit {
+/**
+ * §90: a push may never take a hex under enemy ZOC, and a land enemy beside a
+ * friendly projects ZOC onto its hex. Fixtures whose enemies are only boxes
+ * (not the thing under test) pass `'galeres'`: naval units occupy a hex and
+ * block a retreat but project no ZOC (`hexesUnderZoc`), so the test keeps
+ * proving its cascade mechanic rather than ZOC.
+ */
+function makeChainUnit(id: string, position: HexCoord, owner: 0 | 1 = 0, typeId = 'fantassins'): Unit {
   return {
     id,
     owner,
-    typeId: 'fantassins',
+    typeId,
     position,
     movementLeft: 0,
     facing: 0,
@@ -193,7 +200,7 @@ function buildRetreatChain(length: number): { chain: Unit[]; state: GameState } 
       if (dirIndex === 0) return;
       const neighbor = hexAdd(pos, d);
       if (chain.some((u) => u.position.q === neighbor.q && u.position.r === neighbor.r)) return;
-      enemies.push(makeChainUnit(`enemy${i}-${dirIndex}`, neighbor, 1));
+      enemies.push(makeChainUnit(`enemy${i}-${dirIndex}`, neighbor, 1, 'galeres'));
     });
   }
   const state = createInitialState(
@@ -305,7 +312,7 @@ describe('resolveUnitRetreat', () => {
       { q: 11, r: 4 }, { q: 10, r: 4 }, { q: 9, r: 6 }, { q: 10, r: 6 }, // box in `a`
       { q: 12, r: 4 }, { q: 11, r: 6 }, // box in `b`
     ];
-    const enemies = enemyHexes.map((hex, i) => makeChainUnit(`enemy${i}`, hex, 1));
+    const enemies = enemyHexes.map((hex, i) => makeChainUnit(`enemy${i}`, hex, 1, 'galeres'));
     const state = createInitialState(
       [
         { id: 0, name: 'P0', edge: 'W', purchasePoints: 0, eliminated: false },
@@ -522,16 +529,22 @@ describe('processDrifts', () => {
     elephant.typeId = 'elephants';
     const trampled = makeChainUnit('trampled', { q: 10, r: 5 }, 0);
     trampled.typeId = 'phalanges';
-    const pushed = makeChainUnit('pushed', { q: 10, r: 4 }, 0);
-    const blocker = makeChainUnit('blocker', { q: 11, r: 5 }, 1);
+    const pushed = makeChainUnit('pushed', { q: 11, r: 4 }, 0);
+    // §90: every hex around the trampled unit used to be covered by the
+    // elephant's or an adjacent land blocker's ZOC, so the push (which may
+    // never take a hex under enemy ZOC) is refused. The blocker therefore
+    // stands one hex further (12,5), the friend at (11,4) is out of the
+    // elephant's reach, and the boxes are naval (no ZOC). The elephant
+    // still ends its drift against the blocker.
+    const blocker = makeChainUnit('blocker', { q: 12, r: 5 }, 1);
     state.units = [
       elephant,
       trampled,
       pushed,
       blocker,
-      makeChainUnit('enemy-ne', { q: 11, r: 4 }, 1),
-      makeChainUnit('enemy-sw', { q: 9, r: 6 }, 1),
-      makeChainUnit('enemy-s', { q: 10, r: 6 }, 1),
+      makeChainUnit('enemy-ne', { q: 10, r: 4 }, 1, 'galeres'),
+      makeChainUnit('enemy-sw', { q: 9, r: 6 }, 1, 'galeres'),
+      makeChainUnit('enemy-s', { q: 10, r: 6 }, 1, 'galeres'),
     ];
     const stats: HarnessStats = {
       seed: 0,
@@ -571,7 +584,7 @@ describe('processDrifts', () => {
     await processDrifts(state, [elephant], 'attacker', [], agent, rngFromDice(dice), stats);
 
     expect(stats.pushesResolved).toBe(1);
-    expect(pushed.position).not.toEqual({ q: 10, r: 4 });
+    expect(pushed.position).not.toEqual({ q: 11, r: 4 });
   });
 
   it('does not double-process a pending elephant pushed by a drift-triggered retreat', async () => {
@@ -584,17 +597,23 @@ describe('processDrifts', () => {
     elephant.typeId = 'elephants';
     const trampled = makeChainUnit('trampled', { q: 10, r: 5 }, 0);
     trampled.typeId = 'phalanges';
-    const queuedElephant = makeChainUnit('queued-elephant', { q: 10, r: 4 }, 0);
+    const queuedElephant = makeChainUnit('queued-elephant', { q: 11, r: 4 }, 0);
     queuedElephant.typeId = 'elephants';
-    const blocker = makeChainUnit('blocker', { q: 11, r: 5 }, 1);
+    // §90: every hex around the trampled unit used to be covered by the
+    // elephant's or an adjacent land blocker's ZOC, so the push (which may
+    // never take a hex under enemy ZOC) is refused. The blocker therefore
+    // stands one hex further (12,5), the friend at (11,4) is out of the
+    // elephant's reach, and the boxes are naval (no ZOC). The elephant
+    // still ends its drift against the blocker.
+    const blocker = makeChainUnit('blocker', { q: 12, r: 5 }, 1);
     state.units = [
       elephant,
       trampled,
       queuedElephant,
       blocker,
-      makeChainUnit('enemy-ne', { q: 11, r: 4 }, 1),
-      makeChainUnit('enemy-sw', { q: 9, r: 6 }, 1),
-      makeChainUnit('enemy-s', { q: 10, r: 6 }, 1),
+      makeChainUnit('enemy-ne', { q: 10, r: 4 }, 1, 'galeres'),
+      makeChainUnit('enemy-sw', { q: 9, r: 6 }, 1, 'galeres'),
+      makeChainUnit('enemy-s', { q: 10, r: 6 }, 1, 'galeres'),
     ];
     const stats: HarnessStats = {
       seed: 0,
@@ -635,7 +654,7 @@ describe('processDrifts', () => {
 
     expect(stats.driftsResolved).toBe(1);
     expect(stats.pushesResolved).toBe(1);
-    expect(queuedElephant.position).not.toEqual({ q: 10, r: 4 });
+    expect(queuedElephant.position).not.toEqual({ q: 11, r: 4 });
     expect(dice).toEqual([]);
   });
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { UNIT_TYPES } from '../data/units';
 import {
   armyBottomY,
+  armyLayoutOffset,
   armyRowSlot,
   armyRowsBottom,
   counterDisplaySize,
@@ -87,6 +88,24 @@ describe('counter', () => {
       expect(s.height).toBe(60);
       expect(s.width).toBeLessThanOrEqual(60);
       expect(s.width).toBeCloseTo((w * 60) / h, 10);
+    }
+  });
+});
+
+describe('armyLayoutOffset and the offset slot (§88)', () => {
+  it('centres the 1100-wide block, never negative, rounding down', () => {
+    expect(armyLayoutOffset(1100)).toBe(0);
+    expect(armyLayoutOffset(1101)).toBe(0);
+    expect(armyLayoutOffset(1500)).toBe(200);
+    expect(armyLayoutOffset(800)).toBe(0);
+  });
+
+  it('adds the offset to every x and leaves y alone', () => {
+    for (let i = 0; i < UNIT_TYPES.length; i++) {
+      const base = armyRowSlot(i);
+      const moved = armyRowSlot(i, 200);
+      expect(moved.centreY).toBe(base.centreY);
+      for (const key of Object.keys(base.x) as (keyof typeof base.x)[]) expect(moved.x[key]).toBe(base.x[key] + 200);
     }
   });
 });

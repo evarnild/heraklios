@@ -1,18 +1,18 @@
 import Phaser from 'phaser';
 import { landUnitsCentre } from '../ui/viewCentre';
 import { MapView, drawFacingArrowhead, unitTooltipFor } from '../ui/MapView';
-import type { UnitDrawing } from '../ui/boardView';
+import { buildUnitDrawings } from '../ui/unitDrawings';
 import { PLAYER_COLORS_HEX } from '../ui/hexRender';
 import { messages } from '../ui/i18n';
-import { dieModifierParts, formatAttackLine, formatDriftEvent } from '../ui/i18n/format';
+import { dieModifierParts, formatAttackLine } from '../ui/i18n/format';
 import type { BoardingReport, CombatReport, RamReport } from '../ui/i18n/reports';
 import { session, resetToMenu, seatControlFor } from '../ui/session';
 import { showConfirmDialog } from '../ui/confirmDialog';
 import { SaveLoadPanel } from '../ui/saveLoadPanel';
 import { RulesPanel } from '../ui/rulesPanel';
 import { createScorePanel } from '../ui/scorePanel';
-import { BOARD_PROMPT, RAM_PROMPT } from '../ui/boardPrompts';
-import { SIDE_PANEL_WIDTH } from '../ui/rulesPanelLayout';
+import { ADVANCE_CHOOSER, BOARD_PROMPT, EXCHANGE_CHOOSER, RAM_PROMPT } from '../ui/boardPrompts';
+import { SIDE_PANEL_WIDTH, chooserRect } from '../ui/rulesPanelLayout';
 import { applySavedGame, captureCurrentGame, consumePendingLoad, writeSave } from '../ui/saveStorage';
 import type { SavedGame } from '../engine/saveGame';
 import {
@@ -24,12 +24,15 @@ import {
   setClockPaused,
 } from '../engine/turnManager';
 import { formatRemainingClock } from '../engine/gameEndSettings';
-import { applyAction, legalActions, type Action } from '../engine/actions';
+import { applyAction, legalActions, type Action, type ActionResult, type LandAttackResult } from '../engine/actions';
 import type { PlayerAgent, ActionObserver, DrivingAgent } from '../engine/agent';
 import { createSeatAgent, isAiSeat } from '../engine/seatControl';
 import { colorName, edgeName, phaseName, seatControlName, unitName } from '../ui/i18n/names';
 import { routeBySeat } from '../engine/seatRouter';
-import { rollDie as engineRollDie } from '../engine/dice';
+import { newSession, sessionApply, sessionResume, type GameSession } from '../engine/gameSession';
+import { unitById, type ResolutionHooks, type SessionEvent, type Question } from '../engine/combatResolution';
+import { askAgent, isListedSacrifice } from '../engine/sessionAgents';
+import { driftBeat, type DriftBeat } from '../ui/driftBeats';
 import {
   reachableHexes,
   reachableNavalHexes,
@@ -42,26 +45,21 @@ import {
 import {
   exchangeSacrificeForce,
   exchangeSacrificeMeetsThreshold,
-  applyExchangeSacrifice,
-  legalRetreatHexes,
-  pushCandidates,
-  retreatUnitTo,
-  completePush,
   validTargets,
   commonValidTargets,
   unionValidTargets,
   attackerCanJoin,
   defenderCanJoin,
   cavalryMayAttack,
-  eligibleAdvanceCandidates,
   previewLandAttack,
   pruneIllegalSelections,
   unitAt,
   type LandAttackDetail,
+  type LandCombatOutcome,
 } from '../engine/combat';
-import { resolveElephantDrift } from '../engine/drift';
+import type { DriftEvent } from '../engine/drift';
 import { History } from '../engine/history';
-import { hexAdd, hexKey, parseHexKey, DIRECTIONS, facingForDirection } from '../engine/hex';
+import { hexAdd, hexKey, parseHexKey, DIRECTIONS } from '../engine/hex';
 import {
   unitType,
   currentAttack,
@@ -85,6 +83,7 @@ import {
 } from '../data/navalRamming';
 import { BOARDING_RATIO_COLUMNS } from '../data/navalBoarding';
 import { bindUndoRedoKeys, onKeyOnce } from '../ui/shortcutKeys';
+import { EndMoveWarning } from '../ui/endMoveWarning';
 
 /** Width of the left-hand HUD panel (buttons, phase status, combat log),
  * reserved outside the map's own viewport — see `MapView`'s `leftPanelWidth`. */
@@ -107,16 +106,6 @@ const PANEL_WIDTH = SIDE_PANEL_WIDTH;
 const AI_MOVE_DELAY_MS = 160;
 const AI_COMBAT_DELAY_MS = 700;
 
-/** A unit still awaiting the owning player's retreat/push/drift choice.
- * `originalHex` is where it stood before any of that — needed for the
- * "attacker may advance into the vacated hex" offer, which only applies
- * when the DEFENDING side retreats (a DR result). */
-interface RetreatQueueItem {
-  unit: Unit;
-  side: 'attacker' | 'defender';
-  originalHex: HexCoord;
-}
-
 /** The current retreat/push sub-choice awaiting a click:
  * - 'retreat': `unit` retreats to one of `legalHexes` — also reused,
  *   unmodified, for a *pushed* unit's own retreat destination once
@@ -127,19 +116,20 @@ interface RetreatQueueItem {
  *   "boxed in by friendlies" — that was the strict `entourée` reading
  *   plan.md §12.2 rejected; one friendly neighbour among five enemies is
  *   the common case.)
- * `onChosen` fires with the player's pick — shared by the normal post-combat
- * retreat queue and, mid-drift, a trampled unit's own retreat. */
+ * `onChosen` fires with the player's pick — the answer to the session's
+ * retreat or push question, a trampled unit's mid-drift one included. */
 type RetreatChoice =
   | { kind: 'retreat'; legalHexes: HexCoord[]; onChosen: (hex: HexCoord) => void }
   | { kind: 'choosePushTarget'; pushTargets: Unit[]; onChosen: (pushed: Unit) => void };
 
-/** Accumulated narration and completion callback for the active engine-owned
- * elephant drift. The actual drift stack lives in engine/drift.ts. */
+/** The attack the Board settles through a session: the one `Action` kind whose consequences it presents. */
+type LandAttackAction = Extract<Action, { kind: 'landAttack' }>;
+
+/** The log entry the active elephant drift's narration grows in place (§49 B3); the drift itself is the session's (`engine/drift.ts`). */
 interface DriftState {
   lines: string[];
   /** Index of this drift's entry in `logHistory`, once its first line is logged (§49 B3). */
   entry?: number;
-  onComplete: () => void;
 }
 
 /**
@@ -165,23 +155,26 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   private attackGroup: Unit[] = [];
   private defenderGroup: Unit[] = [];
   private attackedThisPhase = new Set<string>();
-  /** Non-elephant units still awaiting a retreat/push choice, and elephants
-   * still awaiting their drift — see `beginRetreatChoices`. Drained one at a
-   * time: `retreatQueue` first, then `driftQueue`. */
-  private retreatQueue: RetreatQueueItem[] = [];
-  private driftQueue: RetreatQueueItem[] = [];
-  /** Every unit ID already resolved during the CURRENT `beginRetreatChoices`
-   * batch, whether via retreat/push or drift. Prevents a unit moved by one
-   * queued resolution from being processed again later in the same batch. */
-  private resolutionResolvedIds = new Set<string>();
+  /**
+   * The engine session settling the land attack in progress (§73 O5): built per
+   * attack from `attackedThisPhase` and `rammedThisTurn`, dropped once the combat
+   * is settled. It wraps the scene's own `GameState` by reference, so it mutates
+   * exactly what the board draws; it is never saved (saving is refused while one
+   * is open).
+   */
+  private combat: GameSession | null = null;
+  /** Units this combat's pushes chose to push aside: their own retreat is a "pushed link" (§49 wording). */
+  private readonly pushedThisCombat = new Set<string>();
+  /** An elephant's drift is in progress: a trampled unit's retreat is narrated by its events alone. */
+  private inDrift = false;
   private retreatChoice: RetreatChoice | null = null;
   private driftState: DriftState | null = null;
-  /** The elephant `beginDrift`'s `resolveElephantDrift` call is CURRENTLY
-   * moving, and the facing (0-5) it last rolled — together, "where to draw
+  /** The elephant `showDriftStep` is CURRENTLY
+   * showing, and the facing (0-5) it last rolled — together, "where to draw
    * the drift arrow" (plan.md §21). Kept as scene state rather than threaded
    * through `onRender` itself since `onRender` is a bare `() => void` used
-   * by other callers too; `onDirectionRolled`/`onDriftMoved` (see
-   * `DriftHooks`) update these directly from the event that changed them, and
+   * by other callers too; `applyDriftBeat` (from `ui/driftBeats.ts`) updates these directly from the
+   * event that changed them, and
    * `renderAllUnits` reads them on every render, including ones triggered by
    * something unrelated to the drift (so the arrow can never go stale
    * relative to whatever's actually on screen). `driftArrowFacing` is
@@ -193,45 +186,10 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   /**
    * Resolves the currently-pending "click / press a key to continue" pause
    * between elephant drift steps (plan.md §21) — `null` when no such pause is
-   * up. A single resolver rather than a queue: `beginDrift`'s `onStep` hook
-   * only ever awaits one at a time (the drift's own loop doesn't call it
-   * again until the previous await has resolved), so there is never more
-   * than one pending.
+   * up. A single resolver rather than a queue: `showDriftStep` awaits one beat
+   * at a time, so there is never more than one pending.
    */
   private driftContinueResolve: (() => void) | null = null;
-
-  /**
-   * Supplies `resolveElephantDrift`'s optional `onStep` hook (see
-   * `DriftHooks.onStep`'s doc comment for the full contract) — but ONLY when
-   * a human is the one actually free to interact with the board right now.
-   *
-   * The obvious-sounding rule would be "pause when the drifting elephant's
-   * OWNER is human" — but a drift can just as easily be trampling through (or
-   * be) the OPPONENT's elephant mid-combat, on either side's turn, so "owner"
-   * doesn't actually answer "is anyone watching right now" on its own.
-   * Properly answering that in general (whose combat is this, is the
-   * opposing seat also human and does IT get a turn to watch too, etc.) would
-   * need new seat-routing plumbing this feature's scope doesn't cover — see
-   * plan.md §21's design brief, which explicitly says to default OFF rather
-   * than guess at that.
-   *
-   * `!this.aiRunning` is the one part of "is a human free to look at the
-   * board right now" this codebase already tracks and gates everything else
-   * on (undo/redo, save/load, the Resolve-attack button, ordinary hex
-   * clicks — see `aiRunning`'s own doc comment and every guard listed next to
-   * it). It is exactly right for the common cases this feature is actually
-   * for — a human's own turn (always paced, regardless of whose elephant it
-   * is), and a fully AI-vs-AI turn (never paced, matching every existing
-   * "don't animate at bot speed" pacing decision in this file, e.g.
-   * `AI_MOVE_DELAY_MS`/`AI_COMBAT_DELAY_MS`'s doc comment) — and simplifies to
-   * "no pause" for the one case it doesn't fully answer (an AI seat's turn
-   * that happens to trample a human's own elephant): a known, intentional
-   * simplification per the brief above, not an oversight.
-   */
-  private driftOnStepHook(): (() => Promise<void>) | undefined {
-    if (this.aiRunning) return undefined;
-    return () => this.awaitDriftContinue();
-  }
 
   private awaitDriftContinue(): Promise<void> {
     return new Promise((resolve) => {
@@ -252,152 +210,87 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     resolve();
   }
 
-  private beginDrift(
-    elephant: Unit,
-    remainingSteps: number,
-    onComplete: () => void,
-    existingLines?: string[],
-    forbiddenDirection?: HexCoord,
-  ): void {
-    if (elephant.destroyed || remainingSteps <= 0) {
-      onComplete();
-      return;
+  /**
+   * Shows the drift step the session paused after (§73 O4), beat by beat: the
+   * log lines, the arrow, the cue and a render of the LIVE state, which at the
+   * pause really is at this step. A beat that shows something waits for
+   * Continue, once per beat - unless the board is a computer's turn
+   * (`!this.aiRunning` is the one "is a human free to look" test this scene
+   * has; a drift tramples through the opponent's units on either turn, so the
+   * drifting elephant's owner would not answer it, and an AI seat's turn that
+   * tramples a human's elephant simply runs on: a known, intentional
+   * simplification from plan.md §21's brief).
+   */
+  private async showDriftStep(events: DriftEvent[]): Promise<void> {
+    if (!this.driftState) this.driftState = { lines: [] };
+    const ctx = {
+      formatCombat: (elephant: Unit, occupant: Unit, detail: LandAttackDetail, outcome: LandCombatOutcome) =>
+        this.formatCombatOutcome([elephant], [occupant], detail, outcome.requiredSacrificeForce, outcome.requiresExchangeChoice),
+    };
+    for (const event of events) {
+      const beat = driftBeat(event, ctx);
+      this.applyDriftBeat(beat);
+      if (beat.pause && !this.aiRunning) await this.awaitDriftContinue();
     }
-    // §49 B3: the drift narration used to be seeded with the message already
-    // on screen (a copy of the combat report above it). The log is a history
-    // now, so that message is still visible as its own entry; the drift's
-    // entry starts empty and grows in place.
-    const lines = existingLines ?? [];
-    this.driftState = { lines, onComplete };
-    this.decisionPending = true;
-    resolveElephantDrift(
-      this.state(),
-      elephant,
-      remainingSteps,
-      // The router, not `this`: a drifting elephant tramples whoever is in
-      // its path, and that unit's retreat belongs to ITS owner — which may be
-      // a human even when an AI's elephant is the one drifting, or the other
-      // way round.
-      this.seatRouter,
-      () => this.rollDie(),
-      {
-        onDriftStart: (drifting) => {
-          this.resolutionResolvedIds.add(drifting.id);
-          // `driftArrowFacing` resets to `undefined` here rather than
-          // carrying over the PREVIOUS leg's direction: this fires both for
-          // the very first "forced to drift" and for a nested trampled
-          // elephant's own drift starting mid-cascade, and in neither case
-          // has a direction actually been rolled for THIS leg yet — showing
-          // the old one (or, worse, the previous drifter's) would be an
-          // arrow pointing somewhere the elephant isn't about to go.
-          this.driftArrowElephant = drifting;
-          this.driftArrowFacing = undefined;
-        },
-        onDirectionRolled: (drifting, direction) => {
-          this.driftArrowElephant = drifting;
-          this.driftArrowFacing = facingForDirection(direction);
-          this.renderAllUnits();
-        },
-        onDriftMoved: (drifting, hex) => {
-          this.driftArrowElephant = drifting;
-          this.cues.driftMove(drifting.id, hex);
-        },
-        onNarrate: (event) => {
-          const line = formatDriftEvent(event);
-          if (line) this.appendLine(line);
-        },
-        onRender: () => this.renderAllUnits(),
-        onStep: this.driftOnStepHook(),
-        onCombat: (detail, outcome, drifting, occupant, hex) => {
-          this.cues.driftClash(drifting.id, hex); // INTERPRETATION (§66, owner decision (a) 2026-11-21): renders now, so the trample's result is drawn at its own beat in BOTH views (Standard used to wait for the next continue: the stale frame drift.ts:614-620 calls a bug); departs from spec B17, accepted
-          this.appendLine(messages().log.tramples(nameOf(drifting), nameOf(occupant), hex.q, hex.r));
-          this.appendLine(
-            this.formatCombatOutcome(
-              [drifting],
-              [occupant],
-              detail,
-              outcome.requiredSacrificeForce,
-              outcome.requiresExchangeChoice,
-            ),
-          );
-        },
-        onRetreat: (unit, _hex, isPushedLink) => {
-          this.decisionPending = false;
-          if (!isPushedLink) this.appendLine(messages().log.retreats(nameOf(unit)));
-          this.renderAllUnits();
-        },
-        onPush: (unit, pushed) => {
-          this.decisionPending = false;
-          this.appendLine(messages().log.retreatsMakingRoom(nameOf(pushed), nameOf(unit)));
-          this.renderAllUnits();
-        },
-        onEliminated: (unit) => {
-          this.decisionPending = false;
-          this.appendLine(messages().log.eliminatedNowhere(nameOf(unit)));
-          this.renderAllUnits();
-        },
-      },
-      forbiddenDirection,
-      undefined,
-      this.resolutionResolvedIds,
-    ).then(
-      () => {
-        this.driftArrowElephant = null;
-        this.driftArrowFacing = undefined;
-        this.driftContinueResolve = null;
-        this.driftContinueBtn.setVisible(false);
-        this.renderAllUnits();
-        const complete = this.driftState?.onComplete ?? onComplete;
-        this.driftState = null;
-        this.decisionPending = false;
-        complete();
-      },
-      (error: unknown) => {
-        this.driftArrowElephant = null;
-        this.driftArrowFacing = undefined;
-        this.driftContinueResolve = null;
-        this.driftContinueBtn.setVisible(false);
-        this.mapView.clearDriftArrow();
-        this.driftState = null;
-        this.decisionPending = false;
-        throw error;
-      },
-    );
+    if (!this.combat?.pending?.drift) this.endDriftDisplay(true); // that was the drift's last step
+  }
+
+  private applyDriftBeat(beat: DriftBeat): void {
+    // INTERPRETATION (§66, owner decision (a) 2026-11-21): a trample's clash renders now, so the
+    // trample's result is drawn at its own beat in BOTH views (Standard used to wait for the next
+    // continue: a stale frame); departs from spec B17, accepted.
+    if (beat.clash) this.cues.driftClash(beat.clash.elephantId, beat.clash.hex);
+    for (const line of beat.lines) this.appendLine(line);
+    const arrow = beat.arrow;
+    if (arrow) {
+      // `driftArrowFacing` resets to `undefined` at a start rather than carrying over the PREVIOUS
+      // leg's direction: no direction has been rolled for THIS leg yet, and showing the old one (or
+      // the previous drifter's) would be an arrow pointing somewhere the elephant isn't about to go.
+      this.driftArrowElephant = arrow.elephant;
+      if (arrow.kind === 'reset') this.driftArrowFacing = undefined;
+      else if (arrow.kind === 'point') this.driftArrowFacing = arrow.facing;
+    }
+    if (beat.move) this.cues.driftMove(beat.move.elephantId, beat.move.hex);
+    if (beat.render) this.renderAllUnits();
+  }
+
+  /** The drift is over (or abandoned on an error): no arrow, no Continue, no drift entry growing. */
+  private endDriftDisplay(render: boolean): void {
+    const shown = this.driftState !== null;
+    this.driftArrowElephant = null;
+    this.driftArrowFacing = undefined;
+    this.driftContinueResolve = null;
+    this.driftContinueBtn?.setVisible(false);
+    this.driftState = null;
+    this.inDrift = false;
+    if (render && shown) this.renderAllUnits();
+    else this.mapView?.clearDriftArrow();
+  }
+
+  /** No combat open and nothing showing one: a reset or a restore (`settleLandAttack` stops at its next check). */
+  private dropCombat(): void {
+    this.combat = null;
+    this.pushedThisCombat.clear();
+    this.retreatChoice = null;
+    this.decisionPending = false;
+    this.endDriftDisplay(false);
   }
 
   /**
-   * True from the moment any `PlayerAgent` `choose*` method creates its
-   * pending promise until its resolution has been fully applied (the
-   * mutation + continuation that runs in the caller's `.then()`) — a wider
-   * window than `retreatChoice`/`driftState` alone cover. `chooseRetreat`
-   * and `choosePushTarget` clear `retreatChoice` and call the promise's
-   * `resolve` in the SAME synchronous tick (`handleRetreatChoiceClick`), but
-   * `.then()` — which performs the actual mutation — only runs as a
-   * microtask afterward; `chooseAdvance`/`chooseExchangeSacrifice` have no
-   * equivalent tracked field at all otherwise. If Phaser ever dispatched two
-   * pointer events within the same task (its input plugin batches queued
-   * events), the second could see every existing guard below as "nothing
-   * pending" and fall through to `toggleAttacker`/undo/autosave/etc. against
-   * a board that's about to change underneath it. Included in the same
-   * guards as `retreatChoice`/`driftState`.
-   *
-   * Every `.then()` continuation that clears this flag does so in a
-   * `finally` around the mutation, never after it unguarded: a throw from
-   * `retreatUnitTo`/`renderAllUnits`/etc. would otherwise leave this `true`
-   * forever, soft-locking every guard it gates (undo, autosave, save/load,
-   * `onHexClick`, ending the phase, starting a new attack) with no recovery
-   * short of a page reload — a strictly WORSE failure mode than the
-   * pre-`decisionPending` board, which such a throw merely left
-   * inconsistent-but-usable. The continuation's next step (`onDone()` /
-   * `beginAdvanceOffers`) always runs OUTSIDE that `finally`, since it may
-   * itself await a further choice and re-set this flag — clearing it again
-   * once the next step returns would wipe out that new choice's flag.
+   * True from the moment a land attack starts settling through its session
+   * until the combat is settled (§73) - the whole window in which the board is
+   * mid-resolution, whether it waits on a prompt, a drift's Continue, or just
+   * on a computer seat answering. A `finally` around the settlement clears it,
+   * so a throw cannot leave every guard it gates (undo, autosave, save/load,
+   * `onHexClick`, ending the phase, starting a new attack) soft-locked with
+   * no recovery short of a page reload.
    */
   private decisionPending = false;
-  /** The attacking side from the combat currently driving the queues above —
-   * used to offer the advance choice once each defender's retreat/drift
-   * settles. */
-  private advanceEligibleAttackers: Unit[] = [];
+
+  /** A combat is open, a prompt is up or a Continue awaited: what undo, saving, autosave and ending a phase refuse on. */
+  private pending(): boolean {
+    return this.combat !== null || this.retreatChoice !== null || this.driftState !== null || this.decisionPending;
+  }
   private statusText!: Phaser.GameObjects.Text;
   /** Mode A's remaining-time readout (plan.md §9.2.2 #6) — refreshed every
    * frame by `update`, separately from `statusText`/`refreshStatus` (which
@@ -416,6 +309,8 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   private logPanel!: LogPanel;
   /** The Tables panel (§55); non-modal, so the board keeps working under it. */
   private rulesPanel!: RulesPanel;
+  /** §83: the End-phase warning; while open it holds decisionPending, so every pending-choice guard covers it. */
+  private endMoveWarning!: EndMoveWarning;
   private tablesBtn!: Phaser.GameObjects.Text;
   /** Every message the Board logged this game (§49); recreated in `resetSceneState`. */
   private logHistory = new LogHistory();
@@ -438,10 +333,10 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   private pauseBtn!: Phaser.GameObjects.Text;
   private abandonBtn!: Phaser.GameObjects.Text;
   /** Shown only while a human-paced elephant drift is waiting on
-   * `driftContinueResolve` — see `driftOnStepHook`/`awaitDriftContinue`. */
+   * `driftContinueResolve` — see `awaitDriftContinue`. */
   private driftContinueBtn!: Phaser.GameObjects.Text;
   /** Undo/redo history, scoped to the current phase — `endPhase` clears it,
-   * and so does any die roll outside test mode (see `rollDie`). */
+   * and so does any die roll outside test mode (see `clearHistoryOnRoll`). */
   private history = new History<BoardSnapshot>();
   /** Ramming opportunities reachable by the currently-selected ship this
    * movement — recomputed on selection and after every move/rotation (see
@@ -455,15 +350,14 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * Movement phase (a fresh turn for whoever's up next). */
   private rammedThisTurn = new Set<string>();
   /** The `rng` handed to `applyAction` for the die rolls it performs
-   * internally (ram, land attack, boarding) — a raw uniform [0,1) generator,
-   * per `engine/dice.ts`'s `rollDie(rng)` contract (the same one
-   * `shuffleSeatOrder` establishes in turnManager.ts), NOT a finished die
-   * face — `applyAction` converts it to a face itself. Enforces the same
-   * "a real roll clears undo history outside test mode" rule `rollDie`
-   * below enforces for its own rolls, via the shared `clearHistoryOnRoll`
-   * so that rule has exactly one implementation, not two. An arrow-function
-   * field (not a method) so its `this` binding survives being passed around
-   * as a bare callback. */
+   * internally (ram, land attack, boarding) and, since §73, to the combat
+   * session for a drift's dice too — a raw uniform [0,1) generator, per
+   * `engine/dice.ts`'s `rollDie(rng)` contract (the same one `shuffleSeatOrder`
+   * establishes in turnManager.ts), NOT a finished die face — the engine
+   * converts it to a face itself. Enforces the "a real roll clears undo history
+   * outside test mode" rule via `clearHistoryOnRoll`. An arrow-function field
+   * (not a method) so its `this` binding survives being passed around as a bare
+   * callback. */
   private diceRng = (): number => {
     this.clearHistoryOnRoll();
     return Math.random();
@@ -504,11 +398,6 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * looking at any more.
    */
   private aiRunToken = 0;
-  /** Resolves once a land attack's ENTIRE consequence chain (exchange
-   * sacrifice, retreats, pushes, drifts, advance offers) has settled — see
-   * `executeLandAttack`. Null in ordinary hotseat play, where nothing is
-   * waiting for that moment. */
-  private resolutionDone: (() => void) | null = null;
 
   /**
    * Answers every mid-resolution decision with the agent of the seat that
@@ -558,21 +447,10 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.attackGroup = [];
     this.defenderGroup = [];
     this.attackedThisPhase = new Set();
-    this.retreatQueue = [];
-    this.driftQueue = [];
-    this.resolutionResolvedIds = new Set();
-    this.retreatChoice = null;
-    this.driftState = null;
-    this.decisionPending = false;
-    this.driftArrowElephant = null;
-    this.driftArrowFacing = undefined;
-    this.driftContinueResolve = null;
-    this.driftContinueBtn?.setVisible(false);
-    this.mapView?.clearDriftArrow();
+    this.dropCombat();
     this.logHistory = new LogHistory();
     this.rulesPanel?.reset();
-    this.advanceEligibleAttackers = [];
-    this.advanceOfferQueue = [];
+    this.endMoveWarning?.reset();
     this.history = new History();
     this.navalContacts = [];
     this.rammedThisTurn = new Set();
@@ -581,7 +459,6 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // scene before it can touch the new one's state (see `aiRunToken`).
     this.aiRunToken++;
     this.aiRunning = false;
-    this.resolutionDone = null;
     this.seatAgents.clear();
     this.lastClockDisplaySeconds = null;
     this.lastClockDisplayPaused = null;
@@ -821,7 +698,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.driftContinueBtn.on('pointerdown', () => this.resolveDriftContinue());
 
     bindUndoRedoKeys(this.input.keyboard, { undo: () => this.undo(), redo: () => this.redo() });
-    onKeyOnce(this.input.keyboard, 'keydown-ESC', () => this.rulesPanel?.close());
+    onKeyOnce(this.input.keyboard, 'keydown-ESC', () => (this.rulesPanel?.isOpen() ? this.rulesPanel.close() : this.endMoveWarning?.cancel()));
     onKeyOnce(this.input.keyboard, 'keydown-SPACE', () => this.resolveDriftContinue());
     onKeyOnce(this.input.keyboard, 'keydown-ENTER', () => this.resolveDriftContinue());
 
@@ -854,6 +731,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.logPanel = createLogPanel(this, this.mapView, logPanelBounds(height, PANEL_WIDTH));
     this.rulesPanel = new RulesPanel(this, { onObjectsCreated: (objects) => this.mapView.excludeFromMainCamera(objects) });
     const scorePanel = createScorePanel(this, this.mapView);
+    this.endMoveWarning = new EndMoveWarning(this, this.mapView, (on) => (this.decisionPending = on), (text) => this.log(text));
     this.mapView.pointerBlocked = (x, y) => this.logPanel.contains(x, y) || this.rulesPanel.contains(x, y) || scorePanel.contains(x, y);
 
     this.mapView.pinUIObjects([
@@ -903,16 +781,8 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
 
   private readonly cues = new CueKeeper(() => this.renderAllUnits()); // §66: the cue of the action just applied
   private renderAllUnits(snap = false): void {
-    const ships: { hex: HexCoord; facing: number; playerIndex: number }[] = [];
-    const drawings: UnitDrawing[] = [];
-    for (const u of this.state().units) {
-      if (u.destroyed) continue;
-      const naval = unitType(u).domain === 'naval';
-      drawings.push({ id: u.id, typeId: u.typeId, owner: u.owner, position: u.position, facing: naval ? u.facing : undefined });
-      if (naval) {
-        ships.push({ hex: u.position, facing: u.facing, playerIndex: u.owner });
-      }
-    }
+    // §82: each drawing carries its phase marker, worked out by the engine from the bookkeeping sets.
+    const { drawings, ships } = buildUnitDrawings(this.state(), { attackedThisPhase: this.attackedThisPhase, rammedThisTurn: this.rammedThisTurn });
     this.mapView.setUnits(drawings, snap ? 'snap' : this.cues.take()); // snap: undo, redo, load (B7)
     this.mapView.setFacingIndicators(ships);
     // The elephant drift-direction arrow (plan.md §21) — read from scene
@@ -1011,7 +881,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * it says so once in the log (spec B6) rather than failing silently.
    */
   private autosave(): void {
-    if (this.retreatChoice || this.driftState || this.decisionPending) return;
+    if (this.pending()) return;
     void writeSave('autosave', this.captureSave()).then((ok) => {
       this.log(ok ? messages().saves.autosaved : messages().saves.autosaveFailed);
     });
@@ -1023,8 +893,8 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   }
 
   private openSaveLoad(): void {
-    // A pending retreat/drift can't be captured at all: those sequences carry
-    // `onComplete` closures, which don't survive serialization. An AI turn
+    // A pending retreat/drift can't be captured at all: the combat's session is
+    // never saved (the save format has no place for it). An AI turn
     // can't either — not because of serialization, but because the board is
     // being mutated between frames, so a save taken mid-turn would capture an
     // arbitrary half-finished position.
@@ -1032,7 +902,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       this.log(messages().log.waitComputerSave);
       return;
     }
-    if (this.retreatChoice || this.driftState || this.decisionPending) {
+    if (this.pending()) {
       this.log(messages().log.resolvePendingSave);
       return;
     }
@@ -1130,7 +1000,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       this.log(messages().log.waitComputerEnd);
       return;
     }
-    if (this.retreatChoice || this.driftState || this.decisionPending) {
+    if (this.pending()) {
       this.log(messages().log.resolvePendingEnd);
       return;
     }
@@ -1227,19 +1097,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     // Interactive sequences never span a snapshot — undo is refused while one
     // is pending — so these are already empty. Reset them anyway so a restore
     // can never leave a reference to a unit from the discarded state.
-    this.retreatQueue = [];
-    this.driftQueue = [];
-    this.resolutionResolvedIds = new Set();
-    this.retreatChoice = null;
-    this.driftState = null;
-    this.decisionPending = false;
-    this.driftArrowElephant = null;
-    this.driftArrowFacing = undefined;
-    this.driftContinueResolve = null;
-    this.driftContinueBtn.setVisible(false);
-    this.mapView.clearDriftArrow();
-    this.advanceEligibleAttackers = [];
-    this.advanceOfferQueue = [];
+    this.dropCombat();
     this.navalContacts = [];
 
     this.renderAllUnits(true);
@@ -1267,7 +1125,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       this.log(messages().log.cantUndoComputer);
       return;
     }
-    if (this.retreatChoice || this.driftState || this.decisionPending) {
+    if (this.pending()) {
       this.log(messages().log.resolvePendingUndo);
       return;
     }
@@ -1285,7 +1143,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       this.log(messages().log.cantRedoComputer);
       return;
     }
-    if (this.retreatChoice || this.driftState || this.decisionPending) {
+    if (this.pending()) {
       this.log(messages().log.resolvePendingRedo);
       return;
     }
@@ -1301,32 +1159,15 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   /**
    * Outside test mode, a real die roll is a commit point and the undo
    * history is dropped, since undoing past a roll would let a player
-   * re-roll a result they didn't like. Shared by `rollDie` below (every die
-   * roll this scene still drives directly — an elephant's drift direction,
-   * and the trampling combat during a drift) AND `diceRng` above (the rolls
-   * `applyAction` performs internally) — factored out so this rule has
-   * exactly one implementation instead of two copies that could drift out
-   * of sync with each other.
+   * re-roll a result they didn't like. Every die the scene's engine calls roll
+   * (a land attack's, a drift's direction and trample combat, a ram's, a
+   * boarding's) goes through `diceRng`, which calls this.
    */
   private clearHistoryOnRoll(): void {
     if (!session.testMode) {
       this.history.clear();
       this.refreshUndoRedoButtons();
     }
-  }
-
-  /**
-   * Every direct die roll this scene still drives itself goes through here
-   * (see `clearHistoryOnRoll`'s doc comment for which ones, and why they
-   * aren't yet routed through `applyAction`/`diceRng`). Delegates the actual
-   * face math to `engine/dice.ts`'s `rollDie` — the SAME function
-   * `applyAction` uses internally for its own rolls — so there is exactly
-   * one implementation of "what a d6 roll is" in the codebase, not one here
-   * and a second one duplicated inline.
-   */
-  private rollDie(rng: () => number = Math.random): number {
-    this.clearHistoryOnRoll();
-    return engineRollDie(rng);
   }
 
   /**
@@ -1441,8 +1282,6 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * `update` doesn't need to check `paused` here.
    */
   update(_time: number, delta: number): void {
-    // The Tables panel is hidden while a decision is pending (§55).
-    this.rulesPanel?.setSuppressed(this.decisionPending);
     const state = session.gameState;
     if (!state || state.gameOver) return;
     const wasPending = state.pendingGameEnd;
@@ -2012,6 +1851,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     const naval = this.attackGroup.length > 0 && unitType(this.attackGroup[0]!).domain === 'naval';
     const preview =
       !naval && this.defenderGroup.length > 0 ? previewLandAttack(this.attackGroup, this.defenderGroup) : null;
+    if (this.attackGroup.length + this.defenderGroup.length > 0) this.rulesPanel?.clearRolled(); // a new attacker or target (B7)
     this.rulesPanel?.setAttack(preview);
     return preview;
   }
@@ -2121,211 +1961,13 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.mapView.clearHighlights();
   }
 
-  /** Kicks off the player-choice queues for units forced to retreat (AR/DR):
-   * non-elephants via `retreatQueue`, elephants (which drift instead) via
-   * `driftQueue`, non-elephants first. `attackersForAdvance` is only used
-   * when `side === 'defender'` — see `promptAdvanceChoice`. */
-  private beginRetreatChoices(
-    pendingRetreats: Unit[],
-    pendingDrifts: Unit[],
-    side: 'attacker' | 'defender',
-    attackersForAdvance: Unit[],
-  ): void {
-    this.advanceEligibleAttackers = attackersForAdvance;
-    this.retreatQueue = pendingRetreats.map((unit) => ({ unit, side, originalHex: { ...unit.position } }));
-    this.driftQueue = pendingDrifts.map((unit) => ({ unit, side, originalHex: { ...unit.position } }));
-    this.resolutionResolvedIds = new Set();
-    this.advanceRetreatQueue();
-  }
-
-  private advanceRetreatQueue(): void {
-    const item = this.retreatQueue.shift();
-    if (item) {
-      // M11: a push cascade resolving an EARLIER queue item can already have
-      // moved this one (a sibling it pushed aside) — skip it rather than
-      // asking the player to retreat it a second time for the same result.
-      if (item.unit.destroyed || this.resolutionResolvedIds.has(item.unit.id)) {
-        this.finishQueueItem(item);
-        return;
-      }
-      this.beginUnitRetreatChoice(item.unit, () => this.finishQueueItem(item));
-      return;
-    }
-
-    const driftItem = this.driftQueue.shift();
-    if (driftItem) {
-      if (driftItem.unit.destroyed || this.resolutionResolvedIds.has(driftItem.unit.id)) {
-        this.finishQueueItem(driftItem);
-        return;
-      }
-      this.beginDrift(driftItem.unit, unitType(driftItem.unit).movement, () => this.finishQueueItem(driftItem));
-      return;
-    }
-
-    this.retreatChoice = null;
-    this.mapView.clearHighlights();
-    this.settleResolution();
-  }
-
-  /** Called once a queued unit's retreat/push/drift is fully settled. Per
-   * the rulebook, only when the DEFENDING side retreats does the attacker
-   * get the option to advance into the hex it vacated. */
-  private finishQueueItem(item: RetreatQueueItem): void {
-    if (item.side === 'defender') {
-      this.promptAdvanceChoice(item.originalHex, () => this.advanceRetreatQueue());
-      return;
-    }
-    this.advanceRetreatQueue();
-  }
-
-  /**
-   * Resolves a single unit's retreat: a legal hex to move to, or (if boxed
-   * in by friendlies) a push, or elimination if neither is available. Calls
-   * `onDone` once fully resolved. Shared by the normal post-combat retreat
-   * queue and, mid-drift, a unit the elephant tramples into. Rehomed onto
-   * the `PlayerAgent` methods below (`chooseRetreat`/`choosePushTarget`) —
-   * this is now just the sequencing glue that decides WHICH question to ask
-   * and applies the engine mutation once it's answered, not the prompt UI
-   * itself.
-   *
-   * CASCADE (plan.md §12.3): the push branch calls itself recursively for
-   * the pushed unit — that unit may ALSO have no direct retreat and need to
-   * push a friendly of its own, and so on. `visited` carries every unit
-   * already committed to the current chain (see `combat.ts`'s
-   * `pushCandidates` for the matching engine-side recursion and its
-   * termination argument) so `pushCandidates` here can't re-offer a unit
-   * still mid-resolution higher up this same call stack. Each level's own
-   * `pushed.position` is captured into `vacatedHex` BEFORE recursing —
-   * `completePush` only ever needs that captured hex, never `pushed`'s
-   * position read afterward (which has since changed, however many further
-   * links the recursion took) — see `completePush`'s doc comment.
-   */
-  private beginUnitRetreatChoice(
-    unit: Unit,
-    onDone: () => void,
-    visited: ReadonlySet<string> = new Set(),
-  ): void {
-    // M11: record every unit this method is ever asked to resolve — whether
-    // as a top-level queue item or a pushed unit reached via the recursive
-    // branch below — so `advanceRetreatQueue` can skip a sibling this same
-    // resolution already moved. Harmless when called outside a retreat-queue
-    // batch entirely (e.g. a trampled-unit drift case): nothing
-    // reads `resolutionResolvedIds` there.
-    this.resolutionResolvedIds.add(unit.id);
-    // L12/L13 (LOW findings from adversarial review): a non-empty `visited`
-    // means `unit` is itself a PUSHED unit mid-cascade, not the original
-    // top-level retreater — worth saying so in the prompt (rather than the
-    // generic "must retreat," which reads as if THIS unit lost the combat),
-    // and worth NOT separately logging "unit retreats." here too: the
-    // pusher's own `onDone` callback below already narrates this exact move
-    // as "X retreats, making room for Y" once it completes, so logging both
-    // would say the same thing twice.
-    const isPushedLink = visited.size > 0;
-    const state = this.state();
-    const legalHexes = legalRetreatHexes(state, unit);
-    if (legalHexes.length > 0) {
-      this.appendLine(isPushedLink ? messages().log.mustRetreatRoom(nameOf(unit)) : messages().log.mustRetreat(nameOf(unit)));
-      this.seatRouter.chooseRetreat(state, unit, legalHexes).then((hex) => {
-        // `decisionPending` must clear even if the mutation below throws —
-        // otherwise every guard it gates (undo, autosave, onHexClick, ...)
-        // stays soft-locked with no way to recover short of a page reload,
-        // a strictly WORSE failure mode than the pre-`decisionPending` board
-        // (which was merely left inconsistent). `onDone()` stays OUTSIDE the
-        // `finally`: it's the next step in the queue, which may itself await
-        // another choice and re-set `decisionPending` — clearing it again
-        // once `onDone()` returns would wipe out that new choice's flag.
-        //
-        // Reaching this leaf always fully settles decisionPending: whether
-        // this is the TOP-level call for a queued unit (decisionPending
-        // wasn't set true by this chain at all, so clearing it is a no-op)
-        // or the bottom of a push cascade (decisionPending IS true, from an
-        // ancestor's `choosePushTarget`, and this is the last prompt in the
-        // whole chain), `finally` is the right place either way.
-        try {
-          retreatUnitTo(unit, hex);
-          // Only the TOP-level retreater gets its own "X retreats." line —
-          // a pushed unit's move is narrated once, by the pusher's `onDone`
-          // below ("X retreats, making room for Y"), not twice.
-          if (!isPushedLink) this.appendLine(messages().log.retreats(nameOf(unit)));
-          this.renderAllUnits();
-        } finally {
-          this.decisionPending = false;
-        }
-        onDone();
-      });
-      return;
-    }
-
-    const pushTargets = pushCandidates(state, unit, visited);
-    if (pushTargets.length > 0) {
-      // Says "has nowhere to retreat", not "is surrounded by friendly units":
-      // §12 widened the rulebook's `entourée d'unités amies` to fire whenever
-      // retreat is impossible and at least ONE adjacent friendly can make
-      // room, so the old wording contradicted both the README and the board
-      // in the common case (one friendly neighbour, five enemies). The count
-      // is stated because the player is about to be asked to click one of
-      // them.
-      this.appendLine(messages().log.nowhereToRetreat(nameOf(unit), pushTargets.length));
-      this.seatRouter.choosePushTarget(state, unit, pushTargets).then((pushed) => {
-        // Unlike the direct-retreat leaf above, this one can't just clear
-        // `decisionPending` in a `finally`: it's already `true` from
-        // `choosePushTarget` above, and the happy path here hands off to
-        // the RECURSIVE call below, which itself may ask one or more
-        // further questions before the whole chain settles. A `finally`
-        // here would clear it out from under that still-pending prompt. So:
-        // catch instead, clear only on the throwing (synchronous) path, and
-        // rethrow so the failure stays visible (an uncaught rejection in
-        // the console) rather than silently swallowed. The recursive call's
-        // OWN eventual leaf (whichever kind it turns out to be) is
-        // responsible for clearing `decisionPending` once the chain
-        // actually finishes.
-        try {
-          const vacatedHex = { ...pushed.position };
-          const chainVisited = new Set(visited);
-          chainVisited.add(unit.id);
-          this.beginUnitRetreatChoice(
-            pushed,
-            () => {
-              completePush(unit, vacatedHex);
-              this.appendLine(messages().log.retreatsMakingRoom(nameOf(pushed), nameOf(unit)));
-              this.renderAllUnits();
-              onDone();
-            },
-            chainVisited,
-          );
-        } catch (err) {
-          this.decisionPending = false;
-          throw err;
-        }
-      });
-      return;
-    }
-
-    // `pushCandidates` already guarantees a CHOSEN push target is viable
-    // (directly or via its own cascade), so this leaf should be unreachable
-    // for a `pushed` unit reached via the recursive branch above too — kept
-    // as the same defensive net `applyLandCombatResult` already relies on
-    // for the top-level case: an earlier choice in the same batch/chain can
-    // in principle change the board out from under a later one.
-    // `decisionPending` is cleared unconditionally: at the very top of the
-    // queue it was never set true by this chain (a no-op), but mid-cascade
-    // it IS true (from an ancestor's `choosePushTarget`) and this is a
-    // terminal state with no further prompt left to clear it otherwise.
-    unit.destroyed = true;
-    this.decisionPending = false;
-    this.appendLine(messages().log.eliminatedNowhere(nameOf(unit)));
-    this.renderAllUnits();
-    onDone();
-  }
-
   /** `PlayerAgent.chooseRetreat` — highlights `options` and resolves with
    * whichever one the player clicks (routed here by `handleRetreatChoiceClick`).
-   * Reused, unmodified, for a pushed unit's own retreat destination (see
-   * `beginUnitRetreatChoice`'s push branch). `unit` isn't needed by the
+   * Reused, unmodified, for a pushed unit's own retreat destination (the
+   * session asks it as a question of its own). `unit` isn't needed by the
    * choice itself (only `options`/the click matter) — it exists purely to
    * satisfy `PlayerAgent`'s signature. */
   chooseRetreat(_state: GameState, _unit: Unit, options: HexCoord[]): Promise<HexCoord> {
-    this.decisionPending = true;
     return new Promise((resolve) => {
       this.retreatChoice = { kind: 'retreat', legalHexes: options, onChosen: resolve };
       this.mapView.highlightHexes(options, 0x4aa6ff, 0.5);
@@ -2336,7 +1978,6 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * with whichever friendly unit the player clicks to push aside. `unit`
    * isn't needed by the choice itself, same as `chooseRetreat` above. */
   choosePushTarget(_state: GameState, _unit: Unit, candidates: Unit[]): Promise<Unit> {
-    this.decisionPending = true;
     return new Promise((resolve) => {
       this.retreatChoice = { kind: 'choosePushTarget', pushTargets: candidates, onChosen: resolve };
       this.mapView.highlightHexes(candidates.map((u) => u.position), 0xffb020, 0.5);
@@ -2363,76 +2004,19 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     choice.onChosen(pushed);
   }
 
-  /** Hexes still awaiting an advance-or-not offer — used when defenders are
-   * eliminated (DE/EX) rather than retreating, since several can vacate at
-   * once with no retreat/push choice in between. Processed one at a time,
-   * same as `retreatQueue`, so an earlier advance can't be offered twice. */
-  private advanceOfferQueue: HexCoord[] = [];
-
-  private beginAdvanceOffers(vacatedHexes: HexCoord[], attackers: Unit[]): void {
-    this.advanceEligibleAttackers = attackers;
-    this.advanceOfferQueue = [...vacatedHexes];
-    this.processNextAdvanceOffer();
-  }
-
-  private processNextAdvanceOffer(): void {
-    const hex = this.advanceOfferQueue.shift();
-    if (!hex) {
-      this.settleResolution();
-      return;
-    }
-    this.promptAdvanceChoice(hex, () => this.processNextAdvanceOffer());
-  }
-
-  /**
-   * "Whenever a combat forces a retreat, the attacker may optionally
-   * advance into the hex the defender vacated" — extended here to also
-   * cover a defender being eliminated outright (DE/EX), since that frees
-   * the hex just as plainly. Delegates the actual choice to `chooseAdvance`
-   * (the `PlayerAgent` method) and applies the resulting mutation here, then
-   * calls `onDone` once the choice (or non-choice) is settled.
-   */
-  private promptAdvanceChoice(vacatedHex: HexCoord, onDone: () => void): void {
-    if (unitAt(this.state(), vacatedHex)) {
-      // Something else already occupies it (e.g. re-pushed into by a later
-      // choice in this same batch) — nothing to offer.
-      onDone();
-      return;
-    }
-    const candidates = eligibleAdvanceCandidates(this.advanceEligibleAttackers, vacatedHex);
-    if (candidates.length === 0) {
-      onDone();
-      return;
-    }
-    this.seatRouter.chooseAdvance(this.state(), candidates, vacatedHex).then((chosen) => {
-      try {
-        if (chosen) {
-          chosen.position = vacatedHex;
-          this.log(messages().log.advances(nameOf(chosen)));
-          this.renderAllUnits();
-        }
-      } finally {
-        this.decisionPending = false;
-      }
-      onDone();
-    });
-  }
-
   /** `PlayerAgent.chooseAdvance` — offers one button per candidate plus a
    * decline option (at most one unit can occupy `vacated`); resolves with
    * whichever the player picks, or `null` on decline. Purely a choice: the
-   * caller (`promptAdvanceChoice`) applies the resulting move. */
+   * session applies the resulting move. */
   chooseAdvance(_state: GameState, candidates: Unit[], _vacated: HexCoord): Promise<Unit | null> {
-    this.decisionPending = true;
     return new Promise((resolve) => {
       const { width, height } = this.scale;
-      const rowHeight = 26;
-      const panelHeight = 76 + candidates.length * rowHeight;
-      const panelY = height / 2;
-      const top = panelY - panelHeight / 2;
+      const rowHeight = ADVANCE_CHOOSER.rowHeight;
+      const panelHeight = ADVANCE_CHOOSER.baseHeight + candidates.length * rowHeight;
+      const { top } = chooserRect({ width: ADVANCE_CHOOSER.width, height: panelHeight }, width, height);
 
       const panel = this.add
-        .rectangle(width / 2, panelY, 320, panelHeight, 0x1a1408, 0.97)
+        .rectangle(width / 2, top + panelHeight / 2, ADVANCE_CHOOSER.width, panelHeight, 0x1a1408, 0.97)
         .setScrollFactor(0)
         .setDepth(20);
       const title = this.add
@@ -2499,7 +2083,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
 
   private resolveGroupAttack(): void {
     if (this.aiRunning) return;
-    if (this.retreatChoice || this.driftState || this.decisionPending) {
+    if (this.pending()) {
       this.log(messages().log.resolvePendingAttack);
       return;
     }
@@ -2519,7 +2103,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     }
 
     this.recordAction(messages().actions.attackWith(this.attackGroup.length));
-    void this.executeLandAttack({
+    void this.settleLandAttack({
       kind: 'landAttack',
       attackerIds: this.attackGroup.map((u) => u.id),
       defenderIds: this.defenderGroup.map((u) => u.id),
@@ -2527,91 +2111,154 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   }
 
   /**
-   * Resolves a land attack and everything it drags behind it — exchange
-   * sacrifice, retreats, pushes, elephant drifts, advance-after-combat — and
-   * resolves its promise only once ALL of that has settled.
+   * Resolves a land attack and everything it drags behind it - exchange
+   * sacrifice, retreats, pushes, elephant drifts, advance-after-combat - through
+   * the engine's session (§73): one session per attack, driven here by a loop.
+   * Each open question is answered by the seat it belongs to (`seatRouter`: this
+   * scene's own prompts for a human, a `HeuristicAgent` for a computer seat),
+   * each drift step the session pauses after is shown (`showDriftStep`), and the
+   * promise resolves only once ALL of that has settled. The scene keeps only the
+   * presentation: log lines, highlights, panels, renders and cues.
    *
-   * Split out of `resolveGroupAttack` (which keeps the click-path guards and
-   * the undo snapshot) for two reasons. An AI seat needs to commit an attack
-   * it assembled itself, with attacker/defender ids that were never in
-   * `attackGroup`/`defenderGroup`; and, more subtly, an AI driver loop cannot
-   * choose its *next* action until this one is fully finished — the board is
-   * mid-retreat until then, and a human defender may still owe a click.
-   * Ordinary hotseat play ignores the promise entirely, which is why the
-   * completion hook (`resolutionDone`, fired by `settleResolution`) is
-   * allowed to be null.
+   * Split out of `resolveGroupAttack` (which keeps the click-path guards and the
+   * undo snapshot) because an AI seat commits an attack it assembled itself, and
+   * its driver loop cannot choose its next action until this one is finished:
+   * the board is mid-retreat until then, and a human defender may still owe a click.
    */
-  private executeLandAttack(action: { kind: 'landAttack'; attackerIds: string[]; defenderIds: string[] }): Promise<void> {
-    return new Promise<void>((resolve) => {
-      this.resolutionDone = resolve;
-      const state = this.state();
-      const defenders = action.defenderIds
-        .map((id) => state.units.find((u) => u.id === id))
-        .filter((u): u is Unit => u !== undefined);
-      for (const id of action.attackerIds) this.attackedThisPhase.add(id);
-      const { detail, outcome, attackers: attackersFromThisCombat, defenderOriginalHexes } = this.cues.apply(
-        state,
-        action,
-        this.diceRng,
-      );
-      this.reportAction(action);
-      this.logCombatOutcome(
-        attackersFromThisCombat,
-        defenders,
-        detail,
-        outcome.requiredSacrificeForce,
-        outcome.requiresExchangeChoice,
-      );
-
-      if (outcome.requiresExchangeChoice) {
-        this.seatRouter
-          .chooseExchangeSacrifice(state, attackersFromThisCombat, outcome.requiredSacrificeForce)
-          .then((chosen) => {
-            try {
-              applyExchangeSacrifice(chosen);
-              this.log(messages().log.exchangeSacrificed(chosen.map(nameOf)));
-              this.renderAllUnits();
-              this.clearCombatSelection();
-            } finally {
-              this.decisionPending = false;
-            }
-            this.beginAdvanceOffers(
-              defenderOriginalHexes,
-              attackersFromThisCombat.filter((u) => !u.destroyed),
-            );
-          });
-        return;
-      }
-      this.renderAllUnits();
-      this.clearCombatSelection();
-
-      if (outcome.pendingRetreats.length > 0 || outcome.pendingDrifts.length > 0) {
-        const side = detail.result === 'DR' ? 'defender' : 'attacker';
-        this.beginRetreatChoices(outcome.pendingRetreats, outcome.pendingDrifts, side, attackersFromThisCombat);
-      } else if (detail.result === 'DE' || detail.result === 'EX') {
-        // The defender(s) were eliminated outright rather than retreating —
-        // per the same "advance into the vacated hex" option, extended here
-        // to cover elimination too, since that frees the hex just as plainly.
-        this.beginAdvanceOffers(defenderOriginalHexes, attackersFromThisCombat);
-      } else {
-        // AE/AR with nobody left to retreat, or a result with no follow-up at
-        // all: this combat is already over.
-        this.settleResolution();
-      }
+  private async settleLandAttack(action: LandAttackAction): Promise<void> {
+    const state = this.state();
+    for (const id of action.attackerIds) this.attackedThisPhase.add(id);
+    const combat = newSession(state, {
+      attackedThisPhase: [...this.attackedThisPhase],
+      rammedThisTurn: [...this.rammedThisTurn],
     });
+    const kept: Promise<unknown>[] = [];
+    const hooks = this.settlementHooks(state, action, kept, this.cues.begin(state, action));
+    this.combat = combat;
+    this.decisionPending = true;
+    this.pushedThisCombat.clear();
+    this.inDrift = false;
+    try {
+      let step = sessionApply(combat, action, this.diceRng, hooks);
+      for (;;) {
+        if (this.combat !== combat) return; // the scene was reset under us (abandoned, reloaded)
+        if (step.paused) {
+          await this.showDriftStep(step.driftEvents);
+          if (this.combat !== combat) return;
+          step = sessionResume(combat, this.diceRng, hooks);
+          continue;
+        }
+        const question = combat.pending?.question;
+        if (!question) break;
+        this.logBeforeQuestion(question);
+        const answer = await askAgent(this.seatRouter, state, question);
+        if (this.combat !== combat) return;
+        if (answer.kind === 'answerPushTarget') this.pushedThisCombat.add(answer.unitId);
+        step = sessionApply(combat, answer, this.diceRng, hooks);
+      }
+      await Promise.all(kept); // a computer agent's error surfaces here
+    } finally {
+      if (this.combat === combat) {
+        this.combat = null;
+        this.decisionPending = false;
+        this.endDriftDisplay(false);
+      }
+    }
+  }
+
+  /** The session's hooks for one attack: what the board shows at each step, and who is asked. */
+  private settlementHooks(
+    state: GameState,
+    action: LandAttackAction,
+    kept: Promise<unknown>[],
+    completeCue: (result: ActionResult) => void,
+  ): ResolutionHooks {
+    return {
+      pauseAfterDriftStep: true,
+      // §73 O2: a human is asked even a one-option retreat, push or sacrifice (as before); a computer
+      // seat's is applied and reported through `onForced`.
+      askForced: (question) => !this.seatAgents.has(question.player),
+      // The attack's own cue frame comes first: the session applies the action before its consequences.
+      onActionApplied: (result) => {
+        completeCue(result);
+        if (result.kind === 'landAttack') this.showAttackOutcome(state, action, result);
+      },
+      // A step applied without asking still reaches the seat's agent, so its rng draws stay where they were.
+      onForced: (question) => {
+        this.logBeforeQuestion(question);
+        if (question.kind === 'pushTarget') this.pushedThisCombat.add(question.candidateIds[0]!);
+        kept.push(askAgent(this.seatRouter, state, question));
+      },
+      onEvent: (event) => this.showEvent(state, event),
+    };
+  }
+
+  /** The combat's result, as it was logged and drawn when the attack was applied. */
+  private showAttackOutcome(state: GameState, action: LandAttackAction, result: LandAttackResult): void {
+    this.reportAction(action);
+    const defenders = action.defenderIds.map((id) => unitById(state, id));
+    const { outcome } = result;
+    this.logCombatOutcome(result.attackers, defenders, result.detail, outcome.requiredSacrificeForce, outcome.requiresExchangeChoice);
+    this.rulesPanel?.setRolled(result.detail, result.detail.rawDieRoll); // before the exchange return: B7
+    // With an exchange to choose, the board is drawn once the losses are chosen (`showEvent`).
+    if (outcome.requiresExchangeChoice) return;
+    this.renderAllUnits();
+    this.clearCombatSelection();
+  }
+
+  /** One consequence of the combat, logged and drawn at its own event, so a retreat and an advance never merge into one frame. */
+  private showEvent(state: GameState, event: SessionEvent): void {
+    const name = (id: string) => nameOf(unitById(state, id));
+    const m = messages();
+    switch (event.kind) {
+      case 'retreat':
+        // A pushed unit's move is narrated once, by its pusher's "making room" line.
+        if (!this.pushedThisCombat.has(event.unitId)) this.appendLine(m.log.retreats(name(event.unitId)));
+        break;
+      case 'push':
+        this.appendLine(m.log.retreatsMakingRoom(name(event.pushedId), name(event.unitId)));
+        break;
+      case 'eliminated':
+        this.appendLine(m.log.eliminatedNowhere(name(event.unitId)));
+        break;
+      case 'advance':
+        this.log(m.log.advances(name(event.unitId)));
+        break;
+      case 'sacrifice':
+        this.log(m.log.exchangeSacrificed(event.unitIds.map(name)));
+        this.clearCombatSelection();
+        break;
+      case 'driftStarted':
+        this.inDrift = true;
+        return; // shown at its beat, by `showDriftStep`
+      case 'driftCombat':
+        return;
+    }
+    this.renderAllUnits();
   }
 
   /**
-   * Fires (once) whatever is waiting for the current combat's whole
-   * consequence chain to finish. Called from the two places that chain can
-   * end — `advanceRetreatQueue` with both queues drained, and
-   * `processNextAdvanceOffer` with no offers left — which are reached by
-   * disjoint paths, so this never double-fires for one attack.
+   * The line that tells the player what a retreat or push question is about,
+   * before it is asked (or applied, for a computer seat). A trampled unit's has
+   * none: it is part of the drift's own story, narrated by its events.
+   * Says "has nowhere to retreat", not "is surrounded by friendly units": §12
+   * widened the rulebook's `entourée d'unités amies` to fire whenever retreat is
+   * impossible and at least ONE adjacent friendly can make room, so the old
+   * wording contradicted both the README and the board in the common case (one
+   * friendly neighbour, five enemies). The count is stated because the player is
+   * about to be asked to click one of them.
    */
-  private settleResolution(): void {
-    const done = this.resolutionDone;
-    this.resolutionDone = null;
-    done?.();
+  private logBeforeQuestion(question: Question): void {
+    if (this.inDrift) return;
+    const state = this.state();
+    const m = messages();
+    if (question.kind === 'retreat') {
+      const unit = nameOf(unitById(state, question.unitId));
+      // A pushed unit is told so, rather than the generic "must retreat", which reads as if THIS unit lost the combat.
+      this.appendLine(this.pushedThisCombat.has(question.unitId) ? m.log.mustRetreatRoom(unit) : m.log.mustRetreat(unit));
+    } else if (question.kind === 'pushTarget') {
+      this.appendLine(m.log.nowhereToRetreat(nameOf(unitById(state, question.unitId)), question.candidateIds.length));
+    }
   }
 
   private logCombatOutcome(
@@ -2675,16 +2322,14 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
    * `exchangeSacrificeMeetsThreshold`). Resolves only once a valid selection
    * is confirmed; the caller applies the actual sacrifice. */
   chooseExchangeSacrifice(_state: GameState, attackers: Unit[], requiredForce: number): Promise<Unit[]> {
-    this.decisionPending = true;
     return new Promise((resolve) => {
       const { width, height } = this.scale;
-      const rowHeight = 24;
-      const panelHeight = 110 + attackers.length * rowHeight;
-      const panelY = height / 2;
-      const top = panelY - panelHeight / 2;
+      const rowHeight = EXCHANGE_CHOOSER.rowHeight;
+      const panelHeight = EXCHANGE_CHOOSER.baseHeight + attackers.length * rowHeight;
+      const { top } = chooserRect({ width: EXCHANGE_CHOOSER.width, height: panelHeight }, width, height);
 
       const panel = this.add
-        .rectangle(width / 2, panelY, 340, panelHeight, 0x1a1408, 0.97)
+        .rectangle(width / 2, top + panelHeight / 2, EXCHANGE_CHOOSER.width, panelHeight, 0x1a1408, 0.97)
         .setScrollFactor(0)
         .setDepth(20);
       const title = this.add
@@ -2727,7 +2372,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         const sum = chosen.reduce((s, u) => s + exchangeSacrificeForce(u), 0);
         const met = exchangeSacrificeMeetsThreshold(chosen, requiredForce);
         totalText.setText(messages().board.selectedForce(sum, requiredForce, met));
-        confirmBtn.setStyle({ backgroundColor: met ? '#2a5a2a' : '#553' });
+        confirmBtn.setStyle({ backgroundColor: isListedSacrifice(attackers, requiredForce, chosen) ? '#2a5a2a' : '#553' });
       };
 
       const rowTexts: Phaser.GameObjects.Text[] = attackers.map((unit, i) => {
@@ -2757,6 +2402,11 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
         const chosen = attackers.filter((u) => selected.has(u.id));
         if (!exchangeSacrificeMeetsThreshold(chosen, requiredForce)) {
           this.log(messages().log.selectMoreForce(requiredForce));
+          return;
+        }
+        // §73 O3: the session takes only a minimal sacrifice (§72 I3), so a selection with a unit to spare is refused, with its reason.
+        if (!isListedSacrifice(attackers, requiredForce, chosen)) {
+          this.log(messages().log.sacrificeNotMinimal(requiredForce));
           return;
         }
         panel.destroy();
@@ -2913,14 +2563,19 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       this.log(messages().log.waitComputerPhase);
       return;
     }
-    if (this.retreatChoice || this.driftState || this.decisionPending) {
+    if (this.pending()) {
       this.log(messages().log.resolvePendingPhase);
       return;
     }
-    this.commitEndPhase();
-    // A human handing off to an AI seat is the ordinary way an AI turn
-    // starts; a no-op when the next seat is human too.
-    this.maybeStartAiTurn();
+    const end = (): void => {
+      this.commitEndPhase();
+      // A human handing off to an AI seat is the ordinary way an AI turn
+      // starts; a no-op when the next seat is human too.
+      this.maybeStartAiTurn();
+    };
+    // §83 B3: a human seat's movement phase with units that could still move asks first.
+    const context = { attackedThisPhase: this.attackedThisPhase, rammedThisTurn: this.rammedThisTurn };
+    if (!this.endMoveWarning.open(this.state(), context, end, () => this.deselectMovement())) end();
   }
 
   /** The phase change itself, with none of the click-path guards — shared by
@@ -2930,6 +2585,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   private commitEndPhase(): void {
     this.deselectMovement();
     this.clearCombatSelection();
+    this.rulesPanel?.clearRolled();
     // Undo reaches back only within the current phase: rewinding across the
     // handoff would let one player rewrite another's committed turn.
     this.history.clear();
@@ -2957,6 +2613,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       // crash or closed tab then costs at most that one turn.
       this.autosave();
     }
+    this.renderAllUnits(); // §82: the phase changed, so every unit's marker did (no unit moved, so no cue renders it)
     this.refreshStatus();
     this.log('');
   }
@@ -2967,7 +2624,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   // This is the "pull" loop `engine/agent.ts` says `BoardScene` itself cannot
   // be: it asks the seat's `ActionChooser` for an action, applies it, and
   // repeats. Everything it applies goes through the SAME methods a click
-  // does — `executeLandAttack`, `commitRam`, `commitBoarding`,
+  // does — `settleLandAttack`, `commitRam`, `commitBoarding`,
   // `commitEndPhase` — so an AI's move is not a second implementation of the
   // rules, only a second way of choosing one.
   // ---------------------------------------------------------------------------
@@ -3136,7 +2793,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       }
 
       case 'landAttack':
-        await this.executeLandAttack(action);
+        await this.settleLandAttack(action);
         return;
     }
   }

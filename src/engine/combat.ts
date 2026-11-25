@@ -32,8 +32,8 @@ export function terrainAt(hex: HexCoord): TerrainType {
  * necessarily for whichever attacker is being offered the chance to advance
  * into it — the advance-offer sibling of the terrain gaps the Stage 2 fuzz
  * harness found in `legalRetreatHexes`/`pushCandidates` above (plan.md §6).
- * That offer itself is applied by the CALLER (`BoardScene`'s
- * `promptAdvanceChoice`, mirrored headlessly in `engine/fuzzHarness.ts`),
+ * That offer itself is applied by the CALLER (`engine/combatResolution.ts`'s
+ * advance step, which `BoardScene` and the fuzz harness both settle through),
  * not by any function in this file, so this predicate is exported for both
  * to filter candidates through before ever asking `chooseAdvance`.
  */
@@ -109,7 +109,7 @@ export function canUnitEnterHex(unit: Unit, hex: HexCoord): boolean {
  * earlier version of that function only filtered by `!u.destroyed`, with no
  * terrain check, silently offering a cavalry/chariot attacker a marsh or
  * steep-flank hex it could never otherwise stand on). `BoardScene.ts`'s
- * `promptAdvanceChoice` had the IDENTICAL gap until plan.md §9.1; it now
+ * advance prompt had the IDENTICAL gap until plan.md §9.1; it now
  * calls this same function rather than carrying a separate, divergent
  * terrain check.
  */
@@ -818,7 +818,7 @@ export function legalRetreatHexes(state: GameState, unit: Unit): HexCoord[] {
  * re-offered as an immediate candidate. Callers resolving an ACTUAL cascade
  * (not just checking whether one exists) must thread the SAME growing
  * `visited` set through their own recursion (see `completePush`'s doc
- * comment, and `BoardScene.beginUnitRetreatChoice` / `fuzzHarness.
+ * comment, and `combatResolution.ts`'s `stepRetreat` / `fuzzHarness.
  * resolveUnitRetreat`), otherwise a unit still mid-chain (not yet moved)
  * could be independently re-offered as if it were an ordinary bystander.
  *
@@ -838,22 +838,19 @@ export function legalRetreatHexes(state: GameState, unit: Unit): HexCoord[] {
  * pushing at that link — see the fixpoint's terrain check below, applied
  * per-edge rather than just at the top level.
  *
- * NOT checked here, unlike `legalRetreatHexes`: whether the inherited hex
- * sits under enemy ZOC. `legalRetreatHexes` refuses to send a normally
- * retreating unit into an empty ZOC hex, but a hex a friendly unit is
- * ALREADY standing on can perfectly well be under enemy ZOC too (ZOC
- * doesn't prevent occupying a hex, only entering one uninvited) — the
- * rulebook's own push sentence (`:242-243`) says nothing about ZOC at all,
- * so applying `legalRetreatHexes`'s exclusion here would be ANOTHER
- * invented extension, not obviously more or less licensed than leaving it
- * out. Pre-existing before this change (the single-level version never
- * checked it either) but worth flagging explicitly now that the widened,
- * cascading version makes a mixed friendly/ZOC-blocked-empty neighbor set
- * the headline scenario rather than an edge case: a unit could in principle
- * be pushed into a hex under enemy ZOC that it could never have retreated
- * into directly. Left as-is rather than silently "fixed" one way or the
- * other — a real design decision for whoever picks this up next, not this
- * comment's call to make unilaterally.
+ * INTERPRETATION, ZOC (§90, the owner's ruling of 2026-11-24) — a unit never
+ * takes a hex under its enemies' zone of control, at ANY link of a cascade.
+ * Before, this was left open (the push sentence `:242-243` is silent on ZOC,
+ * and ZOC doesn't stop a unit already standing in a hex). It rests on
+ * `05-rules-french-original.md:136`, "il est interdit de faire retraite dans
+ * une zone de contrôle ennemie" (`02-rules-transcription.md:98`). Of three
+ * readings offered, the owner chose "mixed, never into ZOC"; rejected: push
+ * only when no neighbour is an enemy or enemy-ZOC-blocked, and push only
+ * when all six neighbours are friends. So the mixed widening above STAYS:
+ * a friend whose hex is ZOC-free is still offered. The fixpoint edge and the
+ * top-level filter both skip a taken hex in `hexesUnderZoc(state, owner)`
+ * (rivers block ZOC, naval units project none); one set serves the chain,
+ * as every link has one owner and enemies don't move mid-cascade.
  *
  * PERFORMANCE — this used to be a plain recursive DFS re-deriving each
  * candidate's viability by enumerating simple paths through the friendly-
@@ -881,6 +878,7 @@ export function pushCandidates(state: GameState, unit: Unit, visited: ReadonlySe
 
   // Every OTHER friendly unit still eligible to be part of this chain.
   const pool = state.units.filter((u) => !u.destroyed && u.owner === unit.owner && !excluded.has(u.id));
+  const enemyZoc = hexesUnderZoc(state, unit.owner);
 
   // Fixpoint: start from units with a direct legal retreat, then repeatedly
   // absorb any pool unit adjacent to an already-"can make room" friendly
@@ -900,6 +898,7 @@ export function pushCandidates(state: GameState, unit: Unit, visited: ReadonlySe
           neighbor.owner === u.owner &&
           !excluded.has(neighbor.id) &&
           canMakeRoom.has(neighbor.id) &&
+          !enemyZoc.has(mapHexKey(neighbor.position.q, neighbor.position.r)) &&
           canEnterTerrain(terrainAt(neighbor.position), uCategory)
         ) {
           canMakeRoom.add(u.id);
@@ -924,6 +923,7 @@ export function pushCandidates(state: GameState, unit: Unit, visited: ReadonlySe
     const f = unitAt(state, hexAdd(unit.position, d));
     if (!f || f.owner !== unit.owner || excluded.has(f.id)) continue;
     if (!canEnterTerrain(terrainAt(f.position), category)) continue;
+    if (enemyZoc.has(mapHexKey(f.position.q, f.position.r))) continue;
     if (canMakeRoom.has(f.id)) candidates.push(f);
   }
   return candidates;
@@ -943,7 +943,7 @@ export function retreatUnitTo(unit: Unit, hex: HexCoord): void {
  * longer this function's job. With a cascade, `pushed` may itself have no
  * direct retreat and have to push a THIRD unit in turn (`legalRetreatHexes`
  * / `pushCandidates` again, recursively); resolving that is the caller's
- * job (see `BoardScene.beginUnitRetreatChoice` / `fuzzHarness.
+ * job (see `combatResolution.ts`'s `stepRetreat` / `fuzzHarness.
  * resolveUnitRetreat`), driven by the SAME per-unit retreat-or-push decision
  * `unit` itself just went through. By the time `completePush` is called,
  * `pushed`'s resolution (however many further links it took) is already

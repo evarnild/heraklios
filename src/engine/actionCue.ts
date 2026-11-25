@@ -149,12 +149,12 @@ export function completeCue(cue: ActionCue, result: ActionResult): ActionCue {
   return cue;
 }
 
-/** A drift beat that enters a hex: the elephant slides one hex (`DriftHooks.onDriftMoved`). */
+/** A drift beat that enters a hex: the elephant slides one hex (`ui/driftBeats.ts`'s `move`). */
 export function driftMoveCue(elephantId: string, hex: HexCoord): ActionCue {
   return { ...emptyCue(), moves: [{ unitId: elephantId, steps: [{ hex }] }] };
 }
 
-/** A trample: the elephant lunges at the occupant's hex (`DriftHooks.onCombat`). */
+/** A trample: the elephant lunges at the occupant's hex (`ui/driftBeats.ts`'s `clash`). */
 export function driftClashCue(elephantId: string, hex: HexCoord): ActionCue {
   return { ...emptyCue(), clashes: [{ unitId: elephantId, toward: hex, kind: 'clash' }] };
 }

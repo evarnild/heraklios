@@ -106,3 +106,18 @@ describe('reconcileUnits and the dimmed flag', () => {
     expect(reconcileUnits(byId([a]), [{ ...a }])).toEqual({ add: [], update: [], remove: [] });
   });
 });
+
+describe('reconcileUnits and the status mark (§82 AC5)', () => {
+  it('a status-only change is an update without recreate', () => {
+    const diff = reconcileUnits(byId([u('a', 1, 1)]), [{ ...u('a', 1, 1), status: 'notMoved' }]);
+    expect(diff.update.map((x) => [x.unit.id, x.recreate])).toEqual([['a', false]]);
+    expect(diff.add).toEqual([]);
+    expect(diff.remove).toEqual([]);
+  });
+
+  it('a charge-only change is an update; equal marks give no work', () => {
+    const a = { ...u('a', 1, 1), status: 'done' as const };
+    expect(reconcileUnits(byId([a]), [{ ...a, charged: true }]).update).toHaveLength(1);
+    expect(reconcileUnits(byId([a]), [{ ...a }])).toEqual({ add: [], update: [], remove: [] });
+  });
+});

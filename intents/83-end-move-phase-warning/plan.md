@@ -555,3 +555,54 @@ These go beyond the spec. Each one is a decision, not an open question.
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-11-24 — implementation (subtasks 1-9)
+
+Commits: `aeb0871` (engine), `bb630dc` (module, framing, layout, i18n, scene hook, dev hook, e2e), the README commit, and the final e2e/progress commit.
+
+Shipped as planned: `src/engine/unmoved.ts` (`hasNotMoved`, `unmovedUnits`), `src/ui/cameraFraming.ts`, `src/ui/endMoveWarningLayout.ts`, `src/ui/endMoveWarning.ts`, `MapView` additions (`cameraView`, `setCameraView`, `frameWorldBox`, `keepOffHud`; 496 lines, under 500), the dev hook reader `endMoveWarning()`, the `endPhase(page)` e2e helper (all End-phase clicks now use it, 12 sites in 7 specs, not the plan's 10, since `score-panel.spec.ts` gained 3 since the plan), `e2e/end-move-warning.spec.ts` (6 tests), README section, and 5 + 1 messages in en/fr.
+
+Results: `npm run verify` green: 106 test files, 1775 passed | 2 skipped; lint 18 warnings, cap 18 (unchanged, no new warning). `npm run check:intent`: `type-check: PASS (intent 83, feature)`. `BoardScene.ts` grew exactly +10 (3169 to 3179), `scripts/size-baseline.json` rewritten to 3179. `npm run e2e`: 51 passed, 1 failed (`placement.spec.ts` "Turn buttons", a 30 s timeout while other worktrees ran; it passed alone, 1 passed). The full suite was run before the last spec tweak; the changed spec passes in its own run.
+
+Deviations from the plan:
+- The lint cap is 18 and the baseline 3169 on today's main (plan said 19 and 3172); the +10 budget line is unchanged and true.
+- AC2 swap-only unit: the plan's "swap-only" position is impossible with enemy ZOC (the swap start-in-ZOC rule forbids it), so the `otherId` test rings the unit with friendly lower-id units plus an outer ring of enemies; it first asserts every action naming the unit is a `landSwap` with it as `otherId`.
+- The module also resets itself on the scene's `shutdown` event, so a stale instance's Escape/Enter listeners cannot act after a scene restart (the keys are registered on a keyboard that outlives the scene).
+- The e2e state comparison strips `elapsedMs` (the clock ticks).
+- The tick-box click is by its label text `☐ Don't warn me again this game`.
+
+Mutants: dropping the `otherId` branch of `unmovedUnits` is killed by `unmoved.test.ts`. Replacing `Math.min(fit, current.zoom)` with `fit` in `frameBox` survives, and is an equivalent mutant: the zoom-out branch is reached only when the box does not fit at the current zoom, so `fit < current.zoom` always. The clamp is kept as a defensive guard for B6.6.
+
+Not run: the live check (owed; mark size, colour and prompt height at `PROMPT_HEIGHT = 150` are untuned).
+
+### 2026-11-25 - round 1 rework
+
+Fixed the five "Needs rework" findings (tests, plus one small reader change):
+- **M3:** `end-move-warning.spec.ts` now asserts the framed zoom is strictly below the zoom before.
+- **M2:** a new e2e test zooms to about 0.97 on the close-combat position, centres one hex off the flagged row's middle, and asserts the camera is unchanged after End phase (every flagged unit already in view).
+- **E13:** `EndMoveWarning` keeps `markedIds`, pushed inside the draw loop of `drawMarks`; `snapshot().marked` reports it, so `marked == flagged` proves each mark.
+- **E1:** the e2e selects an own unit (asserts `selectedUnitId()` non-null), clicks End phase, and asserts it is null once the warning is open.
+- **C5/C8:** the "1 px inside the margin" unit test asserts identity (`toBe(cur)`).
+No behaviour changed. The optional LOW items were left alone.
+
+Mutants (backup and restore by copy), each killed:
+- C5 `box.left >=` to `>`: `cameraFraming.test.ts` "treats a box 1 px inside the margin ...".
+- C8 `box.right <=` to `<`: the same test.
+- M3 remove `cam.setZoom(next.zoom)`: e2e test 1 (zoom strictly below).
+- M2 centre = `cam.scrollX`/`cam.scrollY`: e2e "the camera stays put when every flagged unit is already in view". My first version (zoomed far out, then centred on the box centre) let M2 survive, so the test zooms in and centres off the box centre.
+- E13 `centres.slice(0, 1).forEach`: e2e test 1 (`marked` equals `flagged`).
+- E1 `onOpen` made a no-op: e2e test 1 (selection null once open).
+
+Results: `npm run verify` green (106 files, 1775 passed | 2 skipped; lint 18 warnings, cap 18). `npm run check:intent`: `type-check: FAIL ... A live check is owed and not recorded` (the owner's gate, not recorded by me; no other error). `npm run e2e`: 52 passed, 1 failed (`placement.spec.ts` "Turn buttons", the same 30 s timeout as round 0 when run in the full suite; passes alone).
+
+### 2026-11-25 - rebase onto main after §73
+
+Rebased `feat/83-end-move-phase-warning` onto `main` (28c15d3, after §73, §90, §91) at the owner's request ("rebase 83"). Only the first commit conflicted; three files:
+- `src/scenes/BoardScene.ts`: in `resetSceneState` §83's `this.endMoveWarning?.reset();` sits after `rulesPanel?.reset()` and `dropCombat()`, beside §73's consolidated reset, not inside it. The old `advanceEligibleAttackers = []` / `advanceOfferQueue = []` lines on §83's side were dropped, since §73 removed those fields. Every other §83 hook auto-merged: the `endPhase` hook (after the `decisionPending` guard), the undo-restore reset and `onOpen` clearing the selection.
+- `scripts/size-baseline.json`: the `BoardScene.ts` ceiling is 2834 (§73's 2824 + §83's +10), the measured length of the rebased file.
+- `e2e/dev-hook-members.spec.ts`: the union, sorted: `driftArrow` (§73) and `endMoveWarning` (§83); `pendingChoice` was already pinned by §73's side of the merge.
+Auto-merged files checked: `devHook.ts` has `pendingChoice`, `driftArrow` and `endMoveWarning`; `en.ts`/`fr.ts` keep both message sets. The six reworded `resolvePending*` lines ("choice"/"choix") collide with nothing §73 added or changed (it did not touch them).
+
+Results: `npm run verify` green (110 files, 1825 passed | 2 skipped; lint 17 warnings, cap 18, so §73 lowered the count by one and the cap is left alone). `npm run check:intent`: only `type-check: FAIL ... A live check is owed and not recorded`. `npm run e2e`: 62 passed, 1 failed (`placement.spec.ts:39`, the known 30 s flake; it passes alone). `end-move-warning.spec.ts` + `combat-resolution.spec.ts` with `--repeat-each=2`: 34 passed (7 + 10 scenarios, twice).
+
+Round 1 mutants re-run on the rebased code (backup and restore by copy), each killed: M3 and E13 and E1 by e2e test 1 ("the warning frames, marks and holds every control ..."); M2 by "the camera stays put when every flagged unit is already in view"; C5 and C8 by `cameraFraming.test.ts` "treats a box 1 px inside the margin as visible and 1 px over as not".

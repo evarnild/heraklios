@@ -16,8 +16,9 @@ import { validateArmy } from '../engine/army';
 import { session } from './session';
 import type { LandCombatHighlight } from '../engine/ruleTables';
 import type { RulesTab } from './rulesPanel';
+import type { EndMoveWarningSnapshot } from './endMoveWarning';
 import { scorePanelSnapshot, type ScorePanelSnapshot } from './scorePanel';
-import { GHOST_SHIP_ID } from './boardView';
+import { GHOST_SHIP_ID, type UnitMark } from './boardView';
 import { landscapeBuilds } from './landscape/paintLandscape';
 import { animationSpeed, type AnimationSpeed } from './animationSpeed';
 import type { CameraScan } from './cameraStrays';
@@ -39,6 +40,7 @@ interface BoardInternals extends Phaser.Scene {
     tooltipText(): string | null;
     tooltipBox(): { x: number; y: number; width: number; height: number } | null;
     cameraStrays(): CameraScan;
+    unitMarks(): Record<string, UnitMark>;
     drawnInspect(): { unitDrawings: number; ghostRotation: number | null; unitRotations: Record<string, number>; hudLeaks: number } | null;
   };
 }
@@ -74,6 +76,10 @@ export interface DevHook {
    * a scenario never depends on whether the roll caused a retreat.
    */
   pendingHexes(): Hex[];
+  /** The retreat or push-target choice being asked, with the hexes it highlights, or null (§73). */
+  pendingChoice(): { kind: 'retreat' | 'pushTarget'; hexes: Hex[] } | null;
+  /** The elephant drift arrow being shown: the hex it starts on and its facing, or null (§73). */
+  driftArrow(): { hex: Hex; facing: number } | null;
   /**
    * While the Placement scene is up: the unit type it is placing now (null
    * once the queue is empty) and the hexes it accepts a click on for it.
@@ -130,6 +136,12 @@ export interface DevHook {
    */
   boardObjects(): BoardObjects;
   /**
+   * The phase marker (§82) each drawn unit is showing, by unit id: its status
+   * and charge flag, and where the mark and its counter are drawn (the same
+   * point while the mark rides its counter). In Placement no unit has a status.
+   */
+  unitMarks(): Record<string, UnitMark>;
+  /**
    * Display-list objects both cameras would render (read-only; §67), each as
    * its type and depth (`strays`), with how many objects it `examined` and how
    * many only the HUD camera renders (`hudOnly`, a positive control: a reader
@@ -146,7 +158,9 @@ export interface DevHook {
   /** The tooltip's screen box while it is visible, else null (§74). */
   tooltipBox(): { x: number; y: number; width: number; height: number } | null;
   /** The Board's Tables panel: open or not, its tab, and the land table's highlight (§55). Read-only. */
-  rulesPanel(): { open: boolean; tab: RulesTab | null; highlight: LandCombatHighlight | null };
+  rulesPanel(): { open: boolean; tab: RulesTab | null; highlight: LandCombatHighlight | null; left?: number };
+  /** The End-phase warning (§83): open or not, the flagged and marked unit ids, the seats switched off. Read-only. */
+  endMoveWarning(): EndMoveWarningSnapshot;
   /** The Board's score panel: its rectangle, whether every row fits, and per row what is drawn (§81). */
   scorePanel(): ScorePanelSnapshot;
 }
@@ -165,8 +179,8 @@ interface LogInternals {
   };
 }
 
-/** `BoardScene` member `rulesPanel()` reads, by name; guarded like `LOG_MEMBERS`. */
-const RULES_MEMBERS = ['rulesPanel'] as const;
+/** `BoardScene` members whose own `snapshot()` a reader of the same name returns; guarded like `LOG_MEMBERS`. */
+type SnapshotMember = 'rulesPanel' | 'endMoveWarning';
 
 /** `PlacementScene` members `placement()` reads, by name; guarded like `BUSY_FIELDS`. */
 const PLACEMENT_MEMBERS = ['queue', 'currentLegalHexes'] as const;
@@ -247,10 +261,13 @@ function boardReaders(game: Phaser.Game): Pick<
   | 'busy'
   | 'idle'
   | 'pendingHexes'
+  | 'pendingChoice'
+  | 'driftArrow'
   | 'selectedUnitId'
   | 'logEntries'
   | 'logPanel'
   | 'rulesPanel'
+  | 'endMoveWarning'
   | 'scorePanel'
 > {
   // `idle` calls this same function, so the two never disagree.
@@ -280,15 +297,14 @@ function boardReaders(game: Phaser.Game): Pick<
     },
     busy,
     idle: () => busy().length === 0,
-    pendingHexes: () => {
-      const choice = (board(game) as unknown as { retreatChoice: PendingChoice | null }).retreatChoice;
-      if (!choice) return [];
-      return choice.kind === 'retreat' ? (choice.legalHexes ?? []) : (choice.pushTargets ?? []).map((u) => u.position);
-    },
+    pendingHexes: () => pendingChoice(game)?.hexes ?? [],
+    pendingChoice: () => pendingChoice(game),
+    driftArrow: () => driftArrow(board(game)),
     selectedUnitId: () => selectedUnitId(board(game)),
     logEntries: () => logInternals(board(game)).logHistory.entries().map((e) => ({ kind: e.kind, text: e.text })),
     logPanel: () => logPanelSnapshot(logInternals(board(game)).logPanel),
-    rulesPanel: () => rulesPanelSnapshot(board(game)),
+    rulesPanel: () => memberSnapshot(board(game), 'rulesPanel'),
+    endMoveWarning: () => memberSnapshot(board(game), 'endMoveWarning'),
     scorePanel: () => scorePanelSnapshot(board(game)),
   };
 }
@@ -304,6 +320,7 @@ function mapReaders(game: Phaser.Game): Pick<
   | 'displayListSorted'
   | 'boardView'
   | 'boardObjects'
+  | 'unitMarks'
   | 'hudStrays'
   | 'unitCanvas'
   | 'tooltipText'
@@ -328,6 +345,7 @@ function mapReaders(game: Phaser.Game): Pick<
     displayListSorted: () => displayListSorted(mapScene(game)),
     boardView: () => mapScene(game).mapView.viewKind,
     boardObjects: () => boardObjects(mapScene(game)),
+    unitMarks: () => mapScene(game).mapView.unitMarks(),
     hudStrays: () => mapScene(game).mapView.cameraStrays(),
     unitCanvas: (unitId) => unitCanvas(mapScene(game), unitId),
     tooltipText: () => mapScene(game).mapView.tooltipText(),
@@ -352,6 +370,27 @@ function placementSnapshot(game: Phaser.Game): ReturnType<DevHook['placement']> 
   return { current: p.queue.find((q) => q.remaining > 0)?.typeId ?? null, legalHexes: p.currentLegalHexes() };
 }
 
+/** `BoardScene.retreatChoice` read by name (§73); `pendingHexes` can't tell a push from a retreat. */
+function pendingChoice(game: Phaser.Game): ReturnType<DevHook['pendingChoice']> {
+  const choice = (board(game) as unknown as { retreatChoice: PendingChoice | null }).retreatChoice;
+  if (!choice) return null;
+  if (choice.kind === 'retreat') return { kind: 'retreat', hexes: choice.legalHexes ?? [] };
+  return { kind: 'pushTarget', hexes: (choice.pushTargets ?? []).map((u) => u.position) };
+}
+
+const DRIFT_ARROW_MEMBERS = ['driftArrowElephant', 'driftArrowFacing'] as const;
+
+/** The drift arrow's fields read by name, guarded like `BUSY_FIELDS` (§73). */
+function driftArrow(scene: Phaser.Scene): ReturnType<DevHook['driftArrow']> {
+  const b = scene as unknown as Record<string, unknown>;
+  for (const m of DRIFT_ARROW_MEMBERS) {
+    if (!(m in b)) throw new Error(`devHook: BoardScene has no "${m}" any more — update DRIFT_ARROW_MEMBERS`);
+  }
+  const elephant = b.driftArrowElephant as { position: Hex } | null;
+  const facing = b.driftArrowFacing as number | undefined;
+  return elephant && facing !== undefined ? { hex: { ...elephant.position }, facing } : null;
+}
+
 /** `BoardScene.selected` read by name, guarded like `BUSY_FIELDS`. */
 function selectedUnitId(scene: Phaser.Scene): string | null {
   const b = scene as unknown as Record<string, unknown>;
@@ -370,12 +409,10 @@ function displayListSorted(scene: Phaser.Scene): boolean {
   return list.every((obj, i) => i === 0 || list[i - 1]!.depth <= obj.depth);
 }
 
-function rulesPanelSnapshot(scene: Phaser.Scene): ReturnType<DevHook['rulesPanel']> {
+function memberSnapshot<K extends SnapshotMember>(scene: Phaser.Scene, member: K): ReturnType<DevHook[K]> {
   const b = scene as unknown as Record<string, unknown>;
-  for (const m of RULES_MEMBERS) {
-    if (!(m in b)) throw new Error(`devHook: BoardScene has no "${m}" any more — update RULES_MEMBERS`);
-  }
-  return (b.rulesPanel as { snapshot(): ReturnType<DevHook['rulesPanel']> }).snapshot();
+  if (!(member in b)) throw new Error(`devHook: BoardScene has no "${member}" any more — update SnapshotMember`);
+  return (b[member] as { snapshot(): ReturnType<DevHook[K]> }).snapshot();
 }
 
 function armyBuilderSnapshot(game: Phaser.Game): ReturnType<DevHook['armyBuilder']> {

@@ -4,6 +4,7 @@
 import { expect, type Page } from '@playwright/test';
 import type { DevHook } from '../src/ui/devHook';
 import type { GameState } from '../src/engine/state';
+import { messagesFor } from '../src/ui/i18n/index';
 
 declare global {
   interface Window {
@@ -131,6 +132,19 @@ export async function chord(page: Page, mods: string[], key: string): Promise<vo
   await frames(page);
 }
 
+/**
+ * Clicks End phase the way a player would (§83): when that raises the
+ * unmoved-units warning in a human seat's movement phase, answers "End phase
+ * anyway". A no-op difference in the combat phase and when nothing is flagged.
+ */
+export async function endPhase(page: Page): Promise<void> {
+  await clickButton(page, 'End phase');
+  await frames(page);
+  if ((await page.evaluate(() => window.__heraklios.endMoveWarning())).open) {
+    await clickButton(page, 'End phase anyway');
+  }
+}
+
 export async function frames(page: Page): Promise<void> {
   // The camera's transform updates on render; let two frames pass.
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
@@ -220,4 +234,17 @@ export async function expectDrawnObjects(page: Page, label: string) {
   const objects = await page.evaluate(() => window.__heraklios.boardObjects());
   expect(objects.unitDrawings, `${label}: a figure per living unit`).toBe(living);
   expect(objects.hudLeaks, `${label}: no world object on the HUD camera`).toBe(0);
+}
+
+/**
+ * Waits for a Load click to have taken effect (§86). A load is an async HTTP
+ * read and the Board is already open, so `scenes().includes('Board')` is true
+ * before the load lands and is no signal. Each load starts a fresh log whose
+ * entry is "Game loaded." (read from the English table, not repeated here).
+ */
+export async function waitLoaded(page: Page): Promise<void> {
+  const loaded = messagesFor('en').log.gameLoaded;
+  await page.waitForFunction((text) => window.__heraklios.logEntries().some((e) => e.text === text), loaded);
+  await waitIdle(page);
+  await frames(page);
 }

@@ -19,6 +19,7 @@ import {
   state,
   unit,
   waitIdle,
+  endPhase,
 } from './helpers';
 
 const SEED = 1;
@@ -51,7 +52,7 @@ test(`a ranged and a melee attack both resolve (seed ${seed})`, async ({ page })
   await waitIdle(page);
   expect((await unit(page, infantry.id)).position).toEqual(closeIn);
 
-  await clickButton(page, 'End phase');
+  await endPhase(page);
   await waitIdle(page);
   expect((await state(page)).phase).toBe('combat');
 

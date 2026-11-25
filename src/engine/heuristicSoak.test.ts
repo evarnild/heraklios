@@ -135,12 +135,18 @@ describe('HeuristicAgent: headless self-play', () => {
    * did before it learned to swap. The constants were recorded from the code
    * as it stood BEFORE §59 changed anything (seed 7, both seats at the
    * difficulty), so any change to swaps-off play, in any tier, fails here.
+   *
+   * §90 re-pinned greedy (92 -> 97) and lookahead (58 -> 39) on seed 7: the
+   * first call whose answer differs is `combatOdds`' `retreatCost` pricing a
+   * defender as eliminated where the old rule priced a push into a hex under
+   * enemy ZOC (greedy: p0-phalanx at 13,3 and p1-cav-h at 16,0; lookahead:
+   * p0-phalanx at 12,3). `random` and `ev` did not move.
    */
   const SWAPS_OFF_FINGERPRINTS: Record<Difficulty, { length: number; sha256: string }> = {
     random: { length: 118, sha256: 'ca1d38335e373b4198e06ba92f4b7bd4827dcb894535f4a912288f94708949cd' },
-    greedy: { length: 92, sha256: '995c3ee87774013a5592e6a3fef7ab9734b960bd5455c266152f9a03739d9fe1' },
+    greedy: { length: 97, sha256: '27042a24891b93f1e64e9b3fad885e17d2184ee066b0f070d216931233c63028' },
     ev: { length: 72, sha256: 'e95c6828ceb1ef961682861593601ebafce1187b5955127a55c34c4d7cb5cbb0' },
-    lookahead: { length: 58, sha256: '662a47ec8a048e059a553b39dd5fcbb811d899e816e42634e87d3328ac0a8e3b' },
+    lookahead: { length: 39, sha256: '9ea918078464d7e2e4ceecd237a6d5ccef2a76aa5c3d1cb1fcf8db30eed86670' },
   };
   for (const difficulty of ['random', 'greedy', 'ev', 'lookahead'] as const) {
     it(`with swaps off, ${difficulty} plays the same game as before swaps were taught (seed 7)`, async () => {
@@ -398,13 +404,14 @@ describe('HeuristicAgent: difficulty tiers are ordered by strength', () => {
 
   it('the greedy tier also swaps in a soak game (§59), though rarely', async () => {
     // Greedy values a swap by contact alone, and a plain move toward the enemy
-    // nearly always outscores it, so natural games hold few: 1 game in 60 as
-    // seat 0 against EV (seed 24; none in 60 greedy mirror games). The seed is
+    // nearly always outscores it, so natural games hold few: 1 game in 500 as
+    // seat 0 against EV (seed 211 since §90 refused pushes into enemy ZOC, which
+    // moved the old seed 24's game; 1 in 60 greedy mirror games, seed 25). The seed is
     // pinned so the series proves the tier CAN reach a swap in play, which the
     // targeted tests in `heuristicAgent.test.ts` cover position by position.
     // This is a presence check on one game: if a change moves the swap away,
     // re-find a seed the same way (count Greedy's `landSwap`s per seed) and pin it.
-    const series = await playSeries('greedy', 'ev', 1, 24);
+    const series = await playSeries('greedy', 'ev', 1, 211);
     expect(series.swapsByTier.greedy ?? 0).toBeGreaterThan(0);
   });
 });

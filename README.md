@@ -114,9 +114,13 @@ To make a change — intent, plan, build, review, merge — see
    one to have it retreat and make room. If *that* unit also has no direct
    retreat, the same choice repeats for it, cascading through as many links
    as needed until someone reaches a real hex; only once the whole chain is
-   resolved does the original unit take the first hex vacated. A unit with
-   no legal retreat and no friendly anywhere nearby able to make room is
-   eliminated instead. **Elephants** are the exception: instead
+   resolved does the original unit take the first hex vacated. A retreating unit never
+   takes a hex that is in an enemy zone of control, not even by pushing, and
+   this holds at every link of the chain (rivers still block zone of control,
+   and ships project none): a friendly unit whose hex is under enemy zone of
+   control is not offered. A unit with no legal retreat and no friendly
+   anywhere nearby able to make room, in a hex free of enemy zone of
+   control, is eliminated instead. **Elephants** are the exception: instead
    of a chosen retreat, a die roll picks a random direction and the elephant
    drifts that way, hex by hex, for its full movement allowance — the panel
    narrates each step, and every hex it enters that's occupied triggers a
@@ -163,6 +167,23 @@ a charging light cavalry shows "attack 6 (3)", a ship that has lost equipment
 being placed has full movement and equipment. An empty hex shows its one line
 as before. In Placement, hovering also shows earlier players' placed units
 (the rules hide nothing). The labels are in English and French.
+
+On the Board, each unit also carries a small mark on its counter (or its
+figure in the Drawn view), always on and the same for human and computer seats.
+In the top-left corner a dot says what the unit has done this phase. In the
+movement phase, for the active player's units: a solid green dot is not moved
+yet (the plain fact: a unit boxed in by an enemy's zone of control keeps it), a
+half-filled amber dot has spent some of its movement (a ship that only turned
+has), and an empty grey ring is done (nothing left). In the combat phase, for
+the active player's units: a green dot with a sword can attack (it has a legal
+target, by the engine's own legality test), a grey dot with a tick has
+attacked (a ship that rammed this turn counts, since it cannot also board),
+and a unit with no target shows nothing. A red dot with a cross marks any
+player's unit that was attacked this combat phase; it is gone once the phase
+ends. A cavalry unit that has charged also shows a yellow chevron in the
+top-right corner, through the movement and combat phases. The marks follow
+their counter through a slide, lunge or fade and change at once; Placement has
+none. They are drawn from the engine's `unitStatuses` and change no rule.
 
 ### Saving and loading
 
@@ -243,7 +264,7 @@ Two boundaries deliberately limit how far back it reaches:
   from an empty history when your own phase begins.
 
 Undo is also refused while a retreat, elephant drift, post-combat advance
-offer, or exchange-sacrifice choice is still awaiting an answer — resolve it
+offer, exchange-sacrifice choice or End-phase warning is still awaiting an answer — resolve it
 first, the same rule "End phase" already follows. The advance-offer and
 exchange-sacrifice panels are properly modal for the same reason: clicking
 the board while one is open is ignored rather than (as in earlier builds)
@@ -395,7 +416,9 @@ moins égale"): the defender(s) are always destroyed, and the attacking
 player must choose which of their own units to also lose, totaling at
 least the defenders' force — with only one attacker there's no real choice,
 but a multi-unit attack group gets a prompt to pick which units to
-sacrifice.
+sacrifice. The prompt takes only a loss with no unit to spare - the smallest
+selections that reach the force - and refuses a larger one with a message
+saying why (losing a unit the exchange never asked for is never a better play).
 
 ### Shooting: melee force vs. projectile force
 
@@ -533,6 +556,45 @@ land unit left leaves the view where it is. The same happens when the Board
 opens on a game or a save is loaded. It doesn't happen between the
 movement and combat phases or on undo/redo, and dragging and zooming stay
 yours.
+
+### Ending the movement phase with units unmoved
+
+Clicking **End phase** in a human player's movement phase, while some of
+their units have not moved at all and could have, asks first. A unit counts
+as unmoved when it still has its full printed movement (a ship that only
+turned has moved), and it is flagged only if the game offers it something to
+do: a unit that is boxed in is not. A swap counts for both units. Land units
+and ships are treated alike.
+
+- **The view.** The camera moves the least that shows every flagged unit:
+  nothing if they are all visible, a pan if they fit at the current zoom,
+  else the smallest zoom-out (never past the wheel's limit, never zooming in).
+  A magenta rectangle is drawn on each flagged unit, in both views.
+- **The prompt.** It sits over the top of the log in the left panel, with the
+  count of unmoved units, **End phase anyway**, **Cancel** and a "Don't warn
+  me again this game" box. Cancel (or Escape) puts the camera back and
+  changes nothing: the units, the phase and Undo are as they were. End phase
+  anyway (or Enter) puts the camera back and ends the phase as usual.
+- **While it is open**, board clicks, Undo/Redo, Save/Load, End game and End
+  phase answer with "Resolve the pending choice first", and the Tables panel
+  stays open (Escape closes only the panel first, then cancels the warning).
+  Dragging, zooming and the view toggle still work, and Abandon still works.
+- **Switching it off.** Ticking the box switches the warning off for that
+  player, for the rest of the game; the other players are still warned. It
+  is kept in memory only, not in the save file, so a new game, a load or an
+  abandon warns again.
+- **Not warned:** the combat phase, computer players, and a player with
+  nothing to flag.
+
+### The width of the game
+
+The game canvas is 750 pixels tall and as wide as the browser window was
+when the page loaded, never under 1100. A wider window shows more of the map
+on the Board and in Placement (once the whole map fits, it is centred), keeps
+the Tables and score panels at the right edge, and centres the army builder
+as one block. A window 1100 pixels wide or less looks as it always did. The
+width is read once: resizing the window changes nothing until the page is
+reloaded.
 
 ### The Standard view and the Drawn view
 
@@ -842,11 +904,18 @@ last tab chosen. While you build a land attack (attackers and a target), the
 Land combat tab names the forces and highlights the ratio column and, in it,
 the row each die face lands on after the terrain and river modifier (a
 modified roll above 6 counts as 6). Ramming and boarding are not highlighted:
-they resolve as soon as the target is picked. The computer's attacks are not
-highlighted. While a retreat, push, advance or exchange choice (or an
-elephant's drift) is pending the panel hides, and the Tables button and Escape
-do nothing; it comes back as it was, on the same tab, once the choice is made.
-Opening it changes nothing in the game.
+they resolve as soon as the target is picked. The panel is available during
+every decision too (a retreat, push, advance or exchange choice, an elephant's
+drift): it never hides, never opens by itself and never changes tab, and
+clicking it, a tab or the Tables button never answers a question or continues a
+drift. **Escape** with the panel open only closes it; Space and Enter still
+continue a drift. The advance and exchange boxes are drawn below the panel's
+area (whether or not it is open), so it never covers them; a retreat or push
+highlight under the open panel is reached by dragging the map or closing the
+panel. Once an attack is rolled, the Land combat tab keeps its ratio column and
+marks, with an outlined bright cell, the one cell the roll landed on (the
+computer's attacks too), until you start building another attack or the phase
+ends. Opening it changes nothing in the game.
 
 ### Combat log detail
 
@@ -994,8 +1063,12 @@ terminal (the real `claude` command line in the page) is not built yet.
   `PlayerAgent`, and the self-play harness settles its combats this way); and
   `host.ts` is the one JSON entry (`newGame`/`load`, then `legalActions`,
   `apply`, `question`, `state`, `save`) with a required seeded random
-  generator, the turn-order shuffle included. The web game still resolves its
-  own combats in `BoardScene`. Fully
+  generator, the turn-order shuffle included. The web game settles its combats
+  through the same session: `BoardScene` builds one per land attack, answers
+  each question with the seat that owns it (its own prompts for a human, a
+  `HeuristicAgent` for a computer seat) and, for an elephant's drift, asks the
+  session to pause after each step so it can show the board at that beat and
+  wait for Continue; it keeps only the presentation. Fully
   unit-tested and independent of Phaser (the browser-side half of saving —
   the client of the save API, the read-only import of old `localStorage`
   saves and file download/upload — lives in `src/ui/saveStorage.ts`).

@@ -2,8 +2,9 @@ import Phaser from 'phaser';
 import { baseShape, figureFor } from './figures/figureShapes';
 import type { Primitive, Tone } from './figures/figureShapes';
 import { HEX_SIZE, PLAYER_COLORS_HEX, facingAngleRad } from './hexRender';
-import type { UnitDrawing, UnitMotion, ViewHost } from './boardView';
+import type { UnitDrawing, UnitMark, UnitMotion, ViewHost } from './boardView';
 import { UnitLayer } from './unitLayer';
+import { drawStatusMark } from './unitMarkGraphics';
 import type { LayerFigure } from './unitLayer';
 
 const INK = 0x20180e;
@@ -81,7 +82,10 @@ function containerFigure(container: Phaser.GameObjects.Container): LayerFigure &
     },
     setPosition: (x, y) => void container.setPosition(x, y),
     setAlpha: (alpha) => void container.setAlpha(alpha),
+    markAt: () => ({ x: container.x, y: container.y }),
     facingPart: figureOf(container),
+    // §82: the mark is the container's third child, so it moves, fades and shakes with it and never turns.
+    setStatus: (status, charged) => drawStatusMark(container.list[2] as Phaser.GameObjects.Graphics, status, charged),
     objects: () => [container],
     destroy: () => container.destroy(),
   };
@@ -108,6 +112,10 @@ export class DrawnUnits {
   /** An animation is playing or queued. */
   get animating(): boolean {
     return this.layer.animating;
+  }
+
+  marks(): Record<string, UnitMark> {
+    return this.layer.marks();
   }
 
   finishAnimations(): void {
@@ -151,7 +159,8 @@ export class DrawnUnits {
     // I2 (spec §74): the unit's numbers are shown by the hover tooltip, not on the figure, so the
     // container holds no text object.
     // Named by id, so the dev hook can count a unit's (or the ghost's) containers on the display list.
-    const container = scene.add.container(at.x, at.y, [base, fig]).setDepth(10).setName(unit.id);
+    const badge = scene.make.graphics({}, false);
+    const container = scene.add.container(at.x, at.y, [base, fig, badge]).setDepth(10).setName(unit.id);
     this.host.ignoreOnUiCamera(container);
     return container;
   }

@@ -747,3 +747,130 @@ CLAUDE.md package.json`).
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-11-24: implemented (all subtasks)
+
+Commits: `01daea6` dev-hook readers, fixture helper and characterisation scenarios;
+`de4610c` engine seams that do not pause; `0accf50` the opt-in drift pause (O4);
+`a8804e0` `ui/driftBeats.ts`; `434eea6` the Board settles land attacks through the
+session (subtasks 6 and 7); `f3208c1` the reference pump leaves production, docs and
+ceilings; one small commit after it keeps two existing tests' comment lines intact.
+
+What shipped:
+- **Characterisation first** (`e2e/combat-resolution.spec.ts`, 9 scenarios (a)-(g) on crafted
+  positions in `e2e/combatScenarios.ts`, loaded from slot 4 by `e2e/combatFixtures.ts`;
+  `combatScenarios.test.ts` checks each seed against the engine). All 9 passed on the unchanged
+  scene before any engine or scene change. Drift scenario (d): 9 Continue pauses, the retreat
+  prompt after the 4th (the trample), 5 more, then the advance offer.
+- **Engine**: `retreat`, `eliminated`, `advance`, `sacrifice` events through one `emit` (also
+  `onEvent`); `onActionApplied`; `askForced`; `pauseAfterDriftStep` + `Pending.paused` +
+  `sessionResume` (one `return` in `runResolution`, after `stepDrift`); `SessionStep.paused` and
+  `driftEvents`; `isListedSacrifice` (O3); `countEvents` has an explicit `driftCombat` branch.
+- **UI**: `ui/driftBeats.ts` (the drift pacing rules as data, unit-tested), `CueKeeper.begin`,
+  `BoardScene.settleLandAttack` (one session per attack, loop of `askAgent(seatRouter, ...)`,
+  `showDriftStep`), one `pending()` guard helper, the O3 refusal line in en and fr.
+- **Removed**: the scene's retreat, drift and advance queues, `beginDrift`, `driftOnStepHook`,
+  `executeLandAttack`, `settleResolution`, its inline `retreatUnitTo`/`completePush`/`position =`/
+  `destroyed =` writes, the `rollDie` method; `engine/retreat.ts` and `resolveElephantDrift`
+  moved to `engine/driftReference.ts` (tests only); both `docs/architecture.md` exception rows and
+  principle 7's exception.
+
+Numbers: `BoardScene.ts` 3169 -> 2835 lines (ceiling lowered to 2835); `fuzzHarness.ts` 1276 -> 1275;
+`drift.ts` left the baseline (under 500). `combatResolution.ts` is 487 lines (under 500, no split
+needed). Lint: 17 warnings, cap lowered 18 -> 17. `npm run verify`: 107 test files, 1792 passed, 2
+skipped. `npm run e2e`: 55 passed (the 9 new scenarios and every existing one; scenario (b) gained
+only O3's refusal of a larger-than-needed selection, plus two tightened asserts in (f) and (g), see
+below).
+
+Mutants run (backup by copy, restored by copy):
+- engine: pause without its `return` (4 tests fail); pause dropping a drift event (2 fail); resume
+  not clearing `paused` (the session stays paused; 10 tests fail).
+- scene (e2e): `Math.random` instead of `diceRng` for the attack (scenario (e) "nothing to undo"
+  fails); `askForced` dropped (scenarios (c) and, after tightening, (f) fail); `applyAiAction` not
+  awaiting the settlement (scenario (g), after tightening, fails).
+
+Deviations from the plan:
+1. **Citations** (subtask 0). `BoardScene.ts` was 3169 lines (not 3172) and the lint cap 18 (not 19)
+   at the start; the dev hook was already split into builders by §75, so `pendingChoice` and
+   `driftArrow` joined `boardReaders` and the pinned member list in `dev-hook-members.spec.ts`.
+2. **Subtasks 6 and 7 are one commit.** The old sequencing could not stay unused under the build
+   and lint, so it was deleted in the same commit.
+3. **The dice are seeded just before "Resolve attack"**, not at load: building the attack draws
+   from `Math.random` too. Scenario (g) seeds just before the Load click, because the computer
+   attacks as the game loads. `loadFixture` does not wait for idle when a seat is a computer's.
+4. **Existing tests changed** (plan said none): `gameSession.test.ts` has three event-list
+   expectations that now include `retreat` events (and one `push` list filtered to `push`), and
+   `drift.test.ts` and `gameSession.test.ts` import `resolveElephantDrift` and `resolveUnitRetreat`
+   from `driftReference.ts`. This is why `check:intent` says ROUTE (below).
+5. **Pause tests**: "each step exactly once" compares the pauses' events with the `driftStep`
+   calls of an unpaused run (a mocked `driftStep` records them) rather than with
+   `resolveElephantDrift`'s own sequence; the existing parity oracle already ties the session to
+   the reference pump. The host test checks that a host-driven elephant game never pauses; a
+   hand-built paused session cannot be passed to `host.save()` (the host does not expose its
+   session), so that refusal is not separately tested (the `session.pending` guard is unchanged).
+6. **Exchange render timing kept**: with an exchange to choose, the board is drawn once the losses
+   are chosen (as before), not when the attack is applied; the plan's `onActionApplied` said to
+   render always.
+7. `minimalSacrifices` is exported and `isListedSacrifice` lives in `sessionAgents.ts`; `Pending`
+   gained `paused` (an old JSON session without it reads as not paused).
+8. The §72 spec Amendment got the dated B7 and I1 notes (plan subtask 4), a file outside this
+   intent's folder.
+9. `npx playwright install chromium` was run once (the machine had no browser).
+10. Stale comments in `combat.test.ts` and `fuzzHarness.test.ts` that name removed scene functions
+    were left alone so those files lose no lines; their comments in `combat.ts` and
+    `fuzzHarness.ts` were updated.
+
+`npm run check:intent`: ROUTE (exit 2), not FAIL: "Declared refactor, but existing tests lost lines
+(src/engine/drift.test.ts, src/engine/gameSession.test.ts)". The reason is deviation 4: import
+re-pointing for the moved pump, and the event-list expectations of the new event kinds.
+
+Not checked: the live check (owed by rule 1, `src/scenes/**`); the Drawn view at Normal speed was
+not run by hand (the e2e runs with animations off).
+
+### Round 1 rework (69523c2)
+
+Fixes the four "Needs rework:" findings of review round 1, nothing else.
+
+- **MEDIUM, `e2e/combatFixtures.ts`:** `loadFixture` now waits (locally; §86's `waitLoaded` is not on
+  main) until `state().phase === 'combat'` and the unit ids equal the fixture's, reading the hook as
+  "not yet" while the scene restarts, before its asserts. Scenario (g) goes through the same helper.
+- **LOW, push wording for a computer seat:** new scenario (c) variant in `combat-resolution.spec.ts`
+  (`PUSH`, seats `['human', 'ai-greedy']`): `nowhereToRetreat`, `mustRetreatRoom`, `retreatsMakingRoom`
+  in order, no `retreats.` line.
+- **LOW, drift display:** scenario (d) asserts at the `'advance'` stop that `driftArrow()` is null and
+  `busy()` has no `driftState`.
+- **LOW, `onEvent` on a drift:** `sessionSeams.test.ts` gains "onEvent receives exactly the events of each
+  step on a drift with a trample" (elephant, chariot, phalanx; asserts `driftStarted` and `driftCombat`
+  occur, and that `seen` equals the steps' events).
+- Optional: the two stale comments (`combat.test.ts`, `fuzzHarness.test.ts`) reworded; comments only.
+
+Mutants (backup/restore by copy): S07 killed by e2e "(c) a computer defender's pushed friend ..."; S15 killed
+by e2e "(d) a drift ..."; E10 and E11 each killed by the new sessionSeams test (1 failed in `src/engine`).
+Tests: `npm run verify` green (107 files, 1793 passed, 2 skipped), lint 17 warnings (cap unchanged).
+check:intent: FAIL only for the owed live check (owner's), plus the expected ROUTE (now also naming
+`combat.test.ts` and `fuzzHarness.test.ts`, whose edits are comments).
+Full `npm run e2e` x3: each run 55 passed, 1 failed, the failure being `placement.spec.ts:39` "Turn
+buttons" (the known §89 flake) every time; no other failure.
+
+### Rebase onto main after §90 (2026-11-25)
+
+Rebased the 26 commits onto `main` (de2af05, which has §90's rule: `pushCandidates` refuses a push whose
+taken hex is under enemy ZOC). `combat.ts`, `combat.test.ts`, `fuzzHarness.test.ts` and `README.md` merged
+cleanly; `git diff main -- src/engine/combat.ts` is only §73's comment edits (it does not touch `pushCandidates`).
+- Conflict 1, `src/engine/gameSession.test.ts` (commit "engine seams that do not pause"), the push-sequence
+  test: kept §90's coordinates (`vacatedHex` {2,18}, §90's shifted `pushPosition`) and §73's change (the
+  expected list is the `push`-filtered events, with its comment). No assertion changed in meaning.
+- Not a conflict but broken by §90, in two §73 files, found by `verify` and moved the way §90 moved its own
+  (to make the push legal, no assertion loosened):
+  - `src/engine/sessionSeams.test.ts` `singlePush()`: now §90's `pushPosition` shape (a (2,18), b (3,18),
+    c (4,18), e0 (3,17) with the river, naval boxes). Naval boxes project no ZOC, so a's (1,18) and two of
+    c's hexes (5,17), (5,18) are blocked by galleys, to keep "a has one friend, c one hex". Three tests use it.
+  - `e2e/combatScenarios.ts` `PUSH`: the owner-0 archers at (11,3), (9,4) projected ZOC onto the friend's
+    hex (10,3), so the push was refused (`combatScenarios.test.ts` (c) failed). They are now galleys, and two more
+    (fx-b3 (9,3), fx-b4 (11,2)) close the friend's other hexes, which the archers' ZOC used to close. All
+    assertions of (c) and of the browser spec are unchanged and pass.
+- Results: `npm run verify` green (107 files, 1797 passed, 2 skipped; lint cap 17 unchanged). Full
+  `npm run e2e`: 55 passed, 1 failed, `placement.spec.ts:39` (known §89 flake), which fails alone too.
+  `combat-resolution.spec.ts --repeat-each=2`: 20 passed, both (c) scenarios included.
+  `check:intent`: ROUTE only (a refactor whose existing tests "lost lines", now incl. `combat.test.ts`,
+  `drift.test.ts`, `fuzzHarness.test.ts`, `gameSession.test.ts`), no FAIL printed.

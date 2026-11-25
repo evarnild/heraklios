@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { applyAction } from '../engine/actions';
 import { CueKeeper } from './cueKeeper';
 import { createInitialState } from '../engine/turnManager';
 import type { GameState, Unit } from '../engine/state';
@@ -42,6 +43,17 @@ describe('CueKeeper', () => {
       cue.shakes.forEach((s) => shakes.add(s));
     }
     expect(shakes.has('t')).toBe(true);
+  });
+
+  // §73: the session applies the attack; the cue must come from the board BEFORE it, completed with the result.
+  it('begin derives the cue before the action and completes it once the result is known', () => {
+    const state = stateOf([unit({ id: 'a', typeId: 'fantassins', position: { q: 10, r: 3 }, movementLeft: 3 })]);
+    const keeper = new CueKeeper(() => {});
+    const done = keeper.begin(state, { kind: 'landMove', unitId: 'a', to: { q: 12, r: 3 } });
+    expect(keeper.take(), 'nothing is remembered until the result is known').toBeNull();
+    const result = applyAction(state, { kind: 'landMove', unitId: 'a', to: { q: 12, r: 3 } });
+    done(result);
+    expect(keeper.take()!.moves[0]!.steps.map((s) => s.hex)).toEqual([{ q: 11, r: 3 }, { q: 12, r: 3 }]);
   });
 
   it('take returns the cue once and then nothing', () => {

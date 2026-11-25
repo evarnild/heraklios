@@ -7,7 +7,7 @@
 // The seed only makes a failure replay the same rolls; nothing asserted
 // depends on the roll.
 import { expect, test, type Page } from '@playwright/test';
-import { MENU_CLOSE_COMBAT, activeUnitOfType, clickButton, clickHex, key, settle, startFromMenu, state, waitIdle } from './helpers';
+import { MENU_CLOSE_COMBAT, activeUnitOfType, clickButton, clickHex, key, settle, startFromMenu, state, waitIdle, endPhase } from './helpers';
 
 const UNDO = '↶ Undo';
 const NOTHING_TO_UNDO = 'Nothing to undo.';
@@ -99,7 +99,7 @@ test('the log keeps every message, scrolls, and stays clear of the buttons (seed
     (u) => u.owner !== me && u.position.q === archers.position.q && u.position.r === archers.position.r + 2 * step,
   );
   if (!target) throw new Error(`No enemy two hexes from the archers at ${key(archers.position)}`);
-  await clickButton(page, 'End phase');
+  await endPhase(page);
   await waitIdle(page);
   await clickHex(page, archers.position);
   await clickHex(page, target.position);
@@ -129,7 +129,7 @@ test('a new heading starts the next player and the next turn (seed 1)', async ({
 
   // End phases until the other player is up, then log something for them.
   while ((await active()).player === first.player) {
-    await clickButton(page, 'End phase');
+    await endPhase(page);
     await settle(page);
   }
   expect((await active()).turn, 'same turn, other player').toBe(first.turn);
@@ -141,7 +141,7 @@ test('a new heading starts the next player and the next turn (seed 1)', async ({
 
   // And on to the next turn.
   while ((await active()).turn === first.turn) {
-    await clickButton(page, 'End phase');
+    await endPhase(page);
     await settle(page);
   }
   await clickButton(page, UNDO);

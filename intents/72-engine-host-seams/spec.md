@@ -295,3 +295,11 @@ answers. Each one clarifies the B it names.
   is the number of units that seat already has in `state`. This is the same as
   today's computer placer. A second human seat's ids now restart at 0. Ids are
   never shown to players, and the seat in the id keeps them unique.
+
+- **B7 amended by §73 O4 (2026-11-24).** A caller may opt into a pause after
+  each drift step (`hooks.pauseAfterDriftStep`): the session then stops with the
+  resolution pending, `paused` set and no question, and `sessionResume` goes on.
+  With the flag absent B7 is unchanged, and a host never sets it.
+- **I1 corrected by §73 O1 (2026-11-24).** `BoardScene` never differed in the
+  order I1 describes: its skipped retreat or drift item went on to the advance
+  offer too, so there is no ordering difference to reconcile.
