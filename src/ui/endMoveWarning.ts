@@ -61,11 +61,10 @@ export class EndMoveWarning {
     private readonly setPending: (on: boolean) => void,
     private readonly log: (text: string) => void,
   ) {
-    // Both keys are no-ops while closed. A scene that shuts down with the
-    // warning open must not leave a stale open state for these listeners.
+    // Both keys are no-ops while closed. A shutdown drops them (Phaser's
+    // `KeyboardPlugin.shutdown`), and the next `create` resets this instance.
     onKeyOnce(scene.input.keyboard, 'keydown-ESC', () => this.close(false));
     onKeyOnce(scene.input.keyboard, 'keydown-ENTER', () => this.close(true));
-    scene.events.once('shutdown', () => this.reset());
   }
 
   /**
