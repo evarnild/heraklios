@@ -7,13 +7,13 @@ title: The placement Turn buttons scenario times out in full e2e runs under load
 review_tier:
 intent_accepted: 2026-11-24 by-agent    # owner: "accept 89 /auto 89"
 spec_accepted:
-plan_approved:
+plan_approved: 2026-11-25 by-agent    # auto: owner "accept 89 /auto 89" (auto_authorized 2026-11-25)
 live_checked:
 merged:
 konmari:
 auto_authorized: 2026-11-25 by-agent    # owner: "accept 89 /auto 89"
 auto_round:
-auto_stopped: too many sessions
+auto_stopped:
 follows_up: 40
 links:
   - intents/40-naval-turn-buttons
