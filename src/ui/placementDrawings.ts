@@ -1,7 +1,7 @@
 import type { HexCoord } from '../data/map';
-import { getUnitType } from '../data/units';
-import type { GameState, Unit } from '../engine/state';
+import type { GameState } from '../engine/state';
 import type { FacingShip, UnitDrawing } from './boardView';
+import { drawingOf, isShip } from './unitDrawings';
 
 /**
  * What Placement draws: every living unit in state (other seats' dimmed) and
@@ -23,23 +23,12 @@ import type { FacingShip, UnitDrawing } from './boardView';
  * placed units.
  */
 
-/** A ship carries a facing (its counter's arrow, its figure's heading); a land unit doesn't. */
-function isShip(u: Unit): boolean {
-  return getUnitType(u.typeId).domain === 'naval';
-}
-
 /** One drawing per living unit, in state order; another seat's is `dimmed`. */
 export function placementUnitDrawings(state: GameState, playerIndex: number): UnitDrawing[] {
   return state.units
     .filter((u) => !u.destroyed)
     .map((u) => {
-      const drawing: UnitDrawing = {
-        id: u.id,
-        typeId: u.typeId,
-        owner: u.owner,
-        position: u.position,
-        facing: isShip(u) ? u.facing : undefined,
-      };
+      const drawing = drawingOf(u);
       if (u.owner !== playerIndex) drawing.dimmed = true;
       return drawing;
     });
