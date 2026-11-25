@@ -19,8 +19,10 @@ describe('the Tables panel visibility (§55)', () => {
     s.open('terrain');
     s.setTab('ramming');
     s.close();
+    s.setTab('boarding');
+    expect(s).toMatchObject({ shown: false, tab: 'boarding' });
     s.open('land');
-    expect(s).toMatchObject({ shown: true, tab: 'ramming' });
+    expect(s).toMatchObject({ shown: true, tab: 'boarding' });
   });
 
   it('reset forgets everything', () => {

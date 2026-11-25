@@ -128,7 +128,7 @@ export class RulesPanel {
   /** The attack being built, or null: the land tab highlights it while open. */
   setAttack(attack: RulesAttack | null): void {
     this.attack = attack;
-    // Building the next attack drops the rolled mark; clearing the selection keeps it.
+    // Building the next attack drops the rolled mark (the scene's syncRulesPanel clears it first; this keeps the panel right alone); clearing the selection keeps it.
     if (attack) this.rolled = null;
     if (this.built) this.render();
   }

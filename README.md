@@ -560,8 +560,8 @@ and ships are treated alike.
   anyway (or Enter) puts the camera back and ends the phase as usual.
 - **While it is open**, board clicks, Undo/Redo, Save/Load, End game and End
   phase answer with "Resolve the pending choice first", and the Tables panel
-  hides and returns as it was. Dragging, zooming and the view toggle still
-  work, and Abandon still works.
+  stays open (Escape closes only the panel first, then cancels the warning).
+  Dragging, zooming and the view toggle still work, and Abandon still works.
 - **Switching it off.** Ticking the box switches the warning off for that
   player, for the rest of the game; the other players are still warned. It
   is kept in memory only, not in the save file, so a new game, a load or an

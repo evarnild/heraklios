@@ -13,12 +13,12 @@ import { acquireSaveLock, withSaveLockHeld } from './savesDir';
 
 const en = messagesFor('en');
 const tabs = en.rules.tabs;
-/** The seeds' dice (`combatScenarios.test.ts` checks them against the engine): ONE_OPTION rolls a 2, EXCHANGE a 5. */
 /** ONE_OPTION plus a spare attacker far away, to start the next attack with. */
 const WITH_SPARE: Scenario = {
   ...ONE_OPTION,
   fixture: { ...ONE_OPTION.fixture, units: [...ONE_OPTION.fixture.units, { id: 'fx-spare', owner: 0, typeId: 'phalanges', at: { q: 13, r: 5 } }] },
 };
+/** The seeds' dice (`combatScenarios.test.ts` checks them against the engine): ONE_OPTION rolls a 2, EXCHANGE a 5. */
 const DIE = { one: 2, exchange: 5 };
 
 test.beforeEach(async () => {
@@ -134,6 +134,36 @@ test('the rolled cell stays marked after the roll and is cleared by the next att
   // Starting another attack (a new attacker) drops the mark.
   await clickHex(page, (await state(page)).units.find((u) => u.id === 'fx-spare')!.position);
   await page.waitForFunction(() => window.__heraklios.rulesPanel().highlight === null);
+  expect(errors).toEqual([]);
+});
+
+/** Rolls ONE_OPTION with the Tables panel on the land tab, declines the advance, and leaves the roll marked. */
+async function rollAndSettle(page: Page): Promise<void> {
+  await openOn(page, tabs.land);
+  await attack(page, ONE_OPTION);
+  await waitRetreat(page);
+  await clickHex(page, (await choice(page))!.hexes[0]!);
+  await waitButton(page, "Don't advance");
+  await clickButton(page, "Don't advance");
+  await waitIdle(page);
+  expect((await panel(page)).highlight, 'the roll is still marked').not.toBeNull();
+}
+
+test('ending the phase drops the rolled mark (B7)', async ({ page }) => {
+  const errors = await begin(page, ONE_OPTION);
+  await rollAndSettle(page);
+  await clickButton(page, 'End phase');
+  await waitIdle(page);
+  await page.waitForFunction(() => window.__heraklios.rulesPanel().highlight === null);
+  expect(errors).toEqual([]);
+});
+
+test('a load drops the rolled mark (B8)', async ({ page }) => {
+  const errors = await begin(page, ONE_OPTION);
+  await rollAndSettle(page);
+  await loadFixture(page, await state(page), ONE_OPTION.fixture);
+  await waitIdle(page);
+  expect((await panel(page)).highlight).toBeNull();
   expect(errors).toEqual([]);
 });
 

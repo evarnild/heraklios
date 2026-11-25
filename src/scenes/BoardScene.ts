@@ -698,7 +698,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.driftContinueBtn.on('pointerdown', () => this.resolveDriftContinue());
 
     bindUndoRedoKeys(this.input.keyboard, { undo: () => this.undo(), redo: () => this.redo() });
-    onKeyOnce(this.input.keyboard, 'keydown-ESC', () => this.rulesPanel?.close());
+    onKeyOnce(this.input.keyboard, 'keydown-ESC', () => (this.rulesPanel?.isOpen() ? this.rulesPanel.close() : this.endMoveWarning?.cancel()));
     onKeyOnce(this.input.keyboard, 'keydown-SPACE', () => this.resolveDriftContinue());
     onKeyOnce(this.input.keyboard, 'keydown-ENTER', () => this.resolveDriftContinue());
 

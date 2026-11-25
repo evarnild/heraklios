@@ -44,6 +44,7 @@ async function expectOpenWhileDecisionPending(page: Page, tab: unknown): Promise
   await settle(page);
   await frames(page);
   expect(await panel(page), 'as it was').toMatchObject({ open: true, tab: tab });
+  expect(await page.evaluate((l) => window.__heraklios.buttonCount(l), en.rules.tabs.land), 'drawn after the choice').toBe(1);
 }
 
 test('the Tables panel: tabs, Escape, a highlight that follows the attack, clicks that stay on the panel', async ({ page }) => {
@@ -134,7 +135,7 @@ test('the Tables panel: tabs, Escape, a highlight that follows the attack, click
   await frames(page);
   expect(await page.evaluate(() => window.__heraklios.cameraZoom()), 'a closed panel does not block the wheel').not.toBe(zoom);
 
-  // Resolving the attack clears the highlight: reopen, build it again, resolve.
+  // Resolving the attack swaps the built attack for the rolled one (§84): reopen, build it again, resolve.
   await clickButton(page, en.board.tables);
   await clickHex(page, target.position); // the archers are still selected
   await page.waitForFunction(() => window.__heraklios.rulesPanel().highlight !== null);

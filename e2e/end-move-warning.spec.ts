@@ -54,7 +54,7 @@ const camera = async (page: Page) => ({
 });
 const logTexts = async (page: Page) => (await page.evaluate(() => window.__heraklios.logEntries())).map((e) => e.text);
 
-/** Clicks End phase and waits for the warning (two frames: the Tables panel hides in `update`). */
+/** Clicks End phase and waits for the warning (two frames). */
 async function openWarning(page: Page): Promise<void> {
   await clickButton(page, 'End phase');
   await frames(page);
@@ -249,14 +249,27 @@ test('the switch-off is forgotten when a game is loaded (seed 1)', async ({ page
   }
 });
 
-test('the Tables panel hides while the warning is open and returns as it was (seed 1)', async ({ page }) => {
+test('the Tables panel stays open over the warning; Escape closes only it first (seed 1)', async ({ page }) => {
   const errors = await startFromMenu(page, MENU_TEST, 'test', 1);
   await clickButton(page, en.board.tables);
   const panel = () => page.evaluate(() => window.__heraklios.rulesPanel());
   const opened = await panel();
   expect(opened.open).toBe(true);
   await openWarning(page);
+  expect(await panel()).toMatchObject({ open: true, tab: opened.tab });
+  // B6: Escape with the panel open closes the panel and nothing else.
+  const marked = (await warning(page)).marked;
+  expect(marked.length).toBeGreaterThan(0);
+  await page.keyboard.press('Escape');
+  await frames(page);
   expect((await panel()).open).toBe(false);
+  expect(await warning(page)).toMatchObject({ open: true, marked });
+  await page.keyboard.press('Escape');
+  await frames(page);
+  expect(await warning(page)).toMatchObject({ open: false, marked: [] });
+  // Cancel with the panel open leaves it open, on its tab.
+  await clickButton(page, en.board.tables);
+  await openWarning(page);
   await clickButton(page, en.common.cancel);
   await frames(page);
   expect(await panel()).toMatchObject({ open: true, tab: opened.tab });

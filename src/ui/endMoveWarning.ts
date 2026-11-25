@@ -9,7 +9,7 @@
  *
  * While open the scene's `decisionPending` is held (through `setPending`), so
  * every pending-choice guard covers it (undo, redo, save/load, end game, end
- * phase, board clicks, autosave and the Tables suppression).
+ * phase, board clicks, autosave). The Tables panel stays open (§84).
  *
  * I5: "switch off" is per seat, in memory only (not in `GameState`, the save
  * file or `localStorage`), and cleared by `reset()`, which the scene runs in
@@ -61,9 +61,10 @@ export class EndMoveWarning {
     private readonly setPending: (on: boolean) => void,
     private readonly log: (text: string) => void,
   ) {
-    // Both keys are no-ops while closed. A shutdown drops them (Phaser's
+    // Enter is a no-op while closed. A shutdown drops it (Phaser's
     // `KeyboardPlugin.shutdown`), and the next `create` resets this instance.
-    onKeyOnce(scene.input.keyboard, 'keydown-ESC', () => this.close(false));
+    // Escape is the scene's: with the Tables panel open it closes only the
+    // panel (§84 B6), else it calls `cancel`.
     onKeyOnce(scene.input.keyboard, 'keydown-ENTER', () => this.close(true));
   }
 
@@ -198,6 +199,11 @@ export class EndMoveWarning {
     this.markedIds = [];
     for (const o of this.prompt) o.destroy();
     this.prompt = [];
+  }
+
+  /** Escape's route: Cancel, a no-op while closed. */
+  cancel(): void {
+    this.close(false);
   }
 
   /**
