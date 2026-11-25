@@ -133,4 +133,11 @@ describe('ViewDrawingState', () => {
     const calls = replayed(s);
     expect(calls.find((c) => c[0] === 'setUnits')![1]).toEqual([{ ...U, dimmed: true }]);
   });
+
+  it('replays the status mark on units (§82)', () => {
+    const s = new ViewDrawingState();
+    s.setUnits([{ ...U, status: 'partlyMoved', charged: true }]);
+    const calls = replayed(s);
+    expect(calls.find((c) => c[0] === 'setUnits')![1]).toEqual([{ ...U, status: 'partlyMoved', charged: true }]);
+  });
 });

@@ -1,6 +1,7 @@
 import type Phaser from 'phaser';
 import type { HexCoord } from '../data/map';
 import type { ActionCue } from '../engine/actionCue';
+import type { UnitActivity } from '../engine/unitStatus';
 
 /**
  * One unit as a view draws it. Units are keyed by `id`, not by hex, so a view
@@ -17,6 +18,15 @@ export interface UnitDrawing {
   facing?: number;
   /** Drawn at `DIMMED_UNIT_ALPHA`: a unit the viewer can't move here (Placement's earlier seats). */
   dimmed?: true;
+  /** §82: the unit's phase marker (activity dot), from the engine's `unitStatuses`. Absent: none. */
+  status?: UnitActivity;
+  /** §82: a charged cavalry unit's chevron. */
+  charged?: true;
+}
+
+/** True when two drawings differ in what the mark shows (§82). */
+export function sameMark(a: UnitDrawing, b: UnitDrawing): boolean {
+  return a.status === b.status && a.charged === b.charged;
 }
 
 /**
@@ -137,7 +147,7 @@ export interface ViewHost {
 export interface UnitUpdate {
   unit: UnitDrawing;
   /** True when the type, owner or dimmed flag changed, so the counter must be
-   * rebuilt rather than just moved. */
+   * rebuilt rather than just moved. A status-only change is an update with this false (§82). */
   recreate: boolean;
 }
 
@@ -166,7 +176,7 @@ export function reconcileUnits(prev: ReadonlyMap<string, UnitDrawing>, next: rea
     }
     const recreate = old.typeId !== unit.typeId || old.owner !== unit.owner || old.dimmed !== unit.dimmed;
     const moved = old.position.q !== unit.position.q || old.position.r !== unit.position.r;
-    if (recreate || moved || old.facing !== unit.facing) diff.update.push({ unit, recreate });
+    if (recreate || moved || old.facing !== unit.facing || !sameMark(old, unit)) diff.update.push({ unit, recreate });
   }
   for (const id of prev.keys()) if (!seen.has(id)) diff.remove.push(id);
   return diff;

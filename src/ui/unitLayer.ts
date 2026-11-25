@@ -1,5 +1,5 @@
 import type Phaser from 'phaser';
-import { reconcileUnits, unitAlpha } from './boardView';
+import { reconcileUnits, sameMark, unitAlpha } from './boardView';
 import type { UnitDrawing, UnitFigure, UnitMotion, ViewHost } from './boardView';
 import { planAnimation } from './animationPlan';
 import { animationSpeed } from './animationSpeed';
@@ -11,6 +11,8 @@ export interface LayerFigure extends UnitFigure {
   /** Every display object of the figure; the first is the one restacked to keep `units`' order. */
   objects(): Phaser.GameObjects.GameObject[];
   destroy(): void;
+  /** §82: shows the unit's phase marker at once, whatever the figure is animating. */
+  setStatus?(status: UnitDrawing['status'], charged: boolean): void;
 }
 
 /**
@@ -109,6 +111,7 @@ export class UnitLayer<F extends LayerFigure> {
   private build(unit: UnitDrawing): F {
     const figure = this.make(unit);
     figure.setAlpha(unitAlpha(unit));
+    figure.setStatus?.(unit.status, unit.charged === true);
     return figure;
   }
 
@@ -136,6 +139,8 @@ export class UnitLayer<F extends LayerFigure> {
         entry.figure.destroy();
         this.units.set(unit.id, { drawing: unit, figure: this.build(unit) });
       } else {
+        // §82: the mark shows the new state at once, not inside the animation plan.
+        if (!sameMark(entry.drawing, unit)) entry.figure.setStatus?.(unit.status, unit.charged === true);
         entry.drawing = unit;
         // Off, a snap, or a unit the plan leaves alone: straight to the drawing.
         if (steps.length === 0) this.settle(unit.id);

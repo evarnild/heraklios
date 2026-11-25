@@ -23,6 +23,10 @@ class FakeFigure implements LayerFigure {
   active = true;
   destroyed = false;
   alphaCalls: number[] = [];
+  marks: Array<[string | undefined, boolean]> = [];
+  setStatus(status: string | undefined, charged: boolean): void {
+    this.marks.push([status, charged]);
+  }
   part: Part = {
     rotation: 0,
     setRotation: (r) => {
@@ -260,5 +264,26 @@ describe('jointFigure', () => {
     f.setPosition(1, 2);
     expect(f.facingPart).toBeNull();
     expect(f.objects()).toEqual([lead]);
+  });
+
+  it('shows a status-only change at once, also while another unit animates, and not an unchanged one (§82 AC6)', () => {
+    t.layer.setUnits([d('a', 1, 1), d('b', 5, 1)], 'snap');
+    const a = t.layer.figures().get('a')!;
+    const b = t.layer.figures().get('b')!;
+    expect(a.marks).toEqual([[undefined, false]]);
+    t.layer.setUnits([{ ...d('a', 1, 1), status: 'notMoved' }, d('b', 7, 1)]);
+    expect(t.layer.animating).toBe(true);
+    expect(a.marks).toEqual([[undefined, false], ['notMoved', false]]);
+    expect(b.marks).toHaveLength(1);
+    t.layer.setUnits([{ ...d('a', 1, 1), status: 'notMoved' }, d('b', 7, 1)]);
+    expect(a.marks).toHaveLength(2);
+    t.layer.finishAnimations();
+  });
+
+  it('sets the mark at build, on a new figure and on a recreated one (§82)', () => {
+    t.layer.setUnits([{ ...d('a', 1, 1), status: 'done', charged: true }], 'snap');
+    expect(t.layer.figures().get('a')!.marks).toEqual([['done', true]]);
+    t.layer.setUnits([{ ...d('a', 1, 1, undefined, 'cavalerie-legere'), status: 'done', charged: true }], 'snap');
+    expect(t.layer.figures().get('a')!.marks).toEqual([['done', true]]);
   });
 });
