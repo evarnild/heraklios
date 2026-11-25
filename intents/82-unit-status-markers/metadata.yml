@@ -8,7 +8,7 @@ review_tier:
 intent_accepted: 2026-11-22 by-agent    # owner: "accept 81 82 83 84 /auto 81 /auto 83"
 spec_accepted: 2026-11-24 by-agent    # owner: "spec accepted 82"
 plan_approved: 2026-11-24 by-agent    # auto: owner "/auto 82" (auto_authorized 2026-11-24)
-live_checked:
+live_checked: 2026-11-25 by-agent    # owner: "live checked 82 /auto 82"
 merged:
 konmari:
 auto_authorized: 2026-11-25 by-agent    # owner: "/auto 82"
