@@ -7,13 +7,12 @@ import { expect, test } from '@playwright/test';
 import { allHexes } from '../src/engine/deployment';
 import { HEX_SIZE, hexToPixel } from '../src/ui/hexRender';
 import { messagesFor } from '../src/ui/i18n/index';
-import { RULES_PANEL_W, SIDE_PANEL_WIDTH } from '../src/ui/rulesPanelLayout';
+import { RULES_PANEL_MARGIN, RULES_PANEL_W, SIDE_PANEL_WIDTH } from '../src/ui/rulesPanelLayout';
 import { scorePanelRect } from '../src/ui/scorePanelLayout';
 import { MENU_TEST, clickButton, collectErrors, startFromMenu, state } from './helpers';
 
 const en = messagesFor('en');
 const WIDE = 1600;
-const TABLES_MARGIN = 12; // rulesPanelLayout.ts MARGIN (not exported)
 
 test.use({ viewport: { width: WIDE, height: 750 } });
 
@@ -30,7 +29,7 @@ test('a 1600-wide window gives a 1600-wide canvas, a wider map view and right-ed
 
   await clickButton(page, en.board.tables);
   await page.waitForFunction(() => window.__heraklios.rulesPanel().open);
-  expect((await page.evaluate(() => window.__heraklios.rulesPanel())).left).toBe(WIDE - RULES_PANEL_W - TABLES_MARGIN);
+  expect((await page.evaluate(() => window.__heraklios.rulesPanel())).left).toBe(WIDE - RULES_PANEL_W - RULES_PANEL_MARGIN);
 
   expect(errors).toEqual([]);
 });
