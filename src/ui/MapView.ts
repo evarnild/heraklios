@@ -1,10 +1,10 @@
-import { panBounds } from './panBounds';
 import Phaser from 'phaser';
 import { scanCameras, type CameraObject, type CameraScan } from './cameraStrays';
 import type { HexCoord } from '../data/map';
 import { HEX_SIZE, hexToPixel } from './hexRender';
 import { allHexes } from './mapBounds';
 import { MAX_ZOOM, MIN_ZOOM, frameBox, type Box, type CameraView } from './cameraFraming';
+import { panBounds } from './panBounds';
 import { formatHexTooltip } from './hexTooltip';
 import { hexAtPoint } from './hexHitTest';
 import { StandardBoardView } from './standardBoardView';
