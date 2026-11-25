@@ -20,7 +20,7 @@ import type { ActionContext } from '../engine/actions';
 import { currentPlayer, type GameState, type Unit } from '../engine/state';
 import { isAiSeat } from '../engine/seatControl';
 import { unmovedUnits } from '../engine/unmoved';
-import { boxAround } from './cameraFraming';
+import { boxAround, type CameraView } from './cameraFraming';
 import { MARK, endMoveWarningRect, warningDue } from './endMoveWarningLayout';
 import { HEX_SIZE } from './hexRender';
 import { messages } from './i18n';
@@ -49,7 +49,7 @@ export class EndMoveWarning {
   /** The ids a mark was actually drawn for (read by the dev hook). */
   private markedIds: string[] = [];
   private prompt: Phaser.GameObjects.GameObject[] = [];
-  private saved: { zoom: number; scrollX: number; scrollY: number } | null = null;
+  private saved: CameraView | null = null;
   private ticked = false;
   private onConfirm: (() => void) | null = null;
   private seat = 0;

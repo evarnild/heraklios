@@ -3,7 +3,7 @@ import { scanCameras, type CameraObject, type CameraScan } from './cameraStrays'
 import type { HexCoord } from '../data/map';
 import { HEX_SIZE, hexToPixel } from './hexRender';
 import { allHexes } from './mapBounds';
-import { MAX_ZOOM, MIN_ZOOM, frameBox, type Box } from './cameraFraming';
+import { MAX_ZOOM, MIN_ZOOM, frameBox, type Box, type CameraView } from './cameraFraming';
 import { formatHexTooltip } from './hexTooltip';
 import { hexAtPoint } from './hexHitTest';
 import { StandardBoardView } from './standardBoardView';
@@ -454,13 +454,13 @@ export class MapView {
   }
 
   /** The main camera's zoom and scroll, to restore later (§83). */
-  cameraView(): { zoom: number; scrollX: number; scrollY: number } {
+  cameraView(): CameraView {
     const cam = this.scene.cameras.main;
     return { zoom: cam.zoom, scrollX: cam.scrollX, scrollY: cam.scrollY };
   }
 
   /** Puts the main camera back as `cameraView()` read it (zoom first: the bounds clamp depends on it). */
-  setCameraView(view: { zoom: number; scrollX: number; scrollY: number }): void {
+  setCameraView(view: CameraView): void {
     const cam = this.scene.cameras.main;
     cam.setZoom(view.zoom);
     cam.setScroll(view.scrollX, view.scrollY);

@@ -25,6 +25,13 @@ export interface Viewport {
   height: number;
 }
 
+/** The main camera's zoom and scroll, as read to be restored later. */
+export interface CameraView {
+  zoom: number;
+  scrollX: number;
+  scrollY: number;
+}
+
 /** The bounding box of world points, grown by `grow` on every side. */
 export function boxAround(points: Array<{ x: number; y: number }>, grow: number): Box {
   const xs = points.map((p) => p.x);
