@@ -2,14 +2,14 @@
 id: 83
 slug: end-move-phase-warning
 type: feature
-status: in-review
+status: done
 title: Ending the movement phase with unmoved units shows them and asks to confirm
 review_tier:
 intent_accepted: 2026-11-22 by-agent    # owner: "accept 81 82 83 84 /auto 81 /auto 83"
 spec_accepted: 2026-11-22 by-agent    # owner: "spec accepted 81 and 83"
 plan_approved: 2026-11-22 by-agent    # auto: owner "/auto 81 /auto 83" (auto_authorized 2026-11-22)
 live_checked: 2026-11-25 by-agent    # owner: "live checked 83 /auto 83"
-merged:
+merged: bf80d3a    # 2026-11-25, merged by Claude on the owner's explicit request in chat
 konmari:
 auto_authorized: 2026-11-25 by-agent    # owner: "live checked 83 /auto 83"
 auto_round: 2
