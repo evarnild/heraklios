@@ -11,7 +11,7 @@ import { showConfirmDialog } from '../ui/confirmDialog';
 import { SaveLoadPanel } from '../ui/saveLoadPanel';
 import { RulesPanel } from '../ui/rulesPanel';
 import { createScorePanel } from '../ui/scorePanel';
-import { BOARD_PROMPT, RAM_PROMPT } from '../ui/boardPrompts';
+import { ADVANCE_CHOOSER, BOARD_PROMPT, EXCHANGE_CHOOSER, RAM_PROMPT } from '../ui/boardPrompts';
 import { SIDE_PANEL_WIDTH, chooserRect } from '../ui/rulesPanelLayout';
 import { applySavedGame, captureCurrentGame, consumePendingLoad, writeSave } from '../ui/saveStorage';
 import type { SavedGame } from '../engine/saveGame';
@@ -2019,12 +2019,12 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   chooseAdvance(_state: GameState, candidates: Unit[], _vacated: HexCoord): Promise<Unit | null> {
     return new Promise((resolve) => {
       const { width, height } = this.scale;
-      const rowHeight = 26;
-      const panelHeight = 76 + candidates.length * rowHeight;
-      const { top } = chooserRect({ width: 320, height: panelHeight }, width, height);
+      const rowHeight = ADVANCE_CHOOSER.rowHeight;
+      const panelHeight = ADVANCE_CHOOSER.baseHeight + candidates.length * rowHeight;
+      const { top } = chooserRect({ width: ADVANCE_CHOOSER.width, height: panelHeight }, width, height);
 
       const panel = this.add
-        .rectangle(width / 2, top + panelHeight / 2, 320, panelHeight, 0x1a1408, 0.97)
+        .rectangle(width / 2, top + panelHeight / 2, ADVANCE_CHOOSER.width, panelHeight, 0x1a1408, 0.97)
         .setScrollFactor(0)
         .setDepth(20);
       const title = this.add
@@ -2332,12 +2332,12 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   chooseExchangeSacrifice(_state: GameState, attackers: Unit[], requiredForce: number): Promise<Unit[]> {
     return new Promise((resolve) => {
       const { width, height } = this.scale;
-      const rowHeight = 24;
-      const panelHeight = 110 + attackers.length * rowHeight;
-      const { top } = chooserRect({ width: 340, height: panelHeight }, width, height);
+      const rowHeight = EXCHANGE_CHOOSER.rowHeight;
+      const panelHeight = EXCHANGE_CHOOSER.baseHeight + attackers.length * rowHeight;
+      const { top } = chooserRect({ width: EXCHANGE_CHOOSER.width, height: panelHeight }, width, height);
 
       const panel = this.add
-        .rectangle(width / 2, top + panelHeight / 2, 340, panelHeight, 0x1a1408, 0.97)
+        .rectangle(width / 2, top + panelHeight / 2, EXCHANGE_CHOOSER.width, panelHeight, 0x1a1408, 0.97)
         .setScrollFactor(0)
         .setDepth(20);
       const title = this.add

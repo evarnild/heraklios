@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BOARD_PROMPT, RAM_PROMPT } from './boardPrompts';
+import { ADVANCE_CHOOSER, BOARD_PROMPT, EXCHANGE_CHOOSER, RAM_PROMPT } from './boardPrompts';
 import { SIDE_PANEL_WIDTH, chooserRect, rectsIntersect, rulesPanelRect, visiblePromptRects } from './rulesPanelLayout';
 
 describe('the Tables panel layout (§55)', () => {
@@ -41,8 +41,8 @@ describe('the Tables panel layout (§55)', () => {
     for (const w of [1100, 1600]) {
       const panel = rulesPanelRect(w);
       const sizes = [
-        ...[1, 2, 3, 4, 5, 6].map((n) => ({ width: 320, height: 76 + n * 26 })),
-        ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ width: 340, height: 110 + n * 24 })),
+        ...[1, 2, 3, 4, 5, 6].map((n) => ({ width: ADVANCE_CHOOSER.width, height: ADVANCE_CHOOSER.baseHeight + n * ADVANCE_CHOOSER.rowHeight })),
+        ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ width: EXCHANGE_CHOOSER.width, height: EXCHANGE_CHOOSER.baseHeight + n * EXCHANGE_CHOOSER.rowHeight })),
       ];
       for (const size of sizes) {
         const r = chooserRect(size, w, 750);
