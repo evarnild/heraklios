@@ -2,14 +2,14 @@
 id: 89
 slug: placement-turn-buttons-timeout
 type: fix
-status: in-review
+status: done
 title: The placement Turn buttons scenario times out in full e2e runs under load
 review_tier:
 intent_accepted: 2026-11-24 by-agent    # owner: "accept 89 /auto 89"
 spec_accepted:
 plan_approved: 2026-11-25 by-agent    # auto: owner "accept 89 /auto 89" (auto_authorized 2026-11-25)
 live_checked:
-merged:
+merged: d455129    # 2026-11-25, merged by Claude on the owner's explicit request in chat
 konmari:
 auto_authorized: 2026-11-25 by-agent    # owner: "/auto 89 accept the margin"
 auto_round: 2
