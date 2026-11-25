@@ -4,9 +4,9 @@ import { BOARD_PROMPT, RAM_PROMPT, centredPromptRect } from './boardPrompts';
  * Where the Tables panel sits (§55). Pure geometry, so a test can pin that it
  * stays clear of the prompts that are shown while it is open (the ram and
  * boarding prompts, from `boardPrompts.ts`, which `BoardScene` draws from) and
- * of the left side panel. The decision choosers (retreat, push, advance,
- * exchange sacrifice) are larger and set `decisionPending`; the panel is hidden
- * while it is set (`rulesPanelState.ts`), so they are not modelled here.
+ * of the left side panel. The advance and exchange choosers are modelled too
+ * (`chooserRect`): they sit below the panel, so it can stay open during a
+ * decision (§84).
  */
 export const SIDE_PANEL_WIDTH = 300;
 export const RULES_PANEL_W = 776;
@@ -33,4 +33,16 @@ export function rulesPanelRect(canvasWidth: number): Rect {
 
 export function rectsIntersect(a: Rect, b: Rect): boolean {
   return a.left < b.left + b.width && b.left < a.left + a.width && a.top < b.top + b.height && b.top < a.top + a.height;
+}
+
+/**
+ * Where the advance offer and the exchange chooser (§84, B4) are drawn: centred
+ * horizontally, top just below the panel's area whether or not it is open, so
+ * opening it never moves a chooser. A box too tall for the room below is
+ * drawn as high as it must, never above the canvas top (the panel then covers
+ * its top part).
+ */
+export function chooserRect(size: { width: number; height: number }, canvasWidth: number, canvasHeight: number): Rect {
+  const top = Math.max(0, Math.min(TOP + RULES_PANEL_H + MARGIN, canvasHeight - size.height));
+  return { left: canvasWidth / 2 - size.width / 2, top, ...size };
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BOARD_PROMPT, RAM_PROMPT } from './boardPrompts';
-import { SIDE_PANEL_WIDTH, rectsIntersect, rulesPanelRect, visiblePromptRects } from './rulesPanelLayout';
+import { SIDE_PANEL_WIDTH, chooserRect, rectsIntersect, rulesPanelRect, visiblePromptRects } from './rulesPanelLayout';
 
 describe('the Tables panel layout (§55)', () => {
   it('detects an overlap, and a touching edge is not one', () => {
@@ -35,5 +35,28 @@ describe('the Tables panel layout (§55)', () => {
       { left: 410, top: 310, width: 280, height: 130 },
       { left: 420, top: 315, width: 260, height: 120 },
     ]);
+  });
+
+  it('places the advance and exchange choosers below the panel, centred, at 1100 and 1600 wide (§84)', () => {
+    for (const w of [1100, 1600]) {
+      const panel = rulesPanelRect(w);
+      const sizes = [
+        ...[1, 2, 3, 4, 5, 6].map((n) => ({ width: 320, height: 76 + n * 26 })),
+        ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ width: 340, height: 110 + n * 24 })),
+      ];
+      for (const size of sizes) {
+        const r = chooserRect(size, w, 750);
+        expect(rectsIntersect(r, panel), `${w} ${size.height}`).toBe(false);
+        expect(r.top).toBe(286);
+        expect(r.left + r.width / 2).toBe(w / 2);
+      }
+    }
+  });
+
+  it('clamps a chooser too tall for the room below inside the canvas', () => {
+    const r = chooserRect({ width: 340, height: 600 }, 1100, 750);
+    expect(r.top).toBe(150);
+    expect(r.top + r.height).toBeLessThanOrEqual(750);
+    expect(chooserRect({ width: 340, height: 900 }, 1100, 750).top).toBe(0);
   });
 });
