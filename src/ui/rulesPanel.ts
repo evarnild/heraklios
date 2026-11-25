@@ -75,7 +75,7 @@ export class RulesPanel {
     this.config = config;
   }
 
-  /** Shown now: open and not hidden by a pending decision. */
+  /** Shown now: the player opened it (nothing else hides it, §84). */
   isOpen(): boolean {
     return this.state.shown;
   }
@@ -92,7 +92,7 @@ export class RulesPanel {
     return x >= left && x <= left + PANEL_W && y >= top && y <= top + PANEL_H;
   }
 
-  /** Opens on `defaultTab` the first time, then on the last tab chosen; closes if open. No effect while hidden. */
+  /** Opens on `defaultTab` the first time, then on the last tab chosen; closes if open. */
   toggle(defaultTab: RulesTab): void {
     this.state.toggle(defaultTab);
     this.sync();
