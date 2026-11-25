@@ -26,7 +26,7 @@ unpinned:
 | # | Pass | Result |
 | --- | --- | --- |
 | 1 | Intent and plan match | pass. The rework does the four findings plus the optional comment fix; Progress "Round 1 rework (69523c2)" matches the diff. |
-| 2 | Type check | FAIL on the owed live check only (the owner's gate). The ROUTE is accepted, below. |
+| 2 | Type check | FAIL on the owed live check only (the owner's gate, now recorded). ROUTE accepted, reason stated below: the lost test lines are moved imports, the new `retreat` events and two comment-only edits. |
 | 3 | Rulebook fidelity | pass. No rule code changed. Round 1's LOW O3 note is carried. |
 | 4 | Tests prove the rule | pass. The four target mutants are killed. |
 | 5 | Engine/presentation boundary and conventions | pass. The rework touches only `e2e/` and engine test files. |
