@@ -103,6 +103,38 @@ runtime game behaviour.
 - the implementer's five loaded full runs and its "before" numbers;
 - round 1's fill arithmetic and mutants 1b, 3 and 4.
 
+## KonMari check
+**outcome: kept** (`konmari.md`, record `4939775`, base `941a80d`). One tidy-up,
+`1d1ed18`: it re-wraps the header comment of `e2e/placement.spec.ts` (lines
+8–12) to the header's 78-column width. That is round 2's F4. It is comment-only:
+no code, assertion, timeout or worker change.
+
+**The B16 check, at `4939775` (2026-11-25 11:24–11:27):**
+- **Coordinator, re-run:** `npm run verify`. Exit 0, `✖ 18 problems (0 errors,
+  18 warnings)`, `Test Files 103 passed (103)`, `Tests 1751 passed | 2 skipped
+  (1753)`. Test and warning counts are unchanged from the review.
+- **Coordinator, re-run:** `npm run check:intent`. `type-check: PASS (intent 89,
+  fix)`.
+- **Coordinator, re-run:** `npx playwright test e2e/placement.spec.ts
+  --repeat-each=3`. `3 passed (23.2s)`.
+- **Coordinator, re-run:** the killed mutants in the touched file, re-applied
+  by line text against `e2e/placement.spec.ts`:
+  - 1 (`clickButton(page, 'Turn', (1 - turn) as 0 | 1)` at `:35`): KILLED.
+  - 1b (`placeShip(page, 0)` for `right` at `:83`): KILLED.
+  - 3 (drop the `archers` fill at `:57`): KILLED.
+
+  After each the tree was `clean`.
+- **Coordinator, re-run:** `git diff -U0 941a80d..1d1ed18 -- e2e/placement.spec.ts`
+  has no changed line that isn't a `//` comment. No size ceiling applies.
+
+**The reviewer's read of `941a80d..4939775`: pass.**
+- `1d1ed18` touches only comment lines inside the header §89 rewrote.
+- The re-wrapped text is identical word for word, with only line breaks
+  moved.
+- No assertion, case, code line, timeout or dependency changed.
+- `konmari.md` has `outcome: kept` alone on its line, and `## Tidied` lists
+  exactly `1d1ed18`.
+
 # Round 1 (history)
 
 - verdict: rework
