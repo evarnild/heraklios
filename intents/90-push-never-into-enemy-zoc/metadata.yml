@@ -2,14 +2,14 @@
 id: 90
 slug: push-never-into-enemy-zoc
 type: fix
-status: in-review
+status: done
 title: A retreating unit never pushes its way into a hex in enemy zone of control
 review_tier: reviewed    # replaces a recorded rule interpretation on the owner's ruling (2026-11-24)
 intent_accepted: 2026-11-24 by-agent    # owner: "accept 90 /auto 90"
 spec_accepted:
 plan_approved: 2026-11-24 by-agent    # auto: owner "accept 90 /auto 90" (auto_authorized 2026-11-24)
 live_checked:
-merged:
+merged: df9e127    # 2026-11-25, merged by Claude on the owner's explicit request in chat
 konmari:
 auto_authorized: 2026-11-25 by-agent    # owner: "/auto 90" (diff read after escalate)
 auto_round: 2
