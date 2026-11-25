@@ -44,7 +44,7 @@ function drawDot(g: Phaser.GameObjects.Graphics, dot: DotSpec): void {
   g.lineStyle(1, MARK.outline, 1);
   g.strokeCircle(x, y, r);
   if (dot.glyph) {
-    g.lineStyle(1.5, dot.glyph === 'cross' ? MARK.glyphColor : MARK.glyphColor, 1);
+    g.lineStyle(1.5, MARK.glyphColor, 1);
     for (const [x1, y1, x2, y2] of GLYPHS[dot.glyph]) {
       g.lineBetween(x + x1 * r, y + y1 * r, x + x2 * r, y + y2 * r);
     }

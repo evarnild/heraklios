@@ -39,4 +39,17 @@ describe('buildUnitDrawings (§82 B8, B12)', () => {
     expect(by.x!.status).toBeUndefined();
     expect(ships).toEqual([{ hex: { q: 28, r: 6 }, facing: 2, playerIndex: 0 }]);
   });
+
+  it('in combat, the attacked and rammed sets give hasAttacked (D6)', () => {
+    const state = stateOf([
+      unit({ id: 'a', typeId: 'fantassins', position: { q: 10, r: 3 } }),
+      unit({ id: 'e', typeId: 'fantassins', position: { q: 11, r: 3 }, owner: 1 }),
+      unit({ id: 's', typeId: 'biremes', position: { q: 28, r: 6 } }),
+    ]);
+    state.phase = 'combat';
+    const { drawings } = buildUnitDrawings(state, { attackedThisPhase: new Set(['a']), rammedThisTurn: new Set(['s']) });
+    const by = Object.fromEntries(drawings.map((d) => [d.id, d]));
+    expect(by.a!.status).toBe('hasAttacked');
+    expect(by.s!.status).toBe('hasAttacked');
+  });
 });

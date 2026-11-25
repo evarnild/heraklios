@@ -35,7 +35,7 @@ export interface UnitMark {
   counter: { x: number; y: number };
 }
 
-/** True when two drawings differ in what the mark shows (§82). */
+/** True when two drawings show the same mark (§82). */
 export function sameMark(a: UnitDrawing, b: UnitDrawing): boolean {
   return a.status === b.status && a.charged === b.charged;
 }

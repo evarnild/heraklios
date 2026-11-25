@@ -70,6 +70,19 @@ describe('placementUnitDrawings', () => {
     expect(d.find((x) => x.id === 'a')!.facing).toBeUndefined();
   });
 
+  it('draws no phase mark and no charge, even for a charged or spent unit (§82 AC12)', () => {
+    const s = mixed();
+    for (const u of s.units) {
+      u.charged = true;
+      u.defendedThisPhase = true;
+      u.movementLeft = 0;
+    }
+    for (const d of placementUnitDrawings(s, 1)) {
+      expect('status' in d).toBe(false);
+      expect('charged' in d).toBe(false);
+    }
+  });
+
   it('shows a computer seat 0 deployed by autoDeploy, all dimmed, to seat 1', () => {
     const s = stateFor('W', 'E');
     autoDeploy(s, 0, defaultArmySelection(), createSeededRng(1));

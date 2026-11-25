@@ -137,6 +137,33 @@ describe('unitStatuses, combat phase (B3, B4)', () => {
   });
 });
 
+describe('unitStatuses, the active seat (F1)', () => {
+  function swapped(phase: GameState['phase']): GameState {
+    const s = stateOf([inf('a', 10, 3, { owner: 0 }), inf('b', 11, 3, { owner: 1 })], phase);
+    s.seatOrder = [1, 0];
+    s.activePlayerIndex = 0;
+    return s;
+  }
+  it('movement: the seat at activePlayerIndex in seatOrder is marked, not the player with that id', () => {
+    const s = swapped('movement');
+    expect(activity(s, 'b')).toBe('notMoved');
+    expect(unitStatuses(s, {}).has('a')).toBe(false);
+  });
+  it('combat: that seat has canAttack', () => {
+    const s = swapped('combat');
+    expect(activity(s, 'b')).toBe('canAttack');
+    expect(unitStatuses(s, {}).has('a')).toBe(false);
+  });
+});
+
+describe('unitStatuses, combined attacks (B3, I6)', () => {
+  it('an archer at range 2 and infantry next to the same enemy both have canAttack', () => {
+    const s = stateOf([inf('i', 10, 3), archer('r', 10, 5), inf('x', 11, 3, { owner: 1 })], 'combat');
+    expect(activity(s, 'i')).toBe('canAttack');
+    expect(activity(s, 'r')).toBe('canAttack');
+  });
+});
+
 describe('unitStatuses, purity and gates (AC3, AC4)', () => {
   it('is empty outside movement and combat', () => {
     const s = stateOf([inf('a', 10, 3, { charged: true })]);

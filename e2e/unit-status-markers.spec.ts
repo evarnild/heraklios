@@ -20,7 +20,6 @@ import {
   clickHex,
   endPhase,
   frames,
-  key,
   loadOnSameRowAs,
   reachable,
   settle,
@@ -181,7 +180,6 @@ test('a view switch keeps the readings, and the marks are in each view (seed 1)'
   expect((await page.evaluate(() => window.__heraklios.hudStrays())).strays).toEqual([]);
   await toView(page, 'standard');
   expect(await shown(page)).toEqual(standard);
-  expect(key(to)).toBeTruthy();
   expect(errors).toEqual([]);
 });
 
@@ -254,4 +252,26 @@ test.describe('at Normal speed', () => {
       expect(errors).toEqual([]);
     });
   }
+});
+
+test.describe('at Off speed', () => {
+  test.use({
+    storageState: { cookies: [], origins: [{ origin: 'http://127.0.0.1:5232', localStorage: [{ name: 'heraklios.animationSpeed', value: 'off' }] }] },
+  });
+
+  test('the mark equals the counter right after the click (standard view)', async ({ page }) => {
+    const errors = await startFromMenu(page, MENU_TEST, 'test', 1);
+    expect(await page.evaluate(() => window.__heraklios.animationSpeed())).toBe('off');
+    expect(await page.evaluate(() => window.__heraklios.boardView())).toBe('standard');
+    const m = await fullSpend(page);
+    await clickHex(page, m.from);
+    await clickHex(page, m.to);
+    await waitIdle(page);
+    const mark = (await page.evaluate(() => window.__heraklios.unitMarks()))[m.id]!;
+    expect(mark.mark, 'the mark is drawn').not.toBeNull();
+    expect(mark.mark!.x).toBeCloseTo(mark.counter.x, 3);
+    expect(mark.mark!.y).toBeCloseTo(mark.counter.y, 3);
+    expect(await activity(page, m.id)).toBe('done');
+    expect(errors).toEqual([]);
+  });
 });
