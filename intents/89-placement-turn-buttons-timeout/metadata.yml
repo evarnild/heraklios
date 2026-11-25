@@ -13,7 +13,7 @@ merged:
 konmari:
 auto_authorized: 2026-11-25 by-agent    # owner: "/auto 89 accept the margin"
 auto_round: 2
-auto_stopped:
+auto_stopped: ready for /deliver
 follows_up: 40
 links:
   - intents/40-naval-turn-buttons
