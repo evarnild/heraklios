@@ -41,7 +41,7 @@ Re-read on `main` at `a57fe21` (2026-11-25).
 - `npm audit` on `main` reports `@hono/node-server 2.0.0 - 2.1.5` (GHSA-qv5m-9pm6-hqp3, GHSA-jpvv-r467-5p4w), `hono <=4.13.15` (GHSA-4m76-xfj5-7975, -h7mg-cq63-vhpq, -3gg2-335m-rxc6, -46wx-v44x-9hh2, -4h7h-rv7c-7m2v), and "2 moderate severity vulnerabilities".
 - `npm ls hono @hono/node-server` gives `@anthropic-ai/claude-agent-sdk@0.3.309` → `@modelcontextprotocol/sdk@1.32.2` → `@hono/node-server@2.1.5` (with `hono@4.13.13` deduped) and `hono@4.13.13`.
 - `npm view @modelcontextprotocol/sdk@1.32.2 dependencies` gives `hono: '^4.11.4'` and `'@hono/node-server': '^1.19.9 || ^2.0.5'`.
-- `package.json:28` has `"@anthropic-ai/claude-agent-sdk": "0.3.309"` (pinned exactly, §52). There is no `overrides` key today.
+- `package.json:28` has `"@anthropic-ai/claude-agent-sdk": "0.3.309"` (pinned exactly, §52). Corrected 2026-11-25: `package.json:39-43` already has §63's `"overrides": { "@typescript-eslint/typescript-estree": { "minimatch": "11.0.1" } }`. The first draft missed it.
 - Release dates from `npm view <pkg> time`:
   - `hono` 4.13.15 (2026-11-01, still vulnerable), 4.13.16 (2026-11-01, the first fixed), 4.13.17 (11-07), **4.13.18 (11-11)**, 4.13.19 (11-16), 4.13.20 (11-22), 4.13.21 (11-23), 4.13.22 (11-25);
   - `@hono/node-server` 2.1.5 (2026-10-13, vulnerable), 2.1.6 (11-02, the first fixed), **2.1.7 (11-11)**, 2.1.8 (11-12), and later.
@@ -61,16 +61,27 @@ Re-read on `main` at `a57fe21` (2026-11-25).
 1. **Record the red state.** Save `npm audit` (2 moderate, non-zero exit)
    and `npm ls hono @hono/node-server` output for Progress. This is the
    failing-first check: the intent names no unit test.
-2. **Steer the lockfile without churn:**
+2. **Steer the lockfile.** Amended 2026-11-25 on the owner's choice ("Accept
+   peer-flag churn"), after the first attempt stopped. `package.json`
+   already holds §63's `overrides` block
+   (`"@typescript-eslint/typescript-estree": { "minimatch": "11.0.1" }`),
+   which must survive, so never run `npm pkg delete overrides`.
    1. `npm pkg set overrides.hono=4.13.18 "overrides.@hono/node-server=2.1.7"`
-   2. `npm install --package-lock-only --ignore-scripts`
-   3. `npm pkg delete overrides`
+      (this adds to the existing block).
+   2. `npm install --package-lock-only --ignore-scripts`.
+   3. Remove exactly the two keys added in step 1:
+      `npm pkg delete overrides.hono "overrides.@hono/node-server"`.
    4. `npm install --package-lock-only --ignore-scripts` again. npm keeps the
       locked versions, because they satisfy the SDK's ranges.
    5. `git diff --exit-code main -- package.json` must show no difference.
-   6. Inspect `git diff -- package-lock.json`: only the `node_modules/hono`
-      and `node_modules/@hono/node-server` entries (version, resolved,
-      integrity), plus any new dependency they require, and nothing else.
+   6. Inspect `git diff -- package-lock.json`. Allowed:
+      - the `node_modules/hono` and `node_modules/@hono/node-server` entries
+        (version, resolved, integrity), plus any new dependency they need;
+      - lines that only add or remove `"peer": true` (the owner-accepted
+        churn).
+
+      Nothing else. Count the peer-flag lines and the packages they touch
+      for Progress, and confirm §63's minimatch entries are unchanged.
 
    If npm adds unrelated entries, stop and report the diff. Don't hand-edit
    the lockfile.
@@ -92,7 +103,7 @@ No unit test covers a dependency version. The checks are:
 | --- | --- | --- |
 | `npm audit` clean | `npm audit` exits 0 with `found 0 vulnerabilities` (subtasks 3 and 5) | Any advisory still in range |
 | In-range pins, no override | `npm ls` shows 4.13.18 and 2.1.7 under the SDK; `git diff main -- package.json` is empty | A leftover `overrides` entry, or versions outside the ranges |
-| No churn | the lockfile diff touches only `hono` and `@hono/node-server` (plus their new dependencies, if any) | `npm audit fix`-style platform-binary additions |
+| No re-versioned package but the two | the lockfile diff changes versions only for `hono` and `@hono/node-server` (plus new dependencies, if any); every other changed line is a `"peer": true` flag (owner-accepted, 2026-11-25) | `npm audit fix`-style platform-binary additions |
 | Nothing else broke | `npm run verify` has the same test count and 18 warnings as `main`; the orchestrator's vitest files (`tools/orchestrator/**/*.test.mjs`) pass | A behaviour change in a dependency the tests reach |
 | The orchestrator runs | the smoke start (subtask 4) | The SDK failing to load with the new hono |
 

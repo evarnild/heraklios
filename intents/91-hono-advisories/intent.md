@@ -40,10 +40,15 @@ clean install, and §56's and §63's outcome is an `npm audit` at 0.
 - `npm audit` on the branch reports 0 vulnerabilities. `npm ls hono
   @hono/node-server` shows versions past the advisories' ranges
   (`hono >4.13.15`, `@hono/node-server >2.1.5`), reached within
-  `@modelcontextprotocol/sdk`'s declared ranges, with no `overrides` entry.
-- The lockfile diff is limited to those two packages, plus anything they
-  newly need. No unrelated churn: `npm audit fix` can add every optional
-  platform binary to the lockfile, and those lines are not part of this fix.
+  `@modelcontextprotocol/sdk`'s declared ranges, with no new `overrides`
+  entry (§63's existing `minimatch` override stays as it is).
+- No package in the lockfile is added, removed or re-versioned except `hono`
+  and `@hono/node-server`, plus anything they newly need. **Amended
+  2026-11-25 (owner's choice, "Accept peer-flag churn"):** npm 10.9.3
+  re-marks the `"peer": true` flags on about 90 unrelated packages whenever
+  it rewrites the lockfile. Those flag-only lines are accepted. Every other
+  changed line must be one of the two packages' own. `npm audit fix`'s
+  optional platform-binary additions are still not part of this fix.
 - `npm ci` in a fresh worktree reports no vulnerabilities.
 - `npm run verify` stays green with the same test count and lint warnings,
   and the orchestrator's own tests (`tools/orchestrator/**/*.test.mjs`, run
