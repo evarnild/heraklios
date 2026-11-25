@@ -281,6 +281,8 @@ export const fr: Messages = {
     selectTarget: 'Choisissez au moins une cible.',
     exchangeSacrificed: (units) => `Échange : défenseur(s) détruit(s) ; sacrifié(s) : ${units.join(', ') || 'aucun'}.`,
     selectMoreForce: (required) => `Choisissez des unités totalisant au moins ${required} de force d’attaque avant de valider.`,
+    sacrificeNotMinimal: (required) =>
+      `Ne choisissez pas plus d’unités que nécessaire : les pertes doivent totaliser au moins ${required} de force d’attaque, sans unité superflue.`,
     waitComputerPhase: 'Attendez la fin du tour de l’ordinateur avant de terminer la phase.',
     resolvePendingPhase: 'Résolvez d’abord la retraite ou la dérive en attente avant de terminer la phase.',
     computerError: 'Le joueur ordinateur a rencontré une erreur et s’est arrêté. Voir la console.',

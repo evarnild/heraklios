@@ -399,7 +399,9 @@ moins égale"): the defender(s) are always destroyed, and the attacking
 player must choose which of their own units to also lose, totaling at
 least the defenders' force — with only one attacker there's no real choice,
 but a multi-unit attack group gets a prompt to pick which units to
-sacrifice.
+sacrifice. The prompt takes only a loss with no unit to spare - the smallest
+selections that reach the force - and refuses a larger one with a message
+saying why (losing a unit the exchange never asked for is never a better play).
 
 ### Shooting: melee force vs. projectile force
 
@@ -998,8 +1000,12 @@ terminal (the real `claude` command line in the page) is not built yet.
   `PlayerAgent`, and the self-play harness settles its combats this way); and
   `host.ts` is the one JSON entry (`newGame`/`load`, then `legalActions`,
   `apply`, `question`, `state`, `save`) with a required seeded random
-  generator, the turn-order shuffle included. The web game still resolves its
-  own combats in `BoardScene`. Fully
+  generator, the turn-order shuffle included. The web game settles its combats
+  through the same session: `BoardScene` builds one per land attack, answers
+  each question with the seat that owns it (its own prompts for a human, a
+  `HeuristicAgent` for a computer seat) and, for an elephant's drift, asks the
+  session to pause after each step so it can show the board at that beat and
+  wait for Continue; it keeps only the presentation. Fully
   unit-tested and independent of Phaser (the browser-side half of saving —
   the client of the save API, the read-only import of old `localStorage`
   saves and file download/upload — lives in `src/ui/saveStorage.ts`).

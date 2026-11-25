@@ -32,8 +32,8 @@ export function terrainAt(hex: HexCoord): TerrainType {
  * necessarily for whichever attacker is being offered the chance to advance
  * into it — the advance-offer sibling of the terrain gaps the Stage 2 fuzz
  * harness found in `legalRetreatHexes`/`pushCandidates` above (plan.md §6).
- * That offer itself is applied by the CALLER (`BoardScene`'s
- * `promptAdvanceChoice`, mirrored headlessly in `engine/fuzzHarness.ts`),
+ * That offer itself is applied by the CALLER (`engine/combatResolution.ts`'s
+ * advance step, which `BoardScene` and the fuzz harness both settle through),
  * not by any function in this file, so this predicate is exported for both
  * to filter candidates through before ever asking `chooseAdvance`.
  */
@@ -109,7 +109,7 @@ export function canUnitEnterHex(unit: Unit, hex: HexCoord): boolean {
  * earlier version of that function only filtered by `!u.destroyed`, with no
  * terrain check, silently offering a cavalry/chariot attacker a marsh or
  * steep-flank hex it could never otherwise stand on). `BoardScene.ts`'s
- * `promptAdvanceChoice` had the IDENTICAL gap until plan.md §9.1; it now
+ * advance prompt had the IDENTICAL gap until plan.md §9.1; it now
  * calls this same function rather than carrying a separate, divergent
  * terrain check.
  */
@@ -818,7 +818,7 @@ export function legalRetreatHexes(state: GameState, unit: Unit): HexCoord[] {
  * re-offered as an immediate candidate. Callers resolving an ACTUAL cascade
  * (not just checking whether one exists) must thread the SAME growing
  * `visited` set through their own recursion (see `completePush`'s doc
- * comment, and `BoardScene.beginUnitRetreatChoice` / `fuzzHarness.
+ * comment, and `combatResolution.ts`'s `stepRetreat` / `fuzzHarness.
  * resolveUnitRetreat`), otherwise a unit still mid-chain (not yet moved)
  * could be independently re-offered as if it were an ordinary bystander.
  *
@@ -943,7 +943,7 @@ export function retreatUnitTo(unit: Unit, hex: HexCoord): void {
  * longer this function's job. With a cascade, `pushed` may itself have no
  * direct retreat and have to push a THIRD unit in turn (`legalRetreatHexes`
  * / `pushCandidates` again, recursively); resolving that is the caller's
- * job (see `BoardScene.beginUnitRetreatChoice` / `fuzzHarness.
+ * job (see `combatResolution.ts`'s `stepRetreat` / `fuzzHarness.
  * resolveUnitRetreat`), driven by the SAME per-unit retreat-or-push decision
  * `unit` itself just went through. By the time `completePush` is called,
  * `pushed`'s resolution (however many further links it took) is already

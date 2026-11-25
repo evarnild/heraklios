@@ -3,15 +3,8 @@ import type { HexCoord } from '../data/map';
 import { getUnitType } from '../data/units';
 import type { PlayerAgent } from './agent';
 import { describeLandAttack } from './combat';
-import {
-  driftStep,
-  resolveElephantDrift,
-  driftExitKind,
-  startElephantDrift,
-  type DriftEvent,
-  type DriftInput,
-  type DriftStats,
-} from './drift';
+import { driftStep, driftExitKind, startElephantDrift, type DriftEvent, type DriftInput } from './drift';
+import { resolveElephantDrift, type DriftStats } from './driftReference';
 import { DIRECTIONS } from './hex';
 import type { GameState, Player, PlayerId, Unit } from './state';
 import { createInitialState } from './turnManager';

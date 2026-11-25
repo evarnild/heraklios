@@ -5,7 +5,6 @@ import { applyAction, legalActions, type Action } from './actions';
 import { describeLandAttack, eligibleAdvanceCandidates, legalRetreatHexes, unitAt } from './combat';
 import { newPending, stepsForItems, type AnswerAction, type Question } from './combatResolution';
 import { rollDie } from './dice';
-import { resolveElephantDrift } from './drift';
 import {
   buildElephantScenarioGameState,
 } from './fuzzHarness';
@@ -20,7 +19,7 @@ import {
   type SessionEvent,
 } from './gameSession';
 import { RandomAgent } from './randomAgent';
-import { resolveUnitRetreat } from './retreat';
+import { resolveElephantDrift, resolveUnitRetreat } from './driftReference';
 import { createSeededRng } from './rng';
 import { settleWithAgent } from './sessionAgents';
 import { unitType, type GameState, type Unit } from './state';
@@ -316,7 +315,8 @@ describe('question sequences (B4, B5)', () => {
     expect(played.forced.some((q) => q.kind === 'pushTarget' && q.unitId === 'b')).toBe(true);
     expect(cOptions.length > 1 ? played.questions.some((q) => q.kind === 'retreat' && q.unitId === 'c') : played.forced.some((q) => q.kind === 'retreat' && q.unitId === 'c')).toBe(true);
     expect(played.questions.at(-1)).toEqual({ kind: 'advance', player: 1, vacatedHex: { q: 2, r: 18 }, candidateIds: [attacker.id] });
-    expect(played.events).toEqual([
+    // §73 added the retreat, advance... events: the pushes are still these two, in order.
+    expect(played.events.filter((e) => e.kind === 'push')).toEqual([
       { kind: 'push', unitId: 'b', pushedId: 'c' },
       { kind: 'push', unitId: 'a', pushedId: 'b' },
     ]);
@@ -351,7 +351,8 @@ describe('question sequences (B4, B5)', () => {
 
     expect(played.questions[0]).toEqual({ kind: 'retreat', player: 0, unitId: 'p', options });
     expect(played.questions[1]).toEqual({ kind: 'advance', player: 0, vacatedHex: { q: 14, r: 5 }, candidateIds: ['c'] });
-    expect(played.events.map((e) => e.kind)).toEqual(['driftStarted', 'driftCombat']);
+    // The trampled unit's retreat is an event too (§73).
+    expect(played.events.map((e) => e.kind)).toEqual(['driftStarted', 'driftCombat', 'retreat']);
     expect(trampled.position).toEqual(options.at(-1)); // moved by its owner's answer
     expect(elephant.position).toEqual({ q: 14 + unitType(elephant).movement, r: 5 }); // its whole move, east: it carried on
   });
@@ -379,7 +380,8 @@ describe('question sequences (B4, B5)', () => {
       if (session.pending) asked.push(sessionQuestion(session)!);
     }
     expect(asked.map((q) => q.kind)).toEqual(['retreat', 'advance', 'advance']);
-    expect(events.map((e) => e.kind)).toEqual(['driftStarted']);
+    // The foot's answered retreat, then the drift (a declined advance is no event).
+    expect(events.map((e) => e.kind)).toEqual(['retreat', 'driftStarted']);
   });
 
   // I1: an item skipped because its unit is already gone still gets its
@@ -623,7 +625,7 @@ describe('the drift runs inside the session (B7, B8)', () => {
 
   /**
    * The BoardScene-path reference: `applyAction`, then `resolveElephantDrift` and
-   * `engine/retreat.ts` with the same agent, as `processDrifts` and
+   * `driftReference.ts`'s two pumps with the same agent, as `processDrifts` and
    * `processRetreats` drove them before §72. It is kept here so the parity
    * check survives the harness moving onto the session.
    */
@@ -678,7 +680,7 @@ describe('the drift runs inside the session (B7, B8)', () => {
   // Kills a die rolled out of order, an extra `driftStep` before the first
   // request is answered, and resuming the drift before a trampled unit's
   // retreat is resolved: any of them changes the final state or the draws.
-  it('ends in the same state, with the same draws, as resolveElephantDrift and retreat.ts', async () => {
+  it('ends in the same state, with the same draws, as resolveElephantDrift and resolveUnitRetreat', async () => {
     let drifts = 0;
     for (let seed = 1; seed <= 24; seed++) {
       const attack: Action = { kind: 'landAttack', attackerIds: ['attacker'], defenderIds: ['defender'] };
