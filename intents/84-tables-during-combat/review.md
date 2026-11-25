@@ -184,6 +184,48 @@ The live check is the only error: it is the owner's gate, not a rework finding.
 - S1 (unit only, killed in the reviewer's run inside a full vitest pass);
 - the seeds' die faces (checked by `combatScenarios.test.ts`, inside verify).
 
+## KonMari check
+**outcome: kept** (`konmari.md`, record `1de16b3`, base `7a16fb1`). Two
+tidy-ups:
+- `0154c49`: the Tables panel's `isOpen` and `toggle` comments made true (F13).
+- `ebbf4d6`: the advance and exchange chooser sizes defined once,
+  `ADVANCE_CHOOSER` and `EXCHANGE_CHOOSER` in `src/ui/boardPrompts.ts`. They
+  are used in place in `BoardScene.ts` and in `rulesPanelLayout.test.ts`
+  (F12, principle 6). `BoardScene.ts` stays at 2833 lines. No killed-mutant
+  line moved.
+
+**The B16 check, at `1de16b3` (2026-11-25 16:22–16:36):**
+- **Coordinator, re-run:** `npm run verify`. Exit 0, `✖ 17 problems (0 errors,
+  17 warnings)`, `Test Files 110 passed (110)`, `Tests 1828 passed | 2 skipped
+  (1830)`. The counts are unchanged.
+- **Coordinator, re-run:** `npm run check:intent`. FAIL on the owed live check
+  only (`16 file(s), 493 line(s)`).
+- **Coordinator, re-run:** full `npm run e2e`. `70 passed (4.0m)`.
+- **Coordinator, re-run:** the killed mutants in the tidied files, re-applied
+  by line text.
+  - **`rulesPanelLayout.ts`**, against `rulesPanelLayout.test.ts`, whose sizes
+    now come from the constants: U5, U6, U7, U8 and U9 all **KILLED**.
+  - **`BoardScene.ts` and `rulesPanel.ts`**, against `end-move-warning.spec.ts`,
+    `tables-during-combat.spec.ts` and `rules-panel.spec.ts`:
+    - E6 KILLED by `tables-during-combat.spec.ts:117`, on the chooser line the
+      tidy-up rewrote;
+    - E7 KILLED by `:170`, on the chooser line the tidy-up rewrote;
+    - E5 KILLED by `:152`;
+    - E10 KILLED by `:161`;
+    - F2b KILLED by `end-move-warning.spec.ts:252`;
+    - C2 KILLED by `:71` and `:252`.
+  - The tree was `clean` after each.
+
+**The reviewer's read of `7a16fb1..1de16b3`: pass.**
+- Both tidy-ups are within §84's lines or the code they duplicate.
+- The chooser sizes are identical, character by character: advance 320 and
+  76 + 26n; exchange 340 and 110 + 24n.
+- The layout test still pins the placement against fixed literals (top 286,
+  centre w/2, no intersection with the panel), so it didn't become
+  tautological. Only the constants' own values are no longer pinned by the
+  unit test; the e2e's box positions still pin them.
+- No size, lint or dependency change. `konmari.md` is exact.
+
 # Round 1 (history)
 
 verdict: rework
