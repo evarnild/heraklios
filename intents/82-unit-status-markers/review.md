@@ -1,6 +1,219 @@
 <!-- generated-by: heraklios/review@0.2.0 -->
 # §82 review — Each unit shows whether it has moved, charged, attacked or been attacked this phase
 
+verdict: attest
+tier: attested
+reviewed-commit: e23c2e9
+round: 2
+sampled: no
+run: auto
+live-check: owed
+
+All nine round 1 findings are resolved. The rework adds only tests, one
+comment fix and the removal of a dead ternary. E17 (the active seat after a
+reshuffle), D6 (the context reaching the drawings), both AC12 Placement
+mutants and L4 (the mark lagging at Off speed) are now killed. No finding
+needs rework.
+
+The reviewer's own full e2e was killed by Claude Code for low system memory
+before any §82 scenario ran. The coordinator's re-check, run alone, passed
+the full suite (78/78), and the attest rests on that.
+
+**Tier:** Attested, by the path table (`src/engine/**`, `src/ui/**`,
+`src/scenes/**`); no rule added, no CRITICAL or HIGH finding.
+
+## Passes
+| # | Pass | Result |
+| --- | --- | --- |
+| 1 | Intent and plan match | pass. F3 (AC12), F4 (AC10 at Off) and F5 (`plan.md:272`) now have their proofs. |
+| 2 | Type check | pass. The only error is the owed live check. |
+| 3 | Rulebook fidelity | pass. `unitStatus.ts` is untouched by the rework; round 1's citations stand. |
+| 4 | Tests prove the rule, not only pass | pass. E17, D6, P1, P2 and L4 are killed. The survivors are equivalent or live-check items. |
+| 5 | Boundary and conventions | pass |
+| 6 | Numbers in prose | pass. The Progress numbers reproduce. |
+| 7 | Documentation | pass |
+| 8 | Guardrails and hygiene | pass. `✖ 17 problems (0 errors, 17 warnings)`, cap 17. |
+| 9 | Repository footguns | pass |
+| 10 | Architecture | pass |
+
+## Type check
+```
+type-check: FAIL (intent 82, feature)
+  error: A live check is owed and not recorded. Do the steps in intents/82-unit-status-markers/review.md → ## Live check, then set live_checked: <date> in intents/82-unit-status-markers/metadata.yml.
+  note:  25 file(s), 1002 line(s) changed outside intents/.
+exit: 1
+```
+The live check is the only error.
+
+## Findings
+No finding needs rework.
+
+**Round 1, resolved:**
+- **F1:** "the active seat (F1)" in `unitStatus.test.ts` (`seatOrder = [1, 0]`,
+  `activePlayerIndex = 0`, movement and combat). E17 KILLED by 2 tests.
+- **F2:** "in combat, the attacked and rammed sets give hasAttacked (D6)" in
+  `unitDrawings.test.ts`. D6 KILLED in vitest. B3 still survives; it is
+  live-check step 7.
+- **F3:** `placementDrawings.test.ts` "draws no phase mark and no charge, even
+  for a charged or spent unit (§82 AC12)". P1 and P2 KILLED.
+- **F4:** `e2e/unit-status-markers.spec.ts:262` "at Off speed › the mark
+  equals the counter right after the click (standard view)". L4 (the badge's
+  `setPosition` dropped, `unitLayer.ts:49`) is KILLED by it and by `:230`. In
+  the Drawn view the mark is a container child and cannot lag.
+  - Nit: `playwright.config.ts:37` already sets Off for the project; the
+    describe restates it, which is harmless.
+- **F5:** "combined attacks (B3, I6)". `legalActions` enumerates singleton
+  attacks only (`actions.ts:481`), so the case is in practice a second
+  archer-in-range case, as round 1 asked.
+- **F6:** the Progress numbers reproduce: commits 5d5d884, 2e22606, f830cab
+  and bd3c29e; `BoardScene.ts` 2826 (`main` 2833) with a 2826 baseline;
+  1858 tests; 78 e2e.
+  - Nit: the new entry has no `### ` heading.
+- **F7:** the `sameMark` comment matches the code.
+- **F8:** the dead ternary is gone.
+- **F9:** the removed `expect(key(to)).toBeTruthy()` could never fail (`key`
+  always returns a non-empty string); no coverage dropped.
+
+**The merge with §88** (`main` at `88b64d3`, `git merge-tree` exit 0):
+- **`MapView.ts`:** 495 lines, with §88's `panBounds` and §82's `unitMarks()`
+  in separate hunks.
+- **`devHook.ts`:** both changes, in separate hunks.
+- **`dev-hook-members.spec.ts`:** lists `unitMarks`.
+- **No semantic clash:** the marks are on the map camera and kept off the
+  HUD.
+- **Not built:** the merged tree was not built or tested here. The deliver's
+  post-merge `verify` covers the unit tests.
+
+## Mutants
+| Mutant | Target | Result |
+| --- | --- | --- |
+| E17 seatOrder lookup → index | `unitStatus.ts:57` | **KILLED** by "the active seat (F1)" (2 tests) |
+| D6 context → `{}` | `unitDrawings.ts:16` | **KILLED** by "in combat, the attacked and rammed sets give hasAttacked (D6)" |
+| P1 Placement adds `status = 'done'` | `placementDrawings.ts:43` | **KILLED** by the AC12 test |
+| P2 Placement copies `charged` | `placementDrawings.ts:43` | **KILLED** by the AC12 test |
+| L4 badge `setPosition` dropped | `unitLayer.ts:49` | **KILLED** by `unitLayer.test.ts` (§82 AC6) and by e2e `:230` and `:262` |
+| E11b naval guard dropped | `unitStatus.ts:68` | SURVIVED, equivalent |
+| L8 `jointFigure` `setStatus` never draws | `unitLayer.ts:58` | SURVIVED (live check) |
+| L9 `markAt` → lead | `unitLayer.ts:60` | SURVIVED (co-located by design) |
+| L11 `marks()` charged → false | `unitLayer.ts:123` | SURVIVED (live-check step 4) |
+| L12 `marks()` mark := counter | `unitLayer.ts:124` | SURVIVED (L4 now covers the real lag) |
+| M3 `hasAttacked` fill → red | `unitMarkSpec.ts:37` | SURVIVED (live check) |
+| M7 radius 4 → 14 | `unitMarkSpec.ts:19` | SURVIVED (live check) |
+| SU1 badge not kept off the HUD | `standardUnits.ts:60` | SURVIVED (looks equivalent) |
+| DR1 Drawn `setStatus` no-op | `drawnUnits.ts:88` | SURVIVED (live check) |
+| B3 `rammedThisTurn` dropped | `BoardScene.ts:785` | SURVIVED (live-check step 7) |
+
+## Not checked
+- The merged tree with §88, built and tested (`merge-tree` read only).
+- **The look (AC13):** size, corners, colours, readability at min and max
+  zoom, the four player colours, English and French, next to a ship's facing
+  mark.
+- The ram wiring in the scene (B3); a charged cavalry chevron in the browser
+  (L11).
+- §83's magenta rect over the dot below zoom 0.6.
+- A computer seat's marks while it acts.
+- The marks in a real game after the round-end reshuffle (the engine is now
+  pinned by F1).
+- Badges at depth 10.6 over a sliding counter at depth 10.
+
+## Live check
+- **owed:** rule 1 (`src/scenes/**`, `src/ui/**`); the change is new and visual.
+- **steps:** in `C:/Users/eric/src/heraklios-wt/82-unit-status-markers`,
+  `npm run dev -- --port 5282`, http://127.0.0.1:5282/.
+  1. Menu → **Test mode** (2 players), in the Standard view and English.
+  2. Move an infantry unit one hex. Move another unit its whole allowance.
+     Press Ctrl+Z.
+  3. Rotate a ship once.
+  4. Make a cavalry charge: the whole allowance in a straight line, ending
+     next to an enemy.
+  5. **End phase.**
+  6. Attack with one unit. Then **End phase** again.
+  7. Ram an enemy ship in the movement phase, then **End phase**.
+  8. Watch a multi-hex slide at Normal speed, then one move at speed Off.
+  9. Look at the marks at the default, minimum and maximum zoom. Then press
+     **End phase** with units unmoved, and at minimum zoom look at §83's
+     magenta rect against the green dot.
+  10. A 4-player test start: look at the dots against each player colour.
+  11. Toggle the **Drawn** view and back. Save to a slot, move a unit, then
+      Load.
+  12. Switch to French and glance again at steps 1 and 5.
+  13. Set a seat to computer and watch its turn.
+  14. Go into Placement.
+  15. Play on into round 2, after the seat order is reshuffled.
+- **you should see:**
+  1. Every active unit has a solid green dot in its top-left corner, and the
+     other player's units have none.
+  2. A half-filled amber dot after a one-hex move, and an empty grey ring
+     after a full move. Ctrl+Z brings the previous dot back.
+  3. An amber dot; the ship's facing mark still shows, and the dot doesn't
+     turn with the bow.
+  4. A grey ring plus a yellow chevron in the top-right corner.
+  5. Units with a target show a green dot with a sword; units without one
+     show nothing. The charge chevron stays.
+  6. The attacker shows a grey dot with a tick, and the defender a red dot
+     with a cross. After End phase, the cross is gone and the new active
+     player's units show green dots.
+  7. **The ramming ship shows the grey tick, not the sword.**
+  8. The dot travels with the counter, and at Off it jumps with it.
+  9. The dots read at every zoom. Note whether the magenta rect hides the
+     green dot.
+  10. The dots never cover a counter's values or a ship's arrow, and read
+      against every player colour.
+  11. The same marks on the Drawn figures, and after the Load they return to
+      the saved reading.
+  12. The same marks in French.
+  13. The computer's dots change as it acts.
+  14. In Placement, no unit has a mark.
+  15. The dots land on whoever is now active.
+  - Any size, corner or colour change goes in `src/ui/unitMarkSpec.ts` and is
+    recorded (spec B7).
+
+## Verified myself vs. taken on trust
+
+**Ran by the reviewer, at `e23c2e9`:**
+- `npm run verify`: exit 0, `✖ 17 problems (0 errors, 17 warnings)`, `Test
+  Files 113 passed (113)`, `Tests 1858 passed | 2 skipped (1860)`.
+- `npm run check:intent`: the FAIL above (live check only).
+- `npm run e2e`: **not completed.** Claude Code killed it for low system
+  memory after 47 passes; 8 then failed in 0–37 ms as the server died, and
+  23 never ran. It was not restarted, as the harness instructs.
+- 15 mutants on the full vitest suite, as above. Two early false kills, from
+  a cmd.exe harness, were discarded and re-run. Each was restored by copy,
+  and `git status --short` was empty.
+- `git merge-tree --write-tree main HEAD` with the merged files read.
+- The F6 numbers. `sampled:` from the main checkout: `nth attested auto
+  change = 23, every 3, sampled: no`.
+
+**Coordinator, re-run, at `e23c2e9` (2026-11-25 18:37–18:53), alone on the
+machine:**
+- **Coordinator, re-run:** `npm run verify`. Exit 0, `✖ 17 problems (0 errors,
+  17 warnings)`, `Test Files 113 passed (113)`, `Tests 1858 passed | 2 skipped
+  (1860)`. Matches.
+- **Coordinator, re-run:** `npm run check:intent`. FAIL on the owed live check
+  only, the same note. Matches.
+- **Coordinator, re-run:** full `npm run e2e`. **`78 passed (3.4m)`.** This
+  is the run the reviewer could not finish; every §82 scenario passed,
+  including `:262` at Off speed.
+- **Coordinator, re-run:** E17, D6, P1 and P2 against the full vitest suite:
+  all **KILLED** (E17 `2 failed`; the others `1 failed`). Matches.
+- **Coordinator, re-run:** against `e2e/unit-status-markers.spec.ts` and
+  `e2e/hud-strays.spec.ts`:
+  - B3, L11, L12, SU1 and DR1 **SURVIVED** (`9 passed` each). Matches.
+  - L4 is **KILLED** by `unit-status-markers.spec.ts:230` "at Normal speed ›
+    the mark rides its counter through a slide" and `:262` "at Off speed ›
+    the mark equals the counter right after the click". This is the F4
+    proof the reviewer could not run.
+- The tree was `clean` after each.
+
+**Taken on trust:**
+- round 1's killed mutants not named above (the rework touched no production
+  line but a comment and the ternary);
+- round 1's rulebook citations;
+- the reviewer's vitest-only survivors E11b, L8, L9, M3 and M7, which round 1's
+  coordinator re-check also saw survive.
+
+# Round 1 (history)
+
 verdict: rework
 tier: attested
 reviewed-commit: 1729fe0
