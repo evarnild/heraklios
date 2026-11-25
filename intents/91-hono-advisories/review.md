@@ -143,3 +143,12 @@ the SDK. All three were run live in the worktree.
 - its e2e run;
 - its account of the reverted first attempt, of which no trace remains in the
   diff.
+
+## KonMari check
+- **outcome: nothing to tidy** (`konmari.md`, commit `1e77c6b`, base `09a2c7e`). There
+  are no tidy-up commits. The diff outside `intents/` is the generated lockfile,
+  which is never hand-edited.
+- **Coordinator, re-run:** no B16 item applies. Nothing changed after the review
+  (`git log 09a2c7e..HEAD` is the record commit alone), so verify, audit and the
+  counts stand as above.
+- **Reviewer's read:** not run, as there are no tidy-up commits to read.
