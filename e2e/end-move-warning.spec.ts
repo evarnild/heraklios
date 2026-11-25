@@ -7,6 +7,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { unmovedUnits } from '../src/engine/unmoved';
 import { en } from '../src/ui/i18n/en';
 import {
+  MENU_CLOSE_COMBAT,
   MENU_TEST,
   activeUnitOfType,
   chord,
@@ -72,7 +73,12 @@ test('the warning frames, marks and holds every control; Cancel and the keys ans
   const moved = await moveOneHex(page, 'fantassins');
   const before = await camera(page);
 
+  // E1: opening clears the movement selection.
+  const ownUnit = await activeUnitOfType(page, 'archers');
+  await clickHex(page, ownUnit.position);
+  expect(await page.evaluate(() => window.__heraklios.selectedUnitId())).not.toBeNull();
   await openWarning(page);
+  expect(await page.evaluate(() => window.__heraklios.selectedUnitId())).toBeNull();
   const st = await state(page);
   expect(st.phase).toBe('movement');
 
@@ -89,7 +95,7 @@ test('the warning frames, marks and holds every control; Cancel and the keys ans
   }
   const framed = await camera(page);
   expect(framed.zoom).toBeGreaterThanOrEqual(0.4);
-  expect(framed.zoom).toBeLessThanOrEqual(before.zoom);
+  expect(framed.zoom, 'the framing zoomed out').toBeLessThan(before.zoom);
   expect((await page.evaluate(() => window.__heraklios.hudStrays())).strays).toEqual([]);
 
   // AC12: undo is refused, and a board click selects nothing.
@@ -118,6 +124,36 @@ test('the warning frames, marks and holds every control; Cancel and the keys ans
   await waitIdle(page);
   expect((await state(page)).phase).toBe('combat');
 
+  expect(errors).toEqual([]);
+});
+
+test('the camera stays put when every flagged unit is already in view (seed 1)', async ({ page }) => {
+  // The close-combat position has few units, near each other. Zoomed in on
+  // them, they are in the usable view only if the centre is read correctly
+  // (scroll + half the viewport, not the scroll itself).
+  const errors = await startFromMenu(page, MENU_CLOSE_COMBAT, 'close-combat', 1);
+  const st = await state(page);
+  const flagged = unmovedUnits(st, {});
+  expect(flagged.length).toBeGreaterThan(0);
+  // The flagged row (q 10..28, rows 3 and 7) is centred on q 19; centre one hex off it, so a camera
+  // that panned to the units' centre would show as a change.
+  const middle = { q: 20, r: 5 };
+  await page.evaluate((h) => window.__heraklios.centerOn(h), middle);
+  const box = (await page.locator('canvas').boundingBox())!;
+  await page.mouse.move(box.x + 550, box.y + 375);
+  // Zoom in to about 1: the flagged row (about 640 px wide) still fits the 752 px usable view, with little slack.
+  while ((await camera(page)).zoom <= 0.9) {
+    await page.mouse.wheel(0, -200);
+    await frames(page);
+  }
+  await frames(page);
+  await page.evaluate((h) => window.__heraklios.centerOn(h), middle);
+  await frames(page);
+  const before = await camera(page);
+  expect(before.zoom, 'the wheel zoomed in').toBeGreaterThan(0.9);
+  expect(before.zoom).toBeLessThan(1.05);
+  await openWarning(page);
+  expect(await camera(page)).toEqual(before);
   expect(errors).toEqual([]);
 });
 

@@ -30,7 +30,9 @@ describe('frameBox', () => {
 
   it('treats a box 1 px inside the margin as visible and 1 px over as not', () => {
     const half = (800 - 2 * FRAME_MARGIN) / 2; // 376 at zoom 1, centre 0
-    expect(frameBox({ left: -half, right: half, top: -50, bottom: 50 }, at(1), VIEW)).toEqual(at(1));
+    const cur = at(1);
+    // Identity, not equality: a pan to the (same) centre would be equal but not the same object.
+    expect(frameBox({ left: -half, right: half, top: -50, bottom: 50 }, cur, VIEW)).toBe(cur);
     const over = frameBox({ left: -half, right: half + 1, top: -50, bottom: 50 }, at(1), VIEW);
     expect(over.centerX).toBe(0.5);
     expect(over.zoom).toBeLessThan(1);

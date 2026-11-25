@@ -46,6 +46,8 @@ export class EndMoveWarning {
   private isOpen = false;
   private flagged: Unit[] = [];
   private marks: Phaser.GameObjects.Graphics | null = null;
+  /** The ids a mark was actually drawn for (read by the dev hook). */
+  private markedIds: string[] = [];
   private prompt: Phaser.GameObjects.GameObject[] = [];
   private saved: { zoom: number; scrollX: number; scrollY: number } | null = null;
   private ticked = false;
@@ -93,7 +95,7 @@ export class EndMoveWarning {
     this.saved = this.mapView.cameraView();
     const centres = flagged.map((u) => this.mapView.toScreen(u.position));
     this.mapView.frameWorldBox(boxAround(centres, HEX_SIZE));
-    this.drawMarks(centres);
+    this.drawMarks(flagged, centres);
     this.drawPrompt(flagged.length);
     return true;
   }
@@ -112,23 +114,23 @@ export class EndMoveWarning {
     return {
       open: this.isOpen,
       flagged: this.flagged.map((u) => u.id),
-      // One mark per flagged unit, drawn in one Graphics object.
-      marked: this.marks ? this.flagged.map((u) => u.id) : [],
+      marked: [...this.markedIds],
       switchedOff: [...this.switchedOff],
     };
   }
 
-  private drawMarks(centres: Array<{ x: number; y: number }>): void {
+  private drawMarks(units: Unit[], centres: Array<{ x: number; y: number }>): void {
     const zoom = this.scene.cameras.main.zoom;
     const w = MARK.width / zoom;
     const h = MARK.height / zoom;
     const g = this.scene.add.graphics().setDepth(MARK.depth);
     g.fillStyle(MARK.fill, 1);
     g.lineStyle(MARK.outline / zoom, MARK.line, 1);
-    for (const c of centres) {
+    centres.forEach((c, i) => {
       g.fillRect(c.x - w / 2, c.y - h / 2, w, h);
       g.strokeRect(c.x - w / 2, c.y - h / 2, w, h);
-    }
+      this.markedIds.push(units[i]!.id);
+    });
     this.mapView.keepOffHud([g]);
     this.marks = g;
   }
@@ -194,6 +196,7 @@ export class EndMoveWarning {
   private destroyDrawn(): void {
     this.marks?.destroy();
     this.marks = null;
+    this.markedIds = [];
     for (const o of this.prompt) o.destroy();
     this.prompt = [];
   }

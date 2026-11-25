@@ -574,3 +574,23 @@ Deviations from the plan:
 Mutants: dropping the `otherId` branch of `unmovedUnits` is killed by `unmoved.test.ts`. Replacing `Math.min(fit, current.zoom)` with `fit` in `frameBox` survives, and is an equivalent mutant: the zoom-out branch is reached only when the box does not fit at the current zoom, so `fit < current.zoom` always. The clamp is kept as a defensive guard for B6.6.
 
 Not run: the live check (owed; mark size, colour and prompt height at `PROMPT_HEIGHT = 150` are untuned).
+
+### 2026-11-25 - round 1 rework
+
+Fixed the five "Needs rework" findings (tests, plus one small reader change):
+- **M3:** `end-move-warning.spec.ts` now asserts the framed zoom is strictly below the zoom before.
+- **M2:** a new e2e test zooms to about 0.97 on the close-combat position, centres one hex off the flagged row's middle, and asserts the camera is unchanged after End phase (every flagged unit already in view).
+- **E13:** `EndMoveWarning` keeps `markedIds`, pushed inside the draw loop of `drawMarks`; `snapshot().marked` reports it, so `marked == flagged` proves each mark.
+- **E1:** the e2e selects an own unit (asserts `selectedUnitId()` non-null), clicks End phase, and asserts it is null once the warning is open.
+- **C5/C8:** the "1 px inside the margin" unit test asserts identity (`toBe(cur)`).
+No behaviour changed. The optional LOW items were left alone.
+
+Mutants (backup and restore by copy), each killed:
+- C5 `box.left >=` to `>`: `cameraFraming.test.ts` "treats a box 1 px inside the margin ...".
+- C8 `box.right <=` to `<`: the same test.
+- M3 remove `cam.setZoom(next.zoom)`: e2e test 1 (zoom strictly below).
+- M2 centre = `cam.scrollX`/`cam.scrollY`: e2e "the camera stays put when every flagged unit is already in view". My first version (zoomed far out, then centred on the box centre) let M2 survive, so the test zooms in and centres off the box centre.
+- E13 `centres.slice(0, 1).forEach`: e2e test 1 (`marked` equals `flagged`).
+- E1 `onOpen` made a no-op: e2e test 1 (selection null once open).
+
+Results: `npm run verify` green (106 files, 1775 passed | 2 skipped; lint 18 warnings, cap 18). `npm run check:intent`: `type-check: FAIL ... A live check is owed and not recorded` (the owner's gate, not recorded by me; no other error). `npm run e2e`: 52 passed, 1 failed (`placement.spec.ts` "Turn buttons", the same 30 s timeout as round 0 when run in the full suite; passes alone).
