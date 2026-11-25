@@ -131,6 +131,19 @@ export async function chord(page: Page, mods: string[], key: string): Promise<vo
   await frames(page);
 }
 
+/**
+ * Clicks End phase the way a player would (§83): when that raises the
+ * unmoved-units warning in a human seat's movement phase, answers "End phase
+ * anyway". A no-op difference in the combat phase and when nothing is flagged.
+ */
+export async function endPhase(page: Page): Promise<void> {
+  await clickButton(page, 'End phase');
+  await frames(page);
+  if ((await page.evaluate(() => window.__heraklios.endMoveWarning())).open) {
+    await clickButton(page, 'End phase anyway');
+  }
+}
+
 export async function frames(page: Page): Promise<void> {
   // The camera's transform updates on render; let two frames pass.
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));

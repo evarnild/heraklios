@@ -13,11 +13,11 @@ import { messagesFor } from '../src/ui/i18n/index';
 import {
   MENU_CLOSE_COMBAT,
   activeUnitOfType,
-  clickButton,
   clickHex,
   startFromMenu,
   state,
   waitIdle,
+  endPhase,
 } from './helpers';
 
 const en = messagesFor('en');
@@ -31,7 +31,7 @@ test('the log shows the autosave and the attack being built', async ({ page }) =
   const errors = await startFromMenu(page, MENU_CLOSE_COMBAT, 'close-combat', 1);
   await page.waitForFunction(() => window.__heraklios.logEntries().some((e) => e.text === 'Autosaved.'));
 
-  await clickButton(page, 'End phase');
+  await endPhase(page);
   await waitIdle(page);
   const st = await state(page);
   expect(st.phase).toBe('combat');

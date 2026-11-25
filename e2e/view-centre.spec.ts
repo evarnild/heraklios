@@ -3,7 +3,7 @@
 // target with the same pure function the game uses, from the dev hook's state.
 import { expect, test, type Page } from '@playwright/test';
 import { landUnitsCentre, nearestHex } from '../src/ui/viewCentre';
-import { MENU_TEST, clickButton, startFromMenu, state, waitIdle } from './helpers';
+import { MENU_TEST, startFromMenu, state, waitIdle, endPhase } from './helpers';
 
 const HEX_WIDTH = 44; // 2 * HEX_SIZE, at the default zoom of 1
 
@@ -47,10 +47,10 @@ test('the view follows the active player', async ({ page }) => {
   expect(await offsetFromBestView(page, p1), 'player 1 centred when the Board opens').toBeLessThanOrEqual(HEX_WIDTH);
 
   const before = await distanceToView(page, p2);
-  await clickButton(page, 'End phase');
+  await endPhase(page);
   await waitIdle(page);
   expect((await state(page)).phase).toBe('combat');
-  await clickButton(page, 'End phase');
+  await endPhase(page);
   await waitIdle(page);
   const after = await state(page);
   expect(after.phase).toBe('movement');

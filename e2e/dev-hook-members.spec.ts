@@ -17,6 +17,7 @@ const MEMBERS = [
   'centerOn',
   'displayListSorted',
   'driftArrow',
+  'endMoveWarning',
   'hexToCanvas',
   'hudStrays',
   'idle',

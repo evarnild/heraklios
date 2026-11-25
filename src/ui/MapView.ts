@@ -3,6 +3,7 @@ import { scanCameras, type CameraObject, type CameraScan } from './cameraStrays'
 import type { HexCoord } from '../data/map';
 import { HEX_SIZE, hexToPixel } from './hexRender';
 import { allHexes } from './mapBounds';
+import { MAX_ZOOM, MIN_ZOOM, frameBox, type Box, type CameraView } from './cameraFraming';
 import { formatHexTooltip } from './hexTooltip';
 import { hexAtPoint } from './hexHitTest';
 import { StandardBoardView } from './standardBoardView';
@@ -247,8 +248,6 @@ export class MapView {
    * a trackpad is reported by the browser as wheel events). */
   private enableZoom(): void {
     const cam = this.scene.cameras.main;
-    const MIN_ZOOM = 0.4;
-    const MAX_ZOOM = 2.5;
 
     this.scene.input.on(
       'wheel',
@@ -452,6 +451,40 @@ export class MapView {
   centerOn(hex: HexCoord): void {
     const p = this.toScreen(hex);
     this.scene.cameras.main.centerOn(p.x, p.y);
+  }
+
+  /** The main camera's zoom and scroll, to restore later (§83). */
+  cameraView(): CameraView {
+    const cam = this.scene.cameras.main;
+    return { zoom: cam.zoom, scrollX: cam.scrollX, scrollY: cam.scrollY };
+  }
+
+  /** Puts the main camera back as `cameraView()` read it (zoom first: the bounds clamp depends on it). */
+  setCameraView(view: CameraView): void {
+    const cam = this.scene.cameras.main;
+    cam.setZoom(view.zoom);
+    cam.setScroll(view.scrollX, view.scrollY);
+  }
+
+  /**
+   * Moves the main camera the least that shows a world box (§83, `frameBox`).
+   * The centre is `scroll + viewport / 2` (Phaser's `centerOn`); the zoom is
+   * set before `centerOn`, because the bounds clamp depends on it.
+   */
+  frameWorldBox(box: Box): void {
+    const cam = this.scene.cameras.main;
+    const next = frameBox(
+      box,
+      { zoom: cam.zoom, centerX: cam.scrollX + cam.width * 0.5, centerY: cam.scrollY + cam.height * 0.5 },
+      { width: cam.width, height: cam.height },
+    );
+    cam.setZoom(next.zoom);
+    cam.centerOn(next.centerX, next.centerY);
+  }
+
+  /** Keeps world objects created later off the HUD camera (they stay on the main one). */
+  keepOffHud(objects: Phaser.GameObjects.GameObject[]): void {
+    this.uiCamera?.ignore(objects);
   }
 
   /** Like `centerOn`, for a point in `hexToPixel` space (the camera's bounds clamp it). */

@@ -111,6 +111,31 @@ describe('list wording', () => {
   });
 });
 
+describe('End-phase warning text (§83)', () => {
+  it('counts the unmoved units in both languages', () => {
+    expect(messagesFor('en').board.unmovedCount(1)).toBe('1 unit has not moved yet.');
+    expect(messagesFor('en').board.unmovedCount(3)).toBe('3 units have not moved yet.');
+    expect(messagesFor('fr').board.unmovedCount(1)).toBe('1 unité n’a pas encore bougé.');
+    expect(messagesFor('fr').board.unmovedCount(3)).toBe('3 unités n’ont pas encore bougé.');
+  });
+
+  it('draws the switch-off box ticked and unticked', () => {
+    expect(messagesFor('en').board.warnOff(true)).toBe("☒ Don't warn me again this game");
+    expect(messagesFor('en').board.warnOff(false)).toBe("☐ Don't warn me again this game");
+    expect(messagesFor('fr').board.warnOff(true)).toBe('☒ Ne plus m’avertir pendant cette partie');
+  });
+
+  it('words the pending-choice refusals as a choice, not a retreat or drift', () => {
+    for (const lang of ['en', 'fr'] as Language[]) {
+      const log = messagesFor(lang).log;
+      for (const text of [log.resolvePendingSave, log.resolvePendingEnd, log.resolvePendingUndo, log.resolvePendingRedo, log.resolvePendingAttack, log.resolvePendingPhase]) {
+        expect(text).toMatch(lang === 'en' ? /choice/ : /choix/);
+        expect(text).not.toMatch(/retreat|drift|retraite|dérive/);
+      }
+    }
+  });
+});
+
 describe('message tables', () => {
   it('have the same messages in both languages', () => {
     expect([...table('fr').keys()]).toEqual([...table('en').keys()]);

@@ -83,6 +83,7 @@ import {
 } from '../data/navalRamming';
 import { BOARDING_RATIO_COLUMNS } from '../data/navalBoarding';
 import { bindUndoRedoKeys, onKeyOnce } from '../ui/shortcutKeys';
+import { EndMoveWarning } from '../ui/endMoveWarning';
 
 /** Width of the left-hand HUD panel (buttons, phase status, combat log),
  * reserved outside the map's own viewport — see `MapView`'s `leftPanelWidth`. */
@@ -308,6 +309,8 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
   private logPanel!: LogPanel;
   /** The Tables panel (§55); non-modal, so the board keeps working under it. */
   private rulesPanel!: RulesPanel;
+  /** §83: the End-phase warning; while open it holds decisionPending, so every pending-choice guard covers it. */
+  private endMoveWarning!: EndMoveWarning;
   private tablesBtn!: Phaser.GameObjects.Text;
   /** Every message the Board logged this game (§49); recreated in `resetSceneState`. */
   private logHistory = new LogHistory();
@@ -447,6 +450,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.dropCombat();
     this.logHistory = new LogHistory();
     this.rulesPanel?.reset();
+    this.endMoveWarning?.reset();
     this.history = new History();
     this.navalContacts = [];
     this.rammedThisTurn = new Set();
@@ -727,6 +731,7 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
     this.logPanel = createLogPanel(this, this.mapView, logPanelBounds(height, PANEL_WIDTH));
     this.rulesPanel = new RulesPanel(this, { onObjectsCreated: (objects) => this.mapView.excludeFromMainCamera(objects) });
     const scorePanel = createScorePanel(this, this.mapView);
+    this.endMoveWarning = new EndMoveWarning(this, this.mapView, (on) => (this.decisionPending = on), (text) => this.log(text));
     this.mapView.pointerBlocked = (x, y) => this.logPanel.contains(x, y) || this.rulesPanel.contains(x, y) || scorePanel.contains(x, y);
 
     this.mapView.pinUIObjects([
@@ -2572,10 +2577,15 @@ export class BoardScene extends Phaser.Scene implements PlayerAgent, ActionObser
       this.log(messages().log.resolvePendingPhase);
       return;
     }
-    this.commitEndPhase();
-    // A human handing off to an AI seat is the ordinary way an AI turn
-    // starts; a no-op when the next seat is human too.
-    this.maybeStartAiTurn();
+    const end = (): void => {
+      this.commitEndPhase();
+      // A human handing off to an AI seat is the ordinary way an AI turn
+      // starts; a no-op when the next seat is human too.
+      this.maybeStartAiTurn();
+    };
+    // §83 B3: a human seat's movement phase with units that could still move asks first.
+    const context = { attackedThisPhase: this.attackedThisPhase, rammedThisTurn: this.rammedThisTurn };
+    if (!this.endMoveWarning.open(this.state(), context, end, () => this.deselectMovement())) end();
   }
 
   /** The phase change itself, with none of the click-path guards — shared by
