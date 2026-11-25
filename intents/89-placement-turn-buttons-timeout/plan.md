@@ -172,3 +172,42 @@ Mutant for the implementer to run, and the coordinator to re-run: swap
 <!-- The implementer appends here, one entry per phase: date, commits, what
 shipped, test counts, anything that diverged from the plan. Nothing above
 this line is the implementer's to edit. -->
+
+### 2026-11-25 — all subtasks (commits f6fe7e6, 02c1be1, plus this entry)
+
+- **Subtask 1 (measured first).** `test.step` wrapping (f6fe7e6), then
+  `--repeat-each=5` (2 workers; timeout 30 s per test, as configured).
+  - Quiet, before: 4 of 5 `timedOut` (37.6, 37.7, 60.0, 60.0 s total incl.
+    teardown; the land step was cut off at ~28-31 s), 1 passed at 22.8 s
+    (build armies 0.6 s, place land units 17.2 s, place ships 2.0 s). The
+    machine was already busy, so "quiet" was not quiet; the plan's 8.8-14 s
+    was not reproduced.
+  - Loaded (`npx vitest run` alongside), before: 4 of 5 `timedOut` (49.4,
+    52.5, 60.0, 60.0 s; land step 27.5-29.0 s), 1 passed at 37.3 s (land
+    24.9 s, ships 2.1 s).
+  - "place land units" dominates in every run (about 17-31 s against 0.5-0.7 s
+    for the builds and about 2 s for the ships), so the plan stands.
+- **Subtask 2 (02c1be1).** Seat 0's seven `»` clicks, addressed by
+  `UNIT_TYPES.findIndex`, then `armyBuilder().total === 400`. Every fill gave
+  the plan's table (the assertion passed in all runs), so no click list
+  adjustment. Seat 1 keeps the default army; the timeout, workers, `placeShip`
+  and all assertions are unchanged.
+- **Subtask 3 (after).** `--repeat-each=5`, all passed.
+  - Quiet: totals 11.4, 10.9, 10.5, 10.4, 4.7 s (land 4.7-4.9 s except 1.6 s on
+    the fastest; build 0.5-1.0 s; ships 0.7-2.8 s).
+  - Loaded: 14.0, 13.3, 11.0, 9.4, 12.4 s (land 3.8-5.2 s; ships 1.4-2.8 s).
+  - Divergence: the "under 10 s" quiet target is met only in some runs (4.7 s
+    best, about 10.4-11.4 s typical here, on a machine that was not idle).
+    The worst loaded run is 14.0 s against the 30 s cap, a 2x margin
+    (before: 37-60 s). Not stopped on, since the fix is in place and the
+    margin is wide; the owner may want a tighter target.
+- **Subtask 4: five full `npm run e2e` runs, each with `npx vitest run`
+  alongside.** Run 1: 46 passed. Run 2: 45 passed, 1 failed
+  (`save-load.spec.ts:57`, the known §86 flake, not this scenario). Runs 3-5:
+  46 passed each. The placement scenario passed in all five.
+- **Mutant** (`clickButton(page, 'Turn', 1 - turn)` in `placeShip`, restored by
+  copy): the scenario fails at the left-Turn assertion (`Expected: 1,
+  Received: 5`). The right-Turn assertion is not reached, because the test
+  stops at the first failed `expect`; so one of the two facing assertions
+  reports, the second is guarded only by being the same code path.
+- **`npm run verify`, `npm run check:intent`:** see the final report.
