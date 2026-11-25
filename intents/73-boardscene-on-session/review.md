@@ -175,6 +175,28 @@ None new. Carried from rounds 1–2, LOW, no rework:
   byte-identical;
 - the owner's recorded live check.
 
+## KonMari check
+**Second pass, after the rebase. Outcome: nothing to tidy** (record commit
+`a4e31f1`, base `09354a9`).
+- **Scope.** It covered the commits after the rebased first-pass record
+  (`2e20861`): `c53a092` (the fixture moves, test data only) and the
+  Progress, round-start and review commits.
+- **Why nothing.** `singlePush()` is a different position from
+  `gameSession.test.ts`'s `pushPosition()` (no friend at (1,18), three more
+  naval boxes), so it isn't a duplicate. A shared builder is the first pass's
+  proposed "one set of session test helpers" refactor.
+- **Rewritten hashes.** The record now gives the first pass's tidy-up commits
+  under their rebased hashes:
+  - `f865bce` → `81d720a`
+  - `ff24f1a` → `ca21a69`
+  - `e4db807` → `fdd98a4`
+
+  The top-level `outcome: kept` is unchanged.
+- **Coordinator, re-run:** no B16 item applies. The second pass committed no
+  code (`git log 09354a9..a4e31f1` touches only `konmari.md`), so this round's
+  verify, e2e and mutant results stand.
+- **Reviewer's read:** not run, as there are no tidy-up commits in this pass.
+
 # Round 2 (history)
 
 - verdict: attest
