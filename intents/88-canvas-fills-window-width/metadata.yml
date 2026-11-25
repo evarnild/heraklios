@@ -13,7 +13,7 @@ merged:
 konmari:
 auto_authorized: 2026-11-24 by-agent    # owner: "spec accepted 88 /auto 88"
 auto_round: 3
-auto_stopped:
+auto_stopped: live check owed
 follows_up:
 links:
   - intents/73-boardscene-on-session
