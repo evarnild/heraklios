@@ -168,6 +168,23 @@ being placed has full movement and equipment. An empty hex shows its one line
 as before. In Placement, hovering also shows earlier players' placed units
 (the rules hide nothing). The labels are in English and French.
 
+On the Board, each unit also carries a small mark on its counter (or its
+figure in the Drawn view), always on and the same for human and computer seats.
+In the top-left corner a dot says what the unit has done this phase. In the
+movement phase, for the active player's units: a solid green dot is not moved
+yet (the plain fact: a unit boxed in by an enemy's zone of control keeps it), a
+half-filled amber dot has spent some of its movement (a ship that only turned
+has), and an empty grey ring is done (nothing left). In the combat phase, for
+the active player's units: a green dot with a sword can attack (it has a legal
+target, by the engine's own legality test), a grey dot with a tick has
+attacked (a ship that rammed this turn counts, since it cannot also board),
+and a unit with no target shows nothing. A red dot with a cross marks any
+player's unit that was attacked this combat phase; it is gone once the phase
+ends. A cavalry unit that has charged also shows a yellow chevron in the
+top-right corner, through the movement and combat phases. The marks follow
+their counter through a slide, lunge or fade and change at once; Placement has
+none. They are drawn from the engine's `unitStatuses` and change no rule.
+
 ### Saving and loading
 
 The Board's **💾 Save / Load** button opens a panel with six save slots plus a

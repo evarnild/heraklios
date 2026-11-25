@@ -24,6 +24,17 @@ export interface UnitDrawing {
   charged?: true;
 }
 
+/**
+ * Dev-hook reading (§82): what a view shows for one unit's marker, and where
+ * the mark and its counter are drawn (equal while the mark rides its counter).
+ */
+export interface UnitMark {
+  status?: UnitActivity;
+  charged: boolean;
+  mark: { x: number; y: number } | null;
+  counter: { x: number; y: number };
+}
+
 /** True when two drawings differ in what the mark shows (§82). */
 export function sameMark(a: UnitDrawing, b: UnitDrawing): boolean {
   return a.status === b.status && a.charged === b.charged;
@@ -101,6 +112,9 @@ export interface UnitFigure {
 export interface BoardView {
   /** Draws exactly these units, reconciled by id (see `reconcileUnits`). */
   setUnits(units: readonly UnitDrawing[], motion?: UnitMotion): void;
+
+  /** Dev-hook reader (§82): the marker each drawn unit is showing, by id. */
+  unitMarks(): Record<string, UnitMark>;
 
   /** Brings every unit to its final drawing at once, the whole animation queue
    * (B9). Optional: a view with nothing to animate has nothing to finish. */

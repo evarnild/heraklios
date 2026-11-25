@@ -1,10 +1,11 @@
 import type Phaser from 'phaser';
 import { reconcileUnits, sameMark, unitAlpha } from './boardView';
-import type { UnitDrawing, UnitFigure, UnitMotion, ViewHost } from './boardView';
+import type { UnitDrawing, UnitFigure, UnitMark, UnitMotion, ViewHost } from './boardView';
 import { planAnimation } from './animationPlan';
 import { animationSpeed } from './animationSpeed';
 import { facingAngleRad } from './hexRender';
 import { UnitAnimator } from './unitAnimator';
+import { drawStatusMark } from './unitMarkGraphics';
 
 /** A figure the layer owns: what the motions need, plus the display objects it is made of. */
 export interface LayerFigure extends UnitFigure {
@@ -13,6 +14,8 @@ export interface LayerFigure extends UnitFigure {
   destroy(): void;
   /** §82: shows the unit's phase marker at once, whatever the figure is animating. */
   setStatus?(status: UnitDrawing['status'], charged: boolean): void;
+  /** Where the mark is drawn (dev-hook reading). */
+  markAt?(): { x: number; y: number };
 }
 
 /**
@@ -25,6 +28,7 @@ export interface LayerFigure extends UnitFigure {
 export function jointFigure(
   lead: Phaser.GameObjects.Image | Phaser.GameObjects.Text,
   follower: Phaser.GameObjects.Graphics | null,
+  badge: Phaser.GameObjects.Graphics | null = null,
 ): LayerFigure {
   return {
     get active() {
@@ -42,16 +46,24 @@ export function jointFigure(
     setPosition(x, y) {
       lead.setPosition(x, y);
       follower?.setPosition(x, y);
+      badge?.setPosition(x, y);
     },
     setAlpha(alpha) {
       lead.setAlpha(alpha);
       follower?.setAlpha(alpha);
+      badge?.setAlpha(alpha);
     },
+    // §82: a second follower that never turns (it is not the `facingPart`), above the counter and its facing mark.
+    setStatus: (status, charged) => {
+      if (badge) drawStatusMark(badge, status, charged);
+    },
+    markAt: () => ({ x: badge?.x ?? lead.x, y: badge?.y ?? lead.y }),
     facingPart: follower,
-    objects: () => (follower ? [lead, follower] : [lead]),
+    objects: () => [lead, ...(follower ? [follower] : []), ...(badge ? [badge] : [])],
     destroy() {
       lead.destroy();
       follower?.destroy();
+      badge?.destroy();
     },
   };
 }
@@ -100,6 +112,20 @@ export class UnitLayer<F extends LayerFigure> {
   /** The figures of the units now drawn, by id (not the fading ones). */
   figures(): ReadonlyMap<string, F> {
     return new Map([...this.units].map(([id, u]) => [id, u.figure]));
+  }
+
+  /** Dev-hook reader (§82): the marker each figure was last told to show, and where it is drawn. */
+  marks(): Record<string, UnitMark> {
+    const out: Record<string, UnitMark> = {};
+    for (const [id, { drawing, figure }] of this.units) {
+      out[id] = {
+        status: drawing.status,
+        charged: drawing.charged === true,
+        mark: figure.markAt?.() ?? null,
+        counter: { x: figure.x, y: figure.y },
+      };
+    }
+    return out;
   }
 
   objects(): Phaser.GameObjects.GameObject[] {

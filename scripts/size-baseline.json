@@ -2,6 +2,6 @@
   "src/engine/combat.ts": 1135,
   "src/engine/fuzzHarness.ts": 1275,
   "src/engine/heuristicAgent.ts": 1065,
-  "src/scenes/BoardScene.ts": 2833,
+  "src/scenes/BoardScene.ts": 2825,
   "src/scenes/PlacementScene.ts": 526
 }

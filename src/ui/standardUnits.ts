@@ -7,6 +7,8 @@ import type { LayerFigure } from './unitLayer';
 
 /** Depth of a ship's facing mark: over every counter (10), under the hex rings (11), as the one shared arrow layer always drew. */
 const MARK_DEPTH = 10.5;
+/** §82: the phase marker sits over the facing mark, still under the hex rings (11). */
+const STATUS_DEPTH = 10.6;
 
 /**
  * Makes the Standard view's figure for one unit: the physical-counter image
@@ -54,6 +56,7 @@ export function makeStandardFigure(host: ViewHost, unit: UnitDrawing): LayerFigu
     mark.setRotation(facingAngleRad(unit.facing));
   }
   // Counters made after pinUIObjects ran once at scene setup stay off the fixed HUD camera too.
-  host.ignoreOnUiCamera(mark ? [counter, mark] : counter);
-  return jointFigure(counter, mark);
+  const badge = scene.add.graphics().setDepth(STATUS_DEPTH).setPosition(center.x, center.y);
+  host.ignoreOnUiCamera(mark ? [counter, mark, badge] : [counter, badge]);
+  return jointFigure(counter, mark, badge);
 }

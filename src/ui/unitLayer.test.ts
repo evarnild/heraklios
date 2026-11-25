@@ -258,6 +258,22 @@ describe('jointFigure', () => {
     expect([lead.destroyed, follower.destroyed]).toEqual([true, true]);
   });
 
+  it('a status badge moves, fades and is destroyed with the figure, and never turns (§82 AC6)', () => {
+    const lead = obj();
+    const follower = obj();
+    const badge = obj();
+    const f = jointFigure(lead as never, follower as never, badge as never);
+    f.setPosition(5, 6);
+    f.setAlpha(0.4);
+    expect([badge.x, badge.y, badge.alpha]).toEqual([5, 6, 0.4]);
+    expect(f.facingPart).toBe(follower);
+    f.facingPart!.setRotation(1);
+    expect(badge.rotated).toBe(0);
+    expect(f.objects()).toEqual([lead, follower, badge]);
+    f.destroy();
+    expect(badge.destroyed).toBe(true);
+  });
+
   it('with no follower there is no facing part', () => {
     const lead = obj();
     const f = jointFigure(lead as never, null);
